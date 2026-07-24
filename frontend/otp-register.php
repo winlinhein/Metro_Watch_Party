@@ -79,7 +79,7 @@
             </div>
             <?php endif; ?>
 
-            <form action="../backend/otp-login_backend.php?action=verify_otp_login" method="POST" class="space-y-6" id="otpForm">
+            <form action="../backend/otp-register_backend.php?action=verify_otp_login" method="POST" class="space-y-6" id="otpForm">
                 
                 <!-- OTP Inputs (Hidden actual input, visible separate inputs) -->
                 <input type="hidden" name="otp" x-model="otpCode">

@@ -87,6 +87,15 @@
         <!-- Login Card -->
         <div class="glass-card rounded-2xl p-8 gs-reveal" id="glass-card">
             
+            <!-- Success Message Banner -->
+            <?php if (isset($_GET['success'])): ?>
+            <div class="bg-emerald-500/10 border border-emerald-500/50 text-emerald-400 p-3 rounded-lg mb-6 text-sm flex items-center gap-2 gs-error">
+                <span class="material-symbols-outlined text-[20px]">check_circle</span>
+                <span><?= htmlspecialchars(urldecode($_GET['success'])) ?></span>
+            </div>
+            <?php endif; ?>
+
+            <!-- Error Message Banner -->
             <?php if (isset($_GET['error'])): ?>
             <div class="bg-nexus-danger/10 border border-nexus-danger/50 text-nexus-danger p-3 rounded-lg mb-6 text-sm flex items-center gap-2 gs-error">
                 <span class="material-symbols-outlined text-[20px]">error</span>
@@ -94,7 +103,8 @@
             </div>
             <?php endif; ?>
 
-            <form action="../backend/backend.php?action=login" method="POST" class="space-y-6">
+            <!-- Form with novalidate so custom JS modal handles all validation -->
+            <form action="../backend/login_backend.php" method="POST" class="space-y-6" id="loginForm" onsubmit="return validateLoginForm()" novalidate>
                 
                 <!-- Email Field -->
                 <div class="floating-label-group gs-stagger">
@@ -198,7 +208,121 @@
         </div>
     </main>
 
+    <!-- Error Modal Popup -->
+    <div id="errorModal" onclick="closeErrorModalOnBackdrop(event)" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md hidden opacity-0 transition-opacity duration-300">
+        <div id="errorModalCard" class="w-full max-w-sm glass-card p-6 rounded-2xl border border-red-500/30 bg-[#0a0a0c] text-center shadow-[0_0_50px_rgba(220,38,38,0.25)] transform scale-95 transition-transform duration-300">
+            <div class="w-12 h-12 bg-red-600/15 text-red-500 rounded-full flex items-center justify-center mx-auto mb-3 border border-red-500/30">
+                <span class="material-symbols-outlined text-2xl">warning</span>
+            </div>
+            <h3 class="text-lg font-bold text-white uppercase tracking-wider mb-2">Notice</h3>
+            
+            <!-- Error Bullet List -->
+            <ul id="errorList" class="text-xs text-red-300 space-y-2 my-4 text-left bg-red-950/20 p-3.5 rounded-xl border border-red-900/40">
+                <!-- Injected via JS -->
+            </ul>
+
+            <button type="button" onclick="closeErrorModal()" class="w-full bg-gradient-to-r from-red-600 to-indigo-600 text-white font-black text-xs uppercase tracking-widest py-3 rounded-xl hover:shadow-[0_0_20px_rgba(220,38,38,0.4)] transition-all">
+                Dismiss
+            </button>
+        </div>
+    </div><!-- Error Modal Popup -->
+    <div id="errorModal" onclick="closeErrorModalOnBackdrop(event)" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md hidden opacity-0 transition-opacity duration-300">
+        <div id="errorModalCard" class="w-full max-w-sm glass-card p-6 rounded-2xl border border-red-500/30 bg-[#0a0a0c] text-center shadow-[0_0_50px_rgba(220,38,38,0.25)] transform scale-95 transition-transform duration-300">
+            <div class="w-12 h-12 bg-red-600/15 text-red-500 rounded-full flex items-center justify-center mx-auto mb-3 border border-red-500/30">
+                <span class="material-symbols-outlined text-2xl">warning</span>
+            </div>
+            <h3 class="text-lg font-bold text-white uppercase tracking-wider mb-2">Notice</h3>
+            
+            <!-- Error Bullet List -->
+            <ul id="errorList" class="text-xs text-red-300 space-y-2 my-4 text-left bg-red-950/20 p-3.5 rounded-xl border border-red-900/40">
+                <!-- Injected via JS -->
+            </ul>
+
+            <button type="button" onclick="closeErrorModal()" class="w-full bg-gradient-to-r from-red-600 to-indigo-600 text-white font-black text-xs uppercase tracking-widest py-3 rounded-xl hover:shadow-[0_0_20px_rgba(220,38,38,0.4)] transition-all">
+                Dismiss
+            </button>
+        </div>
+    </div>
+
     <!-- GSAP Animations & Interactions -->
     <script src="animations.js"></script>
+    <script>
+        // Client-side Login Form Validation
+        function validateLoginForm() {
+            let errors = [];
+            let email = document.getElementById('email').value.trim();
+            let password = document.getElementById('password').value;
+
+            // Email check
+            const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+            if (email.length === 0) {
+                errors.push('Email address is required.');
+            } else if (!emailPattern.test(email)) {
+                errors.push('Please enter a valid email address.');
+            }
+
+            // Password check
+            if (password.length === 0) {
+                errors.push('Password is required.');
+            }
+
+            // Trigger custom error modal if validation fails
+            if (errors.length > 0) {
+                showErrorModal(errors);
+                return false;
+            }
+
+            return true;
+        }
+
+        function showErrorModal(errors) {
+            const modal = document.getElementById('errorModal');
+            const card = document.getElementById('errorModalCard');
+            const list = document.getElementById('errorList');
+
+            // Populate errors
+            list.innerHTML = errors.map(err => `
+                <li class="flex items-start gap-2">
+                    <span class="material-symbols-outlined text-[16px] text-red-400 mt-0.5">error</span>
+                    <span>${err}</span>
+                </li>
+            `).join('');
+
+            // Show modal with smooth transition
+            modal.classList.remove('hidden');
+            setTimeout(() => {
+                modal.classList.remove('opacity-0');
+                card.classList.remove('scale-95');
+            }, 10);
+        }
+
+        function closeErrorModal() {
+            const modal = document.getElementById('errorModal');
+            const card = document.getElementById('errorModalCard');
+
+            modal.classList.add('opacity-0');
+            card.classList.add('scale-95');
+            setTimeout(() => {
+                modal.classList.add('hidden');
+            }, 300);
+        }
+
+        function closeErrorModalOnBackdrop(event) {
+            if (event.target.id === 'errorModal') {
+                closeErrorModal();
+            }
+        }
+
+        // Automatically display PHP backend errors in the modal on page load
+        document.addEventListener('DOMContentLoaded', () => {
+            const urlParams = new URLSearchParams(window.location.search);
+            if (urlParams.has('error')) {
+                const serverError = urlParams.get('error');
+                if (serverError) {
+                    showErrorModal([decodeURIComponent(serverError)]);
+                }
+            }
+        });
+    </script>
 </body>
 </html>

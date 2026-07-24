@@ -85,7 +85,7 @@
             </div>
             <?php endif; ?>
 
-            <form action="../../backend/register_backend.php?action=register" method="POST" class="space-y-5" id="registerForm" onsubmit="return validateRegistrationForm();" novalidate>
+            <form action="../backend/register_backend.php?action=register" method="POST" class="space-y-5" id="registerForm" onsubmit="return validateRegistrationForm();" novalidate>
                 
                 <!-- Name Field -->
                 <div class="floating-label-group gs-stagger">
@@ -205,6 +205,20 @@
     <script src="animations.js"></script>
     <script>
         document.addEventListener('DOMContentLoaded', () => {
+
+             // Check if there is an error parameter in the URL from PHP redirect
+            const urlParams = new URLSearchParams(window.location.search);
+            const phpError = urlParams.get('error');
+
+            if (phpError) {
+                // Trigger the modal automatically with the PHP error message
+                showErrorModal([phpError]);
+                
+                // (Optional) Clean up the query parameter from the URL without refreshing page
+                const newUrl = window.location.pathname;
+                window.history.replaceState({}, document.title, newUrl);
+            }
+
             const tl = gsap.timeline({ defaults: { ease: 'expo.out' } });
             tl.fromTo("#branding", 
                 { y: -50, opacity: 0, scale: 0.9 },
@@ -272,7 +286,8 @@
             }
 
             // Email
-            const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+            // Enforces standard local format, a domain, and an alphabetic TLD (2 to 10 letters)
+            const emailPattern = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,10}$/;
             if (email.trim().length === 0) {
                 errors.push('Email address is required.');
             } else if (!emailPattern.test(email)) {
@@ -342,10 +357,10 @@
         function handleOTPNavigation(event) {
             if (event) event.preventDefault();
 
-            // 1. Check if all form fields pass validation
+            // 1. Validate inputs client-side
             if (validateRegistrationForm()) {
-                // 2. Redirect to the OTP verification page
-                window.location.href = 'otp-login.php';
+                // 2. Submit form to register_backend.php via POST
+                document.getElementById('registerForm').submit();
             }
         }
     </script>
