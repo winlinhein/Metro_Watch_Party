@@ -28,11 +28,19 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
     }
 
     if (empty($_POST['email'])) {
-        $emailErr = "Email is required";
+    $emailErr = "Email is required";
     } elseif (!filter_var($_POST["email"], FILTER_VALIDATE_EMAIL)) {
         $emailErr = "Invalid email format";
     } else {
-        $email = test_input($_POST['email']);
+        $cleanEmail = test_input($_POST['email']);
+        $domain = substr(strrchr($cleanEmail, "@"), 1);
+
+        // Verify if the domain actually exists and has active mail servers (MX records)
+        if (!checkdnsrr($domain, "MX") && !checkdnsrr($domain, "A")) {
+            $emailErr = "The email domain '$domain' does not exist or cannot receive mail.";
+        } else {
+            $email = $cleanEmail;
+        }
     }
 
     if (empty($_POST['password'])) {

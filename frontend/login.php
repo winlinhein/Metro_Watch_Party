@@ -196,9 +196,122 @@
             <span>V.4.2.0-STABLE</span>
             <span class="flex items-center gap-2">Ready <div class="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse shadow-[0_0_8px_rgba(34,197,94,0.8)]"></div></span>
         </div>
+
+        <!-- Error Modal Popup -->
+        <div id="errorModal" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md hidden opacity-0 transition-opacity duration-300">
+            <div id="errorModalCard" class="w-full max-w-sm glass-card p-6 rounded-2xl border border-red-500/30 bg-[#0a0a0c] text-center shadow-[0_0_50px_rgba(220,38,38,0.25)] transform scale-95 transition-transform duration-300">
+                <div class="w-12 h-12 bg-red-600/15 text-red-500 rounded-full flex items-center justify-center mx-auto mb-3 border border-red-500/30">
+                    <span class="material-symbols-outlined text-2xl">warning</span>
+                </div>
+                <h3 class="text-lg font-bold text-white uppercase tracking-wider mb-2">Notice</h3>
+                
+                <!-- Error Bullet List -->
+                <ul id="errorList" class="text-xs text-red-300 space-y-2 my-4 text-left bg-red-950/20 p-3.5 rounded-xl border border-red-900/40">
+                    <!-- Injected via JS -->
+                </ul>
+
+                <button type="button" onclick="closeErrorModal()" class="w-full bg-gradient-to-r from-red-600 to-indigo-600 text-white font-black text-xs uppercase tracking-widest py-3 rounded-xl hover:shadow-[0_0_20px_rgba(220,38,38,0.4)] transition-all">
+                    Dismiss
+                </button>
+            </div>
+        </div>
     </main>
 
     <!-- GSAP Animations & Interactions -->
     <script src="animations.js"></script>
+    <script>
+        function validateRegistrationForm() {
+            let errors = [];
+            let name = document.getElementById('name').value;
+            let email = document.getElementById('email').value;
+            let password = document.getElementById('password').value;
+            let terms = document.getElementById('terms').checked;
+
+            // Name
+            const namePattern = /^[a-zA-Z\s]+$/;
+            if (name.trim().length === 0) {
+                errors.push('Full Name is required.');
+            } else if (!namePattern.test(name)) {
+                errors.push('Full Name can only contain letters and spaces.');
+            }
+
+            // Email
+            const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+            if (email.trim().length === 0) {
+                errors.push('Email address is required.');
+            } else if (!emailPattern.test(email)) {
+                errors.push('Email address format is invalid.');
+            }
+
+            // Password
+            let password_criteria = [];
+            if (password.length === 0) {
+                errors.push('Password is required.');
+            } else {
+                if (password.length < 8) password_criteria.push("8+ characters");
+                if (!/[A-Z]/.test(password)) password_criteria.push("1 uppercase letter");
+                if (!/[a-z]/.test(password)) password_criteria.push("1 lowercase letter");
+                if (!/[0-9]/.test(password)) password_criteria.push("1 number");
+                if (!/[!@#$%^&*(),.?\":{}|]/.test(password)) password_criteria.push("1 special character");
+
+                if (password_criteria.length > 0) {
+                    errors.push('Password missing: ' + password_criteria.join(', '));
+                }
+            }
+
+            // Terms Checkbox
+            if (!terms) {
+                errors.push('You must accept the Terms of Service.');
+            }
+
+            // Show Modal if errors exist
+            if (errors.length > 0) {
+                showErrorModal(errors);
+                return false;
+            }
+
+            return true;
+        }
+
+        function showErrorModal(errors) {
+            const modal = document.getElementById('errorModal');
+            const card = document.getElementById('errorModalCard');
+            const list = document.getElementById('errorList');
+
+            list.innerHTML = errors.map(err => `
+                <li class="flex items-start gap-2">
+                    <span class="material-symbols-outlined text-[16px] text-red-400 mt-0.5">error</span>
+                    <span>${err}</span>
+                </li>
+            `).join('');
+
+            modal.classList.remove('hidden');
+            setTimeout(() => {
+                modal.classList.remove('opacity-0');
+                card.classList.remove('scale-95');
+            }, 10);
+        }
+
+        function closeErrorModal() {
+            const modal = document.getElementById('errorModal');
+            const card = document.getElementById('errorModalCard');
+
+            modal.classList.add('opacity-0');
+            card.classList.add('scale-95');
+            setTimeout(() => {
+                modal.classList.add('hidden');
+            }, 300);
+        }
+
+        function handleOTPNavigation(event) {
+            if (event) event.preventDefault();
+
+            // 1. Validate inputs client-side
+            if (validateRegistrationForm()) {
+                // 2. Submit form to register_backend.php via POST
+                document.getElementById('registerForm').submit();
+            }
+        }
+    </script>
 </body>
 </html>

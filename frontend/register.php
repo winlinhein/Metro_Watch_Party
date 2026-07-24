@@ -272,7 +272,8 @@
             }
 
             // Email
-            const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+            // Enforces standard local format, a domain, and an alphabetic TLD (2 to 10 letters)
+            const emailPattern = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,10}$/;
             if (email.trim().length === 0) {
                 errors.push('Email address is required.');
             } else if (!emailPattern.test(email)) {
