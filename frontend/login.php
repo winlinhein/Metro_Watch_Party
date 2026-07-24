@@ -87,6 +87,15 @@
         <!-- Login Card -->
         <div class="glass-card rounded-2xl p-8 gs-reveal" id="glass-card">
             
+            <!-- Success Message Banner -->
+            <?php if (isset($_GET['success'])): ?>
+            <div class="bg-emerald-500/10 border border-emerald-500/50 text-emerald-400 p-3 rounded-lg mb-6 text-sm flex items-center gap-2 gs-error">
+                <span class="material-symbols-outlined text-[20px]">check_circle</span>
+                <span><?= htmlspecialchars(urldecode($_GET['success'])) ?></span>
+            </div>
+            <?php endif; ?>
+
+            <!-- Error Message Banner -->
             <?php if (isset($_GET['error'])): ?>
             <div class="bg-nexus-danger/10 border border-nexus-danger/50 text-nexus-danger p-3 rounded-lg mb-6 text-sm flex items-center gap-2 gs-error">
                 <span class="material-symbols-outlined text-[20px]">error</span>
@@ -94,7 +103,8 @@
             </div>
             <?php endif; ?>
 
-            <form action="../backend/backend.php?action=login" method="POST" class="space-y-6">
+            <!-- Form with validation attached -->
+            <form action="../backend/login_backend.php" method="POST" class="space-y-6" id="loginForm" onsubmit="return validateLoginForm()">
                 
                 <!-- Email Field -->
                 <div class="floating-label-group gs-stagger">
@@ -220,51 +230,26 @@
     <!-- GSAP Animations & Interactions -->
     <script src="animations.js"></script>
     <script>
-        function validateRegistrationForm() {
+        // Proper Client-side Login Form Validation
+        function validateLoginForm() {
             let errors = [];
-            let name = document.getElementById('name').value;
-            let email = document.getElementById('email').value;
+            let email = document.getElementById('email').value.trim();
             let password = document.getElementById('password').value;
-            let terms = document.getElementById('terms').checked;
 
-            // Name
-            const namePattern = /^[a-zA-Z\s]+$/;
-            if (name.trim().length === 0) {
-                errors.push('Full Name is required.');
-            } else if (!namePattern.test(name)) {
-                errors.push('Full Name can only contain letters and spaces.');
-            }
-
-            // Email
+            // Email check
             const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-            if (email.trim().length === 0) {
+            if (email.length === 0) {
                 errors.push('Email address is required.');
             } else if (!emailPattern.test(email)) {
-                errors.push('Email address format is invalid.');
+                errors.push('Please enter a valid email address.');
             }
 
-            // Password
-            let password_criteria = [];
+            // Password check
             if (password.length === 0) {
                 errors.push('Password is required.');
-            } else {
-                if (password.length < 8) password_criteria.push("8+ characters");
-                if (!/[A-Z]/.test(password)) password_criteria.push("1 uppercase letter");
-                if (!/[a-z]/.test(password)) password_criteria.push("1 lowercase letter");
-                if (!/[0-9]/.test(password)) password_criteria.push("1 number");
-                if (!/[!@#$%^&*(),.?\":{}|]/.test(password)) password_criteria.push("1 special character");
-
-                if (password_criteria.length > 0) {
-                    errors.push('Password missing: ' + password_criteria.join(', '));
-                }
             }
 
-            // Terms Checkbox
-            if (!terms) {
-                errors.push('You must accept the Terms of Service.');
-            }
-
-            // Show Modal if errors exist
+            // Trigger custom error modal if validation fails
             if (errors.length > 0) {
                 showErrorModal(errors);
                 return false;
@@ -301,16 +286,6 @@
             setTimeout(() => {
                 modal.classList.add('hidden');
             }, 300);
-        }
-
-        function handleOTPNavigation(event) {
-            if (event) event.preventDefault();
-
-            // 1. Validate inputs client-side
-            if (validateRegistrationForm()) {
-                // 2. Submit form to register_backend.php via POST
-                document.getElementById('registerForm').submit();
-            }
         }
     </script>
 </body>
