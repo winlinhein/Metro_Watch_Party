@@ -85,7 +85,7 @@
             </div>
             <?php endif; ?>
 
-            <form action="../../backend/register_backend.php?action=register" method="POST" class="space-y-5" id="registerForm" onsubmit="return validateRegistrationForm();" novalidate>
+            <form action="../backend/register_backend.php?action=register" method="POST" class="space-y-5" id="registerForm" onsubmit="return validateRegistrationForm();" novalidate>
                 
                 <!-- Name Field -->
                 <div class="floating-label-group gs-stagger">
@@ -342,10 +342,10 @@
         function handleOTPNavigation(event) {
             if (event) event.preventDefault();
 
-            // 1. Check if all form fields pass validation
+            // 1. Validate inputs client-side
             if (validateRegistrationForm()) {
-                // 2. Redirect to the OTP verification page
-                window.location.href = 'otp-login.php';
+                // 2. Submit form to register_backend.php via POST
+                document.getElementById('registerForm').submit();
             }
         }
     </script>

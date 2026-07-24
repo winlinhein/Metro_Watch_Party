@@ -1,168 +1,174 @@
- <?php
-    //Import PHPMailer classes into the global namespace
-    //These must be at the top of your script, not inside a function
-    use PHPMailer\PHPMailer\PHPMailer;
-    use PHPMailer\PHPMailer\SMTP;
-    use PHPMailer\PHPMailer\Exception;
+<?php
+// register_backend.php
+session_start();
 
-    //Load Composer's autoloader (created by composer, not included with PHPMailer)
-    require 'vendor/autoload.php';
+use PHPMailer\PHPMailer\PHPMailer;
+use PHPMailer\PHPMailer\SMTP;
+use PHPMailer\PHPMailer\Exception;
 
-    // Define function OUTSIDE the if block, at the top
-            function test_input($data) {
-                $data = trim($data);
-                $data = htmlspecialchars($data);
-                $data = stripslashes($data);
-                return $data;
+require_once __DIR__ . '/../vendor/autoload.php';
+require_once __DIR__ . '/../conn.php';
+
+function test_input($data) {
+    return htmlspecialchars(trim(stripslashes($data)), ENT_QUOTES, 'UTF-8');
+}
+
+$name = $email = $user_pass = "";
+$nameErr = $emailErr = $user_passErr = $termsErr = "";
+
+if ($_SERVER["REQUEST_METHOD"] === "POST") {
+    
+    // --- 1. Form Validation ---
+    if (empty($_POST['name'])) {
+        $nameErr = "Name is required";
+    } elseif (!preg_match("/^[a-zA-Z ]*$/", $_POST["name"])) {
+        $nameErr = "Only letters and white space allowed";
+    } else {
+        $name = test_input($_POST['name']);
+    }
+
+    if (empty($_POST['email'])) {
+        $emailErr = "Email is required";
+    } elseif (!filter_var($_POST["email"], FILTER_VALIDATE_EMAIL)) {
+        $emailErr = "Invalid email format";
+    } else {
+        $email = test_input($_POST['email']);
+    }
+
+    if (empty($_POST['password'])) {
+        $user_passErr = "Password is required";
+    } else {
+        $pwd = $_POST['password'];
+        if (
+            strlen($pwd) < 8 ||
+            !preg_match('/[A-Z]/', $pwd) ||
+            !preg_match('/[a-z]/', $pwd) ||
+            !preg_match('/[0-9]/', $pwd) ||
+            !preg_match('/[!@#$%^&*(),.?":{}|]/', $pwd)
+        ) {
+            $user_passErr = "Password does not meet complexity requirements";
+        } else {
+            $user_pass = $pwd;
+        }
+    }
+
+    if (!isset($_POST['terms'])) {
+        $termsErr = "You must accept the terms of service";
+    }
+
+    // --- 2. Database Processing ---
+    if (empty($nameErr) && empty($emailErr) && empty($user_passErr) && empty($termsErr)) {
+
+        try {
+            $stmt = $conn->prepare("SELECT user_id, status FROM users WHERE email = :email");
+            $stmt->execute([':email' => $email]);
+            $existing_user = $stmt->fetch(PDO::FETCH_ASSOC);
+
+            if ($existing_user) {
+                if ($existing_user['status'] === 'active') {
+                    header("Location: ../frontend/register.php?error=" . urlencode("This email is already registered."));
+                    exit();
+                } elseif ($existing_user['status'] === 'pending') {
+                    $otp_stmt = $conn->prepare("SELECT expires_at FROM otp_verification WHERE email = :email AND otp_type = 'register'");
+                    $otp_stmt->execute([':email' => $email]);
+                    $otp_data = $otp_stmt->fetch(PDO::FETCH_ASSOC);
+
+                    if (!$otp_data || time() > $otp_data['expires_at']) {
+                        $conn->prepare("DELETE FROM otp_verification WHERE email = :email")->execute([':email' => $email]);
+                        $conn->prepare("DELETE FROM users WHERE user_id = :id")->execute([':id' => $existing_user['user_id']]);
+                    } else {
+                        $_SESSION['verify_email'] = $email;
+                        header("Location: ../frontend/otp-register.php");
+                        exit();
+                    }
+                }
             }
 
-            $fname = $lname = $email = $user_pass = "";
-            $fnameErr = $lnameErr = $emailErr = $user_passErr = "";
+            $otp_code   = sprintf("%06d", random_int(100000, 999999));
+            $otp_type   = 'register';
+            $expires_at = time() + 180; // 3 minutes expiration
+            $hashed_password = password_hash($user_pass, PASSWORD_DEFAULT);
 
-            if ($_SERVER["REQUEST_METHOD"] == "POST") {
-                
-                //Validation of First Name 
-                if (empty($_POST['fname'])) {
-                    $fnameErr = "First name is required";
-                } 
-                else if (!preg_match("/^[a-zA-Z ]*$/",$_POST["fname"])){                             
-                    $fnameErr = "Only letters and white space allowed";  
-                }
-                else {
-                    $fnameErr = "";
-                    $fname = test_input($_POST['fname']);
-                }
+            $conn->beginTransaction();
 
-                //Validation of Last Name
-                if (empty($_POST['lname'])) {
-                    $lnameErr = "Last name is required";
-                } 
-                else if (!preg_match("/^[a-zA-Z ]*$/",$_POST["lname"])){                             
-                    $lnameErr = "Only letters and white space allowed";  
-                }
-                else {
-                    $lnameErr = "";
-                    $lname = test_input($_POST['lname']);
-                }
-                
-                //Validation of Email
-                if (empty($_POST['email'])) {
-                    $emailErr = "Email is required";
-                }
-                else if (!filter_var($_POST["email"], FILTER_VALIDATE_EMAIL)) {
-                    $emailErr = "Invalid email format";    
-                }
-                else {
-                    $emailErr = "";
-                    $email = test_input($_POST['email']);
-                }
-                
-                //Validation of Password
-                if (empty($_POST['user_pass'])) {
-                    $user_passErr = "Password is required";
-                } 
-                else if (strlen($_POST['user_pass']) < 8) {
-                    $user_passErr = "Minimum password length is eight";    
-                }
-                else {
-                    $user_passErr = "";
-                    $user_pass = $_POST['user_pass'];
-                }
+            $insert_user = $conn->prepare("
+                INSERT INTO users (user_name, email, hashed_password) 
+                VALUES (:user_name, :email, :hashed_password)
+            ");
+            $insert_user->execute([
+                ':user_name'       => $name,
+                ':email'           => $email,
+                ':hashed_password' => $hashed_password
+            ]);
 
-                //Insertion of Validated Form's Data into the Database 
-                //Connect to the  database
-                include("conn.php");
-                //Verify email in the database
-                $sql_email = $conn->prepare("SELECT * FROM Metro_School WHERE email=:email");
-                $sql_email->bindParam(':email', $email);
-                $sql_email -> execute();
-                $result_mail = $sql_email->fetchAll();
-                //Registered email is already exit in database
-                if(!empty($result_mail)) {
-                    $emailErr = "Your email is already existed";
-                } 
-                //Registered email is not exit in database and it is new account
-                else {
-                  
-                    if($fname != "" && $lname != "" && $email != "" && $user_pass != "" &&  
-                    $fnameErr == "" && $lnameErr == "" && $emailErr == "" && $user_passErr == "") {
+            $delete_otp = $conn->prepare("DELETE FROM otp_verification WHERE email = :email");
+            $delete_otp->execute([':email' => $email]);
 
-                        // --- Generate a  unique token
-                        $token = bin2hex(random_bytes(50));
-                        $expires = date("U") + 1800; // Token expires in 30 minutes
-                        
-                        //Hash password
-                        $hashed_password = password_hash($user_pass, PASSWORD_DEFAULT);
+            $insert_otp = $conn->prepare("
+                INSERT INTO otp_verification (email, otp_code, otp_type, expires_at) 
+                VALUES (:email, :otp_code, :otp_type, :expires_at)
+            ");
+            $insert_otp->execute([
+                ':email'      => $email,
+                ':otp_code'   => $otp_code,
+                ':otp_type'   => $otp_type,
+                ':expires_at' => $expires_at
+            ]);
 
-                        // --- Delete token in the database to ensure only for one email ---
-                        $delete_token = $conn->prepare("DELETE FROM registration_token WHERE email=:email");
-                        $delete_token->bindParam(':email', $email);
-                        $delete_token -> execute();
+            // --- 3. Send Mail ---
+            $mail = new PHPMailer(true);
+            $mail->SMTPDebug = SMTP::DEBUG_OFF;
+            $mail->isSMTP();
+            $mail->Host       = 'smtp.gmail.com';
+            $mail->SMTPAuth   = true;
+            $mail->Username   = getenv('SMTP_USER') ?: 'koz51751@gmail.com'; 
+            $mail->Password   = getenv('SMTP_PASS') ?: 'kfnc dyla izdh zmpd';
+            $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
+            $mail->Port       = 587;
 
-                        // --- Insert token in the database for activation of registration ---
-                        $insert_token = $conn->prepare("INSERT INTO registration_token (fname, lname, email, hashed_password, token, expires) VALUES (:fname, :lname, :email, :hpass, :token, :expires)");
-                        $insert_token->bindParam(':fname', $fname);
-                        $insert_token->bindParam(':lname', $lname);
-                        $insert_token->bindParam(':email', $email);
-                        $insert_token->bindParam(':hpass', $hashed_password);
-                        $insert_token->bindParam(':token', $token);
-                        $insert_token->bindParam(':expires', $expires);
-                        $insert_token -> execute();
-                            /*
-                            //Insert Data Into the Database
-                            $sql = $conn->prepare("INSERT INTO Metro_School (firstname, lastname, email, user_password) VALUES (:fname, :lname, :email, :upass)");
-                            $sql->bindParam(':fname', $fname);
-                            $sql->bindParam(':lname', $lname);
-                            $sql->bindParam(':email', $email);
-                            $sql->bindParam(':upass', $user_pass);
-                            $sql->execute();
-                             
-                            if(isset($sql)) {
-                            */  
-                                $to = $email;
-                                $confirm_link = "http://localhost:8080/15_g/successfully_registration.php?token=".$token;
-                                $subject = "Confirm Registration Request";
-                                $message = "Click the following link to confirm your registration to Metro School:<br><br>".$confirm_link;
-                                //Inform registraction state using registered email
-                                $mail = new PHPMailer(true);
+            $mail->SMTPOptions = array(
+                'ssl' => array(
+                    'verify_peer'       => false,
+                    'verify_peer_name'  => false,
+                    'allow_self_signed' => true
+                )
+            );
 
-                                try {
-                                    //Server settings
-                                    $mail->SMTPDebug = SMTP::DEBUG_OFF;
-                                    $mail->isSMTP();
-                                    $mail->Host       = 'smtp.gmail.com';
-                                    $mail->SMTPAuth   = true;
-                                    $mail->Username   = 'koz51751@gmail.com';
-                                    $mail->Password   = 'aiwz ywzr vvcg mgcm';
-                                    $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
-                                    $mail->Port       = 587;
+            $mail->setFrom('koz51751@gmail.com', 'Watch Party');
+            $mail->addAddress($email);
 
-                                    //Recipients
-                                    $mail->setFrom('koz51751@gmail.com', 'Metro School Registration');
-                                    $mail->addAddress($to);
+            $mail->isHTML(true);
+            $mail->Subject = "Nexus Registration - OTP Code";
+            $mail->Body    = "
+                <div style='font-family: Arial, sans-serif; background: #050505; color: #ffffff; padding: 24px; border-radius: 12px;'>
+                    <h2 style='color: #4f46e5;'>Nexus Verification</h2>
+                    <p style='color: #cccccc;'>Your verification code is:</p>
+                    <h1 style='color: #dc2626; letter-spacing: 6px; font-size: 32px;'>{$otp_code}</h1>
+                    <p style='color: #888888; font-size: 12px;'>Valid for 3 minutes.</p>
+                </div>
+            ";
 
-                                    //Content
-                                    $mail->isHTML(true);
-                                    $mail->Subject = $subject;
-                                    $mail->Body    = $message;                           
-                                    $mail->send();
+            $mail->send();
+            $conn->commit();
 
-                                    echo "
-                                        <script>
-                                            alert('Your Registration Confirm Link is successfully sent to your email.');
-                                        </script>
-                                        ";
-                                    
-                                } catch (Exception $e) {
-                                    $messageErr = "Message could not be sent. Mailer Error: {$mail->ErrorInfo}";
-                                }
-                        /*   
-                        } else {
-                            echo "<script>alert('Error occured.');</script>";
-                        } */                
-                    } 
-                }
-                //close the connction
-                $conn = null;             
-            }                           
-        ?>
+            $_SESSION['verify_email'] = $email;
+            header("Location: ../frontend/otp-register.php");
+            exit();
+
+        } catch (Exception $e) {
+            if ($conn->inTransaction()) {
+                $conn->rollBack();
+            }
+            echo "<div style='background:#111; color:#ff5555; padding:20px; font-family:monospace;'>";
+            echo "<h2>PHPMailer / DB Error Debug:</h2>";
+            echo "<p>" . htmlspecialchars($e->getMessage()) . "</p>";
+            echo "</div>";
+            exit();
+        }
+    } else {
+        $firstErr = $nameErr ?: ($emailErr ?: ($user_passErr ?: $termsErr));
+        header("Location: ../frontend/register.php?error=" . urlencode($firstErr));
+        exit();
+    }
+}
+?>

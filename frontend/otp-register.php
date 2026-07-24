@@ -79,7 +79,7 @@
             </div>
             <?php endif; ?>
 
-            <form action="../backend/backend.php?action=verify_otp_login" method="POST" class="space-y-6" id="otpForm">
+            <form action="../backend/otp-register_backend.php?action=verify_otp_login" method="POST" class="space-y-6" id="otpForm">
                 
                 <!-- OTP Inputs (Hidden actual input, visible separate inputs) -->
                 <input type="hidden" name="otp" x-model="otpCode">
@@ -113,7 +113,7 @@
             <div class="text-center gs-stagger mt-6 flex flex-col gap-2">
                 <p class="text-gray-400 text-sm">
                     Didn't receive the code? 
-                    <a href="#" class="text-white font-medium hover:text-red-500 transition-colors ml-1 inline-flex items-center gap-1 group">
+                    <a href="../backend/resend_otp.php" class="text-white font-medium hover:text-red-500 transition-colors ml-1 inline-flex items-center gap-1 group">
                         Resend <span class="material-symbols-outlined text-[14px] group-hover:rotate-180 transition-transform duration-500">refresh</span>
                     </a>
                 </p>
@@ -155,7 +155,9 @@
                     
                     if (val) {
                         // animate the input
-                        gsap.fromTo(e.target, { scale: 0.8 }, { scale: 1, duration: 0.3, ease: "back.out(2)" });
+                        if (typeof gsap !== 'undefined') {
+                            gsap.fromTo(e.target, { scale: 0.8 }, { scale: 1, duration: 0.3, ease: "back.out(2)" });
+                        }
                         // move to next
                         if (index < 5) {
                             this.inputs[index + 1].focus();
@@ -184,60 +186,66 @@
                     pastedData.split('').forEach((char, i) => {
                         if (i < 6) {
                             this.inputs[i].value = char;
-                            gsap.fromTo(this.inputs[i], { scale: 0.8 }, { scale: 1, duration: 0.3, ease: "back.out(2)", delay: i * 0.05 });
+                            if (typeof gsap !== 'undefined') {
+                                gsap.fromTo(this.inputs[i], { scale: 0.8 }, { scale: 1, duration: 0.3, ease: "back.out(2)", delay: i * 0.05 });
+                            }
                         }
                     });
                     
                     const focusIndex = Math.min(pastedData.length, 5);
-                    this.inputs[focusIndex].focus();
+                    if(this.inputs[focusIndex]) this.inputs[focusIndex].focus();
                     this.updateHiddenInput();
                 }
             }
         }
 
-        // Ultimate entrance animation
+        // Ultimate entrance animation & opacity fallback safety
         document.addEventListener('DOMContentLoaded', () => {
-            const tl = gsap.timeline({ defaults: { ease: 'expo.out' } });
-            tl.fromTo("#branding", 
-                { y: -50, opacity: 0, scale: 0.9 },
-                { y: 0, opacity: 1, scale: 1, duration: 1.5, ease: "elastic.out(1, 0.5)" },
-                0
-            )
-            .fromTo("#logo-box",
-                { rotation: 180, borderRadius: "50%", scale: 0 },
-                { rotation: 0, borderRadius: "0.75rem", scale: 1, duration: 1.5, ease: "expo.inOut" },
-                "-=1.2"
-            )
-            .fromTo("#glass-card",
-                { y: 50, opacity: 0, rotationY: 15, scale: 0.95 },
-                { y: 0, opacity: 1, rotationY: 0, scale: 1, duration: 1.2, transformPerspective: 1000 },
-                "-=1"
-            )
-            .fromTo("#otp-inputs input",
-                { y: 20, opacity: 0, scale: 0.5 },
-                { y: 0, opacity: 1, scale: 1, duration: 0.8, stagger: 0.05, ease: "back.out(1.5)" },
-                "-=0.8"
-            )
-            .fromTo(".gs-stagger",
-                { y: 20, opacity: 0 },
-                { y: 0, opacity: 1, duration: 0.8, stagger: 0.1 },
-                "-=0.6"
-            )
-            .fromTo(".gs-footer",
-                { opacity: 0 },
-                { opacity: 1, duration: 1 },
-                "-=0.5"
-            );
+            if (typeof gsap !== 'undefined') {
+                const tl = gsap.timeline({ defaults: { ease: 'expo.out' } });
+                tl.fromTo("#branding", 
+                    { y: -50, opacity: 0, scale: 0.9 },
+                    { y: 0, opacity: 1, scale: 1, duration: 1.5, ease: "elastic.out(1, 0.5)" },
+                    0
+                )
+                .fromTo("#logo-box",
+                    { rotation: 180, borderRadius: "50%", scale: 0 },
+                    { rotation: 0, borderRadius: "0.75rem", scale: 1, duration: 1.5, ease: "expo.inOut" },
+                    "-=1.2"
+                )
+                .fromTo("#glass-card",
+                    { y: 50, opacity: 0, rotationY: 15, scale: 0.95 },
+                    { y: 0, opacity: 1, rotationY: 0, scale: 1, duration: 1.2, transformPerspective: 1000 },
+                    "-=1"
+                )
+                .fromTo("#otp-inputs input",
+                    { y: 20, opacity: 0, scale: 0.5 },
+                    { y: 0, opacity: 1, scale: 1, duration: 0.8, stagger: 0.05, ease: "back.out(1.5)" },
+                    "-=0.8"
+                )
+                .fromTo(".gs-stagger",
+                    { y: 20, opacity: 0 },
+                    { y: 0, opacity: 1, duration: 0.8, stagger: 0.1 },
+                    "-=0.6"
+                )
+                .fromTo(".gs-footer",
+                    { opacity: 0 },
+                    { opacity: 1, duration: 1 },
+                    "-=0.5"
+                );
 
-            // Ultimate submit button interaction
-            const submitBtn = document.getElementById('submitBtn');
-            if(submitBtn) {
-                submitBtn.addEventListener('mousedown', () => {
-                    gsap.to(submitBtn, { scale: 0.95, duration: 0.1, ease: 'power2.inOut' });
-                });
-                submitBtn.addEventListener('mouseup', () => {
-                    gsap.to(submitBtn, { scale: 1, duration: 0.5, ease: 'elastic.out(1, 0.3)' });
-                });
+                const submitBtn = document.getElementById('submitBtn');
+                if(submitBtn) {
+                    submitBtn.addEventListener('mousedown', () => {
+                        gsap.to(submitBtn, { scale: 0.95, duration: 0.1, ease: 'power2.inOut' });
+                    });
+                    submitBtn.addEventListener('mouseup', () => {
+                        gsap.to(submitBtn, { scale: 1, duration: 0.5, ease: 'elastic.out(1, 0.3)' });
+                    });
+                }
+            } else {
+                // Safety fallback if GSAP or animations.js is blocked
+                document.querySelectorAll('.ultimate-reveal').forEach(el => el.style.opacity = '1');
             }
         });
     </script>
