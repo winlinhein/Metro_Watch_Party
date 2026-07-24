@@ -205,6 +205,20 @@
     <script src="animations.js"></script>
     <script>
         document.addEventListener('DOMContentLoaded', () => {
+
+             // Check if there is an error parameter in the URL from PHP redirect
+            const urlParams = new URLSearchParams(window.location.search);
+            const phpError = urlParams.get('error');
+
+            if (phpError) {
+                // Trigger the modal automatically with the PHP error message
+                showErrorModal([phpError]);
+                
+                // (Optional) Clean up the query parameter from the URL without refreshing page
+                const newUrl = window.location.pathname;
+                window.history.replaceState({}, document.title, newUrl);
+            }
+
             const tl = gsap.timeline({ defaults: { ease: 'expo.out' } });
             tl.fromTo("#branding", 
                 { y: -50, opacity: 0, scale: 0.9 },

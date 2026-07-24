@@ -118,7 +118,7 @@
                     </a>
                 </p>
                 <p class="text-gray-500 text-xs">
-                    <a href="index.php" class="hover:text-white transition-colors">Back to Login</a>
+                    <a href="login.php" class="hover:text-white transition-colors">Back to Login</a>
                 </p>
             </div>
             

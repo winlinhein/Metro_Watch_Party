@@ -76,7 +76,7 @@
             </div>
             <?php endif; ?>
 
-            <form action="../backend/backend.php?action=verify_otp_forgot" method="POST" class="space-y-6" id="otpForm">
+            <form action="../backend/otp-forgot_backend.php?action=verify_otp_forgot" method="POST" class="space-y-6" id="otpForm">
                 
                 <!-- OTP Inputs -->
                 <input type="hidden" name="otp" x-model="otpCode">
@@ -110,7 +110,7 @@
             <div class="text-center gs-stagger mt-6 flex flex-col gap-2">
                 <p class="text-gray-400 text-sm">
                     Didn't receive the code? 
-                    <a href="#" class="text-white font-medium hover:text-yellow-500 transition-colors ml-1 inline-flex items-center gap-1 group">
+                    <a href="../backend/resend_otp.php" class="text-white font-medium hover:text-yellow-500 transition-colors ml-1 inline-flex items-center gap-1 group">
                         Resend <span class="material-symbols-outlined text-[14px] group-hover:rotate-180 transition-transform duration-500">refresh</span>
                     </a>
                 </p>

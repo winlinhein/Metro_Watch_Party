@@ -74,6 +74,7 @@
         <!-- Recovery Card -->
         <div class="glass-card rounded-2xl p-8 ultimate-reveal border-red-500/20 shadow-[0_0_50px_rgba(239,68,68,0.1)]" id="glass-card">
             
+            <!-- Success Banner (Inline) -->
             <?php if (isset($_GET['message'])): ?>
             <div class="bg-green-500/10 border border-green-500/50 text-green-400 p-3 rounded-lg mb-6 text-sm flex items-center gap-2 gs-error">
                 <span class="material-symbols-outlined text-[20px]">check_circle</span>
@@ -81,14 +82,8 @@
             </div>
             <?php endif; ?>
 
-            <?php if (isset($_GET['error'])): ?>
-            <div class="bg-red-500/10 border border-red-500/50 text-red-400 p-3 rounded-lg mb-6 text-sm flex items-center gap-2 gs-error">
-                <span class="material-symbols-outlined text-[20px]">error</span>
-                <span><?= htmlspecialchars(urldecode($_GET['error'])) ?></span>
-            </div>
-            <?php endif; ?>
-
-            <form action="../backend/backend.php?action=forgot_password" method="POST" class="space-y-6" id="recoveryForm">
+            <!-- Form attached to JS validation with novalidate -->
+            <form action="../backend/forgot-password_backend.php?action=forgot_password" method="POST" class="space-y-6" id="recoveryForm" onsubmit="return validateRecoveryForm()" novalidate>
                 
                 <!-- Email Field -->
                 <div class="floating-label-group gs-stagger">
@@ -120,7 +115,7 @@
             <!-- Back to Login link -->
             <div class="text-center gs-stagger mt-6">
                 <p class="text-gray-400 text-sm">
-                    <a href="index.php" class="text-white font-medium hover:text-red-500 transition-colors ml-1 inline-flex items-center gap-1 group">
+                    <a href="login.php" class="text-white font-medium hover:text-red-500 transition-colors ml-1 inline-flex items-center gap-1 group">
                         <span class="material-symbols-outlined text-[14px] group-hover:-translate-x-1 transition-transform">arrow_back</span> Back to Login
                     </a>
                 </p>
@@ -134,11 +129,30 @@
         </div>
     </main>
 
+    <!-- Error Modal Popup -->
+    <div id="errorModal" onclick="closeErrorModalOnBackdrop(event)" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md hidden opacity-0 transition-opacity duration-300">
+        <div id="errorModalCard" class="w-full max-w-sm glass-card p-6 rounded-2xl border border-red-500/30 bg-[#0a0a0c] text-center shadow-[0_0_50px_rgba(220,38,38,0.25)] transform scale-95 transition-transform duration-300">
+            <div class="w-12 h-12 bg-red-600/15 text-red-500 rounded-full flex items-center justify-center mx-auto mb-3 border border-red-500/30">
+                <span class="material-symbols-outlined text-2xl">warning</span>
+            </div>
+            <h3 class="text-lg font-bold text-white uppercase tracking-wider mb-2">Notice</h3>
+            
+            <!-- Error Bullet List -->
+            <ul id="errorList" class="text-xs text-red-300 space-y-2 my-4 text-left bg-red-950/20 p-3.5 rounded-xl border border-red-900/40">
+                <!-- Injected via JS -->
+            </ul>
+
+            <button type="button" onclick="closeErrorModal()" class="w-full bg-gradient-to-r from-red-600 to-indigo-600 text-white font-black text-xs uppercase tracking-widest py-3 rounded-xl hover:shadow-[0_0_20px_rgba(220,38,38,0.4)] transition-all">
+                Dismiss
+            </button>
+        </div>
+    </div>
+
     <!-- GSAP Animations & Interactions -->
     <script src="animations.js"></script>
     <script>
-        // Ultimate entrance animation for recovery
         document.addEventListener('DOMContentLoaded', () => {
+            // 1. GSAP Entrance Animations
             const tl = gsap.timeline({ defaults: { ease: 'expo.out' } });
             tl.fromTo("#branding", 
                 { y: -50, opacity: 0, scale: 0.9 },
@@ -166,7 +180,7 @@
                 "-=0.5"
             );
 
-            // Ultimate submit button interaction
+            // 2. Submit Button Click Interaction
             const submitBtn = document.getElementById('submitBtn');
             if(submitBtn) {
                 submitBtn.addEventListener('mousedown', () => {
@@ -176,7 +190,72 @@
                     gsap.to(submitBtn, { scale: 1, duration: 0.5, ease: 'elastic.out(1, 0.3)' });
                 });
             }
+
+            // 3. Automatically Display Server Errors in Modal
+            const urlParams = new URLSearchParams(window.location.search);
+            if (urlParams.has('error')) {
+                const serverError = urlParams.get('error');
+                if (serverError) {
+                    showErrorModal([decodeURIComponent(serverError)]);
+                }
+            }
         });
+
+        // Client-side Recovery Form Validation
+        function validateRecoveryForm() {
+            let errors = [];
+            let email = document.getElementById('email').value.trim();
+
+            const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+            if (email.length === 0) {
+                errors.push('Email address is required.');
+            } else if (!emailPattern.test(email)) {
+                errors.push('Please enter a valid email address.');
+            }
+
+            if (errors.length > 0) {
+                showErrorModal(errors);
+                return false;
+            }
+
+            return true;
+        }
+
+        function showErrorModal(errors) {
+            const modal = document.getElementById('errorModal');
+            const card = document.getElementById('errorModalCard');
+            const list = document.getElementById('errorList');
+
+            list.innerHTML = errors.map(err => `
+                <li class="flex items-start gap-2">
+                    <span class="material-symbols-outlined text-[16px] text-red-400 mt-0.5">error</span>
+                    <span>${err}</span>
+                </li>
+            `).join('');
+
+            modal.classList.remove('hidden');
+            setTimeout(() => {
+                modal.classList.remove('opacity-0');
+                card.classList.remove('scale-95');
+            }, 10);
+        }
+
+        function closeErrorModal() {
+            const modal = document.getElementById('errorModal');
+            const card = document.getElementById('errorModalCard');
+
+            modal.classList.add('opacity-0');
+            card.classList.add('scale-95');
+            setTimeout(() => {
+                modal.classList.add('hidden');
+            }, 300);
+        }
+
+        function closeErrorModalOnBackdrop(event) {
+            if (event.target.id === 'errorModal') {
+                closeErrorModal();
+            }
+        }
     </script>
 </body>
 </html>
