@@ -55,7 +55,7 @@ app.post("/backend/backend.php", (req, res) => {
 function handlePhpRequest(req: express.Request, res: express.Response) {
   let requestPath = req.path;
   if (requestPath === "/") {
-      return res.redirect("/frontend/index.php");
+      return res.redirect("/user/dashboard.php");
   }
   if (!requestPath.endsWith(".php")) {
       requestPath = requestPath + ".php"; // very crude fallback
@@ -67,7 +67,7 @@ function handlePhpRequest(req: express.Request, res: express.Response) {
       const indexPath = path.join(process.cwd(), "frontend", "index.php");
       if (fs.existsSync(indexPath)) {
         let content = fs.readFileSync(indexPath, "utf-8");
-        content = processPhpMockup(content, req);
+        content = processPhpMockup(content, req, "frontend");
         res.setHeader("Content-Type", "text/html");
         return res.send(content);
       }
@@ -75,7 +75,8 @@ function handlePhpRequest(req: express.Request, res: express.Response) {
   }
   let content = fs.readFileSync(filePath, "utf-8");
   
-  content = processPhpMockup(content, req);
+  const currentDir = path.dirname(requestPath.replace(/^\//, ""));
+  content = processPhpMockup(content, req, currentDir);
   res.setHeader("Content-Type", "text/html");
   res.send(content);
 }
@@ -89,7 +90,7 @@ app.use(express.static(process.cwd(), { index: false }));
 
 app.get("*", handlePhpRequest);
 
-function processPhpMockup(content: string, req: express.Request) {
+function processPhpMockup(content: string, req: express.Request, currentDir: string = "frontend") {
   // Basic mockup of PHP execution for the preview environment
   const errorMsg = req.query.error as string;
   if (errorMsg) {
@@ -122,7 +123,7 @@ function processPhpMockup(content: string, req: express.Request) {
     content = content.replace(includeRegex1, (match, p1) => {
       hasIncludes = true;
       try {
-        const includePath = path.join(process.cwd(), 'frontend', p1.replace(/^\//, ''));
+        const includePath = path.join(process.cwd(), currentDir, p1.replace(/^\//, ''));
         return fs.existsSync(includePath) ? fs.readFileSync(includePath, 'utf8') : '';
       } catch(e) { return ''; }
     });
@@ -131,7 +132,7 @@ function processPhpMockup(content: string, req: express.Request) {
     content = content.replace(includeRegex2, (match, p1) => {
       hasIncludes = true;
       try {
-        const includePath = path.join(process.cwd(), 'frontend', p1.replace(/^\//, ''));
+        const includePath = path.join(process.cwd(), currentDir, p1.replace(/^\//, ''));
         return fs.existsSync(includePath) ? fs.readFileSync(includePath, 'utf8') : '';
       } catch(e) { return ''; }
     });
