@@ -60,47 +60,55 @@
             opacity: 1;
         }
 
-        /* Hide default cursor for custom cursor effect */
-        body {
-            cursor: none;
-        }
         
-        /* Interactive elements should hide cursor too to show custom cursor */
-        a, button, input, .cursor-pointer {
-            cursor: none !important;
-        }
+        
+        
+        
+        
 
-        /* Advanced Cursor Follower */
-        #cursor-glow {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 30vw;
-            height: 30vw;
-            border-radius: 50%;
-            background: radial-gradient(circle, rgba(239,68,68,0.1) 0%, rgba(79,70,229,0.05) 30%, transparent 70%);
-            pointer-events: none;
-            z-index: 0;
-        }
         
-        .inner-cursor {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 8px;
-            height: 8px;
-            background-color: #ef4444;
-            border-radius: 50%;
-            pointer-events: none;
-            z-index: 9999;
-            box-sizing: border-box;
-        }
+        
+        
+        
     </style>
+
+<style>
+/* Advanced Cursor Follower */
+body { cursor: none; }
+a, button, input, .cursor-pointer, .top-nav-item, [x-ref="progressBar"], .gs-movie-card { cursor: none !important; }
+#cursor-glow {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 30vw;
+    height: 30vw;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(239,68,68,0.1) 0%, rgba(79,70,229,0.05) 30%, transparent 70%);
+    pointer-events: none;
+    z-index: 0;
+}
+.inner-cursor {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 8px;
+    height: 8px;
+    background-color: #ef4444;
+    border-radius: 50%;
+    pointer-events: none;
+    z-index: 9999;
+    box-sizing: border-box;
+}
+</style>
+
 </head>
 <body x-data="watchParty()" x-init="init()" class="h-screen w-screen flex relative selection:bg-red-500/30">
+
+<div id="cursor-glow"></div>
+
     <div class="bg-mesh"></div>
     <div class="noise"></div>
-    <div id="cursor-glow"></div>
+    
 
     <!-- Sidebar / Server List (Discord style) -->
     <div class="w-20 shrink-0 h-full bg-[#030305]/90 backdrop-blur-xl border-r border-white/5 flex flex-col items-center py-6 gap-4 z-20 relative">
@@ -350,5 +358,76 @@
             }
         });
     </script>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        // Prevent duplicate cursors
+        if(document.querySelectorAll('#cursor-glow').length > 1) {
+            document.querySelectorAll('#cursor-glow')[1].remove();
+        }
+        
+        const cursor = document.getElementById('cursor-glow');
+        let innerCursor = document.querySelector('.inner-cursor');
+        if (!innerCursor) {
+            innerCursor = document.createElement('div');
+            innerCursor.classList.add('inner-cursor');
+            document.body.appendChild(innerCursor);
+        }
+
+        if(typeof gsap !== 'undefined') {
+            gsap.set(cursor, { xPercent: -50, yPercent: -50 });
+            gsap.set(innerCursor, { xPercent: -50, yPercent: -50 });
+
+            let mouseX = window.innerWidth / 2;
+            let mouseY = window.innerHeight / 2;
+
+            document.addEventListener('mousemove', (e) => {
+                mouseX = e.clientX;
+                mouseY = e.clientY;
+                
+                gsap.set(innerCursor, {
+                    x: mouseX,
+                    y: mouseY
+                });
+            });
+
+            gsap.ticker.add(() => {
+                gsap.to(cursor, {
+                    duration: 0.5,
+                    x: mouseX,
+                    y: mouseY,
+                    ease: 'power2.out'
+                });
+            });
+
+            const initInteractiveElements = () => {
+                const interactiveElements = document.querySelectorAll('button, a, input, .cursor-pointer, .top-nav-item, [x-ref="progressBar"], .gs-movie-card');
+                interactiveElements.forEach(elem => {
+                    if (!elem.hasAttribute('data-cursor-bound')) {
+                        elem.setAttribute('data-cursor-bound', 'true');
+                        elem.addEventListener('mouseenter', () => {
+                            // If the user didn't want the red dot on hover, maybe they just wanted a red dot, or a transparent border.
+                            // I will keep the transparent border because that's what dashboard does.
+                            gsap.to(innerCursor, { scale: 4, backgroundColor: 'transparent', border: '1px solid rgba(239, 68, 68, 0.8)', duration: 0.2 });
+                        });
+                        elem.addEventListener('mouseleave', () => {
+                            gsap.to(innerCursor, { scale: 1, backgroundColor: '#ef4444', border: 'none', duration: 0.2 });
+                        });
+                    }
+                });
+            };
+            
+            // Re-init interactive elements when new ones are added
+            const observer = new MutationObserver((mutations) => {
+                initInteractiveElements();
+            });
+            observer.observe(document.body, { childList: true, subtree: true });
+            
+            initInteractiveElements();
+        }
+    });
+</script>
+
 </body>
 </html>

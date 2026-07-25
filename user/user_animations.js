@@ -115,57 +115,6 @@ function userDashboard() {
                 }
             });
             
-            // 1. Advanced Cursor Follower
-            const cursor = document.getElementById('cursor-glow');
-            const innerCursor = document.createElement('div');
-            innerCursor.classList.add('inner-cursor');
-            document.body.appendChild(innerCursor);
-            
-            gsap.set(cursor, { xPercent: -50, yPercent: -50 });
-            gsap.set(innerCursor, { xPercent: -50, yPercent: -50 });
-            
-            let mouseX = window.innerWidth / 2;
-            let mouseY = window.innerHeight / 2;
-            
-            document.addEventListener('mousemove', (e) => {
-                mouseX = e.clientX;
-                mouseY = e.clientY;
-                
-                // Parallax background mesh
-                gsap.to('.bg-mesh', {
-                    x: (e.clientX / window.innerWidth - 0.5) * 60,
-                    y: (e.clientY / window.innerHeight - 0.5) * 60,
-                    ease: "power2.out",
-                    duration: 1.5
-                });
-            });
-            
-            gsap.ticker.add(() => {
-                // Smooth follower for outer glow
-                gsap.to(cursor, {
-                    x: mouseX,
-                    y: mouseY,
-                    duration: 0.8,
-                    ease: "power3.out"
-                });
-                // Instant follower for inner dot
-                gsap.set(innerCursor, {
-                    x: mouseX,
-                    y: mouseY
-                });
-            });
-
-            // Interactive Elements Cursor Effect
-            const interactiveElements = document.querySelectorAll('button, a, .cursor-pointer, .top-nav-item');
-            interactiveElements.forEach(elem => {
-                elem.addEventListener('mouseenter', () => {
-                    gsap.to(innerCursor, { scale: 4, backgroundColor: 'transparent', border: '1px solid rgba(239, 68, 68, 0.8)', duration: 0.2 });
-                });
-                elem.addEventListener('mouseleave', () => {
-                    gsap.to(innerCursor, { scale: 1, backgroundColor: '#ef4444', border: 'none', duration: 0.2 });
-                });
-            });
-
             this.$nextTick(() => {
                 // 3. Animated Number Counters
                 const counters = document.querySelectorAll('.stat-counter');

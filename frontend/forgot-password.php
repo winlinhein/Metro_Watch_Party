@@ -39,10 +39,15 @@
     <style>
         .ultimate-reveal { opacity: 0; }
     </style>
+
+
+
 </head>
 <body class="bg-[#050505] text-white flex items-center justify-center font-sans antialiased relative overflow-hidden min-h-screen">
+    <?php include __DIR__ . '/components/cursor.php'; ?>
+    <?php include __DIR__ . '/components/toast.php'; ?>
 
-    <!-- Ambient background animation elements -->
+<!-- Ambient background animation elements -->
     <div class="absolute inset-0 z-0 overflow-hidden pointer-events-none" id="particles-container">
         <div id="blob1" class="absolute top-[-20%] left-[-10%] w-[600px] h-[600px] bg-red-600 rounded-full blur-[160px] opacity-20"></div>
         <div id="blob2" class="absolute bottom-[-15%] right-[-10%] w-[500px] h-[500px] bg-yellow-600 rounded-full blur-[140px] opacity-30"></div>
@@ -257,5 +262,8 @@
             }
         }
     </script>
+
+
+
 </body>
 </html>

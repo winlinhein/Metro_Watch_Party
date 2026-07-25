@@ -77,17 +77,7 @@
         ::-webkit-scrollbar-thumb:hover { background: rgba(239,68,68,0.5); }
         
         /* Cursor Follower */
-        #cursor-glow {
-            position: fixed;
-            width: 40vw;
-            height: 40vw;
-            border-radius: 50%;
-            background: radial-gradient(circle, rgba(239,68,68,0.08) 0%, rgba(79,70,229,0.05) 40%, transparent 70%);
-            transform: translate(-50%, -50%);
-            pointer-events: none;
-            z-index: 0;
-            transition: opacity 0.3s;
-        }
+        
 
         /* Movie Card 3D Effect */
         .movie-card-container {
@@ -121,11 +111,14 @@
             z-index: -1;
         }
     </style>
+
+
+
 </head>
 <body x-data="adminDashboard()" x-init="initDashboard()" class="h-screen w-screen flex relative selection:bg-red-500/30">
+    <?php include __DIR__ . '/components/cursor.php'; ?>
 
-    <div id="cursor-glow"></div>
-    <div class="bg-mesh"></div>
+<div class="bg-mesh"></div>
     <div class="noise"></div>
 
     <!-- Sidebar -->
@@ -451,17 +444,6 @@
                 initDashboard() {
                     gsap.config({ nullTargetWarn: false });
 
-                    // Cursor effect
-                    const cursor = document.getElementById('cursor-glow');
-                    document.addEventListener('mousemove', (e) => {
-                        gsap.to(cursor, {
-                            x: e.clientX,
-                            y: e.clientY,
-                            duration: 0.8,
-                            ease: "power3.out"
-                        });
-                    });
-
                     // Movie Card 3D Hover
                     this.$nextTick(() => {
                         document.querySelectorAll('.movie-card-container').forEach(container => {
@@ -527,5 +509,8 @@
             }
         }
     </script>
+
+
+
 </body>
 </html>
