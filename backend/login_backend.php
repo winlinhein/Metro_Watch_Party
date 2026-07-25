@@ -136,8 +136,33 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                 exit();               
             }               
         } else {
-            header("Location: ../frontend/login.php?error=" . urlencode("Invalid email or password."));
-            exit();
+            // Insert new Login-History
+            $userID = $user['user_id'];
+            if(!empty($userID)){
+                $insert_loginFailed = $conn->prepare("
+                    INSERT INTO login_history (user_id, status) 
+                    VALUES (:userID, :status)
+                ");
+                $insert_loginFailed->execute([
+                    ':userID'   => $userID,
+                    ':status' => 'wrong_password'
+                ]);
+
+                $insert_loginFailedAttempt = $conn->prepare("
+                    UPDATE users SET failed_login_attempts = failed_login_attempts + 1
+                    WHERE user_id = :userID;
+                ");
+                $insert_loginFailedAttempt->execute([
+                    ':userID'   => $userID
+                ]);
+
+                header("Location: ../frontend/login.php?error=" . urlencode("Invalid password."));
+                exit();
+            }
+            else{
+                header("Location: ../frontend/login.php?error=" . urlencode("Invalid email."));
+                exit();
+            }
         }
     } catch (Exception $e) {
         if ($conn->inTransaction()) {

@@ -33,13 +33,21 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
     }
 
     try {
-        $stmt = $conn->prepare("
+        $stmt_otp = $conn->prepare("
             SELECT * FROM otp_verification 
             WHERE email = :email AND otp_type = 'login' 
             ORDER BY expires_at DESC LIMIT 1
         ");
-        $stmt->execute([':email' => $email]);
-        $otp_record = $stmt->fetch(PDO::FETCH_ASSOC);
+        $stmt_otp->execute([':email' => $email]);
+        $otp_record = $stmt_otp->fetch(PDO::FETCH_ASSOC);
+
+        $stmt_user = $conn->prepare("
+            SELECT * FROM users 
+            WHERE email = :email 
+        ");
+        $stmt_user->execute([':email' => $email]);
+        $user_record = $stmt_user->fetch(PDO::FETCH_ASSOC);
+        $userID = $user_record['user_id'];
 
         if (!$otp_record) {
             header("Location: ../frontend/otp-login.php?error=" . urlencode("No pending verification code found. Please request a new one."));
@@ -50,6 +58,23 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
         $stored_expires = (int)$otp_record['expires_at'];
 
         if ($current_time > $stored_expires) {
+            $insert_loginFailed = $conn->prepare("
+                INSERT INTO login_history (user_id, status) 
+                VALUES (:userID, :status)
+            ");
+            $insert_loginFailed->execute([
+                ':userID'   => $userID,
+                ':status' => 'otp_expired'
+            ]);
+
+            $insert_loginFailedAttempt = $conn->prepare("
+                UPDATE users SET failed_login_attempts = failed_login_attempts + 1
+                WHERE user_id = :userID;
+            ");
+            $insert_loginFailedAttempt->execute([
+                ':userID'   => $userID
+            ]);
+
             $conn->prepare("DELETE FROM otp_verification WHERE email = :email AND otp_type = 'login'")
                  ->execute([':email' => $email]);
 
@@ -58,6 +83,23 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
         }
 
         if ($otp !== $stored_otp) {
+            $insert_loginFailed = $conn->prepare("
+                INSERT INTO login_history (user_id, status) 
+                VALUES (:userID, :status)
+            ");
+            $insert_loginFailed->execute([
+                ':userID'   => $userID,
+                ':status' => 'wrong_otp'
+            ]);
+
+            $insert_loginFailedAttempt = $conn->prepare("
+                UPDATE users SET failed_login_attempts = failed_login_attempts + 1
+                WHERE user_id = :userID;
+            ");
+            $insert_loginFailedAttempt->execute([
+                ':userID'   => $userID
+            ]);
+
             header("Location: ../frontend/otp-login.php?error=" . urlencode("Invalid verification code. Please try again."));
             exit();
         }
@@ -68,7 +110,16 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
         // Remove used OTP
         $delete_otp = $conn->prepare("DELETE FROM otp_verification WHERE email = :email AND otp_type = 'login'");
         $delete_otp->execute([':email' => $email]);
-        
+
+         $insert_loginFailed = $conn->prepare("
+            INSERT INTO login_history (user_id, status) 
+            VALUES (:userID, :status)
+        ");
+        $insert_loginFailed->execute([
+            ':userID'   => $userID,
+            ':status' => 'success'
+        ]);
+
         // FIX: Commit transaction before session clearing and redirection
         $conn->commit();
 
