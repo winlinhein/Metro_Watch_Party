@@ -178,15 +178,15 @@
             </a>
 
             <!-- Desktop Menu -->
-            <div class="hidden md:flex items-center gap-8">
-                <a href="#features" class="text-sm font-medium text-white/70 hover:text-white transition-colors cursor-pointer">Features</a>
-                <a href="#movies" class="text-sm font-medium text-white/70 hover:text-white transition-colors cursor-pointer">Movies</a>
-                <a href="#how-it-works" class="text-sm font-medium text-white/70 hover:text-white transition-colors cursor-pointer">How it works</a>
+            <div class="hidden md:flex items-center gap-4">
+                <a href="#features" class="text-sm font-bold text-white/70 hover:text-white px-5 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/20 transition-all duration-300 cursor-pointer shadow-[0_0_15px_rgba(0,0,0,0.2)] hover:shadow-[0_0_20px_rgba(255,255,255,0.05)] flex items-center gap-2 group"><span class="material-symbols-outlined text-[18px] group-hover:text-red-400 transition-colors">bolt</span>Features</a>
+                <a href="#movies" class="text-sm font-bold text-white/70 hover:text-white px-5 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/20 transition-all duration-300 cursor-pointer shadow-[0_0_15px_rgba(0,0,0,0.2)] hover:shadow-[0_0_20px_rgba(255,255,255,0.05)] flex items-center gap-2 group"><span class="material-symbols-outlined text-[18px] group-hover:text-indigo-400 transition-colors">theaters</span>Movies</a>
+                <a href="#how-it-works" class="text-sm font-bold text-white/70 hover:text-white px-5 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/20 transition-all duration-300 cursor-pointer shadow-[0_0_15px_rgba(0,0,0,0.2)] hover:shadow-[0_0_20px_rgba(255,255,255,0.05)] flex items-center gap-2 group"><span class="material-symbols-outlined text-[18px] group-hover:text-emerald-400 transition-colors">integration_instructions</span>How it works</a>
             </div>
 
             <!-- Auth Buttons -->
             <div class="hidden md:flex items-center gap-4">
-                <a href="user/dashboard.php" class="text-sm font-medium text-white/70 hover:text-white transition-colors px-4 py-2 cursor-pointer">Sign In</a>
+                <a href="user/dashboard.php" class="text-sm font-bold text-white/70 hover:text-white px-5 py-2.5 rounded-xl bg-transparent hover:bg-white/5 border border-transparent hover:border-white/10 transition-all duration-300 cursor-pointer flex items-center gap-2 group"><span class="material-symbols-outlined text-[18px] group-hover:text-blue-400 transition-colors">login</span>Sign In</a>
                 <a href="user/dashboard.php" class="animated-border px-6 py-2.5 text-sm font-bold text-white flex items-center gap-2 cursor-pointer">
                     Get Started <span class="material-symbols-outlined text-[18px]">arrow_forward</span>
                 </a>
@@ -208,9 +208,9 @@
              x-transition:leave-start="opacity-100 translate-y-0"
              x-transition:leave-end="opacity-0 -translate-y-4">
             <div class="p-6 flex flex-col gap-4">
-                <a href="#features" class="text-lg font-medium text-white/80 hover:text-red-400 transition-colors cursor-pointer">Features</a>
-                <a href="#movies" class="text-lg font-medium text-white/80 hover:text-red-400 transition-colors cursor-pointer">Movies</a>
-                <a href="#how-it-works" class="text-lg font-medium text-white/80 hover:text-red-400 transition-colors cursor-pointer">How it works</a>
+                <a href="#features" class="text-sm font-bold text-white/70 hover:text-white px-5 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/20 transition-all duration-300 cursor-pointer shadow-[0_0_15px_rgba(0,0,0,0.2)] hover:shadow-[0_0_20px_rgba(255,255,255,0.05)] flex items-center gap-2 group"><span class="material-symbols-outlined text-[18px] group-hover:text-red-400 transition-colors">bolt</span>Features</a>
+                <a href="#movies" class="text-sm font-bold text-white/70 hover:text-white px-5 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/20 transition-all duration-300 cursor-pointer shadow-[0_0_15px_rgba(0,0,0,0.2)] hover:shadow-[0_0_20px_rgba(255,255,255,0.05)] flex items-center gap-2 group"><span class="material-symbols-outlined text-[18px] group-hover:text-indigo-400 transition-colors">theaters</span>Movies</a>
+                <a href="#how-it-works" class="text-sm font-bold text-white/70 hover:text-white px-5 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/20 transition-all duration-300 cursor-pointer shadow-[0_0_15px_rgba(0,0,0,0.2)] hover:shadow-[0_0_20px_rgba(255,255,255,0.05)] flex items-center gap-2 group"><span class="material-symbols-outlined text-[18px] group-hover:text-emerald-400 transition-colors">integration_instructions</span>How it works</a>
                 <div class="h-px w-full bg-white/10 my-2"></div>
                 <a href="user/dashboard.php" class="text-lg font-medium text-white/80 hover:text-red-400 transition-colors cursor-pointer">Sign In</a>
                 <a href="user/dashboard.php" class="text-lg font-bold text-red-500 hover:text-red-400 transition-colors cursor-pointer">Get Started</a>

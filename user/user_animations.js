@@ -3,8 +3,28 @@ function userDashboard() {
         currentTab: 'dashboard',
         isNavOpen: false,
         showFriendsPanel: false,
+        showQuestsPanel: false,
+        questActiveTab: 'daily',
         showInviteModal: false,
-        friends: [
+        
+        quests: {
+            daily: [
+                { id: 1, title: 'Watch a Movie', desc: 'Watch any movie for at least 30 minutes', points: 50, completed: true },
+                { id: 2, title: 'Host a Watch Party', desc: 'Invite at least 1 friend to a party', points: 100, completed: false },
+                { id: 3, title: 'Chat Master', desc: 'Send 10 messages in party chat', points: 30, completed: false }
+            ],
+            weekly: [
+                { id: 4, title: 'Movie Marathon', desc: 'Watch 3 movies this week', points: 300, completed: false },
+                { id: 5, title: 'Social Butterfly', desc: 'Host 3 watch parties', points: 500, completed: false },
+                { id: 6, title: 'Genre Explorer', desc: 'Watch movies from 3 different genres', points: 250, completed: true }
+            ],
+            monthly: [
+                { id: 7, title: 'Cinephile', desc: 'Watch 15 movies this month', points: 1500, completed: false },
+                { id: 8, title: 'Party Animal', desc: 'Host 10 watch parties', points: 2000, completed: false },
+                { id: 9, title: 'Community Pillar', desc: 'Add 5 new friends', points: 1000, completed: false }
+            ]
+        },
+friends: [
             { name: 'Sarah Connor', status: 'Online', avatar: 'https://ui-avatars.com/api/?name=Sarah+Connor&background=ec4899&color=fff', activity: 'Watching Dune: Part Two' },
             { name: 'John Doe', status: 'Away', avatar: 'https://ui-avatars.com/api/?name=John+Doe&background=3b82f6&color=fff', activity: 'In menus' },
             { name: 'Jane Smith', status: 'Offline', avatar: 'https://ui-avatars.com/api/?name=Jane+Smith&background=f59e0b&color=fff', activity: 'Last seen 2h ago' }
@@ -84,7 +104,7 @@ function userDashboard() {
             { label: 'Total Watch Time', value: 124, suffix: 'H', icon: 'timer', colorClass: 'bg-red-500/10 text-red-500 border border-red-500/20 group-hover:bg-red-500/20 group-hover:shadow-[0_0_20px_rgba(239,68,68,0.3)]', trendClass: 'text-green-400 border-green-400/20', trend: '+12%', desc: 'vs last week' },
             { label: 'Sessions Hosted', value: 28, suffix: '', icon: 'cell_tower', colorClass: 'bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 group-hover:bg-indigo-500/20 group-hover:shadow-[0_0_20px_rgba(79,70,229,0.3)]', trendClass: 'text-green-400 border-green-400/20', trend: '+3', desc: 'new this week' },
             { label: 'Friends', value: 9, suffix: '', icon: 'group', colorClass: 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 group-hover:bg-emerald-500/20 group-hover:shadow-[0_0_20px_rgba(16,185,129,0.3)]', trendClass: 'text-emerald-400 border-emerald-400/20', trend: 'Online', desc: 'active', action: 'showFriendsPanel = true' },
-            { label: 'Achievements', value: 12, suffix: '', icon: 'military_tech', colorClass: 'bg-yellow-500/10 text-yellow-400 border border-yellow-500/20 group-hover:bg-yellow-500/20 group-hover:shadow-[0_0_20px_rgba(234,179,8,0.3)]', trendClass: 'text-yellow-400 border-yellow-400/20', trend: 'New', desc: 'Night Owl badge' }
+            { label: 'Quests', value: 1250, suffix: ' PTS', icon: 'stars', colorClass: 'bg-yellow-500/10 text-yellow-400 border border-yellow-500/20 group-hover:bg-yellow-500/20 group-hover:shadow-[0_0_20px_rgba(234,179,8,0.3)]', trendClass: 'text-yellow-400 border-yellow-400/20', trend: 'Available', desc: 'Daily quests', action: 'showQuestsPanel = true' }
         ],
         upcomingParties: [
             { title: "Dune: Part Two", time: "TODAY 20:00", genre: "SCI-FI", host: "You", members: 8, img: "https://images.unsplash.com/photo-1536440136628-849c177e76a1?auto=format&fit=crop&q=80&w=400&h=200" },
@@ -115,6 +135,32 @@ function userDashboard() {
                 }
             });
             
+            
+            
+            this.$watch('showQuestsPanel', value => {
+                if(value) {
+                    this.$nextTick(() => {
+                        gsap.fromTo('.quest-item', 
+                            { x: 100, opacity: 0, scale: 0.8, rotationY: 45 },
+                            { x: 0, opacity: 1, scale: 1, rotationY: 0, duration: 0.8, stagger: 0.1, ease: 'elastic.out(1, 0.75)' }
+                        );
+                        gsap.fromTo('.quest-header',
+                            { y: -50, opacity: 0 },
+                            { y: 0, opacity: 1, duration: 0.6, ease: 'back.out(1.7)' }
+                        );
+                    });
+                }
+            });
+
+            this.$watch('questActiveTab', value => {
+                this.$nextTick(() => {
+                    gsap.fromTo('.quest-item', 
+                        { x: 50, opacity: 0, scale: 0.95 },
+                        { x: 0, opacity: 1, scale: 1, duration: 0.5, stagger: 0.05, ease: 'power3.out' }
+                    );
+                });
+            });
+
             this.$nextTick(() => {
                 // 3. Animated Number Counters
                 const counters = document.querySelectorAll('.stat-counter');
@@ -181,6 +227,7 @@ function userDashboard() {
             // Continuous Micro-Animations
             
             // Pulsing dots in activity feed
+            
             this.$nextTick(() => {
                 gsap.to('.activity-item .dot-pulse', {
                     scale: 1.8,

@@ -257,6 +257,75 @@
         </div>
     </div>
 
+    
+    <!-- Quests Drawer -->
+    <div x-show="showQuestsPanel" 
+         class="fixed inset-0 bg-black/60 backdrop-blur-sm z-[90]" 
+         x-transition.opacity 
+         @click="showQuestsPanel = false"
+         style="display: none;"></div>
+         
+    <div class="fixed top-0 right-0 w-full md:w-[400px] h-screen bg-[#050508]/95 backdrop-blur-3xl border-l border-white/10 z-[100] flex flex-col shadow-[0_0_50px_rgba(0,0,0,0.5)] transition-transform duration-500 ease-[cubic-bezier(0.19,1,0.22,1)]"
+         :class="showQuestsPanel ? 'translate-x-0' : 'translate-x-full'">
+        <div class="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-10"></div>
+        <div class="absolute top-0 right-0 w-full h-1/2 bg-gradient-to-b from-yellow-500/5 to-transparent pointer-events-none opacity-50"></div>
+        
+        <div class="p-6 border-b border-white/5 relative z-10 shrink-0 quest-header">
+            <div class="flex items-center justify-between mb-6">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-xl bg-yellow-500/10 border border-yellow-500/20 flex items-center justify-center shadow-[0_0_15px_rgba(234,179,8,0.2)]">
+                        <span class="material-symbols-outlined text-yellow-400">stars</span>
+                    </div>
+                    <div>
+                        <h2 class="text-xl font-bold text-white tracking-tight">Quests</h2>
+                        <p class="text-xs text-white/50 mono"><span x-text="stats[3].value"></span> PTS AVAILABLE</p>
+                    </div>
+                </div>
+                <div class="flex gap-2">
+                    <button @click="showQuestsPanel = false" class="w-8 h-8 rounded-lg bg-white/5 hover:bg-white/10 flex items-center justify-center text-white/50 hover:text-white transition-all duration-300 hover:rotate-90" title="Close">
+                        <span class="material-symbols-outlined text-[18px]">close</span>
+                    </button>
+                </div>
+            </div>
+            
+            <!-- Tabs -->
+            <div class="flex items-center gap-2 bg-black/40 p-1 rounded-xl border border-white/5">
+                <button @click="questActiveTab = 'daily'" class="flex-1 py-1.5 text-xs font-bold rounded-lg transition-all duration-300 uppercase tracking-widest" :class="questActiveTab === 'daily' ? 'bg-yellow-500/20 text-yellow-400 shadow-[0_0_15px_rgba(234,179,8,0.2)]' : 'text-white/40 hover:text-white/80'">Daily</button>
+                <button @click="questActiveTab = 'weekly'" class="flex-1 py-1.5 text-xs font-bold rounded-lg transition-all duration-300 uppercase tracking-widest" :class="questActiveTab === 'weekly' ? 'bg-yellow-500/20 text-yellow-400 shadow-[0_0_15px_rgba(234,179,8,0.2)]' : 'text-white/40 hover:text-white/80'">Weekly</button>
+                <button @click="questActiveTab = 'monthly'" class="flex-1 py-1.5 text-xs font-bold rounded-lg transition-all duration-300 uppercase tracking-widest" :class="questActiveTab === 'monthly' ? 'bg-yellow-500/20 text-yellow-400 shadow-[0_0_15px_rgba(234,179,8,0.2)]' : 'text-white/40 hover:text-white/80'">Monthly</button>
+            </div>
+        </div>
+        
+        <div class="flex-1 overflow-y-auto p-6 relative z-10 custom-scrollbar">
+            <div class="space-y-4">
+                <template x-for="(quest, index) in quests[questActiveTab]" :key="quest.id">
+                    <div class="group relative bg-white/5 border border-white/10 rounded-xl p-4 overflow-hidden transition-all duration-300 hover:bg-white/[0.07] hover:border-white/20 quest-item">
+                        <div class="absolute inset-0 bg-gradient-to-r from-yellow-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none"></div>
+                        
+                        <div class="flex justify-between items-start mb-2 relative z-10">
+                            <div>
+                                <h4 class="text-sm font-bold text-white mb-1 group-hover:text-yellow-400 transition-colors" x-text="quest.title"></h4>
+                                <p class="text-[11px] text-white/50 leading-relaxed" x-text="quest.desc"></p>
+                            </div>
+                            <div class="flex-shrink-0 ml-4 flex items-center justify-center w-8 h-8 rounded-full" :class="quest.completed ? 'bg-green-500/20 text-green-400 border border-green-500/30 shadow-[0_0_15px_rgba(34,197,94,0.3)]' : 'bg-white/5 text-white/40 border border-white/10'">
+                                <span class="material-symbols-outlined text-[16px]" x-text="quest.completed ? 'check' : 'hourglass_empty'"></span>
+                            </div>
+                        </div>
+                        
+                        <div class="flex items-center justify-between mt-4 relative z-10">
+                            <div class="flex items-center gap-1.5 px-2 py-1 bg-yellow-500/10 rounded border border-yellow-500/20 shadow-[0_0_10px_rgba(234,179,8,0.1)]">
+                                <span class="material-symbols-outlined text-[14px] text-yellow-400">toll</span>
+                                <span class="text-[10px] font-bold text-yellow-400 mono tracking-widest" x-text="quest.points + ' PTS'"></span>
+                            </div>
+                            
+                            <button class="text-[10px] uppercase tracking-widest font-bold transition-all" :class="quest.completed ? 'text-green-400 cursor-default' : 'text-yellow-400 hover:text-yellow-300 hover:shadow-[0_0_10px_rgba(234,179,8,0.5)]'" x-text="quest.completed ? 'Claimed' : 'Claim'"></button>
+                        </div>
+                    </div>
+                </template>
+            </div>
+        </div>
+    </div>
+
     <!-- Friends Drawer -->
     <div x-show="showFriendsPanel" 
          class="fixed inset-0 bg-black/60 backdrop-blur-sm z-[90]" 
@@ -269,7 +338,7 @@
         <div class="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-10"></div>
         <div class="absolute top-0 right-0 w-full h-1/2 bg-gradient-to-b from-emerald-500/5 to-transparent pointer-events-none opacity-50"></div>
         
-        <div class="p-6 border-b border-white/5 relative z-10 shrink-0">
+        <div class="p-6 border-b border-white/5 relative z-10 shrink-0 quest-header">
             <div class="flex items-center justify-between mb-6">
                 <div class="flex items-center gap-4 group cursor-pointer">
                     <div class="w-10 h-10 bg-gradient-to-tr from-emerald-500 to-teal-600 rounded-xl flex items-center justify-center shadow-[0_0_20px_rgba(16,185,129,0.3)] relative overflow-hidden">
@@ -344,7 +413,7 @@
             <div class="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-10 pointer-events-none"></div>
             
             <!-- Header -->
-            <div class="p-6 border-b border-white/5 relative z-10 shrink-0">
+            <div class="p-6 border-b border-white/5 relative z-10 shrink-0 quest-header">
                 <div class="flex items-center justify-between mb-6">
                     <div class="flex items-center gap-4">
                         <div class="w-10 h-10 bg-gradient-to-tr from-emerald-500 to-teal-600 rounded-xl flex items-center justify-center shadow-[0_0_20px_rgba(16,185,129,0.3)]">
@@ -435,7 +504,7 @@
                 <!-- Stats Grid -->
                 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                     <template x-for="(stat, index) in stats" :key="index">
-                        <div class="glass-card rounded-2xl p-6 stagger-item group cursor-pointer hover-glow" @click="if(stat.label === 'Friends') showFriendsPanel = true">
+                        <div class="glass-card rounded-2xl p-6 stagger-item group cursor-pointer hover-glow" @click="if(stat.label === 'Friends') showFriendsPanel = true; if(stat.label === 'Quests') showQuestsPanel = true">
                             <div class="w-full h-full">
                                 <div class="flex justify-between items-start mb-4">
                                     <div>
