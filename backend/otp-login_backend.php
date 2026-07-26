@@ -1,5 +1,5 @@
 <?php
-// otp-login_backend.php - Dedicated 2FA Verification Endpoint
+// otp-login_backend.php - Dedicated 2FA Verification Endpoint with Integer Lockout Support
 session_start();
 require_once __DIR__ . '/../conn.php';
 
@@ -33,6 +33,29 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
     }
 
     try {
+        $stmt_user = $conn->prepare("SELECT * FROM users WHERE email = :email");
+        $stmt_user->execute([':email' => $email]);
+        $user_record = $stmt_user->fetch(PDO::FETCH_ASSOC);
+
+        if (!$user_record) {
+            header("Location: ../frontend/login.php?error=" . urlencode("User record not found."));
+            exit();
+        }
+
+        $userID = $user_record['user_id'];
+
+        // --- INTEGER TIMESTAMP LOCKOUT CHECK ---
+        if (!empty($user_record['lock_out_until'])) {
+            $lockout_expires = (int)$user_record['lock_out_until'];
+
+            if ($lockout_expires > $current_time) {
+                $remaining_seconds = $lockout_expires - $current_time;
+                $remaining_minutes = (int)ceil($remaining_seconds / 60);
+                header("Location: ../frontend/login.php?error=" . urlencode("Account is locked. Please try again in {$remaining_minutes} minute(s)."));
+                exit();
+            }
+        }
+
         $stmt_otp = $conn->prepare("
             SELECT * FROM otp_verification 
             WHERE email = :email AND otp_type = 'login' 
@@ -40,14 +63,6 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
         ");
         $stmt_otp->execute([':email' => $email]);
         $otp_record = $stmt_otp->fetch(PDO::FETCH_ASSOC);
-
-        $stmt_user = $conn->prepare("
-            SELECT * FROM users 
-            WHERE email = :email 
-        ");
-        $stmt_user->execute([':email' => $email]);
-        $user_record = $stmt_user->fetch(PDO::FETCH_ASSOC);
-        $userID = $user_record['user_id'];
 
         if (!$otp_record) {
             header("Location: ../frontend/otp-login.php?error=" . urlencode("No pending verification code found. Please request a new one."));
@@ -57,73 +72,89 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
         $stored_otp     = $otp_record['otp_code'];
         $stored_expires = (int)$otp_record['expires_at'];
 
+        // Helper to process OTP failure & trigger lockout if limit reached
+        $handleFailedOtp = function($status, $errorMsg) use ($conn, $userID, $user_record, $email, $current_time) {
+            $new_attempts = (int)$user_record['failed_login_attempts'] + 1;
+
+            $insert_loginFailed = $conn->prepare("
+                INSERT INTO login_history (user_id, status) 
+                VALUES (:userID, :status)
+            ");
+            $insert_loginFailed->execute([
+                ':userID' => $userID,
+                ':status' => $status
+            ]);
+
+            if ($new_attempts >= 3) {
+                $lock_until = $current_time + 180; // 3 minutes lockout
+                $update_lock = $conn->prepare("
+                    UPDATE users 
+                    SET failed_login_attempts = :attempts, lock_out_until = :lock_until 
+                    WHERE user_id = :userID
+                ");
+                $update_lock->execute([
+                    ':attempts'   => $new_attempts,
+                    ':lock_until' => $lock_until,
+                    ':userID'     => $userID
+                ]);
+
+                $conn->prepare("DELETE FROM otp_verification WHERE email = :email AND otp_type = 'login'")
+                     ->execute([':email' => $email]);
+
+                header("Location: ../frontend/login.php?error=" . urlencode("Too many failed attempts. Account locked for 3 minutes."));
+                exit();
+            } else {
+                $update_attempts = $conn->prepare("
+                    UPDATE users SET failed_login_attempts = :attempts WHERE user_id = :userID
+                ");
+                $update_attempts->execute([
+                    ':attempts' => $new_attempts,
+                    ':userID'   => $userID
+                ]);
+
+                $remaining = 3 - $new_attempts;
+                header("Location: ../frontend/otp-login.php?error=" . urlencode("{$errorMsg} {$remaining} attempt(s) remaining."));
+                exit();
+            }
+        };
+
+        // Check expired OTP
         if ($current_time > $stored_expires) {
-            $insert_loginFailed = $conn->prepare("
-                INSERT INTO login_history (user_id, status) 
-                VALUES (:userID, :status)
-            ");
-            $insert_loginFailed->execute([
-                ':userID'   => $userID,
-                ':status' => 'otp_expired'
-            ]);
-
-            $insert_loginFailedAttempt = $conn->prepare("
-                UPDATE users SET failed_login_attempts = failed_login_attempts + 1
-                WHERE user_id = :userID;
-            ");
-            $insert_loginFailedAttempt->execute([
-                ':userID'   => $userID
-            ]);
-
-            $conn->prepare("DELETE FROM otp_verification WHERE email = :email AND otp_type = 'login'")
-                 ->execute([':email' => $email]);
-
-            header("Location: ../frontend/otp-login.php?error=" . urlencode("Your verification code has expired. Please log in again."));
-            exit();
+            $handleFailedOtp('otp_expired', 'Your verification code has expired.');
         }
 
+        // Check invalid OTP
         if ($otp !== $stored_otp) {
-            $insert_loginFailed = $conn->prepare("
-                INSERT INTO login_history (user_id, status) 
-                VALUES (:userID, :status)
-            ");
-            $insert_loginFailed->execute([
-                ':userID'   => $userID,
-                ':status' => 'wrong_otp'
-            ]);
-
-            $insert_loginFailedAttempt = $conn->prepare("
-                UPDATE users SET failed_login_attempts = failed_login_attempts + 1
-                WHERE user_id = :userID;
-            ");
-            $insert_loginFailedAttempt->execute([
-                ':userID'   => $userID
-            ]);
-
-            header("Location: ../frontend/otp-login.php?error=" . urlencode("Invalid verification code. Please try again."));
-            exit();
+            $handleFailedOtp('wrong_otp', 'Invalid verification code.');
         }
 
-        // Execute transaction
+        // --- SUCCESSFUL VERIFICATION ---
         $conn->beginTransaction();
         
         // Remove used OTP
         $delete_otp = $conn->prepare("DELETE FROM otp_verification WHERE email = :email AND otp_type = 'login'");
         $delete_otp->execute([':email' => $email]);
 
-         $insert_loginFailed = $conn->prepare("
+        // Log success
+        $insert_loginSuccess = $conn->prepare("
             INSERT INTO login_history (user_id, status) 
-            VALUES (:userID, :status)
+            VALUES (:userID, 'success')
         ");
-        $insert_loginFailed->execute([
-            ':userID'   => $userID,
-            ':status' => 'success'
-        ]);
+        $insert_loginSuccess->execute([':userID' => $userID]);
 
-        // FIX: Commit transaction before session clearing and redirection
+        // Upon successful login or OTP verification:
+        $reset_lockout = $conn->prepare("
+            UPDATE users 
+            SET failed_login_attempts = 0, 
+                lock_out_until = NULL, 
+                last_failed_login = NULL 
+            WHERE user_id = :userID
+        ");
+        $reset_lockout->execute([':userID' => $userID]);
+
         $conn->commit();
 
-        // Clear temporary verification state and set active session
+        // Clear temporary verification state and launch active session
         unset($_SESSION['verify_email']);
         $_SESSION['authenticated'] = true;
 
