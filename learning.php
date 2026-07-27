@@ -42,9 +42,7 @@
             cursor: none;
         }
 
-        a, button, input, .cursor-pointer {
-            cursor: none !important;
-        }
+        
 
         .mono { font-family: 'JetBrains Mono', monospace; }
 
@@ -128,32 +126,9 @@
             100% { background-position: 0% 50%; }
         }
 
-        #cursor-glow {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 30vw;
-            height: 30vw;
-            border-radius: 50%;
-            background: radial-gradient(circle, rgba(239,68,68,0.15) 0%, rgba(79,70,229,0.05) 30%, transparent 70%);
-            pointer-events: none;
-            z-index: 9998;
-            transform: translate(-50%, -50%);
-        }
         
-        .inner-cursor {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 8px;
-            height: 8px;
-            background-color: #ef4444;
-            border-radius: 50%;
-            pointer-events: none;
-            z-index: 9999;
-            box-sizing: border-box;
-            transform: translate(-50%, -50%);
-        }
+        
+        
 
         .grid-pattern {
             position: absolute;
@@ -181,11 +156,15 @@
             100% { transform: translateY(0px) rotate(0deg); }
         }
     </style>
+
+
+
 </head>
 <body x-data="{ mobileMenuOpen: false }">
-    <div id="cursor-glow"></div>
-    <div class="inner-cursor"></div>
-    <div class="bg-mesh"></div>
+    <?php include __DIR__ . '/frontend/components/cursor.php'; ?>
+    <?php include __DIR__ . '/frontend/components/toast.php'; ?>
+
+<div class="bg-mesh"></div>
     <div class="noise"></div>
 
     <!-- Navigation -->
@@ -199,15 +178,15 @@
             </a>
 
             <!-- Desktop Menu -->
-            <div class="hidden md:flex items-center gap-8">
-                <a href="#features" class="text-sm font-medium text-white/70 hover:text-white transition-colors cursor-pointer">Features</a>
-                <a href="#movies" class="text-sm font-medium text-white/70 hover:text-white transition-colors cursor-pointer">Movies</a>
-                <a href="#how-it-works" class="text-sm font-medium text-white/70 hover:text-white transition-colors cursor-pointer">How it works</a>
+            <div class="hidden md:flex items-center gap-4">
+                <a href="#features" class="text-sm font-bold text-white/70 hover:text-white px-5 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/20 transition-all duration-300 cursor-pointer shadow-[0_0_15px_rgba(0,0,0,0.2)] hover:shadow-[0_0_20px_rgba(255,255,255,0.05)] flex items-center gap-2 group"><span class="material-symbols-outlined text-[18px] group-hover:text-red-400 transition-colors">bolt</span>Features</a>
+                <a href="#movies" class="text-sm font-bold text-white/70 hover:text-white px-5 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/20 transition-all duration-300 cursor-pointer shadow-[0_0_15px_rgba(0,0,0,0.2)] hover:shadow-[0_0_20px_rgba(255,255,255,0.05)] flex items-center gap-2 group"><span class="material-symbols-outlined text-[18px] group-hover:text-indigo-400 transition-colors">theaters</span>Movies</a>
+                <a href="#how-it-works" class="text-sm font-bold text-white/70 hover:text-white px-5 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/20 transition-all duration-300 cursor-pointer shadow-[0_0_15px_rgba(0,0,0,0.2)] hover:shadow-[0_0_20px_rgba(255,255,255,0.05)] flex items-center gap-2 group"><span class="material-symbols-outlined text-[18px] group-hover:text-emerald-400 transition-colors">integration_instructions</span>How it works</a>
             </div>
 
             <!-- Auth Buttons -->
             <div class="hidden md:flex items-center gap-4">
-                <a href="user/dashboard.php" class="text-sm font-medium text-white/70 hover:text-white transition-colors px-4 py-2 cursor-pointer">Sign In</a>
+                <a href="user/dashboard.php" class="text-sm font-bold text-white/70 hover:text-white px-5 py-2.5 rounded-xl bg-transparent hover:bg-white/5 border border-transparent hover:border-white/10 transition-all duration-300 cursor-pointer flex items-center gap-2 group"><span class="material-symbols-outlined text-[18px] group-hover:text-blue-400 transition-colors">login</span>Sign In</a>
                 <a href="user/dashboard.php" class="animated-border px-6 py-2.5 text-sm font-bold text-white flex items-center gap-2 cursor-pointer">
                     Get Started <span class="material-symbols-outlined text-[18px]">arrow_forward</span>
                 </a>
@@ -229,9 +208,9 @@
              x-transition:leave-start="opacity-100 translate-y-0"
              x-transition:leave-end="opacity-0 -translate-y-4">
             <div class="p-6 flex flex-col gap-4">
-                <a href="#features" class="text-lg font-medium text-white/80 hover:text-red-400 transition-colors cursor-pointer">Features</a>
-                <a href="#movies" class="text-lg font-medium text-white/80 hover:text-red-400 transition-colors cursor-pointer">Movies</a>
-                <a href="#how-it-works" class="text-lg font-medium text-white/80 hover:text-red-400 transition-colors cursor-pointer">How it works</a>
+                <a href="#features" class="text-sm font-bold text-white/70 hover:text-white px-5 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/20 transition-all duration-300 cursor-pointer shadow-[0_0_15px_rgba(0,0,0,0.2)] hover:shadow-[0_0_20px_rgba(255,255,255,0.05)] flex items-center gap-2 group"><span class="material-symbols-outlined text-[18px] group-hover:text-red-400 transition-colors">bolt</span>Features</a>
+                <a href="#movies" class="text-sm font-bold text-white/70 hover:text-white px-5 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/20 transition-all duration-300 cursor-pointer shadow-[0_0_15px_rgba(0,0,0,0.2)] hover:shadow-[0_0_20px_rgba(255,255,255,0.05)] flex items-center gap-2 group"><span class="material-symbols-outlined text-[18px] group-hover:text-indigo-400 transition-colors">theaters</span>Movies</a>
+                <a href="#how-it-works" class="text-sm font-bold text-white/70 hover:text-white px-5 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/20 transition-all duration-300 cursor-pointer shadow-[0_0_15px_rgba(0,0,0,0.2)] hover:shadow-[0_0_20px_rgba(255,255,255,0.05)] flex items-center gap-2 group"><span class="material-symbols-outlined text-[18px] group-hover:text-emerald-400 transition-colors">integration_instructions</span>How it works</a>
                 <div class="h-px w-full bg-white/10 my-2"></div>
                 <a href="user/dashboard.php" class="text-lg font-medium text-white/80 hover:text-red-400 transition-colors cursor-pointer">Sign In</a>
                 <a href="user/dashboard.php" class="text-lg font-bold text-red-500 hover:text-red-400 transition-colors cursor-pointer">Get Started</a>
@@ -512,53 +491,6 @@
     <!-- Scripts -->
     <script>
         // Custom Cursor
-        const cursor = document.getElementById('cursor-glow');
-        const innerCursor = document.querySelector('.inner-cursor');
-        
-        let mouseX = window.innerWidth / 2;
-        let mouseY = window.innerHeight / 2;
-        
-        document.addEventListener('mousemove', (e) => {
-            mouseX = e.clientX;
-            mouseY = e.clientY;
-            
-            // Parallax background mesh
-            gsap.to('.bg-mesh', {
-                x: (e.clientX / window.innerWidth - 0.5) * 40,
-                y: (e.clientY / window.innerHeight - 0.5) * 40,
-                ease: "power2.out",
-                duration: 1.5
-            });
-        });
-        
-        gsap.ticker.add(() => {
-            if (cursor) {
-                gsap.to(cursor, {
-                    x: mouseX,
-                    y: mouseY,
-                    duration: 0.8,
-                    ease: "power3.out"
-                });
-            }
-            if (innerCursor) {
-                gsap.set(innerCursor, {
-                    x: mouseX,
-                    y: mouseY
-                });
-            }
-        });
-
-        // Hover effect for interactive elements
-        const interactiveElements = document.querySelectorAll('a, button, input, .cursor-pointer, .gs-movie-card');
-        interactiveElements.forEach(elem => {
-            elem.addEventListener('mouseenter', () => {
-                gsap.to(innerCursor, { scale: 3.5, backgroundColor: 'transparent', border: '1px solid rgba(239, 68, 68, 0.8)', duration: 0.2 });
-            });
-            elem.addEventListener('mouseleave', () => {
-                gsap.to(innerCursor, { scale: 1, backgroundColor: '#ef4444', border: 'none', duration: 0.2 });
-            });
-        });
-
         // GSAP Scroll Animations
         gsap.registerPlugin(ScrollTrigger);
 
@@ -637,5 +569,9 @@
             );
         });
     </script>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+
+
 </body>
 </html>

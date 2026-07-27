@@ -39,10 +39,15 @@
         .otp-input { text-align: center; font-size: 1.5rem; font-weight: 700; letter-spacing: 0.5rem; }
         .otp-input:focus { border-color: #dc2626; outline: none; }
     </style>
+
+
+
 </head>
 <body class="bg-[#050505] text-white flex items-center justify-center font-sans antialiased relative overflow-hidden min-h-screen" x-data="otpForm()">
+    <?php include __DIR__ . '/components/cursor.php'; ?>
+    <?php include __DIR__ . '/components/toast.php'; ?>
 
-    <!-- Ambient background animation elements -->
+<!-- Ambient background animation elements -->
     <div class="absolute inset-0 z-0 overflow-hidden pointer-events-none" id="particles-container">
         <div id="blob1" class="absolute top-[20%] left-[-10%] w-[500px] h-[500px] bg-red-600 rounded-full blur-[140px] opacity-20"></div>
         <div id="blob2" class="absolute bottom-[-20%] right-[-10%] w-[600px] h-[600px] bg-indigo-600 rounded-full blur-[160px] opacity-20"></div>
@@ -72,12 +77,7 @@
         <!-- Card -->
         <div class="glass-card rounded-2xl p-8 ultimate-reveal border-red-500/20 shadow-[0_0_50px_rgba(220,38,38,0.1)]" id="glass-card">
             
-            <?php if (isset($_GET['error'])): ?>
-            <div class="bg-red-500/10 border border-red-500/50 text-red-400 p-3 rounded-lg mb-6 text-sm flex items-center gap-2 gs-error">
-                <span class="material-symbols-outlined text-[20px]">error</span>
-                <span><?= htmlspecialchars(urldecode($_GET['error'])) ?></span>
-            </div>
-            <?php endif; ?>
+            
 
             <form action="../backend/otp-login_backend.php?action=verify_otp_login" method="POST" class="space-y-6" id="otpForm">
                 
@@ -249,5 +249,8 @@
             }
         });
     </script>
+
+
+
 </body>
 </html>

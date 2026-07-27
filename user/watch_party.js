@@ -102,63 +102,6 @@ document.addEventListener('alpine:init', () => {
             this.scrollToBottom();
 
             
-            // Advanced Cursor Follower
-            const cursor = document.getElementById('cursor-glow');
-            const innerCursor = document.createElement('div');
-            innerCursor.classList.add('inner-cursor');
-            document.body.appendChild(innerCursor);
-            
-            gsap.set(cursor, { xPercent: -50, yPercent: -50 });
-            gsap.set(innerCursor, { xPercent: -50, yPercent: -50 });
-            
-            let mouseX = window.innerWidth / 2;
-            let mouseY = window.innerHeight / 2;
-            
-            document.addEventListener('mousemove', (e) => {
-                mouseX = e.clientX;
-                mouseY = e.clientY;
-            });
-            
-            gsap.ticker.add(() => {
-                if(cursor) {
-                    gsap.to(cursor, {
-                        x: mouseX,
-                        y: mouseY,
-                        duration: 0.8,
-                        ease: "power3.out"
-                    });
-                }
-                if(innerCursor) {
-                    gsap.set(innerCursor, {
-                        x: mouseX,
-                        y: mouseY
-                    });
-                }
-            });
-            
-            const initInteractiveElements = () => {
-                const interactiveElements = document.querySelectorAll('button, a, input, .cursor-pointer, [x-ref="progressBar"]');
-                interactiveElements.forEach(elem => {
-                    if (!elem.hasAttribute('data-cursor-bound')) {
-                        elem.setAttribute('data-cursor-bound', 'true');
-                        elem.addEventListener('mouseenter', () => {
-                            gsap.to(innerCursor, { scale: 4, backgroundColor: 'transparent', border: '1px solid rgba(239, 68, 68, 0.8)', duration: 0.2 });
-                        });
-                        elem.addEventListener('mouseleave', () => {
-                            gsap.to(innerCursor, { scale: 1, backgroundColor: '#ef4444', border: 'none', duration: 0.2 });
-                        });
-                    }
-                });
-            };
-            
-            initInteractiveElements();
-            
-            // Re-init interactive elements when new ones are added
-            const observer = new MutationObserver((mutations) => {
-                initInteractiveElements();
-            });
-            observer.observe(document.body, { childList: true, subtree: true });
-
             // Video player setup
             this.$nextTick(() => {
                 const video = this.$refs.videoPlayer;

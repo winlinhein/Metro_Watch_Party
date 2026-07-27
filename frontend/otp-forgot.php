@@ -36,10 +36,15 @@
     <style>
         .ultimate-reveal { opacity: 0; }
     </style>
+
+
+
 </head>
 <body class="bg-[#050505] text-white flex items-center justify-center font-sans antialiased relative overflow-hidden min-h-screen" x-data="otpForm()">
+    <?php include __DIR__ . '/components/cursor.php'; ?>
+    <?php include __DIR__ . '/components/toast.php'; ?>
 
-    <!-- Ambient background animation elements -->
+<!-- Ambient background animation elements -->
     <div class="absolute inset-0 z-0 overflow-hidden pointer-events-none" id="particles-container">
         <div id="blob1" class="absolute top-[30%] left-[-20%] w-[500px] h-[500px] bg-yellow-600 rounded-full blur-[140px] opacity-20"></div>
         <div id="blob2" class="absolute top-[-10%] right-[-10%] w-[400px] h-[400px] bg-red-600 rounded-full blur-[160px] opacity-20"></div>
@@ -69,12 +74,7 @@
         <!-- Card -->
         <div class="glass-card rounded-2xl p-8 ultimate-reveal border-red-500/20 shadow-[0_0_50px_rgba(239,68,68,0.1)]" id="glass-card">
             
-            <?php if (isset($_GET['error'])): ?>
-            <div class="bg-red-500/10 border border-red-500/50 text-red-400 p-3 rounded-lg mb-6 text-sm flex items-center gap-2 gs-error">
-                <span class="material-symbols-outlined text-[20px]">error</span>
-                <span><?= htmlspecialchars(urldecode($_GET['error'])) ?></span>
-            </div>
-            <?php endif; ?>
+            
 
             <form action="../backend/otp-forgot_backend.php?action=verify_otp_forgot" method="POST" class="space-y-6" id="otpForm">
                 
@@ -230,5 +230,8 @@
             }
         });
     </script>
+
+
+
 </body>
 </html>

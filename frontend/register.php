@@ -42,11 +42,16 @@
         .ultimate-reveal { opacity: 0; }
         .success-checkmark { stroke-dasharray: 50; stroke-dashoffset: 50; }
     </style>
+
+
+
 </head>
 
 <body class="bg-[#050505] text-white flex items-center justify-center font-sans antialiased relative overflow-hidden min-h-screen" x-data="{ showPassword: false }">
+    <?php include __DIR__ . '/components/cursor.php'; ?>
+    <?php include __DIR__ . '/components/toast.php'; ?>
 
-    <!-- Ambient background animation elements -->
+<!-- Ambient background animation elements -->
     <div class="absolute inset-0 z-0 overflow-hidden pointer-events-none" id="particles-container">
         <div id="blob1" class="absolute top-[-20%] left-[-10%] w-[600px] h-[600px] bg-red-600 rounded-full blur-[160px] opacity-20"></div>
         <div id="blob2" class="absolute bottom-[-15%] right-[-10%] w-[500px] h-[500px] bg-indigo-600 rounded-full blur-[140px] opacity-30"></div>
@@ -78,12 +83,7 @@
         <!-- Register Card -->
         <div class="glass-card rounded-2xl p-8 ultimate-reveal border-indigo-500/20 shadow-[0_0_50px_rgba(79,70,229,0.1)]" id="glass-card">
             
-            <?php if (isset($_GET['error'])): ?>
-            <div class="bg-nexus-danger/10 border border-nexus-danger/50 text-nexus-danger p-3 rounded-lg mb-6 text-sm flex items-center gap-2 gs-error">
-                <span class="material-symbols-outlined text-[20px]">error</span>
-                <span><?= htmlspecialchars(urldecode($_GET['error'])) ?></span>
-            </div>
-            <?php endif; ?>
+            
 
             <form action="../backend/register_backend.php?action=register" method="POST" class="space-y-5" id="registerForm" onsubmit="return validateRegistrationForm();" novalidate>
                 
@@ -364,5 +364,8 @@
             }
         }
     </script>
+
+
+
 </body>
 </html>

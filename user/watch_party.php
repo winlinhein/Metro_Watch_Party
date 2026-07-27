@@ -60,47 +60,28 @@
             opacity: 1;
         }
 
-        /* Hide default cursor for custom cursor effect */
-        body {
-            cursor: none;
-        }
         
-        /* Interactive elements should hide cursor too to show custom cursor */
-        a, button, input, .cursor-pointer {
-            cursor: none !important;
-        }
+        
+        
+        
+        
 
-        /* Advanced Cursor Follower */
-        #cursor-glow {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 30vw;
-            height: 30vw;
-            border-radius: 50%;
-            background: radial-gradient(circle, rgba(239,68,68,0.1) 0%, rgba(79,70,229,0.05) 30%, transparent 70%);
-            pointer-events: none;
-            z-index: 0;
-        }
         
-        .inner-cursor {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 8px;
-            height: 8px;
-            background-color: #ef4444;
-            border-radius: 50%;
-            pointer-events: none;
-            z-index: 9999;
-            box-sizing: border-box;
-        }
+        
+        
+        
     </style>
+
+
+
 </head>
 <body x-data="watchParty()" x-init="init()" class="h-screen w-screen flex relative selection:bg-red-500/30">
-    <div class="bg-mesh"></div>
+    <?php include __DIR__ . '/../frontend/components/cursor.php'; ?>
+    <?php include __DIR__ . '/../frontend/components/toast.php'; ?>
+
+<div class="bg-mesh"></div>
     <div class="noise"></div>
-    <div id="cursor-glow"></div>
+    
 
     <!-- Sidebar / Server List (Discord style) -->
     <div class="w-20 shrink-0 h-full bg-[#030305]/90 backdrop-blur-xl border-r border-white/5 flex flex-col items-center py-6 gap-4 z-20 relative">
@@ -350,5 +331,9 @@
             }
         });
     </script>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+
+
 </body>
 </html>
