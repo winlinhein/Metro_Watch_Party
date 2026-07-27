@@ -1,5 +1,21 @@
 <?php
-// user_dashboard.php
+session_start();
+
+// Block access if not authenticated OR if the user is not an admin
+if (
+    empty($_SESSION['authenticated']) || 
+    $_SESSION['authenticated'] !== true || 
+    empty($_SESSION['user_role']) 
+) {
+    header("Location: ../frontend/login.php?error=" . urlencode("Access denied. Admin privileges required."));
+    exit();
+}
+
+    $userName  = $_SESSION['user_name']  ?? 'Agent';
+    $userEmail = $_SESSION['user_email'] ?? '';
+    $userRole  = $_SESSION['user_role']  ?? 'user';
+    
+
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -201,7 +217,9 @@
                 <button class="flex-1 py-2.5 bg-white/5 rounded-xl text-[10px] font-bold uppercase tracking-widest text-white/70 hover:text-white hover:bg-white/10 border border-white/5 transition-colors flex items-center justify-center gap-2 pointer-events-auto">
                     <span class="material-symbols-outlined text-[16px]">settings</span> Settings
                 </button>
-                <button class="flex-1 py-2.5 bg-red-500/10 rounded-xl text-[10px] font-bold uppercase tracking-widest text-red-400 hover:text-red-300 hover:bg-red-500/20 border border-red-500/20 transition-colors flex items-center justify-center gap-2 pointer-events-auto">
+                <button id="logoutBtn" 
+                        onclick="handleLogout()"
+                        class="flex-1 py-2.5 bg-red-500/10 rounded-xl text-[10px] font-bold uppercase tracking-widest text-red-400 hover:text-red-300 hover:bg-red-500/20 border border-red-500/20 transition-colors flex items-center justify-center gap-2 pointer-events-auto">
                     <span class="material-symbols-outlined text-[16px]">logout</span> Sign Out
                 </button>
             </div>
@@ -421,7 +439,7 @@
                 
                 <div class="hidden md:block">
                     <div class="flex items-center gap-2">
-                        <h1 class="text-2xl font-bold tracking-tight welcome-text">Welcome back, Alex</h1>
+                        <h1 class="text-2xl font-bold tracking-tight welcome-text">Welcome back, <?php echo htmlspecialchars($userName); ?></h1>
                     </div>
                     <p class="text-xs text-white/40 mono mt-1">NEXUS PROTOCOL ACTIVE</p>
                 </div>
@@ -440,11 +458,13 @@
                          :class="showProfileMenu ? 'border-white/10 rounded-t-xl rounded-b-none border-b-transparent shadow-[0_-10px_40px_rgba(0,0,0,0.5)]' : 'border-white/5 hover:bg-white/[0.05] rounded-xl'">
                         <div class="flex items-center gap-3">
                             <div class="relative shrink-0">
-                                <img src="https://ui-avatars.com/api/?name=Alex+M&background=3b82f6&color=fff" alt="User" class="w-10 h-10 rounded-full border-2 border-red-500/50 shadow-[0_0_15px_rgba(239,68,68,0.3)] relative z-10 transition-transform duration-500 group-hover:scale-105">
+                               <img src="https://ui-avatars.com/api/?name=<?= urlencode($userName) ?>&background=ef4444&color=fff&bold=true" 
+                                    alt="<?= htmlspecialchars($userName) ?>" 
+                                    class="w-10 h-10 rounded-full border-2 border-red-500/50 shadow-[0_0_15px_rgba(239,68,68,0.3)] relative z-10 transition-transform duration-500 group-hover:scale-105">
                             </div>
                             <div class="hidden sm:block min-w-0 pr-1">
-                                <p class="text-sm font-bold text-white group-hover:text-red-400 transition-colors truncate">Alex Mercer</p>
-                                <p class="text-[9px] text-red-400 uppercase tracking-widest mono font-bold bg-red-500/10 px-2 py-0.5 rounded border border-red-500/20 inline-block mt-0.5">Pro Member</p>
+                                <p class="text-sm font-bold text-white group-hover:text-red-400 transition-colors truncate"><?php echo htmlspecialchars($userName); ?></p>
+                                <p class="text-[9px] text-red-400 uppercase tracking-widest mono font-bold bg-red-500/10 px-2 py-0.5 rounded border border-red-500/20 inline-block mt-0.5"><?php echo htmlspecialchars($userRole); ?></p>
                             </div>
                         </div>
                         <div class="hidden sm:flex w-8 h-8 rounded-lg bg-white/5 items-center justify-center group-hover:bg-white/10 transition-colors mr-1">
@@ -637,7 +657,36 @@
     <?php include __DIR__ . '/../frontend/components/host_party_fab.php'; ?>
 
     <script src="user_animations.js"></script>
+    <script>
+        async function handleLogout() {
+            const btn = document.getElementById('logoutBtn');
+            
+            try {
+                // Optional UI Feedback (disable button during request)
+                if (btn) btn.style.opacity = '0.5';
 
+                const response = await fetch('../backend/logout.php', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    // Redirect to login page
+                    window.location.href = data.redirect;
+                } else {
+                    console.error('Logout failed');
+                    if (btn) btn.style.opacity = '1';
+                }
+            } catch (error) {
+                console.error('Error during sign out:', error);
+                if (btn) btn.style.opacity = '1';
+            }
+        }
+    </script>
 
 </body>
 </html>

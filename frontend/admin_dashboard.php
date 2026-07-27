@@ -1,3 +1,21 @@
+<?php
+session_start();
+
+// Block access if not authenticated OR if the user is not an admin
+if (
+    empty($_SESSION['authenticated']) || 
+    $_SESSION['authenticated'] !== true || 
+    empty($_SESSION['user_role']) || 
+    $_SESSION['user_role'] !== 'admin'
+) {
+    header("Location: login.php?error=" . urlencode("Access denied. Admin privileges required."));
+    exit();
+}
+
+    $userName  = $_SESSION['user_name']  ?? 'Agent';
+    $userEmail = $_SESSION['user_email'] ?? '';
+    $userRole  = $_SESSION['user_role']  ?? 'user';
+?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -147,10 +165,11 @@
         
         <div class="p-6">
             </div>
-            <a href="index.php" class="flex items-center gap-3 py-2 px-4 text-white/50 hover:text-red-400 transition-colors rounded-xl hover:bg-red-500/10 gs-nav-item">
+            <button onclick="handleLogout()" 
+                    class="flex items-center gap-3 py-2 px-4 text-white/50 hover:text-red-400 transition-colors rounded-xl hover:bg-red-500/10 gs-nav-item w-full text-left cursor-pointer">
                 <span class="material-symbols-outlined text-[20px]">logout</span>
                 <span class="text-sm font-medium">Terminate Session</span>
-            </a>
+            </button>
         </div>
     </aside>
 
@@ -181,12 +200,14 @@
                 <!-- Profile -->
                 <div class="flex items-center gap-4 pl-6 border-l border-white/10 cursor-pointer group gs-header-item">
                     <div class="text-right hidden md:block">
-                        <p class="text-sm font-bold text-white group-hover:text-red-400 transition-colors tracking-wide">System Admin</p>
-                        <p class="text-xs text-white/40 mono uppercase">Level 5 Access</p>
+                        <p class="text-sm font-bold text-white group-hover:text-red-400 transition-colors tracking-wide"><?php echo htmlspecialchars($userName); ?></p>
+                        <p class="text-xs text-white/40 mono uppercase"><?php echo htmlspecialchars($userRole); ?></p>
                     </div>
                     <div class="relative w-12 h-12">
-                        <img :src="selectedAvatar" alt="Admin" class="w-full h-full rounded-full border border-white/20 group-hover:border-red-500/50 group-hover:shadow-[0_0_15px_rgba(239,68,68,0.3)] transition-all duration-300 relative z-10">
-                        <template x-if="selectedBorder">
+                        <img src="https://ui-avatars.com/api/?name=<?= urlencode($userName) ?>&background=ef4444&color=fff&bold=true" 
+                            alt="<?= htmlspecialchars($userName) ?>" 
+                            class="w-full h-full rounded-full border border-white/20 group-hover:border-red-500/50 group-hover:shadow-[0_0_15px_rgba(239,68,68,0.3)] transition-all duration-300 relative z-10">
+                            <template x-if="selectedBorder">
                             <img :src="selectedBorder" class="absolute inset-0 w-full h-full object-cover z-20 pointer-events-none scale-[1.3] drop-shadow-[0_0_15px_rgba(255,255,255,0.2)] mix-blend-screen opacity-90">
                         </template>
                         <div class="absolute -bottom-1 -right-1 w-3.5 h-3.5 bg-green-500 border-2 border-[#030305] rounded-full z-30"></div>
@@ -508,9 +529,36 @@
                 }
             }
         }
+
+         async function handleLogout() {
+            const btn = document.getElementById('logoutBtn');
+            
+            try {
+                // Optional UI Feedback (disable button during request)
+                if (btn) btn.style.opacity = '0.5';
+
+                const response = await fetch('../backend/logout.php', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    // Redirect to login page
+                    window.location.href = data.redirect;
+                } else {
+                    console.error('Logout failed');
+                    if (btn) btn.style.opacity = '1';
+                }
+            } catch (error) {
+                console.error('Error during sign out:', error);
+                if (btn) btn.style.opacity = '1';
+            }
+        }
     </script>
-
-
-
+    
 </body>
 </html>

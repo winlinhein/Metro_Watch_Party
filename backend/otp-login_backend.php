@@ -154,15 +154,21 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
         $conn->commit();
 
-        // Clear temporary verification state and launch active session
+        /// Clear temporary verification state
         unset($_SESSION['verify_email']);
+
+        // Store permanent session details
         $_SESSION['authenticated'] = true;
+        $_SESSION['user_id']       = $user_record['user_id'];
+        $_SESSION['user_name']     = $user_record['user_name']; 
+        $_SESSION['user_email']    = $user_record['email'];
+        $_SESSION['user_role']     = $role;
 
         if ($role === 'admin') {
             header("Location: ../frontend/admin_dashboard.php?success=" . urlencode("Welcome to Admin Dashboard"));
             exit();
         } else {
-            header("Location: ../frontend/login.php?success=" . urlencode("Successfully logged in"));
+            header("Location: ../user/dashboard.php?success=" . urlencode("Successfully logged in"));
             exit();
         }
 
