@@ -28,7 +28,7 @@ document.addEventListener('alpine:init', () => {
             { name: 'System', text: 'Welcome to the watch party! 🎉', time: '20:00', avatar: 'https://ui-avatars.com/api/?name=S&background=ef4444&color=fff', isSelf: false },
             { name: 'Sarah C.', text: 'This movie is so good! 🍿', time: '20:02', avatar: 'https://ui-avatars.com/api/?name=Sarah+C&background=ec4899&color=fff', isSelf: false },
         ],
-        init() {
+        init() { gsap.config({ nullTargetWarn: false }); this.$nextTick(() => {
             // INSANE GSAP Animations Setup
             const tl = gsap.timeline();
 
@@ -99,7 +99,7 @@ document.addEventListener('alpine:init', () => {
                 ease: 'sine.inOut'
             });
 
-            this.scrollToBottom();
+            this.scrollToBottom(); });
 
             
             // Video player setup
@@ -229,19 +229,23 @@ document.addEventListener('alpine:init', () => {
                 document.exitFullscreen();
             }
         },
-        toggleMic() {
+        toggleMic(event) {
             this.isMuted = !this.isMuted;
             this.participants[0].muted = this.isMuted;
             
             // Animation for toggle
-            const btn = event.currentTarget;
-            gsap.fromTo(btn, { scale: 0.8 }, { scale: 1, duration: 0.4, ease: 'back.out(2)' });
+            if (event && event.currentTarget) {
+                const btn = event.currentTarget;
+                gsap.fromTo(btn, { scale: 0.8 }, { scale: 1, duration: 0.4, ease: 'back.out(2)' });
+            }
         },
-        toggleVideo() {
+        toggleVideo(event) {
             this.isVideoOn = !this.isVideoOn;
             
-            const btn = event.currentTarget;
-            gsap.fromTo(btn, { scale: 0.8 }, { scale: 1, duration: 0.4, ease: 'back.out(2)' });
+            if (event && event.currentTarget) {
+                const btn = event.currentTarget;
+                gsap.fromTo(btn, { scale: 0.8 }, { scale: 1, duration: 0.4, ease: 'back.out(2)' });
+            }
         },
         sendMessage() {
             if (this.newMessage.trim() === '') return;

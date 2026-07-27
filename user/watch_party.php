@@ -7,6 +7,8 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+    <script>if(window.gsap) gsap.config({nullTargetWarn: false});</script>
+    
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0" />
     <style>
@@ -76,6 +78,7 @@
 
 </head>
 <body x-data="watchParty()" x-init="init()" class="h-screen w-screen flex relative selection:bg-red-500/30">
+    <?php include __DIR__ . '/../frontend/components/page_loader.php'; ?>
     <?php include __DIR__ . '/../frontend/components/cursor.php'; ?>
     <?php include __DIR__ . '/../frontend/components/toast.php'; ?>
 
@@ -294,10 +297,10 @@
 
         <!-- Bottom Controls (Voice/Video toggles) -->
         <div class="h-20 border-t border-white/5 bg-[#050508]/90 backdrop-blur-xl flex items-center justify-center gap-4 px-6 relative z-30 gs-controls">
-            <button @click="toggleMic" class="w-12 h-12 rounded-xl flex items-center justify-center transition-all duration-300 shadow-lg border" :class="isMuted ? 'bg-red-500/10 border-red-500/20 text-red-500 hover:bg-red-500/20' : 'bg-white/10 border-white/10 text-white hover:bg-white/20'">
+            <button @click="toggleMic($event)" class="w-12 h-12 rounded-xl flex items-center justify-center transition-all duration-300 shadow-lg border" :class="isMuted ? 'bg-red-500/10 border-red-500/20 text-red-500 hover:bg-red-500/20' : 'bg-white/10 border-white/10 text-white hover:bg-white/20'">
                 <span class="material-symbols-outlined" x-text="isMuted ? 'mic_off' : 'mic'"></span>
             </button>
-            <button @click="toggleVideo" class="w-12 h-12 rounded-xl flex items-center justify-center transition-all duration-300 shadow-lg border" :class="!isVideoOn ? 'bg-red-500/10 border-red-500/20 text-red-500 hover:bg-red-500/20' : 'bg-white/10 border-white/10 text-white hover:bg-white/20'">
+            <button @click="toggleVideo($event)" class="w-12 h-12 rounded-xl flex items-center justify-center transition-all duration-300 shadow-lg border" :class="!isVideoOn ? 'bg-red-500/10 border-red-500/20 text-red-500 hover:bg-red-500/20' : 'bg-white/10 border-white/10 text-white hover:bg-white/20'">
                 <span class="material-symbols-outlined" x-text="!isVideoOn ? 'videocam_off' : 'videocam'"></span>
             </button>
             <button class="w-12 h-12 rounded-xl bg-white/10 border-white/10 text-white hover:bg-white/20 flex items-center justify-center transition-all duration-300 shadow-lg border">
@@ -332,7 +335,7 @@
         });
     </script>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+
 
 
 </body>

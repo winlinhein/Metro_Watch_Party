@@ -35,8 +35,9 @@
     <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined" rel="stylesheet" />
     
     <!-- Alpine.js & GSAP -->
-    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+    <script>if(window.gsap) gsap.config({nullTargetWarn: false});</script>
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
     
     <style>
         body { 
@@ -148,6 +149,7 @@
 
 </head>
 <body x-data="userDashboard()" x-init="initDashboard()" class="h-screen w-screen flex flex-col relative selection:bg-red-500/30">
+    <?php include __DIR__ . '/../frontend/components/page_loader.php'; ?>
     <?php include __DIR__ . '/../frontend/components/cursor.php'; ?>
     <?php include __DIR__ . '/../frontend/components/toast.php'; ?>
 
@@ -178,57 +180,6 @@
 
         <div class="flex-1 flex flex-col p-6 relative z-10 overflow-y-auto">
             
-            <!-- User Profile -->
-            <div class="mb-6 side-panel-stagger flex flex-col relative rounded-xl border transition-all duration-500 ease-[cubic-bezier(0.34,1.56,0.64,1)]"
-                 :class="showProfileMenu ? 'bg-white/[0.05] border-white/10 shadow-[0_10px_30px_rgba(239,68,68,0.1)]' : 'bg-white/[0.02] border-white/5 hover:bg-white/[0.04]'"
-                 x-data="{ showProfileMenu: false }">
-                 
-                <!-- Profile Header / Trigger -->
-                <div @click="showProfileMenu = !showProfileMenu" 
-                     class="flex items-center gap-3 p-3 pointer-events-auto cursor-pointer group relative z-20">
-                    <div class="relative shrink-0">
-                        <img src="https://ui-avatars.com/api/?name=Alex+M&background=3b82f6&color=fff" alt="User" class="w-10 h-10 rounded-full border-2 border-red-500/50 shadow-[0_0_15px_rgba(239,68,68,0.3)] relative z-10 transition-transform duration-500 group-hover:scale-105">
-                    </div>
-                    <div class="flex-1 min-w-0">
-                        <p class="text-sm font-bold text-white group-hover:text-red-400 transition-colors truncate">Alex Mercer</p>
-                        <p class="text-[9px] text-red-400 uppercase tracking-widest mono font-bold bg-red-500/10 px-2 py-0.5 rounded border border-red-500/20 inline-block mt-0.5">Pro Member</p>
-                    </div>
-                    <div class="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center group-hover:bg-white/10 transition-colors">
-                        <span class="material-symbols-outlined text-white/50 group-hover:text-white transition-transform duration-500 ease-[cubic-bezier(0.34,1.56,0.64,1)] text-[18px]" :class="{'rotate-90': showProfileMenu}">chevron_right</span>
-                    </div>
-                </div>
-                
-                <!-- Profile Submenu (Grid Animation) -->
-                <div class="grid transition-all duration-500 ease-[cubic-bezier(0.34,1.56,0.64,1)] pointer-events-auto"
-                     :class="showProfileMenu ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'">
-                    <div class="overflow-hidden">
-                        <div class="flex flex-col gap-1 px-3 pb-3 relative z-10"
-                             :class="showProfileMenu ? 'translate-y-0' : '-translate-y-4' "
-                             style="transition: transform 500ms cubic-bezier(0.34, 1.56, 0.64, 1);">
-                            <div class="h-px w-full bg-gradient-to-r from-transparent via-white/10 to-transparent mb-2"></div>
-                            
-                            <button class="flex items-center gap-3 p-2.5 rounded-lg hover:bg-white/10 transition-colors text-white/70 hover:text-white group text-left relative overflow-hidden">
-                                <div class="absolute inset-0 bg-gradient-to-r from-red-500/0 via-red-500/10 to-transparent -translate-x-full group-hover:translate-x-0 transition-transform duration-500 ease-out"></div>
-                                <span class="material-symbols-outlined text-[16px] group-hover:text-red-400 transition-colors group-hover:scale-110 relative z-10">badge</span>
-                                <span class="text-xs font-semibold tracking-wider group-hover:translate-x-1 transition-transform relative z-10">Change Name</span>
-                            </button>
-                            <button class="flex items-center gap-3 p-2.5 rounded-lg hover:bg-white/10 transition-colors text-white/70 hover:text-white group text-left relative overflow-hidden">
-                                <div class="absolute inset-0 bg-gradient-to-r from-red-500/0 via-red-500/10 to-transparent -translate-x-full group-hover:translate-x-0 transition-transform duration-500 ease-out"></div>
-                                <span class="material-symbols-outlined text-[16px] group-hover:text-red-400 transition-colors group-hover:scale-110 relative z-10">border_outer</span>
-                                <span class="text-xs font-semibold tracking-wider group-hover:translate-x-1 transition-transform relative z-10">Change Borders</span>
-                            </button>
-                            <button class="flex items-center gap-3 p-2.5 rounded-lg hover:bg-white/10 transition-colors text-white/70 hover:text-white group text-left relative overflow-hidden">
-                                <div class="absolute inset-0 bg-gradient-to-r from-red-500/0 via-red-500/10 to-transparent -translate-x-full group-hover:translate-x-0 transition-transform duration-500 ease-out"></div>
-                                <span class="material-symbols-outlined text-[16px] group-hover:text-red-400 transition-colors group-hover:scale-110 relative z-10">manage_accounts</span>
-                                <span class="text-xs font-semibold tracking-wider group-hover:translate-x-1 transition-transform relative z-10">Account Settings</span>
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            
-            <div class="w-full h-px bg-white/5 mb-6 side-panel-stagger"></div>
-
             <!-- Nav Items -->
             <nav class="flex-1 flex flex-col gap-2">
                 <template x-for="item in navItems" :key="item.id">
@@ -482,10 +433,54 @@
                     <span class="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full shadow-[0_0_8px_#ef4444] animate-pulse"></span>
                 </button>
 
-                <a href="watch_party.php" class="px-5 py-2.5 bg-red-500 hover:bg-red-600 text-white font-bold rounded-xl shadow-[0_0_20px_rgba(239,68,68,0.3)] hover:shadow-[0_0_30px_rgba(239,68,68,0.5)] transition-all duration-300 flex items-center gap-2 hover:-translate-y-1 gs-header-item perspective-container group">
-                    <span class="material-symbols-outlined text-[20px] group-hover:rotate-90 transition-transform duration-300">add</span>
-                    <span class="tracking-wide">Host Party</span>
-                </a>
+                <!-- Profile Header / Trigger -->
+                <div class="relative gs-header-item z-[60] sm:min-w-[240px]" x-data="{ showProfileMenu: false }" @click.outside="showProfileMenu = false">
+                    <div @click="showProfileMenu = !showProfileMenu" 
+                         class="flex items-center justify-between p-2 bg-[#050508]/40 border cursor-pointer group transition-all duration-300 pointer-events-auto relative z-[61] w-full"
+                         :class="showProfileMenu ? 'border-white/10 rounded-t-xl rounded-b-none border-b-transparent shadow-[0_-10px_40px_rgba(0,0,0,0.5)]' : 'border-white/5 hover:bg-white/[0.05] rounded-xl'">
+                        <div class="flex items-center gap-3">
+                            <div class="relative shrink-0">
+                                <img src="https://ui-avatars.com/api/?name=Alex+M&background=3b82f6&color=fff" alt="User" class="w-10 h-10 rounded-full border-2 border-red-500/50 shadow-[0_0_15px_rgba(239,68,68,0.3)] relative z-10 transition-transform duration-500 group-hover:scale-105">
+                            </div>
+                            <div class="hidden sm:block min-w-0 pr-1">
+                                <p class="text-sm font-bold text-white group-hover:text-red-400 transition-colors truncate">Alex Mercer</p>
+                                <p class="text-[9px] text-red-400 uppercase tracking-widest mono font-bold bg-red-500/10 px-2 py-0.5 rounded border border-red-500/20 inline-block mt-0.5">Pro Member</p>
+                            </div>
+                        </div>
+                        <div class="hidden sm:flex w-8 h-8 rounded-lg bg-white/5 items-center justify-center group-hover:bg-white/10 transition-colors mr-1">
+                            <span class="material-symbols-outlined text-white/50 group-hover:text-white transition-transform duration-500 text-[18px]" :class="{'rotate-90': showProfileMenu}">chevron_right</span>
+                        </div>
+                    </div>
+                    
+                    <!-- Profile Submenu -->
+                    <div class="absolute right-0 top-full mt-[-1px] w-full min-w-[240px] bg-[#050508] border border-white/10 border-t-0 rounded-b-xl shadow-[0_20px_40px_rgba(0,0,0,0.8)] transition-all duration-300 transform origin-top z-50 pointer-events-auto overflow-hidden"
+                         x-show="showProfileMenu"
+                         x-transition:enter="transition ease-out duration-200"
+                         x-transition:enter-start="opacity-0 -translate-y-2 scale-y-95"
+                         x-transition:enter-end="opacity-100 translate-y-0 scale-y-100"
+                         x-transition:leave="transition ease-in duration-150"
+                         x-transition:leave-start="opacity-100 translate-y-0 scale-y-100"
+                         x-transition:leave-end="opacity-0 -translate-y-2 scale-y-95"
+                         style="display: none;">
+                        <div class="p-2 flex flex-col gap-1">
+                            <button class="flex items-center gap-3 p-2.5 rounded-lg hover:bg-white/10 transition-colors text-white/70 hover:text-white group text-left relative overflow-hidden">
+                                <div class="absolute inset-0 bg-gradient-to-r from-red-500/0 via-red-500/10 to-transparent -translate-x-full group-hover:translate-x-0 transition-transform duration-500 ease-out"></div>
+                                <span class="material-symbols-outlined text-[16px] group-hover:text-red-400 transition-colors group-hover:scale-110 relative z-10">badge</span>
+                                <span class="text-xs font-semibold tracking-wider group-hover:translate-x-1 transition-transform relative z-10">Change Name</span>
+                            </button>
+                            <button class="flex items-center gap-3 p-2.5 rounded-lg hover:bg-white/10 transition-colors text-white/70 hover:text-white group text-left relative overflow-hidden">
+                                <div class="absolute inset-0 bg-gradient-to-r from-red-500/0 via-red-500/10 to-transparent -translate-x-full group-hover:translate-x-0 transition-transform duration-500 ease-out"></div>
+                                <span class="material-symbols-outlined text-[16px] group-hover:text-red-400 transition-colors group-hover:scale-110 relative z-10">border_outer</span>
+                                <span class="text-xs font-semibold tracking-wider group-hover:translate-x-1 transition-transform relative z-10">Change Borders</span>
+                            </button>
+                            <button class="flex items-center gap-3 p-2.5 rounded-lg hover:bg-white/10 transition-colors text-white/70 hover:text-white group text-left relative overflow-hidden">
+                                <div class="absolute inset-0 bg-gradient-to-r from-red-500/0 via-red-500/10 to-transparent -translate-x-full group-hover:translate-x-0 transition-transform duration-500 ease-out"></div>
+                                <span class="material-symbols-outlined text-[16px] group-hover:text-red-400 transition-colors group-hover:scale-110 relative z-10">manage_accounts</span>
+                                <span class="text-xs font-semibold tracking-wider group-hover:translate-x-1 transition-transform relative z-10">Account Settings</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
             </div>
         </header>
 
@@ -639,9 +634,9 @@
         <?php include "watchlist.php"; ?>
     </main>
 
-    <script src="user_animations.js"></script>
+    <?php include __DIR__ . '/../frontend/components/host_party_fab.php'; ?>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+    <script src="user_animations.js"></script>
 
 
 </body>
