@@ -34,6 +34,7 @@
     <script src="https://unpkg.com/htmx.org@1.9.10"></script>
     <!-- GSAP -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+    <script>if(window.gsap) gsap.config({nullTargetWarn: false});</script>
 
     <link rel="stylesheet" href="style.css">
     
@@ -48,6 +49,7 @@
 </head>
 
 <body class="bg-[#050505] text-white flex items-center justify-center font-sans antialiased relative overflow-hidden min-h-screen" x-data="{ showPassword: false }">
+    <?php include __DIR__ . '/components/page_loader.php'; ?>
     <?php include __DIR__ . '/components/cursor.php'; ?>
     <?php include __DIR__ . '/components/toast.php'; ?>
 

@@ -125,8 +125,8 @@ friends: [
             { text: 'Achievement unlocked: <span class="font-bold text-yellow-400">Night Owl V2</span>', time: 'YESTERDAY', dotColor: 'bg-yellow-500' },
             { text: 'System diagnostic completed. Connection stable.', time: '2 DAYS AGO', dotColor: 'bg-white/20' }
         ],
-        initDashboard() {
-            gsap.registerPlugin();
+        initDashboard() { gsap.config({ nullTargetWarn: false });
+            
             
             // Escape key to close nav
             document.addEventListener('keydown', (e) => {
@@ -242,17 +242,19 @@ friends: [
             // Random glitch effect on stat numbers periodically
             setInterval(() => {
                 const stats = document.querySelectorAll('.stat-counter');
-                const randomStat = stats[Math.floor(Math.random() * stats.length)];
-                gsap.to(randomStat, {
-                    x: () => Math.random() * 8 - 4,
-                    y: () => Math.random() * 8 - 4,
-                    duration: 0.05,
-                    yoyo: true,
-                    repeat: 5,
-                    onComplete: () => {
-                        gsap.set(randomStat, {x:0, y:0});
-                    }
-                });
+                if (stats.length > 0) {
+                    const randomStat = stats[Math.floor(Math.random() * stats.length)];
+                    gsap.to(randomStat, {
+                        x: () => Math.random() * 8 - 4,
+                        y: () => Math.random() * 8 - 4,
+                        duration: 0.05,
+                        yoyo: true,
+                        repeat: 5,
+                        onComplete: () => {
+                            gsap.set(randomStat, {x:0, y:0});
+                        }
+                    });
+                }
             }, 6000);
         }
     }
