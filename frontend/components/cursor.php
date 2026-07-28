@@ -36,7 +36,7 @@ a, button, input, textarea, select, .cursor-pointer, .top-nav-item, [x-ref="prog
 }
 </style>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+
 <script>
     document.addEventListener('DOMContentLoaded', () => {
         // Prevent duplicate cursors
@@ -78,7 +78,7 @@ a, button, input, textarea, select, .cursor-pointer, .top-nav-item, [x-ref="prog
                 });
             });
 
-            const initInteractiveElements = () => {
+            window.initInteractiveElements = () => {
                 const interactiveElements = document.querySelectorAll('button, a, input, textarea, select, .cursor-pointer, .top-nav-item, [x-ref="progressBar"], .gs-movie-card, .menu-item');
                 interactiveElements.forEach(elem => {
                     if (!elem.hasAttribute('data-cursor-bound')) {
@@ -95,11 +95,11 @@ a, button, input, textarea, select, .cursor-pointer, .top-nav-item, [x-ref="prog
             
             // Re-init interactive elements when new ones are added
             const observer = new MutationObserver((mutations) => {
-                initInteractiveElements();
+                window.initInteractiveElements();
             });
             observer.observe(document.body, { childList: true, subtree: true });
             
-            initInteractiveElements();
+            window.initInteractiveElements();
         }
     });
 </script>

@@ -39,32 +39,73 @@
 
 <script>
     // Add is-loading class immediately to prevent scrolling during load
-    document.body.classList.add('is-loading');
+    if(!document.body.classList.contains('is-loading')) {
+        document.body.classList.add('is-loading');
+    }
 
-    document.addEventListener('DOMContentLoaded', () => {
+    window.showPageLoader = function(onComplete) {
         const loader = document.getElementById('nexus-page-loader');
         const panels = document.querySelectorAll('.loader-panel');
         const content = document.querySelector('.loader-content');
-        const progress = document.querySelector('.loader-progress');
-        const statusText = document.querySelector('.loader-status');
         
-        if (typeof gsap !== 'undefined') { gsap.config({ nullTargetWarn: false });
-            // --- PAGE ENTER ANIMATION ---
+        if (!loader) {
+            if (onComplete) onComplete();
+            return;
+        }
+
+        loader.style.display = 'flex';
+        loader.style.pointerEvents = 'auto';
+        document.body.classList.add('is-loading');
+
+        if (typeof gsap !== 'undefined') {
+            const tl = gsap.timeline({ onComplete: onComplete });
+            tl.to(panels, {
+                scaleY: 1,
+                duration: 0.5,
+                ease: "expo.inOut",
+                stagger: 0.1
+            })
+            .to(content, {
+                opacity: 1,
+                scale: 1,
+                filter: 'blur(0px)',
+                duration: 0.4,
+                ease: "power2.out"
+            }, "-=0.2");
+            return tl;
+        } else {
+            loader.style.opacity = '1';
+            if(onComplete) onComplete();
+        }
+    };
+
+    window.hidePageLoader = function(onComplete) {
+        const loader = document.getElementById('nexus-page-loader');
+        const panels = document.querySelectorAll('.loader-panel');
+        const content = document.querySelector('.loader-content');
+        
+        if (!loader) {
+            if (onComplete) onComplete();
+            return;
+        }
+
+        if (typeof gsap !== 'undefined') {
+            gsap.config({ nullTargetWarn: false });
             const enterTl = gsap.timeline({
                 onComplete: () => {
                     document.body.classList.remove('is-loading');
                     loader.style.pointerEvents = 'none';
+                    if (onComplete) onComplete();
                 }
             });
             
-            // Keep it visible for a split second to feel the effect, then dismiss
             enterTl.to(content, {
                 opacity: 0,
                 scale: 1.1,
                 filter: 'blur(10px)',
                 duration: 0.5,
                 ease: "power2.inOut",
-                delay: 0.2 // slight delay for dramatic effect
+                delay: 0.2
             })
             .to(panels, {
                 scaleY: 0,
@@ -72,64 +113,17 @@
                 ease: "expo.inOut",
                 stagger: 0.1
             }, "-=0.3");
-
-            // --- PAGE EXIT INTERCEPTOR ---
-            const links = document.querySelectorAll('a[href]:not([target="_blank"]):not([href^="#"]):not([href^="mailto:"]):not([href^="tel:"]):not([onclick])');
-            
-            links.forEach(link => {
-                link.addEventListener('click', (e) => {
-                    const targetUrl = link.getAttribute('href');
-                    
-                    // Only intercept if we have GSAP and it's not an anchor on same page
-                    if (targetUrl && targetUrl !== '#' && !targetUrl.startsWith('#')) {
-                        e.preventDefault();
-                        
-                        document.body.classList.add('is-loading');
-                        loader.style.pointerEvents = 'auto'; // Block clicks
-                        
-                        const tl = gsap.timeline({
-                            onComplete: () => {
-                                window.location.href = targetUrl;
-                            }
-                        });
-                        
-                        // Setup origin for exit
-                        gsap.set(panels, { transformOrigin: 'top', scaleY: 0 });
-                        gsap.set(content, { opacity: 0, scale: 0.8, filter: 'blur(10px)' });
-                        gsap.set(progress, { width: '0%' });
-                        statusText.innerText = "Loading...";
-                        
-                        // Background scale up
-                        tl.to(panels, {
-                            scaleY: 1,
-                            duration: 0.6,
-                            ease: "expo.inOut",
-                            stagger: 0.1
-                        })
-                        // Reveal content
-                        .to(content, {
-                            opacity: 1,
-                            scale: 1,
-                            filter: 'blur(0px)',
-                            duration: 0.5,
-                            ease: "back.out(1.5)"
-                        }, "-=0.2")
-                        // Fake progress bar loading
-                        .to(progress, {
-                            width: '100%',
-                            duration: 0.8,
-                            ease: "power2.inOut",
-                            onComplete: () => {
-                                statusText.innerText = "Connection Established";
-                            }
-                        });
-                    }
-                });
-            });
+            return enterTl;
         } else {
-            // Fallback if GSAP is not loaded
             loader.style.display = 'none';
             document.body.classList.remove('is-loading');
+            if(onComplete) onComplete();
         }
+    };
+
+    // Initial page load
+    document.addEventListener('DOMContentLoaded', () => {
+        // Just hide it initially since it's visible by default in HTML
+        window.hidePageLoader();
     });
 </script>

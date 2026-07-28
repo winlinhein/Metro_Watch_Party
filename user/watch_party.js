@@ -1,5 +1,5 @@
-document.addEventListener('alpine:init', () => {
-    Alpine.data('watchParty', () => ({
+function watchParty() {
+    return {
         isMuted: false,
         isVideoOn: true,
         newMessage: '',
@@ -28,82 +28,86 @@ document.addEventListener('alpine:init', () => {
             { name: 'System', text: 'Welcome to the watch party! 🎉', time: '20:00', avatar: 'https://ui-avatars.com/api/?name=S&background=ef4444&color=fff', isSelf: false },
             { name: 'Sarah C.', text: 'This movie is so good! 🍿', time: '20:02', avatar: 'https://ui-avatars.com/api/?name=Sarah+C&background=ec4899&color=fff', isSelf: false },
         ],
-        init() { gsap.config({ nullTargetWarn: false }); this.$nextTick(() => {
-            // INSANE GSAP Animations Setup
-            const tl = gsap.timeline();
+        init() {
+            try {
+                console.log("WATCH PARTY INIT CALLED");
+                if (typeof gsap === 'undefined') return;
+                gsap.config({ nullTargetWarn: false });
 
-            // 1. Stage and Video Container entrance
-            tl.fromTo('.gs-stage', 
-                { opacity: 0, scale: 0.95 },
-                { opacity: 1, scale: 1, duration: 1, ease: 'power3.out' }
-            )
-            .fromTo('.video-container', 
-                { 
-                    opacity: 0, 
-                    scale: 0.7, 
-                    rotationX: 20, 
-                    rotationY: 15, 
-                    z: -500 
-                },
-                { 
-                    opacity: 1, 
-                    scale: 1, 
-                    rotationX: 0, 
-                    rotationY: 0, 
-                    z: 0,
-                    duration: 1.5, 
-                    ease: 'elastic.out(1, 0.75)',
-                    transformPerspective: 1000
-                },
-                "-=0.5"
-            )
-            // 2. Participants Grid staggered entrance
-            .fromTo('.participant-card', 
-                { opacity: 0, y: 50, scale: 0.8 },
-                { 
-                    opacity: 1, 
-                    y: 0, 
-                    scale: 1, 
-                    duration: 0.8, 
-                    stagger: 0.15,
-                    ease: 'back.out(1.7)'
-                },
-                "-=1.0"
-            )
-            // 3. Chat Panel sliding in with 3D flip
-            .fromTo('.gs-chat', 
-                { opacity: 0, x: 100, rotationY: 45 },
-                { 
-                    opacity: 1, 
-                    x: 0, 
-                    rotationY: 0,
-                    duration: 1.2, 
-                    ease: 'power4.out',
-                    transformPerspective: 1000
-                },
-                "-=1.2"
-            )
-            // 4. Bottom Controls rising up
-            .fromTo('.gs-controls', 
-                { opacity: 0, y: 50 },
-                { opacity: 1, y: 0, duration: 1, ease: 'power3.out' },
-                "-=1"
-            );
+                this.$nextTick(() => {
+                    try {
+                        const tl = gsap.timeline({ onComplete: () => console.log('GSAP TIMELINE COMPLETED!') });
+                        
+                        // 1. Stage and Video Container entrance
+                        const stage = this.$el.querySelector('.gs-stage');
+                        if (stage) {
+                            tl.fromTo(stage, 
+                                { opacity: 0, scale: 0.95 },
+                                { opacity: 1, scale: 1, duration: 1, ease: 'power3.out' }
+                            );
+                        }
+                        
+                        const video = this.$el.querySelector('.video-container');
+                        if (video) {
+                            tl.fromTo(video, 
+                                { opacity: 0, scale: 0.7, rotationX: 20, rotationY: 15, z: -500 },
+                                { opacity: 1, scale: 1, rotationX: 0, rotationY: 0, z: 0, duration: 1.5, ease: 'elastic.out(1, 0.75)', transformPerspective: 1000 },
+                                "-=0.5"
+                            );
+                        }
 
-            // Ambient breathing effect for the video container
-            gsap.to('.video-container', {
-                boxShadow: '0 30px 60px rgba(239,68,68,0.3)',
-                duration: 2,
-                repeat: -1,
-                yoyo: true,
-                ease: 'sine.inOut'
-            });
+                        // 2. Participants Grid staggered entrance
+                        const participants = this.$el.querySelectorAll('.participant-card');
+                        if (participants.length > 0) {
+                            tl.fromTo(participants, 
+                                { opacity: 0, y: 50, scale: 0.8 },
+                                { opacity: 1, y: 0, scale: 1, duration: 0.8, stagger: 0.15, ease: 'back.out(1.7)' },
+                                "-=1.0"
+                            );
+                        }
 
-            this.scrollToBottom(); });
+                        // 3. Chat Panel sliding in with 3D flip
+                        const chat = this.$el.querySelector('.gs-chat');
+                        if (chat) {
+                            tl.fromTo(chat, 
+                                { opacity: 0, x: 100, rotationY: 45 },
+                                { opacity: 1, x: 0, rotationY: 0, duration: 1.2, ease: 'power4.out', transformPerspective: 1000 },
+                                "-=1.2"
+                            );
+                        }
 
-            
-            // Video player setup
-            this.$nextTick(() => {
+                        // 4. Bottom Controls rising up
+                        const controls = this.$el.querySelector('.gs-controls');
+                        if (controls) {
+                            tl.fromTo(controls, 
+                                { opacity: 0, y: 50 },
+                                { opacity: 1, y: 0, duration: 1, ease: 'power3.out' },
+                                "-=1"
+                            );
+                        }
+
+                        if (video) {
+                            // Ambient breathing effect for the video container
+                            gsap.to(video, {
+                                boxShadow: '0 30px 60px rgba(239,68,68,0.3)',
+                                duration: 2,
+                                repeat: -1,
+                                yoyo: true,
+                                ease: 'sine.inOut'
+                            });
+                        }
+
+                        this.scrollToBottom();
+                    } catch (e) {
+                        console.error("GSAP timeline error in watchParty:", e);
+                        // Fallback to visible
+                        const elements = this.$el.querySelectorAll('.gs-stage, .video-container, .gs-chat, .gs-controls, .participant-card');
+                        elements.forEach(el => { el.style.opacity = '1'; el.style.transform = 'none'; });
+                    }
+                });
+
+                // Video player setup
+                this.$nextTick(() => {
                 const video = this.$refs.videoPlayer;
                 if (video) {
                     const handleLoaded = () => {
@@ -142,6 +146,7 @@ document.addEventListener('alpine:init', () => {
                     this.isFullscreen = !!document.fullscreenElement;
                 });
             });
+            } catch(e) { console.error("Init Error", e); }
         },
         togglePlay() {
             const video = this.$refs.videoPlayer;
@@ -153,7 +158,7 @@ document.addEventListener('alpine:init', () => {
                         this.controlsTimeout = setTimeout(() => { this.showControls = false; }, 2500);
                         
                         // Fun animation on play
-                        gsap.fromTo('.video-container', 
+                        gsap.fromTo(this.$el.querySelector('.video-container'), 
                             { scale: 0.98 }, 
                             { scale: 1, duration: 0.5, ease: 'elastic.out(1, 0.5)' }
                         );
@@ -172,7 +177,7 @@ document.addEventListener('alpine:init', () => {
                 this.showControls = true;
                 
                 // Fun animation on pause
-                gsap.to('.video-container', { scale: 0.98, duration: 0.3, ease: 'power2.out' });
+                gsap.to(this.$el.querySelector('.video-container'), { scale: 0.98, duration: 0.3, ease: 'power2.out' });
             }
         },
         updateProgress() {
@@ -267,7 +272,7 @@ document.addEventListener('alpine:init', () => {
                 this.scrollToBottom();
                 
                 // Animate newest message
-                const msgs = document.querySelectorAll('.chat-msg-item');
+                const msgs = this.$el.querySelectorAll('.chat-msg-item');
                 const lastMsg = msgs[msgs.length - 1];
                 if (lastMsg) {
                     gsap.fromTo(lastMsg, 
@@ -278,7 +283,7 @@ document.addEventListener('alpine:init', () => {
             });
         },
         scrollToBottom() {
-            const container = document.getElementById('chat-container');
+            const container = this.$el.querySelector('#chat-container');
             if (container) {
                 gsap.to(container, {
                     scrollTop: container.scrollHeight,
@@ -287,5 +292,4 @@ document.addEventListener('alpine:init', () => {
                 });
             }
         }
-    }));
-});
+    }}
