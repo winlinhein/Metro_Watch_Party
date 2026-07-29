@@ -11,7 +11,6 @@ $dsn = "mysql:host=$host;port=$port;dbname=$dbname;charset=$charset";
 
 try {
     $conn = new PDO($dsn, $username, $password);
-    echo"connection success!";
 } catch (PDOException $e) {
     // Log details securely instead of displaying raw errors to users
     error_log($e->getMessage());

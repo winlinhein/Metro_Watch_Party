@@ -12,9 +12,44 @@ if (
     exit();
 }
 
-    $userName  = $_SESSION['user_name']  ?? 'Agent';
-    $userEmail = $_SESSION['user_email'] ?? '';
-    $userRole  = $_SESSION['user_role']  ?? 'user';
+$userName  = $_SESSION['user_name']  ?? 'Agent';
+$userEmail = $_SESSION['user_email'] ?? '';
+$userRole  = $_SESSION['user_role']  ?? 'user';
+require_once __DIR__ . '/../conn.php';
+
+try {
+    // Fetch Movies with description, aggregated rating, trailer, and genre list
+    $sql = "
+        SELECT 
+            m.movie_id AS id,
+            m.title,
+            m.description,
+            m.poster AS img,
+            video_url,
+            m.view_count,
+            YEAR(m.created_at) AS year,
+            COALESCE(ROUND(AVG(r.rating), 1), 0) AS rating,
+            COUNT(DISTINCT c.comment_id) AS total_comments,
+            COALESCE(GROUP_CONCAT(DISTINCT g.genre_name ORDER BY g.genre_name SEPARATOR ', '), 'N/A') AS genre
+        FROM movies m
+        LEFT JOIN movie_rating r ON m.movie_id = r.movie_id
+        LEFT JOIN movie_comments c ON m.movie_id = c.movie_id
+        LEFT JOIN movie_and_genres mg ON m.movie_id = mg.movie_id
+        LEFT JOIN genres g ON mg.genre_id = g.genre_id
+        GROUP BY m.movie_id
+        ORDER BY m.created_at DESC
+    ";
+
+    $stmt = $conn->query($sql);
+    $movies = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+    // Fetch all available genres for tag selection
+    $genresStmt = $conn->query("SELECT genre_name FROM genres ORDER BY genre_name ASC");
+    $allGenres = $genresStmt->fetchAll(PDO::FETCH_COLUMN);
+
+} catch (PDOException $e) {
+    die("Query Error: " . $e->getMessage());
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -94,9 +129,6 @@ if (
         ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 10px; }
         ::-webkit-scrollbar-thumb:hover { background: rgba(239,68,68,0.5); }
         
-        /* Cursor Follower */
-        
-
         /* Movie Card 3D Effect */
         .movie-card-container {
             perspective: 1000px;
@@ -129,14 +161,11 @@ if (
             z-index: -1;
         }
     </style>
-
-
-
 </head>
 <body x-data="adminDashboard()" x-init="initDashboard()" class="h-screen w-screen flex relative selection:bg-red-500/30">
     <?php include __DIR__ . '/components/cursor.php'; ?>
 
-<div class="bg-mesh"></div>
+    <div class="bg-mesh"></div>
     <div class="noise"></div>
 
     <!-- Sidebar -->
@@ -164,8 +193,7 @@ if (
         </nav>
         
         <div class="p-6">
-            </div>
-            <button onclick="handleLogout()" 
+            <button onclick="handleLogout()" id="logoutBtn"
                     class="flex items-center gap-3 py-2 px-4 text-white/50 hover:text-red-400 transition-colors rounded-xl hover:bg-red-500/10 gs-nav-item w-full text-left cursor-pointer">
                 <span class="material-symbols-outlined text-[20px]">logout</span>
                 <span class="text-sm font-medium">Terminate Session</span>
@@ -207,20 +235,17 @@ if (
                         <img src="https://ui-avatars.com/api/?name=<?= urlencode($userName) ?>&background=ef4444&color=fff&bold=true" 
                             alt="<?= htmlspecialchars($userName) ?>" 
                             class="w-full h-full rounded-full border border-white/20 group-hover:border-red-500/50 group-hover:shadow-[0_0_15px_rgba(239,68,68,0.3)] transition-all duration-300 relative z-10">
-                            <template x-if="selectedBorder">
+                        <template x-if="selectedBorder">
                             <img :src="selectedBorder" class="absolute inset-0 w-full h-full object-cover z-20 pointer-events-none scale-[1.3] drop-shadow-[0_0_15px_rgba(255,255,255,0.2)] mix-blend-screen opacity-90">
                         </template>
                         <div class="absolute -bottom-1 -right-1 w-3.5 h-3.5 bg-green-500 border-2 border-[#030305] rounded-full z-30"></div>
                     </div>
                 </div>
-
-                <!-- Dropdown -->
-                
             </div>
         </header>
 
         <!-- Content Area -->
-        <div class="flex-1 overflow-y-auto p-10 tab-content relative scroll-smooth" >
+        <div class="flex-1 overflow-y-auto p-10 tab-content relative scroll-smooth">
             <?php include __DIR__ . '/views/dashboard.php'; ?>
             <?php include __DIR__ . '/views/movies.php'; ?>
             <?php include __DIR__ . '/views/users.php'; ?>
@@ -305,7 +330,6 @@ if (
                 avatarModalOpen: false,
                 selectedAvatar: 'https://ui-avatars.com/api/?name=SA&background=050505&color=ef4444&bold=true',
                 presetAvatars: [
-
                     'https://ui-avatars.com/api/?name=SA&background=050505&color=ef4444&bold=true',
                     'https://ui-avatars.com/api/?name=01&background=random&color=fff&bold=true',
                     'https://ui-avatars.com/api/?name=MK&background=random&color=fff&bold=true',
@@ -332,41 +356,132 @@ if (
                     { label: 'Media Assets', value: '8,921', change: '+2%', icon: 'dns' },
                     { label: 'System Load', value: '24%', change: 'Stable', icon: 'memory' }
                 ],
-                movies: [
-                    { id: 1, title: 'Inception', year: 2010, rating: '8.8', genre: 'Sci-Fi', img: 'https://images.unsplash.com/photo-1536440136628-849c177e76a1?auto=format&fit=crop&w=500&q=80', description: 'An amazing cinematic experience.', trailer: 'https://youtube.com', comments: [{id: 1, user: 'Fan88', text: 'Great watch!', date: '2024-01-01'}] },
-                    { id: 2, title: 'Interstellar', year: 2014, rating: '8.6', genre: 'Sci-Fi', img: 'https://images.unsplash.com/photo-1614730321146-b6fa6a46bcb4?auto=format&fit=crop&w=500&q=80', description: 'An amazing cinematic experience.', trailer: 'https://youtube.com', comments: [{id: 1, user: 'Fan88', text: 'Great watch!', date: '2024-01-01'}] },
-                    { id: 3, title: 'The Matrix', year: 1999, rating: '8.7', genre: 'Action', img: 'https://images.unsplash.com/photo-1526304640581-d334cdbbf45e?auto=format&fit=crop&w=500&q=80', description: 'An amazing cinematic experience.', trailer: 'https://youtube.com', comments: [{id: 1, user: 'Fan88', text: 'Great watch!', date: '2024-01-01'}] },
-                    { id: 4, title: 'Blade Runner 2049', year: 2017, rating: '8.0', genre: 'Sci-Fi', img: 'https://images.unsplash.com/photo-1505672678657-cc70370f5e60?auto=format&fit=crop&w=500&q=80', description: 'An amazing cinematic experience.', trailer: 'https://youtube.com', comments: [{id: 1, user: 'Fan88', text: 'Great watch!', date: '2024-01-01'}] },
-                    { id: 5, title: 'Dune', year: 2021, rating: '8.0', genre: 'Adventure', img: 'https://images.unsplash.com/photo-1542451313056-b7c8e626645f?auto=format&fit=crop&w=500&q=80', description: 'An amazing cinematic experience.', trailer: 'https://youtube.com', comments: [{id: 1, user: 'Fan88', text: 'Great watch!', date: '2024-01-01'}] },
-                    { id: 6, title: 'Gravity', year: 2013, rating: '7.7', genre: 'Sci-Fi', img: 'https://images.unsplash.com/photo-1451187580459-43490279c0fa?auto=format&fit=crop&w=500&q=80', description: 'An amazing cinematic experience.', trailer: 'https://youtube.com', comments: [{id: 1, user: 'Fan88', text: 'Great watch!', date: '2024-01-01'}] },
-                    { id: 7, title: 'Star Wars', year: 1977, rating: '8.6', genre: 'Fantasy', img: 'https://images.unsplash.com/photo-1578374173705-969cbe6f2d6b?auto=format&fit=crop&w=500&q=80', description: 'An amazing cinematic experience.', trailer: 'https://youtube.com', comments: [{id: 1, user: 'Fan88', text: 'Great watch!', date: '2024-01-01'}] },
-                    { id: 8, title: 'Avatar', year: 2009, rating: '7.8', genre: 'Action', img: 'https://images.unsplash.com/photo-1618331835717-801e976710b2?auto=format&fit=crop&w=500&q=80', description: 'An amazing cinematic experience.', trailer: 'https://youtube.com', comments: [{id: 1, user: 'Fan88', text: 'Great watch!', date: '2024-01-01'}] }
-                ],
+                
+                // Dynamic Movie Data
+                allGenres: <?= json_encode($allGenres ?? []); ?>,
+                movies: <?= json_encode($movies ?? [], JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>,
                 movieModalOpen: false,
                 editingMovie: null,
-                newMovie: { title: '', year: '', rating: '', genre: '', img: '', description: '', trailer: '', comments: [] },
+                newMovie: { title: '', year: '', rating: 0, genres: [], img: '', description: '', video_url: '', comments: [] },
+
                 openAddMovieModal() {
                     this.editingMovie = null;
-                    this.newMovie = { title: '', year: '', rating: '', genre: '', img: '', description: '', trailer: '', comments: [] };
+                    this.newMovie = {
+                        title: '',
+                        year: new Date().getFullYear(),
+                        rating: 0,
+                        genres: [],
+                        img: '',
+                        description: '',
+                        video_url: '',
+                        comments: []
+                    };
                     this.movieModalOpen = true;
                 },
+
                 openEditMovieModal(movie) {
                     this.editingMovie = movie;
-                    this.newMovie = { ...movie };
+                    const genreList = (movie.genre && movie.genre !== 'N/A') 
+                        ? movie.genre.split(',').map(g => g.trim()) 
+                        : [];
+
+                    this.newMovie = {
+                        title: movie.title || '',
+                        description: movie.description || '',
+                        year: movie.year || new Date().getFullYear(),
+                        rating: movie.rating || 0,
+                        genres: genreList,
+                        img: movie.img || '',
+                        video_url: movie.video_url || '',
+                        comments: movie.comments || []
+                    };
                     this.movieModalOpen = true;
-                },
-                saveMovie() {
-                    if (this.editingMovie) {
-                        const index = this.movies.findIndex(m => m.id === this.editingMovie.id);
-                        if (index !== -1) {
-                            this.movies[index] = { ...this.newMovie };
-                        }
-                    } else {
-                        this.movies.push({ ...this.newMovie, id: Date.now() });
+                }, // Added missing comma here
+                toggleGenre(genreName) {
+                    if (!Array.isArray(this.newMovie.genres)) {
+                        this.newMovie.genres = [];
                     }
-                    this.movieModalOpen = false;
+                    if (this.newMovie.genres.includes(genreName)) {
+                        this.newMovie.genres = this.newMovie.genres.filter(g => g !== genreName);
+                    } else {
+                        this.newMovie.genres.push(genreName);
+                    }
                 },
-                
+                handleFileUpload(event, callback) {
+                    const file = event.target.files[0];
+                    if (file) {
+                        const reader = new FileReader();
+                        reader.onload = (e) => callback(e.target.result);
+                        reader.readAsDataURL(file);
+                    }
+                },
+                async saveMovie() {
+                    if (!this.newMovie.title.trim()) {
+                        alert('Please enter a movie title');
+                        return;
+                    }
+
+                    // Include the ID so the backend can distinguish between ADD and EDIT
+                    const payload = {
+                        id: this.editingMovie ? this.editingMovie.id : null,
+                        ...this.newMovie,
+                        genre: this.newMovie.genres.join(', ')
+                    };
+
+                    try {
+                        const response = await fetch('../backend/save_movie.php', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(payload)
+                        });
+
+                        const result = await response.json();
+
+                        if (result.success) {
+                            if (this.editingMovie) {
+                                const index = this.movies.findIndex(m => m.id === this.editingMovie.id);
+                                if (index !== -1) {
+                                    this.movies[index] = { 
+                                        ...this.movies[index], 
+                                        ...this.newMovie,
+                                        img: result.movie?.poster || this.newMovie.img,
+                                        genre: payload.genre || 'N/A'
+                                    };
+                                }
+                            } else {
+                            this.movies.unshift({
+                                id: result.movie?.id || Date.now(),
+                                title: this.newMovie.title,
+                                description: this.newMovie.description || '',
+                                img: result.movie?.poster || this.newMovie.img,
+                                video_url: this.newMovie.video_url || '',
+                                year: this.newMovie.year || new Date().getFullYear(),
+                                rating: this.newMovie.rating || 0,
+                                view_count: 0,
+                                total_comments: 0,
+                                genre: payload.genre || 'N/A'
+                            });
+                        }
+                            this.movieModalOpen = false;
+                        } else {
+                            alert(result.message || 'Failed to save movie');
+                        }
+                    } catch (err) {
+                        console.error('Error saving movie:', err);
+                        alert('An unexpected error occurred while saving.');
+                    }
+                },
+                async deleteMovie(id) {
+                    if (!confirm('Are you sure you want to delete this media asset?')) return;
+                    try {
+                        await fetch(`../backend/delete_movie.php?id=${id}`, { method: 'DELETE' });
+                    } catch (e) {
+                        console.error(e);
+                    }
+                    this.movies = this.movies.filter(m => m.id !== id);
+                },
+
+                // Other Demo Module Datasets
                 reportStats: {
                     total: 142,
                     pending: 28,
@@ -390,7 +505,6 @@ if (
                         name: 'Viewer_' + (Math.floor(Math.random() * 9000) + 1000),
                         avatar: 'https://ui-avatars.com/api/?name=V' + i + '&background=random&color=fff&bold=true'
                     }));
-                    // Ensure host is first
                     if (this.mockRoomUsers.length > 0) {
                         this.mockRoomUsers[0].name = room.host;
                         this.mockRoomUsers[0].isHost = true;
@@ -430,7 +544,6 @@ if (
                 switchTab(tab) {
                     if (this.currentTab === tab) return;
                     
-                    // Exit animation
                     gsap.to(".tab-content > div[style*='display: block'], .tab-content > div:not([style*='display: none'])", {
                         opacity: 0,
                         y: 30,
@@ -453,7 +566,6 @@ if (
                         { opacity: 1, y: 0, scale: 1, duration: 0.4, stagger: 0.04, ease: "power2.out", clearProps: "all" }
                     );
 
-                    // Re-animate chart if dashboard
                     if(this.currentTab === 'dashboard') {
                         gsap.fromTo(".chart-bar", 
                             { scaleY: 0 }, 
@@ -465,7 +577,6 @@ if (
                 initDashboard() {
                     gsap.config({ nullTargetWarn: false });
 
-                    // Movie Card 3D Hover
                     this.$nextTick(() => {
                         document.querySelectorAll('.movie-card-container').forEach(container => {
                             const card = container.querySelector('.movie-card');
@@ -497,7 +608,6 @@ if (
                         });
 
                         setTimeout(() => {
-                            // Initial load animation sequence
                             const tl = gsap.timeline();
                             
                             tl.fromTo(".sidebar-brand", 
@@ -530,24 +640,16 @@ if (
             }
         }
 
-         async function handleLogout() {
+        async function handleLogout() {
             const btn = document.getElementById('logoutBtn');
-            
             try {
-                // Optional UI Feedback (disable button during request)
                 if (btn) btn.style.opacity = '0.5';
-
                 const response = await fetch('../backend/logout.php', {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    }
+                    headers: { 'Content-Type': 'application/json' }
                 });
-
                 const data = await response.json();
-
                 if (data.success) {
-                    // Redirect to login page
                     window.location.href = data.redirect;
                 } else {
                     console.error('Logout failed');
@@ -559,6 +661,5 @@ if (
             }
         }
     </script>
-    
 </body>
 </html>
