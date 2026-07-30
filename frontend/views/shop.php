@@ -1,5 +1,5 @@
 <!-- Shop View -->
-<div x-data="shopPage()" x-show="currentTab === 'shop'" style="display: none;" class="absolute inset-0 p-10 w-full min-h-full">
+<div x-data="shopPage()" data-tab-panel="shop" style="display: none;" class="absolute inset-0 p-10 w-full min-h-full">
     <div class="flex items-center justify-between mb-10 stagger-item">
         <div>
             <h2 class="text-3xl font-bold text-white tracking-tight mb-1">Avatar Borders</h2>

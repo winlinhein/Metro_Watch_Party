@@ -135,7 +135,7 @@ if (
 </head>
 <body class="h-screen w-screen flex relative selection:bg-red-500/30" data-barba="wrapper">
     <?php include __DIR__ . '/components/cursor.php'; ?>
-<div id="barba-container" data-barba="container" data-barba-namespace="admin_dashboard" x-data="adminDashboard()" x-init="initDashboard()">
+<div id="barba-container" class="flex h-full w-full" data-barba="container" data-barba-namespace="admin_dashboard" x-data="adminDashboard()" x-init="initDashboard()">
 
 
 <div class="bg-mesh"></div>
@@ -166,7 +166,6 @@ if (
         </nav>
         
         <div class="p-6">
-            </div>
             <button onclick="handleLogout()" 
                     class="flex items-center gap-3 py-2 px-4 text-white/50 hover:text-red-400 transition-colors rounded-xl hover:bg-red-500/10 gs-nav-item w-full text-left cursor-pointer">
                 <span class="material-symbols-outlined text-[20px]">logout</span>
@@ -237,6 +236,7 @@ if (
         function adminDashboard() {
             return {
                 currentTab: 'dashboard',
+                isTabAnimating: false,
                 sidebarOpen: true,
                 notificationsOpen: false,
                 notifications: [
@@ -430,38 +430,68 @@ if (
                 ],
                 
                 switchTab(tab) {
-                    if (this.currentTab === tab) return;
-                    
-                    // Exit animation
-                    gsap.to(".tab-content > div[style*='display: block'], .tab-content > div:not([style*='display: none'])", {
-                        opacity: 0,
-                        y: 30,
-                        scale: 0.98,
-                        duration: 0.3, ease: "power2.inOut",
+                    // Ignore clicks on the active tab, and ignore rapid double-clicks
+                    // while a transition is already in flight (this used to let GSAP
+                    // overwrite the in-flight tween and silently drop onComplete,
+                    // which is why the panel could get stuck showing stale content).
+                    if (this.currentTab === tab || this.isTabAnimating) return;
+                    this.isTabAnimating = true;
+
+                    const tabContent = document.querySelector('.tab-content');
+                    const currentPanel = tabContent ? tabContent.querySelector(`:scope > [data-tab-panel="${this.currentTab}"]`) : null;
+
+                    const showNextPanel = () => {
+                        this.currentTab = tab;
+
+                        const nextPanel = tabContent ? tabContent.querySelector(`:scope > [data-tab-panel="${tab}"]`) : null;
+                        if (!nextPanel) { this.isTabAnimating = false; return; }
+
+                        // Wipe any leftover inline styles from a previous visit before
+                        // animating in, so panels can never get stuck mid-transition.
+                        gsap.set(nextPanel, { clearProps: "all" });
+                        nextPanel.style.display = "block";
+
+                        gsap.fromTo(nextPanel,
+                            { opacity: 0, y: 24, scale: 0.98 },
+                            {
+                                opacity: 1, y: 0, scale: 1, duration: 0.35, ease: "power2.out",
+                                overwrite: "auto",
+                                onComplete: () => {
+                                    gsap.set(nextPanel, { clearProps: "all" });
+                                    this.isTabAnimating = false;
+                                }
+                            }
+                        );
+
+                        gsap.fromTo(nextPanel.querySelectorAll(".stagger-item"),
+                            { opacity: 0, y: 50, scale: 0.95 },
+                            { opacity: 1, y: 0, scale: 1, duration: 0.4, stagger: 0.04, ease: "power2.out", clearProps: "all" }
+                        );
+
+                        // Re-animate the traffic chart whenever the dashboard is (re)entered
+                        if (tab === 'dashboard') {
+                            gsap.fromTo(nextPanel.querySelectorAll(".chart-bar"),
+                                { scaleY: 0 },
+                                { scaleY: 1, duration: 0.6, stagger: 0.03, ease: "elastic.out(1, 0.8)", delay: 0.15 }
+                            );
+                        }
+                    };
+
+                    if (!currentPanel) {
+                        // Nothing visible to animate out (first paint) — just show the new tab.
+                        this.$nextTick(showNextPanel);
+                        return;
+                    }
+
+                    gsap.to(currentPanel, {
+                        opacity: 0, y: -16, scale: 0.98, duration: 0.25, ease: "power2.inOut",
+                        overwrite: "auto",
                         onComplete: () => {
-                            this.currentTab = tab;
-                            this.$nextTick(() => {
-                                this.animateContent();
-                            });
+                            gsap.set(currentPanel, { clearProps: "all" });
+                            currentPanel.style.display = "none";
+                            this.$nextTick(showNextPanel);
                         }
                     });
-                },
-                
-                animateContent() {
-                    gsap.set(".tab-content > div[style*='display: block'], .tab-content > div:not([style*='display: none'])", { clearProps: "transform,opacity" });
-                    
-                    gsap.fromTo(".stagger-item",
-                        { opacity: 0, y: 50, scale: 0.95 },
-                        { opacity: 1, y: 0, scale: 1, duration: 0.4, stagger: 0.04, ease: "power2.out", clearProps: "all" }
-                    );
-
-                    // Re-animate chart if dashboard
-                    if(this.currentTab === 'dashboard') {
-                        gsap.fromTo(".chart-bar", 
-                            { scaleY: 0 }, 
-                            { scaleY: 1, duration: 0.6, stagger: 0.03, ease: "elastic.out(1, 0.8)", delay: 0.15 }
-                        );
-                    }
                 },
                 
                 initDashboard() {
@@ -499,7 +529,10 @@ if (
                         });
 
                         setTimeout(() => {
-                            // Initial load animation sequence
+                            // Initial load animation sequence — scoped to the tab that's
+                            // actually visible on first paint so hidden panels' items
+                            // aren't silently pre-animated in the background.
+                            const initialPanel = document.querySelector(`.tab-content > [data-tab-panel="${this.currentTab}"]`);
                             const tl = gsap.timeline();
                             
                             tl.fromTo(".sidebar-brand", 
@@ -516,13 +549,13 @@ if (
                                 { y: 0, opacity: 1, stagger: 0.04, duration: 0.4, ease: "power2.out", clearProps: "all" }, 
                                 "-=0.4"
                               )
-                              .fromTo(".stagger-item", 
+                              .fromTo(initialPanel ? initialPanel.querySelectorAll(".stagger-item") : ".stagger-item", 
                                   { opacity: 0, y: 50, scale: 0.95 }, 
                                   { opacity: 1, y: 0, scale: 1, stagger: 0.04, duration: 0.4, ease: "power2.out", clearProps: "all" }, 
                                   "-=0.2"
                               );
         
-                            gsap.fromTo(".chart-bar", 
+                            gsap.fromTo(initialPanel ? initialPanel.querySelectorAll(".chart-bar") : ".chart-bar", 
                                 { scaleY: 0 }, 
                                 { scaleY: 1, duration: 0.6, stagger: 0.03, ease: "elastic.out(1, 0.8)", delay: 0.15 }
                             );

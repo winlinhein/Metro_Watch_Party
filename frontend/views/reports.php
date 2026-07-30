@@ -1,5 +1,5 @@
 <!-- Reports View -->
-<div x-data="{ viewModalOpen: false, selectedReport: null, viewReport(report) { this.selectedReport = report; this.viewModalOpen = true; }, resolveReport() { if(this.selectedReport) { this.selectedReport.status = 'Read'; this.viewModalOpen = false; } } }" x-show="currentTab === 'reports'" style="display: none;" class="absolute inset-0 p-10 w-full min-h-full">
+<div x-data="{ viewModalOpen: false, selectedReport: null, viewReport(report) { this.selectedReport = report; this.viewModalOpen = true; }, resolveReport() { if(this.selectedReport) { this.selectedReport.status = 'Read'; this.viewModalOpen = false; } } }" data-tab-panel="reports" style="display: none;" class="absolute inset-0 p-10 w-full min-h-full">
     <div class="flex items-center justify-between mb-10 stagger-item">
         <div>
             <h2 class="text-3xl font-bold text-white tracking-tight mb-1">Reports Analysis</h2>
