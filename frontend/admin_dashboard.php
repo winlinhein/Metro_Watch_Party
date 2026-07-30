@@ -12,9 +12,44 @@ if (
     exit();
 }
 
-    $userName  = $_SESSION['user_name']  ?? 'Agent';
-    $userEmail = $_SESSION['user_email'] ?? '';
-    $userRole  = $_SESSION['user_role']  ?? 'user';
+$userName  = $_SESSION['user_name']  ?? 'Agent';
+$userEmail = $_SESSION['user_email'] ?? '';
+$userRole  = $_SESSION['user_role']  ?? 'user';
+require_once __DIR__ . '/../conn.php';
+
+try {
+    // Fetch Movies with description, aggregated rating, trailer, and genre list
+    $sql = "
+        SELECT 
+            m.movie_id AS id,
+            m.title,
+            m.description,
+            m.poster AS img,
+            video_url,
+            m.view_count,
+            YEAR(m.created_at) AS year,
+            COALESCE(ROUND(AVG(r.rating), 1), 0) AS rating,
+            COUNT(DISTINCT c.comment_id) AS total_comments,
+            COALESCE(GROUP_CONCAT(DISTINCT g.genre_name ORDER BY g.genre_name SEPARATOR ', '), 'N/A') AS genre
+        FROM movies m
+        LEFT JOIN movie_rating r ON m.movie_id = r.movie_id
+        LEFT JOIN movie_comments c ON m.movie_id = c.movie_id
+        LEFT JOIN movie_and_genres mg ON m.movie_id = mg.movie_id
+        LEFT JOIN genres g ON mg.genre_id = g.genre_id
+        GROUP BY m.movie_id
+        ORDER BY m.created_at DESC
+    ";
+
+    $stmt = $conn->query($sql);
+    $movies = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+    // Fetch all available genres for tag selection
+    $genresStmt = $conn->query("SELECT genre_name FROM genres ORDER BY genre_name ASC");
+    $allGenres = $genresStmt->fetchAll(PDO::FETCH_COLUMN);
+
+} catch (PDOException $e) {
+    die("Query Error: " . $e->getMessage());
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -202,14 +237,22 @@ if (
                 <!-- Profile -->
                 <div class="flex items-center gap-4 pl-6 border-l border-white/10 cursor-pointer group gs-header-item">
                     <div class="text-right hidden md:block">
-                        <p class="text-sm font-bold text-white group-hover:text-red-400 transition-colors tracking-wide"><?php echo htmlspecialchars($userName); ?></p>
+                        <!-- Dynamically updates header text when userName changes in Alpine -->
+                        <p class="text-sm font-bold text-white group-hover:text-red-400 transition-colors tracking-wide" 
+                        x-text="userName">
+                            <?php echo htmlspecialchars($userName); ?>
+                        </p>
                         <p class="text-xs text-white/40 mono uppercase"><?php echo htmlspecialchars($userRole); ?></p>
                     </div>
                     <div class="relative w-12 h-12">
-                        <img src="https://ui-avatars.com/api/?name=<?= urlencode($userName) ?>&background=ef4444&color=fff&bold=true" 
+                        <!-- Dynamically regenerates avatar initials when userName changes -->
+                        <img :src="'https://ui-avatars.com/api/?name=' + encodeURIComponent(userName) + '&background=ef4444&color=fff&bold=true'"
+                            :alt="userName"
+                            src="https://ui-avatars.com/api/?name=<?= urlencode($userName) ?>&background=ef4444&color=fff&bold=true" 
                             alt="<?= htmlspecialchars($userName) ?>" 
                             class="w-full h-full rounded-full border border-white/20 group-hover:border-red-500/50 group-hover:shadow-[0_0_15px_rgba(239,68,68,0.3)] transition-all duration-300 relative z-10">
-                            <template x-if="selectedBorder">
+                        
+                        <template x-if="selectedBorder">
                             <img :src="selectedBorder" class="absolute inset-0 w-full h-full object-cover z-20 pointer-events-none scale-[1.3] drop-shadow-[0_0_15px_rgba(255,255,255,0.2)] mix-blend-screen opacity-90">
                         </template>
                         <div class="absolute -bottom-1 -right-1 w-3.5 h-3.5 bg-green-500 border-2 border-[#030305] rounded-full z-30"></div>
@@ -335,39 +378,128 @@ if (
                     { label: 'Media Assets', value: '8,921', change: '+2%', icon: 'dns' },
                     { label: 'System Load', value: '24%', change: 'Stable', icon: 'memory' }
                 ],
-                movies: [
-                    { id: 1, title: 'Inception', year: 2010, rating: '8.8', genre: 'Sci-Fi', img: 'https://images.unsplash.com/photo-1536440136628-849c177e76a1?auto=format&fit=crop&w=500&q=80', description: 'An amazing cinematic experience.', trailer: 'https://youtube.com', comments: [{id: 1, user: 'Fan88', text: 'Great watch!', date: '2024-01-01'}] },
-                    { id: 2, title: 'Interstellar', year: 2014, rating: '8.6', genre: 'Sci-Fi', img: 'https://images.unsplash.com/photo-1614730321146-b6fa6a46bcb4?auto=format&fit=crop&w=500&q=80', description: 'An amazing cinematic experience.', trailer: 'https://youtube.com', comments: [{id: 1, user: 'Fan88', text: 'Great watch!', date: '2024-01-01'}] },
-                    { id: 3, title: 'The Matrix', year: 1999, rating: '8.7', genre: 'Action', img: 'https://images.unsplash.com/photo-1526304640581-d334cdbbf45e?auto=format&fit=crop&w=500&q=80', description: 'An amazing cinematic experience.', trailer: 'https://youtube.com', comments: [{id: 1, user: 'Fan88', text: 'Great watch!', date: '2024-01-01'}] },
-                    { id: 4, title: 'Blade Runner 2049', year: 2017, rating: '8.0', genre: 'Sci-Fi', img: 'https://images.unsplash.com/photo-1505672678657-cc70370f5e60?auto=format&fit=crop&w=500&q=80', description: 'An amazing cinematic experience.', trailer: 'https://youtube.com', comments: [{id: 1, user: 'Fan88', text: 'Great watch!', date: '2024-01-01'}] },
-                    { id: 5, title: 'Dune', year: 2021, rating: '8.0', genre: 'Adventure', img: 'https://images.unsplash.com/photo-1542451313056-b7c8e626645f?auto=format&fit=crop&w=500&q=80', description: 'An amazing cinematic experience.', trailer: 'https://youtube.com', comments: [{id: 1, user: 'Fan88', text: 'Great watch!', date: '2024-01-01'}] },
-                    { id: 6, title: 'Gravity', year: 2013, rating: '7.7', genre: 'Sci-Fi', img: 'https://images.unsplash.com/photo-1451187580459-43490279c0fa?auto=format&fit=crop&w=500&q=80', description: 'An amazing cinematic experience.', trailer: 'https://youtube.com', comments: [{id: 1, user: 'Fan88', text: 'Great watch!', date: '2024-01-01'}] },
-                    { id: 7, title: 'Star Wars', year: 1977, rating: '8.6', genre: 'Fantasy', img: 'https://images.unsplash.com/photo-1578374173705-969cbe6f2d6b?auto=format&fit=crop&w=500&q=80', description: 'An amazing cinematic experience.', trailer: 'https://youtube.com', comments: [{id: 1, user: 'Fan88', text: 'Great watch!', date: '2024-01-01'}] },
-                    { id: 8, title: 'Avatar', year: 2009, rating: '7.8', genre: 'Action', img: 'https://images.unsplash.com/photo-1618331835717-801e976710b2?auto=format&fit=crop&w=500&q=80', description: 'An amazing cinematic experience.', trailer: 'https://youtube.com', comments: [{id: 1, user: 'Fan88', text: 'Great watch!', date: '2024-01-01'}] }
-                ],
+                // Dynamic Movie Data
+                allGenres: <?= json_encode($allGenres ?? []); ?>,
+                movies: <?= json_encode($movies ?? [], JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>,
                 movieModalOpen: false,
                 editingMovie: null,
-                newMovie: { title: '', year: '', rating: '', genre: '', img: '', description: '', trailer: '', comments: [] },
+                newMovie: { title: '', year: '', rating: 0, genres: [], img: '', description: '', video_url: '', comments: [] },
+
                 openAddMovieModal() {
                     this.editingMovie = null;
-                    this.newMovie = { title: '', year: '', rating: '', genre: '', img: '', description: '', trailer: '', comments: [] };
+                    this.newMovie = {
+                        title: '',
+                        year: new Date().getFullYear(),
+                        rating: 0,
+                        genres: [],
+                        img: '',
+                        description: '',
+                        video_url: '',
+                        comments: []
+                    };
                     this.movieModalOpen = true;
                 },
+
                 openEditMovieModal(movie) {
                     this.editingMovie = movie;
-                    this.newMovie = { ...movie };
+                    const genreList = (movie.genre && movie.genre !== 'N/A') 
+                        ? movie.genre.split(',').map(g => g.trim()) 
+                        : [];
+
+                    this.newMovie = {
+                        title: movie.title || '',
+                        description: movie.description || '',
+                        year: movie.year || new Date().getFullYear(),
+                        rating: movie.rating || 0,
+                        genres: genreList,
+                        img: movie.img || '',
+                        video_url: movie.video_url || '',
+                        comments: movie.comments || []
+                    };
                     this.movieModalOpen = true;
-                },
-                saveMovie() {
-                    if (this.editingMovie) {
-                        const index = this.movies.findIndex(m => m.id === this.editingMovie.id);
-                        if (index !== -1) {
-                            this.movies[index] = { ...this.newMovie };
-                        }
-                    } else {
-                        this.movies.push({ ...this.newMovie, id: Date.now() });
+                }, // Added missing comma here
+                toggleGenre(genreName) {
+                    if (!Array.isArray(this.newMovie.genres)) {
+                        this.newMovie.genres = [];
                     }
-                    this.movieModalOpen = false;
+                    if (this.newMovie.genres.includes(genreName)) {
+                        this.newMovie.genres = this.newMovie.genres.filter(g => g !== genreName);
+                    } else {
+                        this.newMovie.genres.push(genreName);
+                    }
+                },
+                handleFileUpload(event, callback) {
+                    const file = event.target.files[0];
+                    if (file) {
+                        const reader = new FileReader();
+                        reader.onload = (e) => callback(e.target.result);
+                        reader.readAsDataURL(file);
+                    }
+                },
+                async saveMovie() {
+                    if (!this.newMovie.title.trim()) {
+                        alert('Please enter a movie title');
+                        return;
+                    }
+
+                    // Include the ID so the backend can distinguish between ADD and EDIT
+                    const payload = {
+                        id: this.editingMovie ? this.editingMovie.id : null,
+                        ...this.newMovie,
+                        genre: this.newMovie.genres.join(', ')
+                    };
+
+                    try {
+                        const response = await fetch('../backend/save_movie.php', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(payload)
+                        });
+
+                        const result = await response.json();
+
+                        if (result.success) {
+                            if (this.editingMovie) {
+                                const index = this.movies.findIndex(m => m.id === this.editingMovie.id);
+                                if (index !== -1) {
+                                    this.movies[index] = { 
+                                        ...this.movies[index], 
+                                        ...this.newMovie,
+                                        img: result.movie?.poster || this.newMovie.img,
+                                        genre: payload.genre || 'N/A'
+                                    };
+                                }
+                            } else {
+                            this.movies.unshift({
+                                id: result.movie?.id || Date.now(),
+                                title: this.newMovie.title,
+                                description: this.newMovie.description || '',
+                                img: result.movie?.poster || this.newMovie.img,
+                                video_url: this.newMovie.video_url || '',
+                                year: this.newMovie.year || new Date().getFullYear(),
+                                rating: this.newMovie.rating || 0,
+                                view_count: 0,
+                                total_comments: 0,
+                                genre: payload.genre || 'N/A'
+                            });
+                        }
+                            this.movieModalOpen = false;
+                        } else {
+                            alert(result.message || 'Failed to save movie');
+                        }
+                    } catch (err) {
+                        console.error('Error saving movie:', err);
+                        alert('An unexpected error occurred while saving.');
+                    }
+                },
+                async deleteMovie(id) {
+                    if (!confirm('Are you sure you want to delete this media asset?')) return;
+                    try {
+                        await fetch(`../backend/delete_movie.php?id=${id}`, { method: 'DELETE' });
+                    } catch (e) {
+                        console.error(e);
+                    }
+                    this.movies = this.movies.filter(m => m.id !== id);
                 },
                 
                 reportStats: {
@@ -429,6 +561,200 @@ if (
                     { id: 4, name: 'David Wilson', email: 'david@corp.org', status: 'Online', role: 'Standard' },
                     { id: 5, name: 'Lisa Palmer', email: 'lisa@nexus.net', status: 'Offline', role: 'Premium' },
                 ],
+                //(used for header and profile card preview)
+                userName: <?= json_encode($userName); ?>,
+                userEmail: <?= json_encode($userEmail); ?>,
+
+                //(bound to input fields only)
+                profileForm: {
+                    name: <?= json_encode($userName); ?>,
+                    email: <?= json_encode($userEmail); ?>
+                },
+
+                profileFormLoading: false,
+                passwordForm: {
+                    current_password: '',
+                    new_password: '',
+                    confirm_password: ''
+                },
+                // Inside return object of function adminDashboard()
+                profileFeedback: {
+                    message: '',
+                    isError: false
+                },
+                profileLoading: false,
+
+                // Validation Methods Inside Alpine Scope
+                validateProfileInfo() {
+                    let errors = [];
+                    const name = (this.profileForm.name || '').trim();
+                    const email = (this.profileForm.email || '').trim();
+
+                    const namePattern = /^[\p{L}\s'-]+$/u;
+                    if (name.length === 0) {
+                        errors.push('Display Name is required.');
+                    } else if (name.length < 2 || name.length > 50) {
+                        errors.push('Display Name must be between 2 and 50 characters.');
+                    } else if (!namePattern.test(name)) {
+                        errors.push('Display Name contains invalid characters.');
+                    }
+
+                    const emailPattern = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+                    if (email.length === 0) {
+                        errors.push('Email address is required.');
+                    } else if (!emailPattern.test(email)) {
+                        errors.push('Please enter a valid email address.');
+                    }
+
+                    if (errors.length > 0) {
+                        this.profileFeedback.isError = true;
+                        this.profileFeedback.message = errors.join(' | ');
+                        return false;
+                    }
+                    return true;
+                },
+
+                validatePasswordForm() {
+                    let errors = [];
+                    const currentPassword = this.passwordForm.current_password || '';
+                    const newPassword = this.passwordForm.new_password || '';
+                    const confirmPassword = this.passwordForm.confirm_password || '';
+
+                    if (currentPassword.length === 0) {
+                        errors.push('Current password is required.');
+                    }
+
+                    if (newPassword.length === 0) {
+                        errors.push('New password is required.');
+                    } else {
+                        let passwordCriteria = [];
+                        if (newPassword.length < 8) passwordCriteria.push("8+ characters");
+                        if (!/[A-Z]/.test(newPassword)) passwordCriteria.push("1 uppercase letter");
+                        if (!/[a-z]/.test(newPassword)) passwordCriteria.push("1 lowercase letter");
+                        if (!/[0-9]/.test(newPassword)) passwordCriteria.push("1 number");
+                        if (!/[!@#$%^&*(),.?":{}|<>_\-]/.test(newPassword)) passwordCriteria.push("1 special character");
+
+                        if (passwordCriteria.length > 0) {
+                            errors.push('New password missing: ' + passwordCriteria.join(', '));
+                        }
+                    }
+
+                    if (newPassword !== confirmPassword) {
+                        errors.push('New password and confirmation password do not match.');
+                    }
+
+                    if (errors.length > 0) {
+                        this.profileFeedback.isError = true;
+                        this.profileFeedback.message = errors.join(' | ');
+                        return false;
+                    }
+                    return true;
+                },
+
+                async saveProfileInfo() {
+                    // Call the method attached to Alpine component state
+                    if (!this.validateProfileInfo()) return;
+
+                    this.profileLoading = true;
+                    this.profileFeedback.message = '';
+
+                    try {
+                        const response = await fetch('../backend/update_profile.php', {
+                            method: 'POST',
+                            headers: { 
+                                'Content-Type': 'application/json',
+                                'X-CSRF-Token': document.querySelector('meta[name="csrf-token"]')?.content || ''
+                            },
+                            body: JSON.stringify({
+                                action: 'update_info',
+                                name: this.profileForm.name,
+                                email: this.profileForm.email
+                            })
+                        });
+
+                        const result = await response.json();
+                        this.profileFeedback.isError = !result.success;
+                        this.profileFeedback.message = result.message;
+
+                        if (result.success && result.user) {
+                            this.userName = result.user.name;
+                            this.userEmail = result.user.email;
+                        }
+                    } catch (err) {
+                        this.profileFeedback.isError = true;
+                        this.profileFeedback.message = 'Network error while updating profile.';
+                    } finally {
+                        this.profileLoading = false;
+                    }
+                },
+
+                async changePassword() {
+                    // Call the method attached to Alpine component state
+                    if (!this.validatePasswordForm()) return;
+
+                    this.profileLoading = true;
+                    this.profileFeedback.message = '';
+
+                    try {
+                        const response = await fetch('../backend/update_profile.php', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                action: 'change_password',
+                                ...this.passwordForm
+                            })
+                        });
+
+                        const result = await response.json();
+                        this.profileFeedback.isError = !result.success;
+                        this.profileFeedback.message = result.message;
+
+                        if (result.success) {
+                            this.passwordForm.current_password = '';
+                            this.passwordForm.new_password = '';
+                            this.passwordForm.confirm_password = '';
+                        }
+                    } catch (err) {
+                        this.profileFeedback.isError = true;
+                        this.profileFeedback.message = 'Network error while updating password.';
+                    } finally {
+                        this.profileLoading = false;
+                    }
+                },
+
+                // Add these properties to your adminDashboard() return object
+                deleteModalOpen: false,
+                deletePassword: '',
+                deleteLoading: false,
+
+                async deleteAccount() {
+                    if (!this.deletePassword) {
+                        alert('Please enter your password to confirm deletion.');
+                        return;
+                    }
+
+                    this.deleteLoading = true;
+
+                    try {
+                        const response = await fetch('../backend/delete_account.php', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ password: this.deletePassword })
+                        });
+
+                        const result = await response.json();
+
+                        if (result.success) {
+                            window.location.href = result.redirect || 'login.php';
+                        } else {
+                            alert(result.message || 'Failed to delete account.');
+                        }
+                    } catch (err) {
+                        alert('A network error occurred.');
+                    } finally {
+                        this.deleteLoading = false;
+                    }
+                },
                 
                 switchTab(tab) {
                     // Ignore clicks on the active tab, and ignore rapid double-clicks
