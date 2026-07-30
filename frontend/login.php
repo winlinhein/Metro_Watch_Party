@@ -269,6 +269,14 @@
                 return false;
             }
 
+            // Validation passed — the browser is about to do a real POST
+            // navigation to backend/login_backend.php, so show the loader
+            // now, synchronously, instead of leaving the page looking frozen
+            // while PHP does its work.
+            if (typeof window.showPageLoader === 'function') {
+                window.showPageLoader();
+            }
+
             return true;
         }
 

@@ -41,6 +41,7 @@
 
 </head>
 <body class="bg-[#050505] text-white flex items-center justify-center font-sans antialiased relative overflow-hidden min-h-screen" data-barba="wrapper">
+    <?php include __DIR__ . '/components/page_loader.php'; ?>
     <?php include __DIR__ . '/components/cursor.php'; ?>
     <?php include __DIR__ . '/components/toast.php'; ?>
 <div id="barba-container" data-barba="container" data-barba-namespace="otp-forgot" x-data="otpForm()">
@@ -78,7 +79,7 @@
             
             
 
-            <form action="../backend/otp-forgot_backend.php?action=verify_otp_forgot" method="POST" class="space-y-6" id="otpForm">
+            <form action="../backend/otp-forgot_backend.php?action=verify_otp_forgot" method="POST" class="space-y-6" id="otpForm" onsubmit="window.showPageLoader && window.showPageLoader();">
                 
                 <!-- OTP Inputs -->
                 <input type="hidden" name="otp" x-model="otpCode">

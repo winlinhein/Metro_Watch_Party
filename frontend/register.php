@@ -325,6 +325,12 @@
                 return false;
             }
 
+            // Validation passed — real POST navigation is about to happen,
+            // so show the loader now instead of after the fact.
+            if (typeof window.showPageLoader === 'function') {
+                window.showPageLoader();
+            }
+
             return true;
         }
 

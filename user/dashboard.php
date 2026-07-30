@@ -664,7 +664,13 @@ if (
     <script>
         async function handleLogout() {
             const btn = document.getElementById('logoutBtn');
-            
+
+            // Show the loader immediately on click, before the network
+            // request even starts, instead of only after logout.php responds.
+            if (typeof window.showPageLoader === 'function') {
+                window.showPageLoader();
+            }
+
             try {
                 // Optional UI Feedback (disable button during request)
                 if (btn) btn.style.opacity = '0.5';
@@ -684,10 +690,12 @@ if (
                 } else {
                     console.error('Logout failed');
                     if (btn) btn.style.opacity = '1';
+                    if (typeof window.hidePageLoader === 'function') window.hidePageLoader();
                 }
             } catch (error) {
                 console.error('Error during sign out:', error);
                 if (btn) btn.style.opacity = '1';
+                if (typeof window.hidePageLoader === 'function') window.hidePageLoader();
             }
         }
     </script>
