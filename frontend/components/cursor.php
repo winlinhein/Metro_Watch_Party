@@ -36,7 +36,7 @@ a, button, input, textarea, select, .cursor-pointer, .top-nav-item, [x-ref="prog
 }
 </style>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+
 <script>
     document.addEventListener('DOMContentLoaded', () => {
         // Prevent duplicate cursors
@@ -53,23 +53,38 @@ a, button, input, textarea, select, .cursor-pointer, .top-nav-item, [x-ref="prog
         }
 
         if(typeof gsap !== 'undefined') {
-            gsap.set(cursor, { xPercent: -50, yPercent: -50 });
-            gsap.set(innerCursor, { xPercent: -50, yPercent: -50 });
+            // Start invisible — we don't know the real cursor position yet, so
+            // showing anything now would show it in the wrong place (top-left,
+            // per the CSS default) until the first mousemove ever fires.
+            gsap.set(cursor, { xPercent: -50, yPercent: -50, opacity: 0 });
+            gsap.set(innerCursor, { xPercent: -50, yPercent: -50, opacity: 0 });
 
             let mouseX = window.innerWidth / 2;
             let mouseY = window.innerHeight / 2;
+            let hasPositioned = false;
 
             document.addEventListener('mousemove', (e) => {
                 mouseX = e.clientX;
                 mouseY = e.clientY;
-                
-                gsap.set(innerCursor, {
-                    x: mouseX,
-                    y: mouseY
-                });
+
+                if (!hasPositioned) {
+                    // First real mouse position we've seen this page load:
+                    // snap both cursors straight there (no tween) and reveal
+                    // them in the same tick, so there's nothing to see travel
+                    // in from the corner.
+                    hasPositioned = true;
+                    gsap.set(cursor, { x: mouseX, y: mouseY, opacity: 1 });
+                    gsap.set(innerCursor, { x: mouseX, y: mouseY, opacity: 1 });
+                } else {
+                    gsap.set(innerCursor, {
+                        x: mouseX,
+                        y: mouseY
+                    });
+                }
             });
 
             gsap.ticker.add(() => {
+                if (!hasPositioned) return;
                 gsap.to(cursor, {
                     duration: 0.5,
                     x: mouseX,
@@ -78,7 +93,7 @@ a, button, input, textarea, select, .cursor-pointer, .top-nav-item, [x-ref="prog
                 });
             });
 
-            const initInteractiveElements = () => {
+            window.initInteractiveElements = () => {
                 const interactiveElements = document.querySelectorAll('button, a, input, textarea, select, .cursor-pointer, .top-nav-item, [x-ref="progressBar"], .gs-movie-card, .menu-item');
                 interactiveElements.forEach(elem => {
                     if (!elem.hasAttribute('data-cursor-bound')) {
@@ -95,11 +110,11 @@ a, button, input, textarea, select, .cursor-pointer, .top-nav-item, [x-ref="prog
             
             // Re-init interactive elements when new ones are added
             const observer = new MutationObserver((mutations) => {
-                initInteractiveElements();
+                window.initInteractiveElements();
             });
             observer.observe(document.body, { childList: true, subtree: true });
             
-            initInteractiveElements();
+            window.initInteractiveElements();
         }
     });
 </script>

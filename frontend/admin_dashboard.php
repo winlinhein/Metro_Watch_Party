@@ -133,8 +133,11 @@ if (
 
 
 </head>
-<body x-data="adminDashboard()" x-init="initDashboard()" class="h-screen w-screen flex relative selection:bg-red-500/30">
+<body class="h-screen w-screen flex relative selection:bg-red-500/30" data-barba="wrapper">
+    <?php include __DIR__ . '/components/page_loader.php'; ?>
     <?php include __DIR__ . '/components/cursor.php'; ?>
+<div id="barba-container" class="flex h-full w-full" data-barba="container" data-barba-namespace="admin_dashboard" x-data="adminDashboard()" x-init="initDashboard()">
+
 
 <div class="bg-mesh"></div>
     <div class="noise"></div>
@@ -164,7 +167,6 @@ if (
         </nav>
         
         <div class="p-6">
-            </div>
             <button onclick="handleLogout()" 
                     class="flex items-center gap-3 py-2 px-4 text-white/50 hover:text-red-400 transition-colors rounded-xl hover:bg-red-500/10 gs-nav-item w-full text-left cursor-pointer">
                 <span class="material-symbols-outlined text-[20px]">logout</span>
@@ -235,6 +237,7 @@ if (
         function adminDashboard() {
             return {
                 currentTab: 'dashboard',
+                isTabAnimating: false,
                 sidebarOpen: true,
                 notificationsOpen: false,
                 notifications: [
@@ -428,38 +431,68 @@ if (
                 ],
                 
                 switchTab(tab) {
-                    if (this.currentTab === tab) return;
-                    
-                    // Exit animation
-                    gsap.to(".tab-content > div[style*='display: block'], .tab-content > div:not([style*='display: none'])", {
-                        opacity: 0,
-                        y: 30,
-                        scale: 0.98,
-                        duration: 0.3, ease: "power2.inOut",
+                    // Ignore clicks on the active tab, and ignore rapid double-clicks
+                    // while a transition is already in flight (this used to let GSAP
+                    // overwrite the in-flight tween and silently drop onComplete,
+                    // which is why the panel could get stuck showing stale content).
+                    if (this.currentTab === tab || this.isTabAnimating) return;
+                    this.isTabAnimating = true;
+
+                    const tabContent = document.querySelector('.tab-content');
+                    const currentPanel = tabContent ? tabContent.querySelector(`:scope > [data-tab-panel="${this.currentTab}"]`) : null;
+
+                    const showNextPanel = () => {
+                        this.currentTab = tab;
+
+                        const nextPanel = tabContent ? tabContent.querySelector(`:scope > [data-tab-panel="${tab}"]`) : null;
+                        if (!nextPanel) { this.isTabAnimating = false; return; }
+
+                        // Wipe any leftover inline styles from a previous visit before
+                        // animating in, so panels can never get stuck mid-transition.
+                        gsap.set(nextPanel, { clearProps: "all" });
+                        nextPanel.style.display = "block";
+
+                        gsap.fromTo(nextPanel,
+                            { opacity: 0, y: 24, scale: 0.98 },
+                            {
+                                opacity: 1, y: 0, scale: 1, duration: 0.35, ease: "power2.out",
+                                overwrite: "auto",
+                                onComplete: () => {
+                                    gsap.set(nextPanel, { clearProps: "all" });
+                                    this.isTabAnimating = false;
+                                }
+                            }
+                        );
+
+                        gsap.fromTo(nextPanel.querySelectorAll(".stagger-item"),
+                            { opacity: 0, y: 50, scale: 0.95 },
+                            { opacity: 1, y: 0, scale: 1, duration: 0.4, stagger: 0.04, ease: "power2.out", clearProps: "all" }
+                        );
+
+                        // Re-animate the traffic chart whenever the dashboard is (re)entered
+                        if (tab === 'dashboard') {
+                            gsap.fromTo(nextPanel.querySelectorAll(".chart-bar"),
+                                { scaleY: 0 },
+                                { scaleY: 1, duration: 0.6, stagger: 0.03, ease: "elastic.out(1, 0.8)", delay: 0.15 }
+                            );
+                        }
+                    };
+
+                    if (!currentPanel) {
+                        // Nothing visible to animate out (first paint) — just show the new tab.
+                        this.$nextTick(showNextPanel);
+                        return;
+                    }
+
+                    gsap.to(currentPanel, {
+                        opacity: 0, y: -16, scale: 0.98, duration: 0.25, ease: "power2.inOut",
+                        overwrite: "auto",
                         onComplete: () => {
-                            this.currentTab = tab;
-                            this.$nextTick(() => {
-                                this.animateContent();
-                            });
+                            gsap.set(currentPanel, { clearProps: "all" });
+                            currentPanel.style.display = "none";
+                            this.$nextTick(showNextPanel);
                         }
                     });
-                },
-                
-                animateContent() {
-                    gsap.set(".tab-content > div[style*='display: block'], .tab-content > div:not([style*='display: none'])", { clearProps: "transform,opacity" });
-                    
-                    gsap.fromTo(".stagger-item",
-                        { opacity: 0, y: 50, scale: 0.95 },
-                        { opacity: 1, y: 0, scale: 1, duration: 0.4, stagger: 0.04, ease: "power2.out", clearProps: "all" }
-                    );
-
-                    // Re-animate chart if dashboard
-                    if(this.currentTab === 'dashboard') {
-                        gsap.fromTo(".chart-bar", 
-                            { scaleY: 0 }, 
-                            { scaleY: 1, duration: 0.6, stagger: 0.03, ease: "elastic.out(1, 0.8)", delay: 0.15 }
-                        );
-                    }
                 },
                 
                 initDashboard() {
@@ -497,7 +530,10 @@ if (
                         });
 
                         setTimeout(() => {
-                            // Initial load animation sequence
+                            // Initial load animation sequence — scoped to the tab that's
+                            // actually visible on first paint so hidden panels' items
+                            // aren't silently pre-animated in the background.
+                            const initialPanel = document.querySelector(`.tab-content > [data-tab-panel="${this.currentTab}"]`);
                             const tl = gsap.timeline();
                             
                             tl.fromTo(".sidebar-brand", 
@@ -514,13 +550,13 @@ if (
                                 { y: 0, opacity: 1, stagger: 0.04, duration: 0.4, ease: "power2.out", clearProps: "all" }, 
                                 "-=0.4"
                               )
-                              .fromTo(".stagger-item", 
+                              .fromTo(initialPanel ? initialPanel.querySelectorAll(".stagger-item") : ".stagger-item", 
                                   { opacity: 0, y: 50, scale: 0.95 }, 
                                   { opacity: 1, y: 0, scale: 1, stagger: 0.04, duration: 0.4, ease: "power2.out", clearProps: "all" }, 
                                   "-=0.2"
                               );
         
-                            gsap.fromTo(".chart-bar", 
+                            gsap.fromTo(initialPanel ? initialPanel.querySelectorAll(".chart-bar") : ".chart-bar", 
                                 { scaleY: 0 }, 
                                 { scaleY: 1, duration: 0.6, stagger: 0.03, ease: "elastic.out(1, 0.8)", delay: 0.15 }
                             );
@@ -532,7 +568,13 @@ if (
 
          async function handleLogout() {
             const btn = document.getElementById('logoutBtn');
-            
+
+            // Show the loader immediately on click, before the network
+            // request even starts, instead of only after logout.php responds.
+            if (typeof window.showPageLoader === 'function') {
+                window.showPageLoader();
+            }
+
             try {
                 // Optional UI Feedback (disable button during request)
                 if (btn) btn.style.opacity = '0.5';
@@ -552,13 +594,108 @@ if (
                 } else {
                     console.error('Logout failed');
                     if (btn) btn.style.opacity = '1';
+                    if (typeof window.hidePageLoader === 'function') window.hidePageLoader();
                 }
             } catch (error) {
                 console.error('Error during sign out:', error);
                 if (btn) btn.style.opacity = '1';
+                if (typeof window.hidePageLoader === 'function') window.hidePageLoader();
             }
         }
     </script>
     
+
+    
+
+
+    </div>
+
+
+
+    <script src="https://unpkg.com/@barba/core@2.9.7/dist/barba.umd.js"></script>
+    <script>
+        if (typeof gsap !== 'undefined' && typeof ScrollTrigger !== 'undefined') { gsap.registerPlugin(ScrollTrigger); }
+        function initAnimations(container = document) {
+            if (typeof gsap === 'undefined') return;
+            const q = gsap.utils.selector(container);
+            const tl = gsap.timeline();
+            
+            const heroTitleWords = q('.gs-word');
+            if(heroTitleWords.length > 0) {
+                gsap.set(heroTitleWords, {opacity: 0, y: 40});
+                
+                tl.fromTo(q('.gs-hero-content .gs-reveal'), 
+                    { opacity: 0, y: 30 },
+                    { opacity: 1, y: 0, duration: 0.8, stagger: 0.1, ease: 'power3.out' }
+                )
+                .to(heroTitleWords,
+                    { opacity: 1, y: 0, duration: 0.8, stagger: 0.05, ease: 'back.out(1.7)' },
+                    "-=0.6"
+                )
+                .fromTo(q('.gs-hero-visual'),
+                    { opacity: 0, scale: 0.9, x: 50 },
+                    { opacity: 1, scale: 1, x: 0, duration: 1, ease: 'power3.out' },
+                    "-=0.8"
+                );
+            }
+
+            q('.gs-reveal-up').forEach(elem => {
+                gsap.fromTo(elem,
+                    { opacity: 0, y: 50 },
+                    {
+                        opacity: 1, 
+                        y: 0, 
+                        duration: 0.8, 
+                        ease: 'power3.out',
+                        scrollTrigger: {
+                            trigger: elem,
+                            start: "top 85%",
+                            toggleActions: "play none none reverse"
+                        }
+                    }
+                );
+            });
+
+            q('.gs-movie-card').forEach((elem, i) => {
+                gsap.fromTo(elem,
+                    { opacity: 0, scale: 0.8, y: 40 },
+                    {
+                        opacity: 1, 
+                        scale: 1, 
+                        y: 0, 
+                        duration: 0.6, 
+                        delay: (i % 4) * 0.1,
+                        ease: 'back.out(1.4)',
+                        scrollTrigger: {
+                            trigger: elem.parentElement,
+                            start: "top 80%"
+                        }
+                    }
+                );
+            });
+
+            q('.gs-step').forEach((elem, i) => {
+                gsap.fromTo(elem,
+                    { opacity: 0, y: 40 },
+                    {
+                        opacity: 1, 
+                        y: 0, 
+                        duration: 0.6,
+                        ease: 'power2.out',
+                        scrollTrigger: {
+                            trigger: elem.parentElement,
+                            start: "top 80%"
+                        }
+                    }
+                );
+            });
+        }
+
+        // Initialize animations on first load
+        initAnimations();
+
+    </script>
+    <script src="/js/barba_setup.js"></script>
+
 </body>
 </html>

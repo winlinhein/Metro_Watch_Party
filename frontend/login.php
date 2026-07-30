@@ -41,10 +41,12 @@
 
 
 </head>
-<body class="bg-[#050505] text-white flex items-center justify-center font-sans antialiased relative overflow-hidden min-h-screen" x-data="{ showPassword: false }">
+<body class="bg-[#050505] text-white flex items-center justify-center font-sans antialiased relative overflow-hidden min-h-screen" data-barba="wrapper">
     <?php include __DIR__ . '/components/page_loader.php'; ?>
     <?php include __DIR__ . '/components/cursor.php'; ?>
     <?php include __DIR__ . '/components/toast.php'; ?>
+<div id="barba-container" data-barba="container" data-barba-namespace="login" x-data="{ showPassword: false }">
+
 
 <!-- Floating Back Button -->
     <a href="#" onclick="history.back(); return false;" class="fixed top-8 left-8 sm:top-12 sm:left-12 z-50 flex items-center justify-center w-14 h-14 rounded-full bg-black/40 border border-white/10 backdrop-blur-xl gs-back-btn overflow-visible" id="floating-back">
@@ -240,7 +242,7 @@
     </div>
 
     <!-- GSAP Animations & Interactions -->
-    <script src="animations.js"></script>
+    <script src="/frontend/animations.js"></script>
     <script>
         // Client-side Login Form Validation
         function validateLoginForm() {
@@ -265,6 +267,14 @@
             if (errors.length > 0) {
                 showErrorModal(errors);
                 return false;
+            }
+
+            // Validation passed — the browser is about to do a real POST
+            // navigation to backend/login_backend.php, so show the loader
+            // now, synchronously, instead of leaving the page looking frozen
+            // while PHP does its work.
+            if (typeof window.showPageLoader === 'function') {
+                window.showPageLoader();
             }
 
             return true;
@@ -309,7 +319,7 @@
         }
 
         // Automatically display PHP backend errors in the modal on page load
-        document.addEventListener('DOMContentLoaded', () => {
+        setTimeout(() => {
             const urlParams = new URLSearchParams(window.location.search);
             if (urlParams.has('error')) {
                 const serverError = urlParams.get('error');
@@ -321,6 +331,99 @@
     </script>
 
 
+
+
+    
+
+
+    </div>
+
+
+
+    <script src="https://unpkg.com/@barba/core@2.9.7/dist/barba.umd.js"></script>
+    <script>
+        if (typeof gsap !== 'undefined' && typeof ScrollTrigger !== 'undefined') { gsap.registerPlugin(ScrollTrigger); }
+        function initAnimations(container = document) {
+            if (typeof gsap === 'undefined') return;
+            const q = gsap.utils.selector(container);
+            const tl = gsap.timeline();
+            
+            const heroTitleWords = q('.gs-word');
+            if(heroTitleWords.length > 0) {
+                gsap.set(heroTitleWords, {opacity: 0, y: 40});
+                
+                tl.fromTo(q('.gs-hero-content .gs-reveal'), 
+                    { opacity: 0, y: 30 },
+                    { opacity: 1, y: 0, duration: 0.8, stagger: 0.1, ease: 'power3.out' }
+                )
+                .to(heroTitleWords,
+                    { opacity: 1, y: 0, duration: 0.8, stagger: 0.05, ease: 'back.out(1.7)' },
+                    "-=0.6"
+                )
+                .fromTo(q('.gs-hero-visual'),
+                    { opacity: 0, scale: 0.9, x: 50 },
+                    { opacity: 1, scale: 1, x: 0, duration: 1, ease: 'power3.out' },
+                    "-=0.8"
+                );
+            }
+
+            q('.gs-reveal-up').forEach(elem => {
+                gsap.fromTo(elem,
+                    { opacity: 0, y: 50 },
+                    {
+                        opacity: 1, 
+                        y: 0, 
+                        duration: 0.8, 
+                        ease: 'power3.out',
+                        scrollTrigger: {
+                            trigger: elem,
+                            start: "top 85%",
+                            toggleActions: "play none none reverse"
+                        }
+                    }
+                );
+            });
+
+            q('.gs-movie-card').forEach((elem, i) => {
+                gsap.fromTo(elem,
+                    { opacity: 0, scale: 0.8, y: 40 },
+                    {
+                        opacity: 1, 
+                        scale: 1, 
+                        y: 0, 
+                        duration: 0.6, 
+                        delay: (i % 4) * 0.1,
+                        ease: 'back.out(1.4)',
+                        scrollTrigger: {
+                            trigger: elem.parentElement,
+                            start: "top 80%"
+                        }
+                    }
+                );
+            });
+
+            q('.gs-step').forEach((elem, i) => {
+                gsap.fromTo(elem,
+                    { opacity: 0, y: 40 },
+                    {
+                        opacity: 1, 
+                        y: 0, 
+                        duration: 0.6,
+                        ease: 'power2.out',
+                        scrollTrigger: {
+                            trigger: elem.parentElement,
+                            start: "top 80%"
+                        }
+                    }
+                );
+            });
+        }
+
+        // Initialize animations on first load
+        initAnimations();
+
+    </script>
+    <script src="/js/barba_setup.js"></script>
 
 </body>
 </html>

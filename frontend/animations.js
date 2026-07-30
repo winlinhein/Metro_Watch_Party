@@ -1,4 +1,4 @@
-document.addEventListener('DOMContentLoaded', () => {
+function initLocalAnimations() {
     // Generate Posters
     const posterWall = document.getElementById('poster-wall-container');
     if (posterWall) {
@@ -25,126 +25,76 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Particle Generation
     const particlesContainer = document.getElementById('particles-container');
-    const numParticles = 40;
-    
-    for (let i = 0; i < numParticles; i++) {
-        const particle = document.createElement('div');
-        particle.classList.add('particle');
+    if (particlesContainer) {
+        const numParticles = 40;
         
-        // Randomize properties
-        const size = Math.random() * 3 + 1;
-        const opacity = Math.random() * 0.5 + 0.1;
-        const x = Math.random() * 100;
-        const y = Math.random() * 100;
-        
-        particle.style.width = `${size}px`;
-        particle.style.height = `${size}px`;
-        particle.style.opacity = opacity;
-        particle.style.left = `${x}%`;
-        particle.style.top = `${y}%`;
-        
-        particlesContainer.appendChild(particle);
-        
-        // Animate each particle independently
-        gsap.to(particle, {
-            y: `-=${Math.random() * 100 + 50}`,
-            x: `+=${Math.random() * 40 - 20}`,
-            rotation: Math.random() * 360,
-            opacity: 0,
-            duration: Math.random() * 10 + 5,
-            repeat: -1,
-            ease: 'none',
-            delay: Math.random() * -10
-        });
-    }
-    
-    // Main Timeline
-    const tl = gsap.timeline({ defaults: { ease: 'power4.out' } });
-
-    // Interactive particles
-    const particles = document.querySelectorAll('.particle');
-    document.addEventListener('mousemove', (e) => {
-        const mouseX = e.clientX;
-        const mouseY = e.clientY;
-        
-        particles.forEach(particle => {
-            const rect = particle.getBoundingClientRect();
-            const partX = rect.left + rect.width / 2;
-            const partY = rect.top + rect.height / 2;
+        for (let i = 0; i < numParticles; i++) {
+            const particle = document.createElement('div');
+            particle.classList.add('particle');
             
-            const distX = mouseX - partX;
-            const distY = mouseY - partY;
-            const distance = Math.sqrt(distX * distX + distY * distY);
+            // Randomize properties
+            const size = Math.random() * 3 + 1;
+            const opacity = Math.random() * 0.5 + 0.1;
+            const x = Math.random() * 100;
+            const y = Math.random() * 100;
             
-            if (distance < 150) {
+            particle.style.width = `${size}px`;
+            particle.style.height = `${size}px`;
+            particle.style.opacity = opacity;
+            particle.style.left = `${x}%`;
+            particle.style.top = `${y}%`;
+            
+            // Randomize animation
+            const animDuration = Math.random() * 20 + 10;
+            const animDelay = Math.random() * 5;
+            const yOffset = (Math.random() * 100) - 50;
+            
+            // Set custom properties for the animation
+            particle.style.setProperty('--y-end', `${yOffset}vh`);
+            
+            // Add inline animation since CSS keyframes might be complex to inject dynamically here
+            // Just use GSAP if it's available
+            if (typeof gsap !== 'undefined') {
                 gsap.to(particle, {
-                    x: `-=${distX * 0.2}`,
-                    y: `-=${distY * 0.2}`,
-                    duration: 0.5,
-                    ease: 'power2.out'
+                    y: `${yOffset}vh`,
+                    x: `${(Math.random() * 50) - 25}vw`,
+                    opacity: 0,
+                    duration: animDuration,
+                    delay: animDelay,
+                    repeat: -1,
+                    yoyo: true,
+                    ease: 'sine.inOut'
                 });
             }
-        });
-    });
+            
+            particlesContainer.appendChild(particle);
+        }
+    }
 
-    // Animate background blobs with complex motion
-    gsap.to('#blob1', {
-        x: '15vw',
-        y: '15vh',
-        scale: 1.2,
-        duration: 25,
-        repeat: -1,
-        yoyo: true,
-        ease: 'sine.inOut'
-    });
-    
-    gsap.to('#blob2', {
-        x: '-15vw',
-        y: '-15vh',
-        scale: 1.3,
-        duration: 28,
-        repeat: -1,
-        yoyo: true,
-        ease: 'sine.inOut'
-    });
-    
-    // Split text animation for NEXUS (Index page only)
-    const nexusText = document.querySelector('.nexus-text');
-    const isRegisterPage = document.querySelector('.ultimate-reveal') !== null;
-    
-    if (nexusText && !isRegisterPage) {
-        const chars = nexusText.textContent.split('');
-        nexusText.innerHTML = '';
-        chars.forEach(char => {
-            const span = document.createElement('span');
-            span.textContent = char;
-            span.style.display = 'inline-block';
-            nexusText.appendChild(span);
-        });
-
-        // Advanced Reveal sequence
-        tl.from('.nexus-text span', {
-            y: 50,
-            opacity: 0,
-            rotationX: -90,
-            stagger: 0.05,
-            duration: 1,
-            ease: 'back.out(1.7)'
-        })
-        .from('.gs-reveal > p, .gs-reveal > .w-10', {
-            y: 20,
-            opacity: 0,
-            duration: 0.8,
-            stagger: 0.1
-        }, "-=0.6")
-        .fromTo('#glass-card', 
-            { y: 60, opacity: 0, rotationX: 10, scale: 0.95 },
-            { y: 0, opacity: 1, rotationX: 0, scale: 1, duration: 1.2, ease: 'expo.out' },
-            "-=0.6"
+    if (typeof gsap !== 'undefined') {
+        const tl = gsap.timeline();
+        
+        // Initial Sequence
+        tl.to('.ultimate-reveal', 
+            { opacity: 1, duration: 0.1 }
         )
-        .fromTo('.gs-stagger',
-            { y: 20, opacity: 0, x: -10 },
-            { y: 0, opacity: 1, x: 0, duration: 0.6, stagger: 0.08, ease: 'back.out(1.2)' },
+        .fromTo('#logo-box', 
+            { scale: 0, rotation: -45, opacity: 0 },
+            { scale: 1, rotation: 0, opacity: 1, duration: 0.8, ease: 'back.out(1.5)' }
+        )
+        .fromTo('#branding h1', 
+            { x: -30, opacity: 0 },
+            { x: 0, opacity: 1, duration: 0.6, ease: 'power2.out' },
+            "-=0.4"
+        )
+        .fromTo('#branding p', 
+            { y: 20, opacity: 0 },
+            { y: 0, opacity: 1, duration: 0.5, ease: 'power2.out' },
+            "-=0.4"
+        )
+        .fromTo('.gs-stagger', 
+            { opacity: 0, y: 30 },
+            { opacity: 1, y: 0, duration: 0.6, stagger: 0.08, ease: 'back.out(1.2)' },
             "-=0.8"
         )
         .fromTo('.gs-footer', 
@@ -207,7 +157,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const inputFields = document.querySelectorAll('.input-field');
     inputFields.forEach(input => {
         const label = input.nextElementSibling;
-        const icon = input.nextElementSibling.nextElementSibling;
+        const icon = input.nextElementSibling ? input.nextElementSibling.nextElementSibling : null;
         
         input.addEventListener('focus', () => {
             gsap.to(input, {
@@ -255,12 +205,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 duration: 0.3,
                 ease: 'power2.out'
             });
-            gsap.to(icon, {
-                rotation: 15,
-                scale: 1.2,
-                duration: 0.3,
-                ease: 'back.out(2)'
-            });
+            if(icon) {
+                gsap.to(icon, {
+                    rotation: 15,
+                    scale: 1.2,
+                    duration: 0.3,
+                    ease: 'back.out(2)'
+                });
+            }
         });
         
         btn.addEventListener('mouseleave', () => {
@@ -270,12 +222,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 duration: 0.3,
                 ease: 'power2.out'
             });
-            gsap.to(icon, {
-                rotation: 0,
-                scale: 1,
-                duration: 0.3,
-                ease: 'power2.out'
-            });
+            if (icon) {
+                gsap.to(icon, {
+                    rotation: 0,
+                    scale: 1,
+                    duration: 0.3,
+                    ease: 'power2.out'
+                });
+            }
         });
     });
 
@@ -283,8 +237,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const submitBtn = document.getElementById('submitBtn');
     const ripple = document.getElementById('btnRipple');
     const btnIcon = submitBtn ? submitBtn.querySelector('span.material-symbols-outlined') : null;
-
-    if (submitBtn && !isRegisterPage) {
+    
+    // Check if it's the register page to avoid some button conflicts? 
+    // Just wrap in try/catch or if
+    if (submitBtn) {
         submitBtn.addEventListener('mouseenter', (e) => {
             if (ripple) gsap.to(ripple, { scale: 1.5, opacity: 1, duration: 0.4, ease: 'power2.out' });
             if (btnIcon) gsap.to(btnIcon, { x: 5, duration: 0.3, ease: 'back.out(2)' });
@@ -304,6 +260,7 @@ document.addEventListener('DOMContentLoaded', () => {
             gsap.to(submitBtn, { scale: 1, duration: 0.4, ease: 'elastic.out(1, 0.3)' });
         });
     }
+
     // Next-Level Magnetic Back Button
     const backBtn = document.querySelector(".gs-back-btn");
     const backHit = document.querySelector(".gs-back-hit");
@@ -313,8 +270,8 @@ document.addEventListener('DOMContentLoaded', () => {
     if (backBtn && backHit) {
         // Initial entrance
         gsap.fromTo(backBtn, 
-            { x: -50, opacity: 0, scale: 0 }, 
-            { x: 0, opacity: 1, scale: 1, duration: 1.5, ease: "elastic.out(1, 0.4)", delay: 0.3 }
+             { x: -50, opacity: 0, scale: 0 }, 
+             { x: 0, opacity: 1, scale: 1, duration: 1.5, ease: "elastic.out(1, 0.4)", delay: 0.3 }
         );
 
         let hoverTween = gsap.to(backRing, { rotation: 360, duration: 4, repeat: -1, ease: "linear", paused: true });
@@ -388,4 +345,5 @@ document.addEventListener('DOMContentLoaded', () => {
             if (backIcon) gsap.to(backIcon, { scale: 1, duration: 0.4 });
         });
     }
-});
+}
+initLocalAnimations();

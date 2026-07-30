@@ -142,6 +142,10 @@ function processPhpMockup(content: string, req: express.Request, currentDir: str
 
   
 
+  // Process isBarba
+  const isBarba = req.headers["x-barba"] === "yes";
+  content = content.replace(/<\?php echo \$isBarba \? "x-ignore" : ""; \?>/g, isBarba ? "x-ignore" : "");
+
   // Remove other PHP tags to prevent displaying them in the browser
   content = content.replace(/<\?php[\s\S]*?\?>/g, "");
 

@@ -1,3 +1,4 @@
+<?php $isBarba = isset($_SERVER["HTTP_X_BARBA"]); ?>
 <!DOCTYPE html>
 <html lang="en" class="scroll-smooth">
 <head>
@@ -32,6 +33,8 @@
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/ScrollTrigger.min.js"></script>
+    
+    
 
     <style>
         body { 
@@ -159,10 +162,14 @@
 
 
 
+    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
 </head>
-<body x-data="{ mobileMenuOpen: false }">
+<body data-barba="wrapper">
+    <?php include __DIR__ . '/frontend/components/page_loader.php'; ?>
     <?php include __DIR__ . '/frontend/components/cursor.php'; ?>
     <?php include __DIR__ . '/frontend/components/toast.php'; ?>
+<div id="barba-container" data-barba="container" data-barba-namespace="index" <?php echo $isBarba ? "x-ignore" : ""; ?> x-data="{ mobileMenuOpen: false }">
+
 
 <div class="bg-mesh"></div>
     <div class="noise"></div>
@@ -181,7 +188,7 @@
             <div class="hidden md:flex items-center gap-4">
                 <a href="#features" class="text-sm font-bold text-white/70 hover:text-white px-5 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/20 transition-all duration-300 cursor-pointer shadow-[0_0_15px_rgba(0,0,0,0.2)] hover:shadow-[0_0_20px_rgba(255,255,255,0.05)] flex items-center gap-2 group"><span class="material-symbols-outlined text-[18px] group-hover:text-red-400 transition-colors">bolt</span>Features</a>
                 <a href="#movies" class="text-sm font-bold text-white/70 hover:text-white px-5 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/20 transition-all duration-300 cursor-pointer shadow-[0_0_15px_rgba(0,0,0,0.2)] hover:shadow-[0_0_20px_rgba(255,255,255,0.05)] flex items-center gap-2 group"><span class="material-symbols-outlined text-[18px] group-hover:text-indigo-400 transition-colors">theaters</span>Movies</a>
-                <a href="#how-it-works" class="text-sm font-bold text-white/70 hover:text-white px-5 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/20 transition-all duration-300 cursor-pointer shadow-[0_0_15px_rgba(0,0,0,0.2)] hover:shadow-[0_0_20px_rgba(255,255,255,0.05)] flex items-center gap-2 group"><span class="material-symbols-outlined text-[18px] group-hover:text-emerald-400 transition-colors">integration_instructions</span>How it works</a>
+                <a href="learning.php" class="text-sm font-bold text-white/70 hover:text-white px-5 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/20 transition-all duration-300 cursor-pointer shadow-[0_0_15px_rgba(0,0,0,0.2)] hover:shadow-[0_0_20px_rgba(255,255,255,0.05)] flex items-center gap-2 group"><span class="material-symbols-outlined text-[18px] group-hover:text-emerald-400 transition-colors">integration_instructions</span>How it works</a>
             </div>
 
             <!-- Auth Buttons -->
@@ -210,7 +217,7 @@
             <div class="p-6 flex flex-col gap-4">
                 <a href="#features" class="text-sm font-bold text-white/70 hover:text-white px-5 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/20 transition-all duration-300 cursor-pointer shadow-[0_0_15px_rgba(0,0,0,0.2)] hover:shadow-[0_0_20px_rgba(255,255,255,0.05)] flex items-center gap-2 group"><span class="material-symbols-outlined text-[18px] group-hover:text-red-400 transition-colors">bolt</span>Features</a>
                 <a href="#movies" class="text-sm font-bold text-white/70 hover:text-white px-5 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/20 transition-all duration-300 cursor-pointer shadow-[0_0_15px_rgba(0,0,0,0.2)] hover:shadow-[0_0_20px_rgba(255,255,255,0.05)] flex items-center gap-2 group"><span class="material-symbols-outlined text-[18px] group-hover:text-indigo-400 transition-colors">theaters</span>Movies</a>
-                <a href="#how-it-works" class="text-sm font-bold text-white/70 hover:text-white px-5 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/20 transition-all duration-300 cursor-pointer shadow-[0_0_15px_rgba(0,0,0,0.2)] hover:shadow-[0_0_20px_rgba(255,255,255,0.05)] flex items-center gap-2 group"><span class="material-symbols-outlined text-[18px] group-hover:text-emerald-400 transition-colors">integration_instructions</span>How it works</a>
+                <a href="learning.php" class="text-sm font-bold text-white/70 hover:text-white px-5 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/20 transition-all duration-300 cursor-pointer shadow-[0_0_15px_rgba(0,0,0,0.2)] hover:shadow-[0_0_20px_rgba(255,255,255,0.05)] flex items-center gap-2 group"><span class="material-symbols-outlined text-[18px] group-hover:text-emerald-400 transition-colors">integration_instructions</span>How it works</a>
                 <div class="h-px w-full bg-white/10 my-2"></div>
                 <a href="user/dashboard.php" class="text-lg font-medium text-white/80 hover:text-red-400 transition-colors cursor-pointer">Sign In</a>
                 <a href="user/dashboard.php" class="text-lg font-bold text-red-500 hover:text-red-400 transition-colors cursor-pointer">Get Started</a>
@@ -220,11 +227,13 @@
 
     <!-- Hero Section -->
     <section class="relative min-h-screen flex items-center pt-20 overflow-hidden">
-        <div class="grid-pattern"></div>
+        <div class="absolute inset-0 bg-cover bg-center opacity-100 -z-20" style="background-image: url('4181333.jpg');"></div>
+        <div class="absolute inset-0 bg-gradient-to-b from-[#030305]/40 via-[#030305]/70 to-[#030305] -z-10"></div>
+        
         
         <!-- Abstract glowing orbs -->
-        <div class="absolute top-1/4 right-1/4 w-[500px] h-[500px] bg-red-600/20 rounded-full blur-[120px] -z-10 animate-pulse"></div>
-        <div class="absolute bottom-1/4 left-1/4 w-[400px] h-[400px] bg-indigo-600/20 rounded-full blur-[100px] -z-10" style="animation: pulse 4s cubic-bezier(0.4, 0, 0.6, 1) infinite reverse;"></div>
+        <div class="absolute top-1/4 right-1/4 w-[500px] h-[500px] bg-red-600/20 rounded-full blur-[120px] -z-10 animate-pulse pointer-events-none"></div>
+        <div class="absolute bottom-1/4 left-1/4 w-[400px] h-[400px] bg-indigo-600/20 rounded-full blur-[100px] -z-10 pointer-events-none" style="animation: pulse 4s cubic-bezier(0.4, 0, 0.6, 1) infinite reverse;"></div>
 
         <div class="max-w-7xl mx-auto px-6 w-full relative z-10 grid lg:grid-cols-2 gap-12 items-center">
             <div class="gs-hero-content">
@@ -267,9 +276,6 @@
             
             <div class="relative lg:h-[600px] flex items-center justify-center gs-hero-visual">
                 <!-- Floating UI Cards -->
-                <div class="absolute inset-0 z-0 opacity-40">
-                    <img src="https://images.unsplash.com/photo-1616530940355-351fabd9524b?auto=format&fit=crop&q=80&w=800&h=800" class="w-full h-full object-cover rounded-3xl mix-blend-overlay filter grayscale blur-sm">
-                </div>
                 
                 <div class="relative z-10 w-full max-w-md floating-element" style="animation-delay: -1s;">
                     <div class="glass-card rounded-2xl p-4 shadow-[0_20px_50px_rgba(239,68,68,0.2)]">
@@ -462,6 +468,7 @@
     </section>
 
     <!-- Footer -->
+    
     <footer class="border-t border-white/10 bg-[#030305] pt-16 pb-8 relative overflow-hidden">
         <div class="absolute bottom-0 left-1/2 -translate-x-1/2 w-full h-px bg-gradient-to-r from-transparent via-red-500 to-transparent opacity-20"></div>
         <div class="max-w-7xl mx-auto px-6">
@@ -489,89 +496,99 @@
     </footer>
 
     <!-- Scripts -->
-    <script>
-        // Custom Cursor
-        // GSAP Scroll Animations
-        gsap.registerPlugin(ScrollTrigger);
+    
+    
+    
 
-        // Hero Intro Animation
-        const tl = gsap.timeline();
-        
-        // Ensure initial opacity is set correctly for hero text spans
-        const heroTitleWords = document.querySelectorAll('.gs-word');
-        if(heroTitleWords.length > 0) {
-            gsap.set(heroTitleWords, {opacity: 0, y: 40});
+    </div>
+
+
+
+    <script src="https://unpkg.com/@barba/core@2.9.7/dist/barba.umd.js"></script>
+    <script>
+        if (typeof gsap !== 'undefined' && typeof ScrollTrigger !== 'undefined') { gsap.registerPlugin(ScrollTrigger); }
+        function initAnimations(container = document) {
+            if (typeof gsap === 'undefined') return;
+            const q = gsap.utils.selector(container);
+            const tl = gsap.timeline();
             
-            tl.fromTo('.gs-hero-content .gs-reveal', 
-                { opacity: 0, y: 30 },
-                { opacity: 1, y: 0, duration: 0.8, stagger: 0.1, ease: 'power3.out' }
-            )
-            .to(heroTitleWords,
-                { opacity: 1, y: 0, duration: 0.8, stagger: 0.05, ease: 'back.out(1.7)' },
-                "-=0.6"
-            )
-            .fromTo('.gs-hero-visual',
-                { opacity: 0, scale: 0.9, x: 50 },
-                { opacity: 1, scale: 1, x: 0, duration: 1, ease: 'power3.out' },
-                "-=0.8"
-            );
+            const heroTitleWords = q('.gs-word');
+            if(heroTitleWords.length > 0) {
+                gsap.set(heroTitleWords, {opacity: 0, y: 40});
+                
+                tl.fromTo(q('.gs-hero-content .gs-reveal'), 
+                    { opacity: 0, y: 30 },
+                    { opacity: 1, y: 0, duration: 0.8, stagger: 0.1, ease: 'power3.out' }
+                )
+                .to(heroTitleWords,
+                    { opacity: 1, y: 0, duration: 0.8, stagger: 0.05, ease: 'back.out(1.7)' },
+                    "-=0.6"
+                )
+                .fromTo(q('.gs-hero-visual'),
+                    { opacity: 0, scale: 0.9, x: 50 },
+                    { opacity: 1, scale: 1, x: 0, duration: 1, ease: 'power3.out' },
+                    "-=0.8"
+                );
+            }
+
+            q('.gs-reveal-up').forEach(elem => {
+                gsap.fromTo(elem,
+                    { opacity: 0, y: 50 },
+                    {
+                        opacity: 1, 
+                        y: 0, 
+                        duration: 0.8, 
+                        ease: 'power3.out',
+                        scrollTrigger: {
+                            trigger: elem,
+                            start: "top 85%",
+                            toggleActions: "play none none reverse"
+                        }
+                    }
+                );
+            });
+
+            q('.gs-movie-card').forEach((elem, i) => {
+                gsap.fromTo(elem,
+                    { opacity: 0, scale: 0.8, y: 40 },
+                    {
+                        opacity: 1, 
+                        scale: 1, 
+                        y: 0, 
+                        duration: 0.6, 
+                        delay: (i % 4) * 0.1,
+                        ease: 'back.out(1.4)',
+                        scrollTrigger: {
+                            trigger: elem.parentElement,
+                            start: "top 80%"
+                        }
+                    }
+                );
+            });
+
+            q('.gs-step').forEach((elem, i) => {
+                gsap.fromTo(elem,
+                    { opacity: 0, y: 40 },
+                    {
+                        opacity: 1, 
+                        y: 0, 
+                        duration: 0.6,
+                        ease: 'power2.out',
+                        scrollTrigger: {
+                            trigger: elem.parentElement,
+                            start: "top 80%"
+                        }
+                    }
+                );
+            });
         }
 
-        // Scroll reveals
-        gsap.utils.toArray('.gs-reveal-up').forEach(elem => {
-            gsap.fromTo(elem,
-                { opacity: 0, y: 50 },
-                {
-                    opacity: 1, 
-                    y: 0, 
-                    duration: 0.8, 
-                    ease: 'power3.out',
-                    scrollTrigger: {
-                        trigger: elem,
-                        start: "top 85%",
-                        toggleActions: "play none none reverse"
-                    }
-                }
-            );
-        });
+        // Initialize animations on first load
+        initAnimations();
 
-        gsap.utils.toArray('.gs-movie-card').forEach((elem, i) => {
-            gsap.fromTo(elem,
-                { opacity: 0, scale: 0.8, y: 40 },
-                {
-                    opacity: 1, 
-                    scale: 1, 
-                    y: 0, 
-                    duration: 0.6, 
-                    delay: (i % 4) * 0.1,
-                    ease: 'back.out(1.4)',
-                    scrollTrigger: {
-                        trigger: elem.parentElement,
-                        start: "top 80%"
-                    }
-                }
-            );
-        });
-
-        gsap.utils.toArray('.gs-step').forEach((elem, i) => {
-            gsap.fromTo(elem,
-                { opacity: 0, y: 40 },
-                {
-                    opacity: 1, 
-                    y: 0, 
-                    duration: 0.6,
-                    ease: 'power2.out',
-                    scrollTrigger: {
-                        trigger: elem.parentElement,
-                        start: "top 80%"
-                    }
-                }
-            );
-        });
     </script>
-
-<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
-
+    <script src="/user/watch_party.js"></script>
+    <script src="/js/barba_setup.js"></script>
 
 </body>
 </html>
