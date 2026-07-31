@@ -34,18 +34,8 @@
 </div>
 
 <script>
-    document.addEventListener('DOMContentLoaded', () => {
-        const urlParams = new URLSearchParams(window.location.search);
-        let toastMessage = '';
-        let toastType = '';
+    window.showToast = function(toastMessage, toastType) {
         
-        if (urlParams.has('error')) {
-            toastMessage = urlParams.get('error');
-            toastType = 'error';
-        } else if (urlParams.has('success') || urlParams.has('message')) {
-            toastMessage = urlParams.get('success') || urlParams.get('message');
-            toastType = 'success';
-        }
         
         if (toastMessage) {
             const container = document.getElementById('nexus-toast-container');
@@ -188,5 +178,5 @@
                 }, (displayDuration + 1.2) * 1000);
             }
         }
-    });
+    };
 </script>
