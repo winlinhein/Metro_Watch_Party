@@ -139,7 +139,15 @@ if (
 <body class="h-screen w-screen flex relative selection:bg-red-500/30" data-barba="wrapper">
     <?php include __DIR__ . '/components/page_loader.php'; ?>
     <?php include __DIR__ . '/components/cursor.php'; ?>
-<div id="barba-container" class="flex h-full w-full" data-barba="container" data-barba-namespace="admin_dashboard" x-data="adminDashboard()" x-init="initDashboard()">
+<div id="barba-container" 
+     class="flex h-full w-full" 
+     data-barba="container" 
+     data-barba-namespace="admin_dashboard" 
+     x-data="adminDashboard({ 
+         user_name: '<?= htmlspecialchars($userName, ENT_QUOTES) ?>', 
+         email: '<?= htmlspecialchars($userEmail, ENT_QUOTES) ?>' 
+     })" 
+     x-init="initDashboard()">
 
 
 <div class="bg-mesh"></div>
@@ -202,17 +210,25 @@ if (
                     <?php include __DIR__ . '/components/notifications.php'; ?>
                 </div>
                 
-                <!-- Profile -->
-                <div class="flex items-center gap-4 pl-6 border-l border-white/10 cursor-pointer group gs-header-item">
+                <!-- Top Bar Profile Header -->
+                <div @click="switchTab('profile')" class="flex items-center gap-4 pl-6 border-l border-white/10 cursor-pointer group gs-header-item">
                     <div class="text-right hidden md:block">
-                        <p class="text-sm font-bold text-white group-hover:text-red-400 transition-colors tracking-wide"><?php echo htmlspecialchars($userName); ?></p>
-                        <p class="text-xs text-white/40 mono uppercase"><?php echo htmlspecialchars($userRole); ?></p>
+                        <!-- 1. Dynamically displays the confirmed name from saveProfile() -->
+                        <p class="text-sm font-bold text-white group-hover:text-red-400 transition-colors tracking-wide" x-text="displayName">
+                            <?php echo htmlspecialchars($userName); ?>
+                        </p>
+                        <p class="text-xs text-white/40 mono uppercase">
+                            <?php echo htmlspecialchars($userRole); ?>
+                        </p>
                     </div>
                     <div class="relative w-12 h-12">
-                        <img src="https://ui-avatars.com/api/?name=<?= urlencode($userName) ?>&background=ef4444&color=fff&bold=true" 
-                            alt="<?= htmlspecialchars($userName) ?>" 
+                        <!-- 2. Dynamically updates avatar image & alt text -->
+                        <img :src="selectedAvatar" 
+                            :alt="displayName"
+                            src="https://ui-avatars.com/api/?name=<?= urlencode($userName) ?>&background=ef4444&color=fff&bold=true" 
                             class="w-full h-full rounded-full border border-white/20 group-hover:border-red-500/50 group-hover:shadow-[0_0_15px_rgba(239,68,68,0.3)] transition-all duration-300 relative z-10">
-                            <template x-if="selectedBorder">
+                        
+                        <template x-if="selectedBorder">
                             <img :src="selectedBorder" class="absolute inset-0 w-full h-full object-cover z-20 pointer-events-none scale-[1.3] drop-shadow-[0_0_15px_rgba(255,255,255,0.2)] mix-blend-screen opacity-90">
                         </template>
                         <div class="absolute -bottom-1 -right-1 w-3.5 h-3.5 bg-green-500 border-2 border-[#030305] rounded-full z-30"></div>

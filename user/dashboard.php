@@ -15,7 +15,6 @@ if (
     $userEmail = $_SESSION['user_email'] ?? '';
     $userRole  = $_SESSION['user_role']  ?? 'user';
     
-
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -62,12 +61,8 @@ if (
             background-color: #030305; 
             color: #ffffff; 
             overflow: hidden; 
-            
             cursor: none;
         }
-        
-        
-        
 
         .mono { font-family: 'JetBrains Mono', monospace; }
         
@@ -95,13 +90,7 @@ if (
         ::-webkit-scrollbar-track { background: transparent; }
         ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 10px; }
         ::-webkit-scrollbar-thumb:hover { background: rgba(239,68,68,0.5); }
-        
-        
-        
-        
-        
 
-        /* Hover Effects */
         .hover-glow {
             transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
         }
@@ -118,7 +107,6 @@ if (
             transform: scale(1.2) translateY(-4px);
         }
 
-        /* Ambient Background */
         .bg-mesh {
             position: fixed;
             top: -20%; left: -20%; right: -20%; bottom: -20%;
@@ -162,8 +150,6 @@ if (
         }
     </style>
 
-
-
     <script src="/js/nexus_scripts.js?v=5"></script>
 </head>
 <body class="h-screen w-screen flex flex-col relative selection:bg-red-500/30" data-barba="wrapper">
@@ -172,8 +158,7 @@ if (
     <?php include __DIR__ . '/../frontend/components/toast.php'; ?>
 <div id="barba-container" class="flex w-full h-full" data-barba="container" data-barba-namespace="dashboard" x-data="userDashboard()" x-init="initDashboard()">
 
-
-<div class="bg-mesh"></div>
+    <div class="bg-mesh"></div>
     <div class="noise"></div>
 
     <!-- Side Navigation Drawer -->
@@ -199,8 +184,6 @@ if (
         </div>
 
         <div class="flex-1 flex flex-col p-6 relative z-10 overflow-y-auto">
-            
-            <!-- Nav Items -->
             <nav class="flex-1 flex flex-col gap-2">
                 <template x-for="item in navItems" :key="item.id">
                     <a href="#" @click.prevent="currentTab = item.id; closeNav()" 
@@ -230,7 +213,6 @@ if (
         </div>
     </div>
 
-    
     <!-- Quests Drawer -->
     <div x-show="showQuestsPanel" 
          class="fixed inset-0 bg-black/60 backdrop-blur-sm z-[90]" 
@@ -261,7 +243,6 @@ if (
                 </div>
             </div>
             
-            <!-- Tabs -->
             <div class="flex items-center gap-2 bg-black/40 p-1 rounded-xl border border-white/5">
                 <button @click="questActiveTab = 'daily'" class="flex-1 py-1.5 text-xs font-bold rounded-lg transition-all duration-300 uppercase tracking-widest" :class="questActiveTab === 'daily' ? 'bg-yellow-500/20 text-yellow-400 shadow-[0_0_15px_rgba(234,179,8,0.2)]' : 'text-white/40 hover:text-white/80'">Daily</button>
                 <button @click="questActiveTab = 'weekly'" class="flex-1 py-1.5 text-xs font-bold rounded-lg transition-all duration-300 uppercase tracking-widest" :class="questActiveTab === 'weekly' ? 'bg-yellow-500/20 text-yellow-400 shadow-[0_0_15px_rgba(234,179,8,0.2)]' : 'text-white/40 hover:text-white/80'">Weekly</button>
@@ -320,7 +301,7 @@ if (
                     </div>
                     <div>
                         <h2 class="text-xl font-bold tracking-tighter uppercase block leading-none">Friends</h2>
-                        <p class="text-[10px] text-emerald-400 uppercase tracking-widest mono font-semibold mt-1 flex items-center gap-1.5"><span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>9 Online</p>
+                        <p class="text-[10px] text-emerald-400 uppercase tracking-widest mono font-semibold mt-1 flex items-center gap-1.5"><span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span><span x-text="friends.length"></span> Connected</p>
                     </div>
                 </div>
                 <div class="flex gap-2">
@@ -333,32 +314,33 @@ if (
                 </div>
             </div>
             
+            <!-- Dynamic Friend Drawer Search Input -->
             <div class="relative group">
                 <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-white/40 group-focus-within:text-emerald-400 transition-colors text-[18px]">search</span>
-                <input type="text" placeholder="Search network..." class="w-full bg-white/[0.03] border border-white/10 rounded-xl py-3 pl-10 pr-4 text-sm text-white placeholder-white/30 focus:border-emerald-500/50 focus:bg-white/[0.05] transition-all outline-none">
+                <input type="text" x-model="friendSearchQuery" placeholder="Search friends..." class="w-full bg-white/[0.03] border border-white/10 rounded-xl py-3 pl-10 pr-4 text-sm text-white placeholder-white/30 focus:border-emerald-500/50 focus:bg-white/[0.05] transition-all outline-none">
             </div>
         </div>
         
+        <!-- Dynamic Friends List Loop -->
         <div class="flex-1 overflow-y-auto p-4 relative z-10 space-y-2">
-            <template x-for="(friend, i) in friends" :key="i">
+            <template x-for="friend in filteredFriends" :key="friend.user_id">
                 <div class="flex items-center gap-3 p-3 rounded-xl bg-white/[0.01] hover:bg-white/[0.04] transition-all duration-300 cursor-pointer group border border-transparent hover:border-white/10 hover:shadow-[0_4px_20px_rgba(0,0,0,0.2)]">
                     <div class="relative shrink-0">
-                        <img :src="friend.avatar" class="w-11 h-11 rounded-full border border-white/10 group-hover:border-emerald-500/40 transition-colors shadow-lg">
-                        <div class="absolute -bottom-1 -right-1 w-4 h-4 rounded-full border-2 border-[#050508]"
-                             :class="{'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]': friend.status === 'Online', 'bg-yellow-500 shadow-[0_0_8px_rgba(234,179,8,0.5)]': friend.status === 'Away', 'bg-white/20': friend.status === 'Offline'}"></div>
+                        <img :src="`https://ui-avatars.com/api/?name=${encodeURIComponent(friend.user_name)}&background=10b981&color=fff`" class="w-11 h-11 rounded-full border border-white/10 group-hover:border-emerald-500/40 transition-colors shadow-lg">
                     </div>
                     <div class="flex-1 min-w-0">
                         <div class="flex justify-between items-center mb-1">
-                            <span class="text-sm font-bold text-white/90 truncate group-hover:text-emerald-400 transition-colors" x-text="friend.name"></span>
-                            <span class="text-[9px] uppercase tracking-wider text-white/40 font-mono font-bold" x-text="friend.status"></span>
+                            <span class="text-sm font-bold text-white/90 truncate group-hover:text-emerald-400 transition-colors" x-text="friend.user_name"></span>
+                            <span x-show="friend.is_premium == 1" class="text-[9px] bg-amber-500/20 text-amber-300 px-1.5 py-0.5 rounded font-mono font-bold">PRO</span>
                         </div>
-                        <p class="text-xs text-white/50 truncate" x-text="friend.activity"></p>
+                        <p class="text-xs text-white/50 truncate" x-text="friend.email"></p>
                     </div>
-                    <button class="w-8 h-8 rounded-lg bg-white/5 hover:bg-emerald-500 hover:text-white text-white/40 transition-all duration-300 flex items-center justify-center opacity-0 group-hover:opacity-100 shrink-0 shadow-lg hover:shadow-[0_0_15px_rgba(16,185,129,0.4)]">
-                        <span class="material-symbols-outlined text-[16px]">chat</span>
-                    </button>
                 </div>
             </template>
+
+            <div x-show="filteredFriends.length === 0" class="p-6 text-center text-xs text-white/40">
+                No friends found.
+            </div>
         </div>
     </div>
 
@@ -367,13 +349,11 @@ if (
          class="fixed inset-0 z-[110] flex items-center justify-center pointer-events-none" 
          style="display: none;">
          
-        <!-- Backdrop -->
         <div class="absolute inset-0 bg-black/60 backdrop-blur-md pointer-events-auto transition-opacity duration-300" 
              x-show="showInviteModal" 
              x-transition.opacity 
              @click="showInviteModal = false"></div>
              
-        <!-- Modal Content -->
         <div class="relative w-[90%] max-w-[480px] bg-[#050508]/95 backdrop-blur-3xl border border-white/10 rounded-3xl shadow-[0_20px_60px_rgba(0,0,0,0.8)] pointer-events-auto flex flex-col max-h-[85vh] overflow-hidden"
              x-show="showInviteModal"
              x-transition:enter="transition-all duration-500 cubic-bezier(0.34, 1.56, 0.64, 1)"
@@ -385,7 +365,6 @@ if (
             
             <div class="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-10 pointer-events-none"></div>
             
-            <!-- Header -->
             <div class="p-6 border-b border-white/5 relative z-10 shrink-0 quest-header">
                 <div class="flex items-center justify-between mb-6">
                     <div class="flex items-center gap-4">
@@ -402,27 +381,33 @@ if (
                     </button>
                 </div>
                 
+                <!-- Dynamic Search Input for Prospect Friends -->
                 <div class="relative group">
                     <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-white/40 group-focus-within:text-emerald-400 transition-colors text-[18px]">search</span>
-                    <input type="text" placeholder="Search by username or ID..." class="w-full bg-white/[0.03] border border-white/10 rounded-xl py-3 pl-10 pr-4 text-sm text-white placeholder-white/30 focus:border-emerald-500/50 focus:bg-white/[0.05] transition-all outline-none">
+                    <input type="text" x-model="searchQuery" placeholder="Search by username or email..." class="w-full bg-white/[0.03] border border-white/10 rounded-xl py-3 pl-10 pr-4 text-sm text-white placeholder-white/30 focus:border-emerald-500/50 focus:bg-white/[0.05] transition-all outline-none">
                 </div>
             </div>
             
-            <!-- Search Results / Suggestions -->
+            <!-- Dynamic Search Results Loop -->
             <div class="flex-1 overflow-y-auto p-4 relative z-10 space-y-2">
-                <p class="text-[10px] font-bold text-white/40 uppercase tracking-widest mono mb-3 px-2">Suggested Operatives</p>
-                <template x-for="i in 5" :key="i">
+                <p class="text-[10px] font-bold text-white/40 uppercase tracking-widest mono mb-3 px-2">Search Results</p>
+                
+                <template x-for="user in searchResults" :key="user.user_id">
                     <div class="flex items-center gap-3 p-3 rounded-xl bg-white/[0.01] hover:bg-white/[0.04] transition-all duration-300 group border border-transparent hover:border-white/10">
-                        <img :src="`https://ui-avatars.com/api/?name=Member+${i}&background=random&color=fff`" class="w-11 h-11 rounded-full border border-white/10 group-hover:border-emerald-500/40 transition-colors">
+                        <img :src="`https://ui-avatars.com/api/?name=${encodeURIComponent(user.user_name)}&background=0d9488&color=fff`" class="w-11 h-11 rounded-full border border-white/10">
                         <div class="flex-1 min-w-0">
-                            <h4 class="text-sm font-bold text-white/90 group-hover:text-white transition-colors truncate" x-text="`User_${Math.floor(Math.random() * 9000 + 1000)}`"></h4>
-                            <p class="text-xs text-white/40 truncate">Mutuals: 3</p>
+                            <h4 class="text-sm font-bold text-white/90 group-hover:text-white transition-colors truncate" x-text="user.user_name"></h4>
+                            <p class="text-xs text-white/40 truncate" x-text="user.email"></p>
                         </div>
-                        <button class="px-4 py-2 rounded-lg bg-emerald-500/10 hover:bg-emerald-500 text-emerald-400 hover:text-white text-[11px] font-bold uppercase tracking-wider transition-all duration-300 flex items-center gap-1 group/btn shadow-[0_0_15px_rgba(16,185,129,0)] hover:shadow-[0_0_20px_rgba(16,185,129,0.3)] shrink-0">
+                        <button @click="addFriend(user.user_id)" class="px-4 py-2 rounded-lg bg-emerald-500/10 hover:bg-emerald-500 text-emerald-400 hover:text-white text-[11px] font-bold uppercase tracking-wider transition-all duration-300 flex items-center gap-1 group/btn shrink-0">
                             <span>Add</span>
                         </button>
                     </div>
                 </template>
+
+                <div x-show="searchQuery.length >= 2 && searchResults.length === 0" class="p-6 text-center text-xs text-white/40">
+                    No eligible operatives found matching "<span x-text="searchQuery"></span>".
+                </div>
             </div>
         </div>
     </div>
@@ -430,10 +415,8 @@ if (
     <!-- Main Content -->
     <main class="flex-1 flex flex-col h-full overflow-hidden relative z-10 w-full">
         
-        <!-- Header -->
         <header class="header h-24 flex items-center justify-between px-10 shrink-0 border-b border-white/5 backdrop-blur-md relative z-50">
             <div class="gs-header-item flex items-center gap-6">
-                <!-- Menu Toggle Button -->
                 <button @click="openNav()" class="relative w-12 h-12 rounded-xl bg-gradient-to-tr from-indigo-500 to-red-600 hover:opacity-90 flex items-center justify-center transition-all duration-300 group cursor-pointer shadow-[0_0_20px_rgba(239,68,68,0.4)] icon-bounce">
                     <div class="absolute inset-0 bg-white/20 group-hover:scale-110 transition-transform duration-300 rounded-xl"></div>
                     <span class="material-symbols-outlined text-white font-bold relative z-10 text-[24px]">menu</span>
@@ -455,7 +438,6 @@ if (
                     <span class="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full shadow-[0_0_8px_#ef4444] animate-pulse"></span>
                 </button>
 
-                <!-- Profile Header / Trigger -->
                 <div class="relative gs-header-item z-[60] sm:min-w-[240px]" x-data="{ showProfileMenu: false }" @click.outside="showProfileMenu = false">
                     <div @click="showProfileMenu = !showProfileMenu" 
                          class="flex items-center justify-between p-2 bg-[#050508]/40 border cursor-pointer group transition-all duration-300 pointer-events-auto relative z-[61] w-full"
@@ -476,7 +458,6 @@ if (
                         </div>
                     </div>
                     
-                    <!-- Profile Submenu -->
                     <div class="absolute right-0 top-full mt-[-1px] w-full min-w-[240px] bg-[#050508] border border-white/10 border-t-0 rounded-b-xl shadow-[0_20px_40px_rgba(0,0,0,0.8)] transition-all duration-300 transform origin-top z-50 pointer-events-auto overflow-hidden"
                          x-show="showProfileMenu"
                          x-transition:enter="transition ease-out duration-200"
@@ -508,7 +489,6 @@ if (
             </div>
         </header>
 
-        <!-- Dashboard Content -->
         <div class="flex-1 overflow-y-auto p-10 tab-content relative scroll-smooth" 
              x-show="currentTab === 'dashboard'"
              x-transition:enter="transition-all duration-500 delay-300 cubic-bezier(0.34, 1.56, 0.64, 1)"
@@ -520,7 +500,6 @@ if (
              >
             <div class="max-w-[1400px] mx-auto space-y-8">
                 
-                <!-- Stats Grid -->
                 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                     <template x-for="(stat, index) in stats" :key="index">
                         <div class="glass-card rounded-2xl p-6 stagger-item group cursor-pointer hover-glow" @click="if(stat.label === 'Friends') showFriendsPanel = true; if(stat.label === 'Quests') showQuestsPanel = true">
@@ -546,10 +525,7 @@ if (
                     </template>
                 </div>
 
-                <!-- Main Layout -->
                 <div class="grid grid-cols-1 xl:grid-cols-3 gap-8">
-                    
-                    <!-- Upcoming Parties -->
                     <div class="xl:col-span-2 space-y-6">
                         <div class="flex items-center justify-between stagger-item">
                             <h2 class="text-xl font-bold tracking-wide uppercase flex items-center gap-2">
@@ -562,7 +538,6 @@ if (
                         <div class="space-y-4">
                             <template x-for="(party, index) in upcomingParties" :key="index">
                                 <div class="glass-card hover-glow animated-gradient-border rounded-2xl p-5 flex flex-col sm:flex-row gap-6 items-center stagger-item group cursor-pointer">
-                                    <!-- Poster -->
                                     <div class="w-full sm:w-48 h-32 rounded-xl overflow-hidden relative shrink-0">
                                         <div class="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent z-10 group-hover:opacity-0 transition-opacity duration-300"></div>
                                         <img :src="party.img" class="w-full h-full object-cover group-hover:scale-110 transition-all duration-700" alt="Cover">
@@ -572,7 +547,6 @@ if (
                                         </div>
                                     </div>
                                     
-                                    <!-- Details -->
                                     <div class="flex-1 w-full min-w-0 relative z-10">
                                         <div class="flex items-center gap-2 mb-2">
                                             <span class="px-2 py-0.5 rounded text-[10px] font-bold tracking-wider uppercase border border-red-500/30 text-red-400 bg-red-500/10" x-text="party.genre"></span>
@@ -583,7 +557,6 @@ if (
                                             <span>Hosted by <span class="text-white font-medium" x-text="party.host"></span></span>
                                         </div>
                                         
-                                        <!-- Avatars -->
                                         <div class="flex items-center justify-between">
                                             <div class="flex -space-x-3 icon-bounce">
                                                 <template x-for="i in 3">
@@ -603,9 +576,7 @@ if (
                         </div>
                     </div>
 
-                    <!-- Right Sidebar Activity -->
                     <div class="space-y-6">
-                        <!-- Premium Card -->
                         <div class="glass-card hover-glow rounded-2xl p-8 bg-gradient-to-br from-indigo-500/20 to-red-600/20 stagger-item border border-white/10 relative overflow-hidden group cursor-pointer">
                             <div class="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-20"></div>
                             <div class="absolute -right-10 -top-10 w-40 h-40 bg-red-500/30 rounded-full blur-[50px] group-hover:scale-150 transition-transform duration-700"></div>
@@ -629,7 +600,6 @@ if (
                             </div>
                         </div>
 
-                        <!-- Activity Feed -->
                         <div class="glass-panel rounded-2xl p-6 stagger-item">
                             <h2 class="text-lg font-bold tracking-wide uppercase mb-6 flex items-center gap-2">
                                 <span class="material-symbols-outlined text-white/50">history</span>
@@ -660,19 +630,9 @@ if (
 
     <?php include __DIR__ . '/../frontend/components/host_party_fab.php'; ?>
 
-        
-
-
-    
-
-
     </div>
 
-
-
     <script src="https://unpkg.com/@barba/core@2.9.7/dist/barba.umd.js" crossorigin="anonymous"></script>
-    
-        <script src="/js/barba_setup.js?v=4"></script>
-
+    <script src="/js/barba_setup.js?v=4"></script>
 </body>
 </html>

@@ -24,11 +24,67 @@ function userDashboard() {
                 { id: 9, title: 'Community Pillar', desc: 'Add 5 new friends', points: 1000, completed: false }
             ]
         },
-friends: [
-            { name: 'Sarah Connor', status: 'Online', avatar: 'https://ui-avatars.com/api/?name=Sarah+Connor&background=ec4899&color=fff', activity: 'Watching Dune: Part Two' },
-            { name: 'John Doe', status: 'Away', avatar: 'https://ui-avatars.com/api/?name=John+Doe&background=3b82f6&color=fff', activity: 'In menus' },
-            { name: 'Jane Smith', status: 'Offline', avatar: 'https://ui-avatars.com/api/?name=Jane+Smith&background=f59e0b&color=fff', activity: 'Last seen 2h ago' }
-        ],
+        
+        //friend
+        friends: [],
+        searchQuery: '',
+        searchResults: [],
+        friendSearchQuery: '',
+        // Fetch active friend list from /user_backend/
+        async fetchFriends() {
+            try {
+                const res = await fetch('/user_backend/get_friends.php');
+                const data = await res.json();
+                if (data.success) {
+                    this.friends = data.friends;
+                }
+            } catch (err) {
+                console.error("Error retrieving friend list:", err);
+            }
+        },
+
+        // Query available non-admin users from /user_backend/
+        async searchUsers(query) {
+            try {
+                const res = await fetch(`/user_backend/search_users.php?q=${encodeURIComponent(query)}`);
+                const data = await res.json();
+                if (data.success) {
+                    this.searchResults = data.results;
+                }
+            } catch (err) {
+                console.error("Error executing user search:", err);
+            }
+        },
+
+        // Dispatch friend request to /user_backend/
+        async addFriend(friendId) {
+            try {
+                const res = await fetch('/user_backend/add_friend.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ friend_id: friendId })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    if (window.showToast) window.showToast(data.message, 'success');
+                    // Filter out added user from search view
+                    this.searchResults = this.searchResults.filter(u => u.user_id !== friendId);
+                } else {
+                    if (window.showToast) window.showToast(data.message, 'error');
+                }
+            } catch (err) {
+                console.error("Error dispatching friend request:", err);
+            }
+        },
+
+        // Client-side filtering for the sidebar drawer
+        get filteredFriends() {
+            if (!this.friendSearchQuery) return this.friends;
+            return this.friends.filter(f => 
+                f.user_name.toLowerCase().includes(this.friendSearchQuery.toLowerCase())
+            );
+        },
+        
         openNav() {
             if (this.isNavOpen) return;
             this.isNavOpen = true;
@@ -125,7 +181,7 @@ friends: [
             { text: 'Achievement unlocked: <span class="font-bold text-yellow-400">Night Owl V2</span>', time: 'YESTERDAY', dotColor: 'bg-yellow-500' },
             { text: 'System diagnostic completed. Connection stable.', time: '2 DAYS AGO', dotColor: 'bg-white/20' }
         ],
-                switchTab(tabId) {
+        switchTab(tabId) {
             if (this.currentTab === tabId) return;
             const oldTab = this.currentTab;
             this.currentTab = tabId;
@@ -235,7 +291,15 @@ friends: [
         ],
 
         initDashboard() { gsap.config({ nullTargetWarn: false });
-            
+            this.fetchFriends();
+
+            this.$watch('searchQuery', (query) => {
+                if (query.length >= 2) {
+                    this.searchUsers(query);
+                } else {
+                    this.searchResults = [];
+                }
+            });
             
             // Escape key to close nav
             window.addEventListener('keydown', (e) => {
@@ -1158,6 +1222,57 @@ window.validateRegistrationForm = function() {
     return true;
 };
 
+window.validateProfileForm = function(profileObj = null) {
+    let errors = [];
+
+    // Fallback between Alpine reactive object or DOM element IDs
+    let name = profileObj ? (profileObj.user_name || '').trim() : (document.getElementById('profile_name') ? document.getElementById('profile_name').value.trim() : '');
+    let email = profileObj ? (profileObj.email || '').trim() : (document.getElementById('profile_email') ? document.getElementById('profile_email').value.trim() : '');
+    let currentPassword = profileObj ? (profileObj.current_password || '') : (document.getElementById('current_password') ? document.getElementById('current_password').value : '');
+    let newPassword = profileObj ? (profileObj.new_password || '') : (document.getElementById('new_password') ? document.getElementById('new_password').value : '');
+    let confirmPassword = profileObj ? (profileObj.confirm_password || '') : (document.getElementById('confirm_password') ? document.getElementById('confirm_password').value : '');
+
+    const emailPattern = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,10}$/;
+
+    // 1. Full Name Check
+    if (name.length === 0) {
+        errors.push('Full name is required.');
+    } else if (name.length < 2) {
+        errors.push('Full name must be at least 2 characters long.');
+    }
+
+    // 2. Email Address Check
+    if (email.length === 0) {
+        errors.push('Email address is required.');
+    } else if (!emailPattern.test(email)) {
+        errors.push('Please enter a valid email address.');
+    }
+
+    // 3. Password Validation
+    if (newPassword.length > 0) {
+        if (currentPassword.length === 0) {
+            errors.push('Current password is required to set a new password.');
+        }
+
+        if (newPassword !== confirmPassword) {
+            errors.push('New password and confirm password do not match.');
+        }
+
+        let password_criteria = [];
+        if (newPassword.length < 8) password_criteria.push("8+ characters");
+        if (!/[A-Z]/.test(newPassword)) password_criteria.push("1 uppercase letter");
+        if (!/[a-z]/.test(newPassword)) password_criteria.push("1 lowercase letter");
+        if (!/[0-9]/.test(newPassword)) password_criteria.push("1 number");
+        if (!/[!@#$%^&*(),.?":{}|]/.test(newPassword)) password_criteria.push("1 special character");
+
+        if (password_criteria.length > 0) {
+            errors.push('New password missing: ' + password_criteria.join(', '));
+        }
+    }
+
+    return errors; 
+};
+
 window.validateForgotPasswordForm = function() {
     let errors = [];
     let email = document.getElementById('email').value.trim();
@@ -1296,9 +1411,11 @@ window.handleLogout = async function() {
     }
 };
 
-function adminDashboard() {
+function adminDashboard(userData = {}) {
     return {
         init() {
+            
+            // 2. Run initial UI animations
             this.$nextTick(() => {
                 if (typeof window.gsap !== 'undefined') {
                     window.gsap.to('.chart-bar', {
@@ -1311,6 +1428,7 @@ function adminDashboard() {
                 }
             });
         },
+
         currentTab: 'dashboard',
         isNavOpen: false,
         notificationsOpen: false,
@@ -1348,14 +1466,58 @@ function adminDashboard() {
         get filteredUsers() { return (this.users || []).filter(u => (this.roleFilter === 'All' || u.role === this.roleFilter) && (u.name.toLowerCase().includes(this.searchQuery.toLowerCase()) || u.email.toLowerCase().includes(this.searchQuery.toLowerCase()))); },
 
         // Movies
+        movies: [],
+        availableGenres: [], // Holds list from genres table
         movieModalOpen: false,
         editingMovie: false,
         movieTab: 'details',
-        movies: [
-            { id: 1, title: 'Inception', genre: 'Sci-Fi', rating: '9.0', year: '2010' }
-        ],
         newMovie: {
-            title: '', genre: '', year: '', rating: '', description: '', trailer: '', img: '', comments: []
+            id: null,
+            title: '',
+            description: '',
+            img: '',       // Maps to `poster`
+            trailer: '',   // Maps to `video_url`
+            duration: '',  // Maps to `duration` in minutes
+            genre_ids: []  // Array of genre_id integers
+        },
+        async fetchMovies() {
+            try {
+                const response = await fetch('/backend/movies_api.php');
+                const text = await response.text(); // Read as raw text first
+                
+                try {
+                    const data = JSON.parse(text); // Try parsing as JSON
+                    if (response.ok) {
+                        this.movies = data;
+                    } else {
+                        console.error('Movies API Error:', data.error);
+                    }
+                } catch (jsonErr) {
+                    console.error('PHP returned raw non-JSON text:', text);
+                }
+            } catch (err) {
+                console.error('Network error fetching movies:', err);
+            }
+        },
+
+        async fetchGenres() {
+            try {
+                const response = await fetch('/backend/genres_api.php');
+                const text = await response.text(); // Read as raw text first
+                
+                try {
+                    const data = JSON.parse(text); // Try parsing as JSON
+                    if (response.ok) {
+                        this.availableGenres = data;
+                    } else {
+                        console.error('Genres API Error:', data.error);
+                    }
+                } catch (jsonErr) {
+                    console.error('PHP returned raw non-JSON text:', text);
+                }
+            } catch (err) {
+                console.error('Network error fetching genres:', err);
+            }
         },
 
         // Sessions
@@ -1381,8 +1543,7 @@ function adminDashboard() {
             { id: 101, user: 'Bob', type: 'Bug', status: 'Pending', excerpt: 'Video player stuttering', date: '2023-10-01' }
         ],
 
-        // Shop
-        
+        // Shop       
         modalOpen: false,
         modalMode: 'add',
         formData: { name: '', price: 0, rarity: 'Common', image: '' },
@@ -1394,28 +1555,163 @@ function adminDashboard() {
         avatarModalOpen: false,
         borders: [],
 
-                switchTab(tabId) {
-            if (this.currentTab === tabId) return;
-            const oldTab = this.currentTab;
-            this.currentTab = tabId;
-            const oldPanel = document.querySelector(`[data-tab-panel="${oldTab}"]`);
-            const newPanel = document.querySelector(`[data-tab-panel="${tabId}"]`);
-            if (oldPanel && newPanel && typeof window.gsap !== 'undefined') {
-                window.gsap.to(oldPanel, { opacity: 0, scale: 0.95, duration: 0.2, onComplete: () => {
-                    oldPanel.style.display = 'none';
-                    newPanel.style.display = 'block';
-                    window.gsap.fromTo(newPanel, { opacity: 0, scale: 1.05 }, { opacity: 1, scale: 1, duration: 0.3, ease: "power2.out" });
-                }});
-            } else if (oldPanel && newPanel) {
-                oldPanel.style.display = 'none';
-                newPanel.style.display = 'block';
+        // Profile
+        currentTab: 'dashboard',
+        avatarModalOpen: false,
+        selectedBorder: null,
+        deleteAccountModalOpen: false,
+        deleteAccountPassword: '',
+        deleteAccountError: '',
+        
+        // Generates dynamic avatar based on user's name
+        selectedAvatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(userData.user_name || 'Admin')}&background=ef4444&color=fff&bold=true`,
+
+        notification: {
+            show: false,
+            type: 'error',
+            message: ''
+        },
+
+        showNotification(message, type = 'error') {
+            this.notification.message = message;
+            this.notification.type = type;
+            this.notification.show = true;
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        },
+
+        // 1. DISPLAY STATE (Used by UI headers, sidebars, and avatar badges)
+        displayName: userData.user_name || 'Admin',
+        displayEmail: userData.email || '',
+
+        // 2. FORM STATE (Bound to form input fields via x-model)
+        profile: {
+            user_name: userData.user_name || '',
+            email: userData.email || '',
+            current_password: '',
+            new_password: '',
+            confirm_password: ''
+        },
+
+        async saveProfile() {
+            this.notification.show = false;
+
+            // Run validation
+            const errors = typeof window.validateProfileForm === 'function' 
+                ? window.validateProfileForm(this.profile) 
+                : [];
+
+            if (errors.length > 0) {
+                this.showNotification(errors, 'error');
+                return;
+            }
+
+            try {
+                const response = await fetch('/backend/update_profile.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(this.profile)
+                });
+                const data = await response.json();
+
+                if (data.success) {
+                    // COMMIT FORM STATE TO DISPLAY STATE ONLY ON SUCCESS
+                    this.displayName = this.profile.user_name;
+                    this.displayEmail = this.profile.email;
+
+                    // Clear password fields
+                    this.profile.current_password = '';
+                    this.profile.new_password = '';
+                    this.profile.confirm_password = '';
+
+                    this.showNotification('Profile updated successfully!', 'success');
+                } else {
+                    this.showNotification(data.error || 'Failed to update profile.', 'error');
+                }
+            } catch (err) {
+                this.showNotification('Network error updating profile.', 'error');
             }
         },
-        
-        
+        async confirmDeleteAccount() {
+            // Reset previous errors
+            this.deleteAccountError = '';
+            this.notification.show = false;
+
+            // 1. Client-side check: No password entered
+            if (!this.deleteAccountPassword.trim()) {
+                const msg = 'Please enter your password to confirm account deletion.';
+                this.deleteAccountError = msg;
+                this.showNotification(msg, 'error');
+                return;
+            }
+
+            try {
+                const response = await fetch('/backend/delete_account.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ password: this.deleteAccountPassword })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    window.location.href = '/login.php?account_deleted=1';
+                } else {
+                    // 2. Server-side check: Incorrect password / session error
+                    const errorMsg = data.message || data.error || 'Failed to delete account.';
+                    this.deleteAccountError = errorMsg; // Displays inside modal
+                    this.showNotification(errorMsg, 'error'); // Displays in top page banner
+                }
+            } catch (err) {
+                const networkError = 'Network error processing account deletion.';
+                this.deleteAccountError = networkError;
+                this.showNotification(networkError, 'error');
+            }
+        },
+    
+        switchTab(tabId) {
+            this.currentTab = tabId;
+            document.querySelectorAll('[data-tab-panel]').forEach(panel => {
+                panel.style.display = panel.getAttribute('data-tab-panel') === tabId ? 'block' : 'none';
+            });
+        },
+        // Toggle genre string or object ID in newMovie.genres
+        toggleGenre(genre) {
+            if (!Array.isArray(this.newMovie.genres)) {
+                this.newMovie.genres = [];
+            }
+            
+            const val = typeof genre === 'object' ? (genre.name || genre.id) : genre;
+            const index = this.newMovie.genres.indexOf(val);
+            
+            if (index > -1) {
+                this.newMovie.genres.splice(index, 1);
+            } else {
+                this.newMovie.genres.push(val);
+            }
+            
+            // Automatically update single string field for list card display
+            this.newMovie.genre = this.newMovie.genres.join(', ');
+        },
+        // Helper to check selection status
+        isGenreSelected(genre) {
+            if (!this.newMovie || !Array.isArray(this.newMovie.genres)) return false;
+            const val = typeof genre === 'object' ? (genre.name || genre.id) : genre;
+            return this.newMovie.genres.includes(val);
+        },
+              
         openEditMovieModal(movie) {
             this.editingMovie = true;
-            this.newMovie = { ...movie, comments: movie.comments || [] };
+            this.movieTab = 'details';
+            this.newMovie = JSON.parse(JSON.stringify(movie));
+            
+            // Convert string like "Action, Sci-Fi" into array ['Action', 'Sci-Fi'] if needed
+            if (!Array.isArray(this.newMovie.genres)) {
+                if (typeof this.newMovie.genre === 'string' && this.newMovie.genre.trim() !== '') {
+                    this.newMovie.genres = this.newMovie.genre.split(',').map(g => g.trim());
+                } else {
+                    this.newMovie.genres = [];
+                }
+            }
             this.movieModalOpen = true;
         },
         openBanModal(user) {
@@ -1439,14 +1735,35 @@ function adminDashboard() {
                 this.viewModalOpen = false;
             }
         },
+        // Open modal for adding
         openAddMovieModal() {
             this.editingMovie = false;
-            this.newMovie = { title: '', genre: '', year: '', rating: '', description: '', trailer: '', img: '', comments: [] };
+            this.movieTab = 'details';
+            this.newMovie = {
+                title: '',
+                year: '',
+                rating: 0,
+                genres: [],
+                genre: '',
+                description: '',
+                video_url: '',
+                img: ''
+            };
             this.movieModalOpen = true;
         },
-        saveMovie() {
-            this.movieModalOpen = false;
+        // Preferred FormData approach
+        async saveMovie() {
+            const formData = new FormData();
+            formData.append('title', this.newMovie.title);
+            formData.append('duration', this.newMovie.duration);
+            formData.append('genre_ids', JSON.stringify(this.newMovie.genre_ids));
+            if (this.$refs.moviePosterInput.files[0]) {
+                formData.append('poster', this.$refs.moviePosterInput.files[0]);
+            }
+            
+            await fetch('/backend/movies_api.php', { method: 'POST', body: formData });
         },
+
         viewRoom(room) {
             this.selectedRoom = room;
             this.roomModalOpen = true;
@@ -1499,8 +1816,9 @@ function adminDashboard() {
             { day: 'Sun', reqs: 4600, height: 88 }
         ],
 
-        initDashboard() {
-            // Initializations if needed
+         initDashboard() {
+            this.fetchMovies();
+            this.fetchGenres();
         }
     };
 }
