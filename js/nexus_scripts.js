@@ -1,12 +1,32 @@
 function userDashboard() {
     return {
+        // Navigation & Tab State
         currentTab: 'dashboard',
         isNavOpen: false,
+        
+        // Drawer Panels & Modals State
         showFriendsPanel: false,
         showQuestsPanel: false,
         questActiveTab: 'daily',
         showInviteModal: false,
-        
+        movieModalOpen: false,
+        editingMovie: false,
+        banModalOpen: false,
+        viewModalOpen: false,
+        roomModalOpen: false,
+        modalOpen: false,
+        modalMode: 'add',
+
+        // Form & Data Objects
+        userToBan: null,
+        banReason: '',
+        selectedReport: null,
+        selectedRoom: null,
+        formData: { name: '', price: 0, rarity: 'Common', image: '' },
+        newMovie: { title: '', genre: '', year: '', rating: '', description: '', trailer: '', img: '', comments: [] },
+        shopItems: [],
+
+        // Quests Data
         quests: {
             daily: [
                 { id: 1, title: 'Watch a Movie', desc: 'Watch any movie for at least 30 minutes', points: 50, completed: true },
@@ -24,131 +44,15 @@ function userDashboard() {
                 { id: 9, title: 'Community Pillar', desc: 'Add 5 new friends', points: 1000, completed: false }
             ]
         },
-        
-        //friend
+
+        // Friends & User Search State
         friends: [],
         searchQuery: '',
         searchResults: [],
         friendSearchQuery: '',
-        // Fetch active friend list from /user_backend/
-        async fetchFriends() {
-            try {
-                const res = await fetch('/user_backend/get_friends.php');
-                const data = await res.json();
-                if (data.success) {
-                    this.friends = data.friends;
-                }
-            } catch (err) {
-                console.error("Error retrieving friend list:", err);
-            }
-        },
+        searchTimeout: null, // Timer used for debouncing search input
 
-        // Query available non-admin users from /user_backend/
-        async searchUsers(query) {
-            try {
-                const res = await fetch(`/user_backend/search_users.php?q=${encodeURIComponent(query)}`);
-                const data = await res.json();
-                if (data.success) {
-                    this.searchResults = data.results;
-                }
-            } catch (err) {
-                console.error("Error executing user search:", err);
-            }
-        },
-
-        // Dispatch friend request to /user_backend/
-        async addFriend(friendId) {
-            try {
-                const res = await fetch('/user_backend/add_friend.php', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ friend_id: friendId })
-                });
-                const data = await res.json();
-                if (data.success) {
-                    if (window.showToast) window.showToast(data.message, 'success');
-                    // Filter out added user from search view
-                    this.searchResults = this.searchResults.filter(u => u.user_id !== friendId);
-                } else {
-                    if (window.showToast) window.showToast(data.message, 'error');
-                }
-            } catch (err) {
-                console.error("Error dispatching friend request:", err);
-            }
-        },
-
-        // Client-side filtering for the sidebar drawer
-        get filteredFriends() {
-            if (!this.friendSearchQuery) return this.friends;
-            return this.friends.filter(f => 
-                f.user_name.toLowerCase().includes(this.friendSearchQuery.toLowerCase())
-            );
-        },
-        
-        openNav() {
-            if (this.isNavOpen) return;
-            this.isNavOpen = true;
-            
-            const tl = gsap.timeline();
-            
-            // Enable pointers
-            this.$root.querySelector('#side-panel').style.pointerEvents = 'auto';
-            this.$root.querySelector('#nav-overlay').style.pointerEvents = 'auto';
-            
-            // Overlay fade
-            tl.to('#nav-overlay', { opacity: 1, duration: 0.15, ease: "power2.out" }, 0);
-            
-            // Panel slide in
-            tl.to('#side-panel', {
-                x: 0,
-                duration: 0.5,
-                ease: "expo.out"
-            }, 0);
-            
-            // Stagger nav items
-            tl.fromTo('.side-nav-item', 
-                { x: 30, opacity: 0, scale: 0.9, rotationX: -15 },
-                { x: 0, opacity: 1, scale: 1, rotationX: 0, stagger: 0.05, duration: 0.6, ease: "back.out(1.5)" },
-                0.2
-            );
-            
-            // Stagger other panel elements
-            tl.fromTo('.side-panel-stagger',
-                { opacity: 0, x: -20, scale: 0.95 },
-                { opacity: 1, x: 0, scale: 1, stagger: 0.05, duration: 0.5, ease: "back.out(1.2)" },
-                0.1
-            );
-        },
-        closeNav() {
-            if (!this.isNavOpen) return;
-            this.isNavOpen = false;
-            
-            const tl = gsap.timeline({
-                onComplete: () => {
-                    this.$root.querySelector('#side-panel').style.pointerEvents = 'none';
-                    this.$root.querySelector('#nav-overlay').style.pointerEvents = 'none';
-                }
-            });
-            
-            // Fade out elements quickly
-            tl.to('.side-nav-item', {
-                x: -30, opacity: 0, scale: 0.9, rotationX: 15, stagger: 0.02, duration: 0.3, ease: "power3.in"
-            }, 0);
-            
-            tl.to('.side-panel-stagger', {
-                opacity: 0, x: -20, scale: 0.95, duration: 0.2, ease: "power3.in"
-            }, 0);
-            
-            // Hide panel
-            tl.to('#side-panel', {
-                x: '-100%',
-                duration: 0.4,
-                ease: "expo.inOut"
-            }, 0.1);
-            
-            // Hide overlay
-            tl.to('#nav-overlay', { opacity: 0, duration: 0.3, ease: "power2.in" }, 0.2);
-        },
+        // Navigation Items
         navItems: [
             { id: 'dashboard', label: 'Command Center', icon: 'dashboard', module: 'MODULE_1' },
             { id: 'watchlist', label: 'Watchlist', icon: 'bookmark', module: 'MODULE_2' },
@@ -156,12 +60,16 @@ function userDashboard() {
             { id: 'history', label: 'Watch History', icon: 'history_toggle_off', module: 'MODULE_4' },
             { id: 'settings', label: 'System Preferences', icon: 'settings', module: 'MODULE_5' }
         ],
+
+        // Command Center Metrics
         stats: [
             { label: 'Total Watch Time', value: 124, suffix: 'H', icon: 'timer', colorClass: 'bg-red-500/10 text-red-500 border border-red-500/20 group-hover:bg-red-500/20 group-hover:shadow-[0_0_20px_rgba(239,68,68,0.3)]', trendClass: 'text-green-400 border-green-400/20', trend: '+12%', desc: 'vs last week' },
             { label: 'Sessions Hosted', value: 28, suffix: '', icon: 'cell_tower', colorClass: 'bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 group-hover:bg-indigo-500/20 group-hover:shadow-[0_0_20px_rgba(79,70,229,0.3)]', trendClass: 'text-green-400 border-green-400/20', trend: '+3', desc: 'new this week' },
-            { label: 'Friends', value: 9, suffix: '', icon: 'group', colorClass: 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 group-hover:bg-emerald-500/20 group-hover:shadow-[0_0_20px_rgba(16,185,129,0.3)]', trendClass: 'text-emerald-400 border-emerald-400/20', trend: 'Online', desc: 'active', action: 'showFriendsPanel = true' },
+            { label: 'Friends', value: 0, suffix: '', icon: 'group', colorClass: 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 group-hover:bg-emerald-500/20 group-hover:shadow-[0_0_20px_rgba(16,185,129,0.3)]', trendClass: 'text-emerald-400 border-emerald-400/20', trend: 'Online', desc: 'active', action: 'showFriendsPanel = true' },
             { label: 'Quests', value: 1250, suffix: ' PTS', icon: 'stars', colorClass: 'bg-yellow-500/10 text-yellow-400 border border-yellow-500/20 group-hover:bg-yellow-500/20 group-hover:shadow-[0_0_20px_rgba(234,179,8,0.3)]', trendClass: 'text-yellow-400 border-yellow-400/20', trend: 'Available', desc: 'Daily quests', action: 'showQuestsPanel = true' }
         ],
+
+        // Watch Party Sessions, Watchlist & Activity Feed
         upcomingParties: [
             { title: "Dune: Part Two", time: "TODAY 20:00", genre: "SCI-FI", host: "You", members: 8, img: "https://images.unsplash.com/photo-1536440136628-849c177e76a1?auto=format&fit=crop&q=80&w=400&h=200" },
             { title: "Interstellar", time: "TMRW 21:00", genre: "SCI-FI", host: "Sarah J.", members: 12, img: "https://images.unsplash.com/photo-1614730321146-b6fa6a46bcb4?auto=format&fit=crop&q=80&w=400&h=200" },
@@ -181,6 +89,89 @@ function userDashboard() {
             { text: 'Achievement unlocked: <span class="font-bold text-yellow-400">Night Owl V2</span>', time: 'YESTERDAY', dotColor: 'bg-yellow-500' },
             { text: 'System diagnostic completed. Connection stable.', time: '2 DAYS AGO', dotColor: 'bg-white/20' }
         ],
+        networkTraffic: [
+            { day: 'Mon', reqs: 1250, height: 40 },
+            { day: 'Tue', reqs: 3400, height: 75 },
+            { day: 'Wed', reqs: 2100, height: 55 },
+            { day: 'Thu', reqs: 4800, height: 90 },
+            { day: 'Fri', reqs: 3100, height: 65 },
+            { day: 'Sat', reqs: 5500, height: 100 },
+            { day: 'Sun', reqs: 4200, height: 85 },
+            { day: 'Mon', reqs: 2500, height: 60 },
+            { day: 'Tue', reqs: 3800, height: 80 },
+            { day: 'Wed', reqs: 1900, height: 50 },
+            { day: 'Thu', reqs: 4100, height: 82 },
+            { day: 'Fri', reqs: 2900, height: 62 },
+            { day: 'Sat', reqs: 5100, height: 95 },
+            { day: 'Sun', reqs: 4600, height: 88 }
+        ],
+
+        // Keep stat card for Friends synchronized dynamically
+        updateFriendsCount() {
+            const friendStat = this.stats.find(s => s.label === 'Friends');
+            if (friendStat) {
+                friendStat.value = this.friends ? this.friends.length : 0;
+            }
+        },
+
+        // API Requests & Friend Management
+        async fetchFriends() {
+            try {
+                const res = await fetch('/user_backend/get_friends.php');
+                const data = await res.json();
+                if (data.success) {
+                    this.friends = data.friends || [];
+                    this.updateFriendsCount();
+                }
+            } catch (err) {
+                console.error("Error retrieving friend list:", err);
+            }
+        },
+
+       searchUsers() {
+            fetch(`/user_backend/search_users.php?q=${encodeURIComponent(this.searchQuery.trim())}`)
+                .then(response => {
+                    if (!response.ok) throw new Error('Network error');
+                    return response.json();
+                })
+                .then(data => {
+                    if (Array.isArray(data)) {
+                        this.searchResults = data;
+                    }
+                })
+                .catch(error => { // Fixed typo here (removed rogue 'S')
+                    console.error('Search error:', error);
+                });
+        },
+
+        async addFriend(friendId) {
+            try {
+                const res = await fetch('/user_backend/add_friend.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ friend_id: friendId })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    if (window.showToast) window.showToast(data.message, 'success');
+                    this.searchResults = this.searchResults.filter(u => (u.user_id || u.id) !== friendId);
+                    this.fetchFriends();
+                } else {
+                    if (window.showToast) window.showToast(data.message || data.error, 'error');
+                }
+            } catch (err) {
+                console.error("Error dispatching friend request:", err);
+            }
+        },
+
+        get filteredFriends() {
+            if (!this.friendSearchQuery) return this.friends;
+            return this.friends.filter(f => 
+                (f.user_name || f.username || '').toLowerCase().includes(this.friendSearchQuery.toLowerCase())
+            );
+        },
+
+        // Tab Navigation
         switchTab(tabId) {
             if (this.currentTab === tabId) return;
             const oldTab = this.currentTab;
@@ -198,8 +189,51 @@ function userDashboard() {
                 newPanel.style.display = 'block';
             }
         },
-        
-        
+
+        // Navigation Drawer
+        openNav() {
+            if (this.isNavOpen) return;
+            this.isNavOpen = true;
+            
+            const tl = gsap.timeline();
+            this.$root.querySelector('#side-panel').style.pointerEvents = 'auto';
+            this.$root.querySelector('#nav-overlay').style.pointerEvents = 'auto';
+            
+            tl.to('#nav-overlay', { opacity: 1, duration: 0.15, ease: "power2.out" }, 0);
+            tl.to('#side-panel', { x: 0, duration: 0.5, ease: "expo.out" }, 0);
+            tl.fromTo('.side-nav-item', 
+                { x: 30, opacity: 0, scale: 0.9, rotationX: -15 },
+                { x: 0, opacity: 1, scale: 1, rotationX: 0, stagger: 0.05, duration: 0.6, ease: "back.out(1.5)" },
+                0.2
+            );
+            tl.fromTo('.side-panel-stagger',
+                { opacity: 0, x: -20, scale: 0.95 },
+                { opacity: 1, x: 0, scale: 1, stagger: 0.05, duration: 0.5, ease: "back.out(1.2)" },
+                0.1
+            );
+        },
+        closeNav() {
+            if (!this.isNavOpen) return;
+            this.isNavOpen = false;
+            
+            const tl = gsap.timeline({
+                onComplete: () => {
+                    this.$root.querySelector('#side-panel').style.pointerEvents = 'none';
+                    this.$root.querySelector('#nav-overlay').style.pointerEvents = 'none';
+                }
+            });
+            
+            tl.to('.side-nav-item', {
+                x: -30, opacity: 0, scale: 0.9, rotationX: 15, stagger: 0.02, duration: 0.3, ease: "power3.in"
+            }, 0);
+            tl.to('.side-panel-stagger', {
+                opacity: 0, x: -20, scale: 0.95, duration: 0.2, ease: "power3.in"
+            }, 0);
+            tl.to('#side-panel', { x: '-100%', duration: 0.4, ease: "expo.inOut" }, 0.1);
+            tl.to('#nav-overlay', { opacity: 0, duration: 0.3, ease: "power2.in" }, 0.2);
+        },
+
+        // Modal and Shared Helper Methods
         openEditMovieModal(movie) {
             this.editingMovie = true;
             this.newMovie = { ...movie, comments: movie.comments || [] };
@@ -255,8 +289,6 @@ function userDashboard() {
         saveItem() {
             this.modalOpen = false;
         },
-
-        
         handleFileUpload(event, callback) {
             const file = event.target.files ? event.target.files[0] : null;
             if (file) {
@@ -272,44 +304,51 @@ function userDashboard() {
             }
         },
 
-        
-        networkTraffic: [
-            { day: 'Mon', reqs: 1250, height: 40 },
-            { day: 'Tue', reqs: 3400, height: 75 },
-            { day: 'Wed', reqs: 2100, height: 55 },
-            { day: 'Thu', reqs: 4800, height: 90 },
-            { day: 'Fri', reqs: 3100, height: 65 },
-            { day: 'Sat', reqs: 5500, height: 100 },
-            { day: 'Sun', reqs: 4200, height: 85 },
-            { day: 'Mon', reqs: 2500, height: 60 },
-            { day: 'Tue', reqs: 3800, height: 80 },
-            { day: 'Wed', reqs: 1900, height: 50 },
-            { day: 'Thu', reqs: 4100, height: 82 },
-            { day: 'Fri', reqs: 2900, height: 62 },
-            { day: 'Sat', reqs: 5100, height: 95 },
-            { day: 'Sun', reqs: 4600, height: 88 }
-        ],
-
-        initDashboard() { gsap.config({ nullTargetWarn: false });
+        // Life cycle initialization
+        initDashboard() {
+            gsap.config({ nullTargetWarn: false });
+            
+            // Initial data fetch
             this.fetchFriends();
+            this.searchUsers();
 
+           // Debounced watcher: reset to default users when empty, search when >= 2 chars
             this.$watch('searchQuery', (query) => {
-                if (query.length >= 2) {
-                    this.searchUsers(query);
-                } else {
-                    this.searchResults = [];
+                clearTimeout(this.searchTimeout);
+                const trimmed = (query || '').trim();
+
+                // If input is completely erased, reload default users from PHP
+                if (trimmed === '') {
+                    this.searchUsers();
+                    return;
+                }
+
+                // Don't trigger API call for a single character
+                if (trimmed.length < 2) {
+                    return;
+                }
+
+                // Debounce search requests for 2+ characters
+                this.searchTimeout = setTimeout(() => {
+                    this.searchUsers();
+                }, 300);
+            });
+
+            // Auto-trigger initial search when invite modal opens
+            this.$watch('showInviteModal', (isOpen) => {
+                if (isOpen) {
+                    this.searchUsers(this.searchQuery);
                 }
             });
             
-            // Escape key to close nav
+            // Escape key listener for navigation drawer
             window.addEventListener('keydown', (e) => {
                 if (e.key === 'Escape' && this.isNavOpen) {
                     this.closeNav();
                 }
             });
             
-            
-            
+            // Watchers for Quests UI animations
             this.$watch('showQuestsPanel', value => {
                 if(value) {
                     this.$nextTick(() => {
@@ -334,8 +373,8 @@ function userDashboard() {
                 });
             });
 
+            // Animated Number Counters
             this.$nextTick(() => {
-                // 3. Animated Number Counters
                 const counters = this.$root.querySelectorAll('.stat-counter');
                 counters.forEach(counter => {
                     const target = parseFloat(counter.getAttribute('data-target'));
@@ -345,7 +384,7 @@ function userDashboard() {
                         val: target,
                         duration: 2.5,
                         ease: "power3.out",
-                        delay: 0.8, // Wait for intro sequence
+                        delay: 0.8,
                         onUpdate: () => {
                             counter.innerText = Math.floor(obj.val);
                         }
@@ -353,23 +392,20 @@ function userDashboard() {
                 });
             });
 
-            // Epic Intro Sequence
+            // Intro Animations
             const tl = gsap.timeline();
-            
-            // Header items drop in
             tl.fromTo(".gs-header-item", 
                 { y: -40, opacity: 0, scale: 0.95 }, 
                 { y: 0, opacity: 1, scale: 1, stagger: 0.1, duration: 0.8, ease: "back.out(1.5)" }, 
                 0.2
             )
-            // Staggered grid cards entry
             .fromTo(".stagger-item", 
                 { opacity: 0, y: 80, rotationY: 15, scale: 0.9 }, 
                 { opacity: 1, y: 0, rotationY: 0, scale: 1, stagger: 0.1, duration: 0.9, ease: "back.out(1.2)" }, 
                 "-=0.6"
             );
 
-            // Split text animation for welcome
+            // Split text animation for welcome header
             const welcomeText = this.$root.querySelector('.welcome-text');
             if (welcomeText) {
                 const text = welcomeText.innerText;
@@ -397,10 +433,7 @@ function userDashboard() {
                 );
             }
 
-            // Continuous Micro-Animations
-            
-            // Pulsing dots in activity feed
-            
+            // Continuous pulse micro-animation for activity feed items
             this.$nextTick(() => {
                 gsap.to('.activity-item .dot-pulse', {
                     scale: 1.8,
@@ -412,7 +445,7 @@ function userDashboard() {
                 });
             });
 
-            // Random glitch effect on stat numbers periodically
+            // Random glitch effect on dashboard stat numbers periodically
             setInterval(() => {
                 const stats = this.$root.querySelectorAll('.stat-counter');
                 if (stats.length > 0) {
@@ -430,7 +463,7 @@ function userDashboard() {
                 }
             }, 6000);
         }
-    }
+    };
 }
 
 
