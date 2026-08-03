@@ -1535,17 +1535,55 @@ function adminDashboard(userData = {}) {
             { label: 'Server Load', value: '42%', change: '-2%', icon: 'memory' }
         ],
 
+       // Add Loading & Error states
+        isLoading: false,
+        errorMessage: '',
+
         // Users
         searchQuery: '',
         roleFilter: 'All',
         banModalOpen: false,
         userToBan: null,
         banReason: '',
-        usersList: [
-            { id: 1, name: 'Alice', email: 'alice@example.com', role: 'Premium', status: 'Active' },
-            { id: 2, name: 'Bob', email: 'bob@example.com', role: 'User', status: 'Banned' }
-        ],
-        get filteredUsers() { return (this.users || []).filter(u => (this.roleFilter === 'All' || u.role === this.roleFilter) && (u.name.toLowerCase().includes(this.searchQuery.toLowerCase()) || u.email.toLowerCase().includes(this.searchQuery.toLowerCase()))); },
+        
+        // CHANGED: Renamed from usersList to users to match filteredUsers getter
+        users: [],
+
+        get filteredUsers() { 
+            return (this.users || []).filter(u => 
+                (this.roleFilter === 'All' || u.role === this.roleFilter) && 
+                (u.name.toLowerCase().includes(this.searchQuery.toLowerCase()) || 
+                 u.email.toLowerCase().includes(this.searchQuery.toLowerCase()))
+            ); 
+        },
+
+        // ADDED: Fetch users from the PHP backend API
+        async fetchUsers() {
+            this.isLoading = true;
+            this.errorMessage = '';
+            try {
+                // Assuming standard routing to match movies_api.php
+                const response = await fetch('/backend/users_api.php');
+                const text = await response.text();
+                
+                try {
+                    const data = JSON.parse(text);
+                    if (response.ok) {
+                        this.users = data;
+                    } else {
+                        this.errorMessage = data.error || 'Failed to load user directory.';
+                    }
+                } catch(e) {
+                    this.errorMessage = 'Invalid JSON response from server.';
+                    console.error('Raw response:', text);
+                }
+            } catch (err) {
+                this.errorMessage = 'Network error fetching users.';
+                console.error(err);
+            } finally {
+                this.isLoading = false;
+            }
+        },
 
         // Movies
         movies: [],
@@ -1901,6 +1939,7 @@ function adminDashboard(userData = {}) {
          initDashboard() {
             this.fetchMovies();
             this.fetchGenres();
+            this.fetchUsers();
         }
     };
 }
