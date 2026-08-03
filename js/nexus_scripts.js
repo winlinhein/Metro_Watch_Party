@@ -50,7 +50,7 @@ function userDashboard() {
         searchQuery: '',
         searchResults: [],
         friendSearchQuery: '',
-        searchTimeout: null, // Timer used for debouncing search input
+        searchTimeout: null,
 
         // Navigation Items
         navItems: [
@@ -113,25 +113,92 @@ function userDashboard() {
                 friendStat.value = this.friends ? this.friends.length : 0;
             }
         },
-
-        // API Requests & Friend Management
-        async fetchFriends() {
-            try {
-                const res = await fetch('/user_backend/get_friends.php');
-                const data = await res.json();
-                if (data.success) {
-                    this.friends = data.friends || [];
-                    this.updateFriendsCount();
-                }
-            } catch (err) {
-                console.error("Error retrieving friend list:", err);
-            }
+        addFriend(friendId) {
+            this.sendFriendRequest(friendId);
         },
 
-       searchUsers() {
-            fetch(`/user_backend/search_users.php?q=${encodeURIComponent(this.searchQuery.trim())}`)
+       fetchFriends() {
+            fetch('/user_backend/get_friends.php')
+                .then(async (response) => {
+                    const data = await response.json().catch(() => ({}));
+                    
+                    if (!response.ok) {
+                        // Fallback to response status text if data.error is missing
+                        throw new Error(data.error || `HTTP ${response.status}: ${response.statusText}`);
+                    }
+                    
+                    return data;
+                })
+                .then((data) => {
+                    if (Array.isArray(data)) {
+                        this.friends = data;
+                        this.updateFriendsCount(); // Synchronize dashboard Friends stat card
+                    }
+                })
+                .catch((error) => {
+                    console.error('Failed to fetch friends:', error.message || error);
+                });
+        },
+
+        getFriendStatus(user) {
+            // 1. Return direct status from backend API if available ('friend', 'pending', 'none')
+            const status = (user.friend_status || user.status || '').toLowerCase();
+            if (['friend', 'pending', 'none'].includes(status)) {
+                return status;
+            }
+
+            // 2. Fallback check against loaded friends list
+            const isFriend = this.friends.some(f => (f.user_id || f.id) === user.user_id);
+            if (isFriend) return 'friend';
+
+            // 3. Fallback check for pending flag
+            if (user.is_pending) return 'pending';
+
+            return 'none';
+        },
+
+        sendFriendRequest(friendId) {
+            fetch('/user_backend/add_friend.php', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ friend_id: friendId })
+            })
+            .then(async res => {
+                const text = await res.text();
+                let data;
+                
+                try {
+                    data = JSON.parse(text);
+                } catch (e) {
+                    // Strips HTML tags from PHP error output so you can see the exact cause
+                    const cleanText = text.replace(/<[^>]*>?/gm, ' ').replace(/\s+/g, ' ').trim();
+                    throw new Error(cleanText || 'Server outputted non-JSON response.');
+                }
+
+                if (!res.ok || !data.success) {
+                    throw new Error(data.message || 'Failed to send friend request.');
+                }
+
+                return data;
+            })
+            .then(data => {
+                alert(data.message);
+                if (typeof this.searchUsers === 'function') {
+                    this.searchUsers(); // Refresh search view
+                }
+            })
+            .catch(err => {
+                console.error('Error sending friend request:', err);
+                alert(`Request Failed: ${err.message}`);
+            });
+        },
+        searchUsers(query = null) {
+            const searchTerm = (query !== null ? query : this.searchQuery) || '';
+            fetch(`/user_backend/search_users.php?q=${encodeURIComponent(searchTerm.trim())}`)
                 .then(response => {
-                    if (!response.ok) throw new Error('Network error');
+                    if (!response.ok) throw new Error('Network response was not ok');
                     return response.json();
                 })
                 .then(data => {
@@ -139,29 +206,9 @@ function userDashboard() {
                         this.searchResults = data;
                     }
                 })
-                .catch(error => { // Fixed typo here (removed rogue 'S')
+                .catch(error => {
                     console.error('Search error:', error);
                 });
-        },
-
-        async addFriend(friendId) {
-            try {
-                const res = await fetch('/user_backend/add_friend.php', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ friend_id: friendId })
-                });
-                const data = await res.json();
-                if (data.success) {
-                    if (window.showToast) window.showToast(data.message, 'success');
-                    this.searchResults = this.searchResults.filter(u => (u.user_id || u.id) !== friendId);
-                    this.fetchFriends();
-                } else {
-                    if (window.showToast) window.showToast(data.message || data.error, 'error');
-                }
-            } catch (err) {
-                console.error("Error dispatching friend request:", err);
-            }
         },
 
         get filteredFriends() {
@@ -307,7 +354,9 @@ function userDashboard() {
         // Life cycle initialization
         initDashboard() {
             gsap.config({ nullTargetWarn: false });
-            
+            this.$watch('friends', () => {
+                this.updateFriendsCount();
+            });
             // Initial data fetch
             this.fetchFriends();
             this.searchUsers();

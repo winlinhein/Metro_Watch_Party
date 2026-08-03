@@ -7,7 +7,7 @@ if (
     $_SESSION['authenticated'] !== true || 
     empty($_SESSION['user_role']) 
 ) {
-    header("Location: ../frontend/login.php?error=" . urlencode("Access denied. Admin privileges required."));
+    header("Location: ../frontend/login.php?error=" . urlencode("Access denied. Please log in to view your dashboard."));
     exit();
 }
 
@@ -242,51 +242,99 @@ $userRole  = $_SESSION['user_role']  ?? 'user';
         </div>
     </div>
 
-    <!-- Friends & Database Search Drawer -->
-    <div x-show="showFriendsPanel" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-[90]" x-transition.opacity @click="showFriendsPanel = false" style="display: none;"></div>
-    <div class="fixed top-0 right-0 w-full md:w-[360px] h-screen bg-[#050508]/95 backdrop-blur-3xl border-l border-white/10 z-[100] flex flex-col shadow-[0_0_50px_rgba(0,0,0,0.5)] transition-transform duration-500" :class="showFriendsPanel ? 'translate-x-0' : 'translate-x-full'">
-        <div class="p-6 border-b border-white/5 relative z-10 shrink-0">
-            <div class="flex items-center justify-between mb-6">
-                <div class="flex items-center gap-4">
-                    <div class="w-10 h-10 bg-emerald-500/20 rounded-xl flex items-center justify-center border border-emerald-500/30">
-                        <span class="material-symbols-outlined text-emerald-400 text-[20px]">group</span>
+    <!-- Friends Drawer -->
+    <div x-show="showFriendsPanel" 
+        class="fixed inset-0 bg-black/70 backdrop-blur-md z-[90] transition-opacity duration-300 ease-out" 
+        x-transition:enter="transition ease-out duration-300"
+        x-transition:enter-start="opacity-0"
+        x-transition:enter-end="opacity-100"
+        x-transition:leave="transition ease-in duration-200"
+        x-transition:leave-start="opacity-100"
+        x-transition:leave-end="opacity-0"
+        @click="showFriendsPanel = false" 
+        style="display: none;"></div>
+
+    <div class="fixed top-0 right-0 w-full md:w-[310px] h-screen bg-[#07070b]/95 backdrop-blur-2xl border-l border-white/10 z-[100] flex flex-col shadow-[0_0_60px_rgba(0,0,0,0.8)] transition-transform duration-300 ease-out" 
+        :class="showFriendsPanel ? 'translate-x-0' : 'translate-x-full'">
+        
+        <!-- Drawer Header -->
+        <div class="p-4 border-b border-white/5 relative z-10 shrink-0 bg-gradient-to-b from-white/[0.02] to-transparent">
+            <div class="flex items-center justify-between mb-4">
+                <div class="flex items-center gap-3">
+                    <div class="w-9 h-9 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center shadow-[0_0_15px_rgba(16,185,129,0.1)] shrink-0">
+                        <span class="material-symbols-outlined text-emerald-400 text-[18px]">group</span>
                     </div>
                     <div>
-                        <h2 class="text-xl font-bold uppercase leading-none">Friends</h2>
-                        <p class="text-[10px] text-emerald-400 uppercase tracking-widest mono mt-1"><span x-text="friends.length"></span> Connected</p>
+                        <h2 class="text-base font-bold uppercase tracking-wider text-white">Friends</h2>
+                        <p class="text-[10px] text-emerald-400/90 uppercase tracking-widest font-mono mt-0.5 flex items-center gap-1.5">
+                            <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                            <span x-text="friends.length"></span> Total
+                        </p>
                     </div>
                 </div>
-                <div class="flex gap-2">
-                    <button @click="showInviteModal = true" class="w-8 h-8 rounded-lg bg-emerald-500/10 hover:bg-emerald-500 text-emerald-400 hover:text-white transition-all flex items-center justify-center" title="Search Users Table">
-                        <span class="material-symbols-outlined text-[18px]">person_add</span>
+                <div class="flex items-center gap-1.5">
+                    <button @click="showInviteModal = true" class="w-8 h-8 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/20 hover:border-emerald-500/40 transition-all duration-200 flex items-center justify-center group" title="Search Users">
+                        <span class="material-symbols-outlined text-[16px] group-hover:scale-110 transition-transform">person_add</span>
                     </button>
-                    <button @click="showFriendsPanel = false" class="w-8 h-8 rounded-lg bg-white/5 hover:bg-white/10 text-white/50 hover:text-white flex items-center justify-center">
-                        <span class="material-symbols-outlined text-[18px]">close</span>
+                    <button @click="showFriendsPanel = false" class="w-8 h-8 rounded-lg bg-white/5 hover:bg-white/10 text-white/40 hover:text-white border border-white/5 transition-all duration-200 flex items-center justify-center">
+                        <span class="material-symbols-outlined text-[16px]">close</span>
                     </button>
                 </div>
             </div>
             
+            <!-- Search Filter Input -->
             <div class="relative">
-                <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-white/40 text-[18px]">search</span>
-                <input type="text" x-model="friendSearchQuery" placeholder="Filter connected friends..." class="w-full bg-white/[0.03] border border-white/10 rounded-xl py-2.5 pl-10 pr-4 text-sm text-white placeholder-white/30 focus:border-emerald-500/50 outline-none">
+                <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-white/30 text-[16px]">search</span>
+                <input type="text" 
+                    x-model="friendSearchQuery" 
+                    placeholder="Filter connected friends..." 
+                    class="w-full bg-white/[0.03] hover:bg-white/[0.05] focus:bg-white/[0.07] border border-white/10 focus:border-emerald-500/50 rounded-xl py-2 pl-9 pr-3 text-[11px] text-white placeholder-white/30 outline-none transition-all duration-200">
             </div>
         </div>
         
-        <div class="flex-1 overflow-y-auto p-4 relative z-10 space-y-2">
+        <!-- Friends List Container -->
+        <div class="flex-1 overflow-y-auto p-3 space-y-2.5 custom-scrollbar relative z-10">
             <template x-for="friend in filteredFriends" :key="friend.user_id">
-                <div class="flex items-center gap-3 p-3 rounded-xl bg-white/[0.01] hover:bg-white/[0.04] border border-transparent hover:border-white/10">
-                    <img :src="`https://ui-avatars.com/api/?name=${encodeURIComponent(friend.user_name)}&background=10b981&color=fff`" class="w-10 h-10 rounded-full border border-white/10">
-                    <div class="flex-1 min-w-0">
-                        <h4 class="text-sm font-bold text-white/90 truncate" x-text="friend.user_name"></h4>
-                        <p class="text-xs text-white/40 truncate" x-text="friend.email"></p>
+                <div class="group relative bg-gradient-to-br from-white/[0.04] to-white/[0.01] hover:from-white/[0.07] hover:to-emerald-500/[0.04] border border-white/10 hover:border-emerald-500/30 rounded-xl p-3 transition-all duration-300 ease-out hover:shadow-[0_8px_25px_-5px_rgba(0,0,0,0.5),0_0_15px_rgba(16,185,129,0.1)] hover:-translate-y-0.5">
+                    
+                    <div class="flex items-center justify-between gap-2.5">
+                        <div class="flex items-center gap-2.5 min-w-0 flex-1">
+                            <!-- Avatar with online status badge -->
+                            <div class="relative shrink-0">
+                                <img :src="`https://ui-avatars.com/api/?name=${encodeURIComponent(friend.user_name)}&background=10b981&color=fff`" 
+                                    class="w-9 h-9 rounded-lg border border-emerald-500/30 shadow-md object-cover group-hover:scale-105 transition-transform duration-300">
+                                <span class="absolute -bottom-0.5 -right-0.5 flex h-2.5 w-2.5">
+                                    <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                                    <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500 border-2 border-[#07070b]"></span>
+                                </span>
+                            </div>
+                            
+                            <div class="min-w-0 flex-1">
+                                <h4 class="text-xs font-semibold text-white/90 group-hover:text-white truncate transition-colors" x-text="friend.user_name"></h4>
+                            </div>
+                        </div>
+
+                        <!-- Chat Action Button -->
+                        <button class="shrink-0 flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 text-[10px] font-semibold uppercase tracking-wider border border-emerald-500/20 hover:border-emerald-500/40 transition-all duration-200 active:scale-95 group/btn">
+                            <span class="material-symbols-outlined text-[13px] group-hover/btn:translate-x-0.5 transition-transform">chat</span>
+                            <span>Chat</span>
+                        </button>
                     </div>
+
                 </div>
             </template>
-            <div x-show="filteredFriends.length === 0" class="p-6 text-center text-xs text-white/40">No connected friends found.</div>
+
+            <!-- Empty State -->
+            <div x-show="filteredFriends.length === 0" class="py-10 px-4 text-center">
+                <div class="w-10 h-10 rounded-full bg-white/5 border border-white/10 flex items-center justify-center mx-auto mb-2 text-white/30">
+                    <span class="material-symbols-outlined text-[20px]">person_off</span>
+                </div>
+                <p class="text-[11px] font-medium text-white/40">No connected friends found</p>
+            </div>
         </div>
     </div>
 
-    <!-- Live Database Search Users Modal -->
+    <!-- Live User Search Modal -->
     <div x-show="showInviteModal" class="fixed inset-0 z-[110] flex items-center justify-center" style="display: none;">
         <div class="absolute inset-0 bg-black/70 backdrop-blur-md" x-show="showInviteModal" x-transition.opacity @click="showInviteModal = false"></div>
         <div class="relative w-[90%] max-w-[480px] bg-[#050508]/95 backdrop-blur-3xl border border-white/10 rounded-3xl shadow-2xl flex flex-col max-h-[85vh] overflow-hidden z-10"
@@ -299,11 +347,11 @@ $userRole  = $_SESSION['user_role']  ?? 'user';
                 <div class="flex items-center justify-between mb-4">
                     <div class="flex items-center gap-3">
                         <div class="w-10 h-10 bg-emerald-500/10 border border-emerald-500/20 rounded-xl flex items-center justify-center">
-                            <span class="material-symbols-outlined text-emerald-400 text-[20px]">manage_search</span>
+                            <span class="material-symbols-outlined text-emerald-400 text-[20px]">person_search</span>
                         </div>
                         <div>
-                            <h2 class="text-xl font-bold uppercase leading-none">Database Search</h2>
-                            <p class="text-[10px] text-white/40 uppercase tracking-widest mono mt-1">Search `users` table</p>
+                            <h2 class="text-xl font-bold uppercase leading-none">User Search</h2>
+                            <p class="text-[10px] text-white/40 uppercase tracking-widest mono mt-1">Find & add friends</p>
                         </div>
                     </div>
                     <button @click="showInviteModal = false" class="w-8 h-8 rounded-lg bg-white/5 hover:bg-white/10 text-white/50 hover:text-white flex items-center justify-center">
@@ -319,27 +367,55 @@ $userRole  = $_SESSION['user_role']  ?? 'user';
             
             <div class="flex-1 overflow-y-auto p-4 space-y-2">
                 <p class="text-[10px] font-bold text-white/40 uppercase tracking-widest mono mb-2 px-2">
-                    <span x-text="searchQuery.trim() === '' ? 'Recent Database Users' : 'Search Results'"></span>
+                    <span x-text="searchQuery.trim() === '' ? 'Suggested Users' : 'Search Results'"></span>
                 </p>
                 
                 <template x-for="user in searchResults" :key="user.user_id">
-                    <div class="flex items-center gap-3 p-3 rounded-xl bg-white/[0.01] hover:bg-white/[0.04] border border-white/5 transition-all">
-                        <img :src="`https://ui-avatars.com/api/?name=${encodeURIComponent(user.user_name)}&background=0d9488&color=fff`" class="w-10 h-10 rounded-full border border-white/10">
-                        <div class="flex-1 min-w-0">
-                            <div class="flex items-center gap-2">
-                                <h4 class="text-sm font-bold text-white truncate" x-text="user.user_name"></h4>
-                                <span x-show="user.is_premium == 1" class="text-[9px] bg-amber-500/20 text-amber-300 px-1.5 py-0.5 rounded mono font-bold">PRO</span>
+                    <div class="flex items-center justify-between gap-3 p-3 rounded-xl bg-white/[0.01] hover:bg-white/[0.04] border border-white/5 transition-all duration-200">
+                        
+                        <!-- User Information -->
+                        <div class="flex items-center gap-3 min-w-0 flex-1">
+                            <img :src="`https://ui-avatars.com/api/?name=${encodeURIComponent(user.user_name || user.username || 'User')}&background=10b981&color=fff`" 
+                                class="w-9 h-9 rounded-lg border border-white/10 object-cover shrink-0">
+                            <div class="min-w-0 flex-1">
+                                <h4 class="text-xs font-semibold text-white truncate" x-text="user.user_name || user.username"></h4>
+                                <p class="text-[10px] text-white/40 truncate" x-text="user.email || ''"></p>
                             </div>
-                            <p class="text-xs text-white/40 truncate" x-text="user.email"></p>
                         </div>
-                        <button @click="addFriend(user.user_id)" class="px-4 py-1.5 rounded-lg bg-emerald-500/10 hover:bg-emerald-500 text-emerald-400 hover:text-white text-[11px] font-bold uppercase transition-all">
-                            Add
-                        </button>
+
+                        <!-- Relationship Status Action Buttons -->
+                        <div class="shrink-0">
+                            <!-- Friend Badge -->
+                            <template x-if="getFriendStatus(user) === 'friend'">
+                                <span class="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-[10px] font-bold uppercase tracking-wider">
+                                    <span class="material-symbols-outlined text-[14px]">check</span>
+                                    <span>Friend</span>
+                                </span>
+                            </template>
+
+                            <!-- Pending Request Badge -->
+                            <template x-if="getFriendStatus(user) === 'pending'">
+                                <span class="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-yellow-500/10 border border-yellow-500/20 text-yellow-400 text-[10px] font-bold uppercase tracking-wider">
+                                    <span class="material-symbols-outlined text-[14px]">schedule</span>
+                                    <span>Pending</span>
+                                </span>
+                            </template>
+
+                            <!-- Add Friend Button -->
+                            <template x-if="getFriendStatus(user) === 'none'">
+                                <button @click="addFriend(user.user_id)" 
+                                        class="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 hover:text-emerald-300 border border-emerald-500/30 hover:border-emerald-500/50 text-[10px] font-bold uppercase tracking-wider transition-all duration-200 active:scale-95">
+                                    <span class="material-symbols-outlined text-[14px]">person_add</span>
+                                    <span>Add</span>
+                                </button>
+                            </template>
+                        </div>
+
                     </div>
                 </template>
 
                 <div x-show="searchResults.length === 0" class="p-6 text-center text-xs text-white/40">
-                    No users matching "<span x-text="searchQuery"></span>" found in database.
+                    No users matching "<span x-text="searchQuery"></span>" found.
                 </div>
             </div>
         </div>

@@ -2,7 +2,6 @@
 session_start();
 header('Content-Type: application/json');
 
-// Ensure user session exists
 if (empty($_SESSION['user_id'])) {
     http_response_code(401);
     echo json_encode(['error' => 'Unauthorized session.']);
@@ -11,12 +10,11 @@ if (empty($_SESSION['user_id'])) {
 
 require_once __DIR__ . '/../conn.php'; 
 
-$currentUserId = $_SESSION['user_id'];
+$currentUserId = (int)$_SESSION['user_id'];
 $query = trim($_GET['q'] ?? '');
 
 try {
     if ($query === '') {
-        // Return default active users when search input is empty
         $stmt = $conn->prepare("
             SELECT user_id, user_name, email, is_premium 
             FROM users 
@@ -26,7 +24,6 @@ try {
         ");
         $stmt->execute(['current_id' => $currentUserId]);
     } else {
-        // Use separate parameters (:search1 and :search2) for native PDO compatibility
         $searchTerm = '%' . $query . '%';
         $stmt = $conn->prepare("
             SELECT user_id, user_name, email, is_premium 
@@ -50,4 +47,3 @@ try {
     http_response_code(500);
     echo json_encode(['error' => 'Database query failed']);
 }
-?>
