@@ -253,7 +253,7 @@ if (
     </main>
 
     <script src="https://unpkg.com/@barba/core@2.9.7/dist/barba.umd.js" crossorigin="anonymous"></script>
-    
+    <script src="/js/admin_animations.js?v=1"></script>
     <script src="/js/barba_setup.js?v=4"></script>
 
 </body>

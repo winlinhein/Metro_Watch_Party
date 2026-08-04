@@ -162,8 +162,8 @@ $userRole  = $_SESSION['user_role']  ?? 'user';
     <div class="noise"></div>
 
     <!-- Side Navigation Drawer -->
-    <div id="nav-overlay" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-[90] opacity-0 pointer-events-none transition-opacity duration-300" @click="closeNav()"></div>
-    <div id="side-panel" class="fixed top-0 left-0 w-full md:w-[320px] h-screen bg-[#050508]/95 backdrop-blur-3xl border-r border-white/10 z-[100] flex flex-col pointer-events-none -translate-x-full transition-transform duration-500">
+    <div id="nav-overlay" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-[90] opacity-0 pointer-events-none" @click="closeNav()"></div>
+    <div id="side-panel" class="fixed top-0 left-0 w-full md:w-[320px] h-screen bg-[#050508]/95 backdrop-blur-3xl border-r border-white/10 z-[100] flex flex-col pointer-events-none -translate-x-full will-change-transform">
         <div class="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-10"></div>
         <div class="p-6 flex justify-between items-center border-b border-white/5 relative z-10 shrink-0">
             <div class="flex items-center gap-4 group cursor-pointer">
@@ -194,6 +194,14 @@ $userRole  = $_SESSION['user_role']  ?? 'user';
                     </a>
                 </template>
             </nav>
+            <div class="mt-auto pt-6 pointer-events-auto">
+                <button @click="window.handleLogout()" class="w-full flex items-center gap-3 p-3 rounded-xl border border-white/5 bg-white/[0.02] hover:bg-red-500/10 hover:border-red-500/30 text-white/50 hover:text-red-400 transition-all duration-300 group">
+                    <div class="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center group-hover:bg-red-500/20 transition-colors shrink-0">
+                        <span class="material-symbols-outlined text-[18px]">logout</span>
+                    </div>
+                    <span class="text-sm font-bold tracking-wider block">Logout</span>
+                </button>
+            </div>
         </div>
     </div>
 
@@ -302,7 +310,7 @@ $userRole  = $_SESSION['user_role']  ?? 'user';
                             <!-- Avatar with online status badge -->
                             <div class="relative shrink-0">
                                 <img :src="`https://ui-avatars.com/api/?name=${encodeURIComponent(friend.user_name)}&background=10b981&color=fff`" 
-                                    class="w-9 h-9 rounded-lg border border-emerald-500/30 shadow-md object-cover group-hover:scale-105 transition-transform duration-300">
+                                    class="w-9 h-9 rounded-full border border-emerald-500/30 shadow-md object-cover group-hover:scale-105 transition-transform duration-300">
                                 <span class="absolute -bottom-0.5 -right-0.5 flex h-2.5 w-2.5">
                                     <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
                                     <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500 border-2 border-[#07070b]"></span>
@@ -376,7 +384,7 @@ $userRole  = $_SESSION['user_role']  ?? 'user';
                         <!-- User Information -->
                         <div class="flex items-center gap-3 min-w-0 flex-1">
                             <img :src="`https://ui-avatars.com/api/?name=${encodeURIComponent(user.user_name || user.username || 'User')}&background=10b981&color=fff`" 
-                                class="w-9 h-9 rounded-lg border border-white/10 object-cover shrink-0">
+                                class="w-9 h-9 rounded-full border border-white/10 object-cover shrink-0">
                             <div class="min-w-0 flex-1">
                                 <h4 class="text-xs font-semibold text-white truncate" x-text="user.user_name || user.username"></h4>
                                 <p class="text-[10px] text-white/40 truncate" x-text="user.email || ''"></p>
@@ -439,6 +447,8 @@ $userRole  = $_SESSION['user_role']  ?? 'user';
             </div>
             
             <div class="flex items-center gap-6">
+                <?php include 'user_notification.php'; ?>
+
                 <button @click="showFriendsPanel = true" class="relative w-10 h-10 rounded-xl bg-white/5 hover:bg-white/15 border border-white/5 flex items-center justify-center transition-all">
                     <span class="material-symbols-outlined text-white/70">group</span>
                 </button>
@@ -571,6 +581,7 @@ $userRole  = $_SESSION['user_role']  ?? 'user';
 
         <!-- Watchlist Section Included -->
         <?php include "watchlist.php"; ?>
+        <?php include "user_movies.php"; ?>
     </main>
 
     <?php include __DIR__ . '/../frontend/components/host_party_fab.php'; ?>

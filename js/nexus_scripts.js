@@ -20,11 +20,28 @@ function userDashboard() {
         // Form & Data Objects
         userToBan: null,
         banReason: '',
+        banNotes: '',
         selectedReport: null,
         selectedRoom: null,
         formData: { name: '', price: 0, rarity: 'Common', image: '' },
         newMovie: { title: '', genre: '', year: '', rating: '', description: '', trailer: '', img: '', comments: [] },
         shopItems: [],
+        movies: [],
+        async fetchMovies() { 
+            try { 
+                const response = await fetch("/backend/movies_api.php"); 
+                const text = await response.text(); 
+                try { 
+                    const data = JSON.parse(text); 
+                    if (response.ok) { 
+                        this.movies = data; 
+                    } 
+                } catch(e) {} 
+            } catch(e) {} 
+        }, 
+        init() { 
+            this.fetchMovies(); 
+        },
 
         // Quests Data
         quests: {
@@ -56,7 +73,7 @@ function userDashboard() {
         navItems: [
             { id: 'dashboard', label: 'Command Center', icon: 'dashboard', module: 'MODULE_1' },
             { id: 'watchlist', label: 'Watchlist', icon: 'bookmark', module: 'MODULE_2' },
-            { id: 'friends', label: 'Network (Friends)', icon: 'hub', module: 'MODULE_3' },
+            { id: 'movies', label: 'Movies', icon: 'movie', module: 'MODULE_3' },
             { id: 'history', label: 'Watch History', icon: 'history_toggle_off', module: 'MODULE_4' },
             { id: 'settings', label: 'System Preferences', icon: 'settings', module: 'MODULE_5' }
         ],
@@ -1496,19 +1513,7 @@ window.handleLogout = async function() {
 function adminDashboard(userData = {}) {
     return {
         init() {
-            
-            // 2. Run initial UI animations
-            this.$nextTick(() => {
-                if (typeof window.gsap !== 'undefined') {
-                    window.gsap.to('.chart-bar', {
-                        scaleY: 1,
-                        duration: 1,
-                        stagger: 0.05,
-                        ease: 'power3.out',
-                        delay: 0.5
-                    });
-                }
-            });
+            // Initial GSAP animations are now handled globally in admin_animations.js via Barba hooks
         },
 
         currentTab: 'dashboard',
@@ -1545,6 +1550,7 @@ function adminDashboard(userData = {}) {
         banModalOpen: false,
         userToBan: null,
         banReason: '',
+        banNotes: '',
         
         // CHANGED: Renamed from usersList to users to match filteredUsers getter
         users: [],
@@ -1587,6 +1593,21 @@ function adminDashboard(userData = {}) {
 
         // Movies
         movies: [],
+        async fetchMovies() { 
+            try { 
+                const response = await fetch("/backend/movies_api.php"); 
+                const text = await response.text(); 
+                try { 
+                    const data = JSON.parse(text); 
+                    if (response.ok) { 
+                        this.movies = data; 
+                    } 
+                } catch(e) {} 
+            } catch(e) {} 
+        }, 
+        init() { 
+            this.fetchMovies(); 
+        },
         availableGenres: [], // Holds list from genres table
         movieModalOpen: false,
         editingMovie: false,
@@ -1789,10 +1810,62 @@ function adminDashboard(userData = {}) {
         },
     
         switchTab(tabId) {
+            if (this.currentTab === tabId) return;
+            const oldTab = this.currentTab;
             this.currentTab = tabId;
-            document.querySelectorAll('[data-tab-panel]').forEach(panel => {
-                panel.style.display = panel.getAttribute('data-tab-panel') === tabId ? 'block' : 'none';
-            });
+            const oldPanel = document.querySelector(`[data-tab-panel="${oldTab}"]`);
+            const newPanel = document.querySelector(`[data-tab-panel="${tabId}"]`);
+            
+            if (oldPanel && newPanel && typeof window.gsap !== 'undefined') {
+                // Outro animation for old panel
+                window.gsap.to(oldPanel, {
+                    opacity: 0,
+                    y: -30,
+                    scale: 0.95,
+                    filter: "blur(10px)",
+                    duration: 0.4,
+                    ease: "power3.in",
+                    onComplete: () => {
+                        oldPanel.style.display = 'none';
+                        newPanel.style.display = 'block';
+                        
+                        // Set initial state for new panel to avoid flicker
+                        window.gsap.set(newPanel, { opacity: 0, y: 50, scale: 0.95, rotationX: 15, filter: "blur(15px)", transformPerspective: 1000 });
+                        
+                        // Intro animation for new panel
+                        window.gsap.to(newPanel, {
+                            opacity: 1, 
+                            y: 0, 
+                            scale: 1, 
+                            rotationX: 0, 
+                            filter: "blur(0px)", 
+                            duration: 0.8, 
+                            ease: "expo.out"
+                        });
+                        
+                        // Re-trigger internal staggered items (like charts, stats, tables, forms, etc)
+                        const staggers = newPanel.querySelectorAll('.gs-stat-card, .gs-table-row, .stagger-item, tbody tr, .card, .glass-card, .movie-card-container');
+                        if (staggers.length > 0) {
+                            window.gsap.fromTo(staggers,
+                                { opacity: 0, y: 40, scale: 0.9, rotationX: -15, transformPerspective: 1000 },
+                                { opacity: 1, y: 0, scale: 1, rotationX: 0, duration: 0.8, stagger: 0.05, ease: "back.out(1.5)", delay: 0.1 }
+                            );
+                        }
+                        
+                        // Re-trigger chart bars specifically
+                        const chartBars = newPanel.querySelectorAll('.chart-bar');
+                        if (chartBars.length > 0) {
+                            window.gsap.fromTo(chartBars,
+                                { scaleY: 0, transformOrigin: 'bottom' },
+                                { scaleY: 1, duration: 1, stagger: 0.05, ease: 'power3.out', delay: 0.4 }
+                            );
+                        }
+                    }
+                });
+            } else if (oldPanel && newPanel) {
+                oldPanel.style.display = 'none';
+                newPanel.style.display = 'block';
+            }
         },
         // Toggle genre string or object ID in newMovie.genres
         toggleGenre(genre) {
