@@ -1,14 +1,14 @@
-<?php $isBarba = isset($_SERVER['HTTP_X_BARBA']); ?>
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Nexus - Watch Party</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/ScrollTrigger.min.js"></script>
+    <script src="https://cdn.tailwindcss.com/3.4.17"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.1/dist/cdn.min.js" crossorigin="anonymous"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js" crossorigin="anonymous"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/ScrollTrigger.min.js" crossorigin="anonymous"></script>
     <script>if(window.gsap) gsap.config({nullTargetWarn: false});</script>
     
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
@@ -78,12 +78,14 @@
 
 
 
+    <script src="/js/nexus_scripts.js?v=5"></script>
+    <script src="https://unpkg.com/htmx.org@1.9.10/dist/htmx.min.js" crossorigin="anonymous"></script>
 </head>
 <body class="h-screen w-screen flex relative selection:bg-red-500/30" data-barba="wrapper">
     <?php include __DIR__ . '/../frontend/components/page_loader.php'; ?>
     <?php include __DIR__ . '/../frontend/components/cursor.php'; ?>
     <?php include __DIR__ . '/../frontend/components/toast.php'; ?>
-<div id="barba-container" class="flex w-full h-full" data-barba="container" data-barba-namespace="watch_party" x-data="watchParty()" <?php echo $isBarba ? "x-ignore" : ""; ?>>
+<div id="barba-container" class="flex w-full h-full" data-barba="container" data-barba-namespace="watch_party" x-data="watchParty()" >
 
 
 <div class="bg-mesh"></div>
@@ -319,8 +321,7 @@
         </div>
     </div>
 
-    <script src="/user/watch_party.js"></script>
-
+    
     <script>
         document.addEventListener('fullscreenchange', () => {
             const cursorGlow = document.getElementById('cursor-glow');
@@ -346,90 +347,9 @@
 
 
 
-    <script src="https://unpkg.com/@barba/core@2.9.7/dist/barba.umd.js"></script>
-    <script>
-        if (typeof gsap !== 'undefined' && typeof ScrollTrigger !== 'undefined') { gsap.registerPlugin(ScrollTrigger); }
-        function initAnimations(container = document) {
-            if (typeof gsap === 'undefined') return;
-            const q = gsap.utils.selector(container);
-            const tl = gsap.timeline();
-            
-            const heroTitleWords = q('.gs-word');
-            if(heroTitleWords.length > 0) {
-                gsap.set(heroTitleWords, {opacity: 0, y: 40});
-                
-                tl.fromTo(q('.gs-hero-content .gs-reveal'), 
-                    { opacity: 0, y: 30 },
-                    { opacity: 1, y: 0, duration: 0.8, stagger: 0.1, ease: 'power3.out' }
-                )
-                .to(heroTitleWords,
-                    { opacity: 1, y: 0, duration: 0.8, stagger: 0.05, ease: 'back.out(1.7)' },
-                    "-=0.6"
-                )
-                .fromTo(q('.gs-hero-visual'),
-                    { opacity: 0, scale: 0.9, x: 50 },
-                    { opacity: 1, scale: 1, x: 0, duration: 1, ease: 'power3.out' },
-                    "-=0.8"
-                );
-            }
-
-            q('.gs-reveal-up').forEach(elem => {
-                gsap.fromTo(elem,
-                    { opacity: 0, y: 50 },
-                    {
-                        opacity: 1, 
-                        y: 0, 
-                        duration: 0.8, 
-                        ease: 'power3.out',
-                        scrollTrigger: {
-                            trigger: elem,
-                            start: "top 85%",
-                            toggleActions: "play none none reverse"
-                        }
-                    }
-                );
-            });
-
-            q('.gs-movie-card').forEach((elem, i) => {
-                gsap.fromTo(elem,
-                    { opacity: 0, scale: 0.8, y: 40 },
-                    {
-                        opacity: 1, 
-                        scale: 1, 
-                        y: 0, 
-                        duration: 0.6, 
-                        delay: (i % 4) * 0.1,
-                        ease: 'back.out(1.4)',
-                        scrollTrigger: {
-                            trigger: elem.parentElement,
-                            start: "top 80%"
-                        }
-                    }
-                );
-            });
-
-            q('.gs-step').forEach((elem, i) => {
-                gsap.fromTo(elem,
-                    { opacity: 0, y: 40 },
-                    {
-                        opacity: 1, 
-                        y: 0, 
-                        duration: 0.6,
-                        ease: 'power2.out',
-                        scrollTrigger: {
-                            trigger: elem.parentElement,
-                            start: "top 80%"
-                        }
-                    }
-                );
-            });
-        }
-
-        // Initialize animations on first load
-        initAnimations();
-
-    </script>
-    <script src="/js/barba_setup.js"></script>
+    <script src="https://unpkg.com/@barba/core@2.9.7/dist/barba.umd.js" crossorigin="anonymous"></script>
+    
+    <script src="/js/barba_setup.js?v=4"></script>
 
 </body>
 </html>

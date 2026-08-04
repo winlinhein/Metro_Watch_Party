@@ -52,6 +52,14 @@ app.post("/backend/backend.php", (req, res) => {
   }
 });
 
+app.post("/backend/logout.php", (req, res) => {
+  res.json({
+    success: true,
+    message: 'Signed out successfully.',
+    redirect: '/frontend/login.php?success=' + encodeURIComponent("You have been signed out.")
+  });
+});
+
 function handlePhpRequest(req: express.Request, res: express.Response) {
   let requestPath = req.path;
   if (requestPath === "/") {
@@ -123,7 +131,10 @@ function processPhpMockup(content: string, req: express.Request, currentDir: str
     content = content.replace(includeRegex1, (match, p1) => {
       hasIncludes = true;
       try {
-        const includePath = path.join(process.cwd(), currentDir, p1.replace(/^\//, ''));
+        let includePath = path.join(process.cwd(), currentDir, p1.replace(/^\//, ''));
+        if (!fs.existsSync(includePath)) {
+            includePath = path.join(process.cwd(), currentDir, 'views', p1.replace(/^\//, ''));
+        }
         return fs.existsSync(includePath) ? fs.readFileSync(includePath, 'utf8') : '';
       } catch(e) { return ''; }
     });

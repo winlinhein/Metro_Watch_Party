@@ -24,7 +24,7 @@ header('Content-Type: application/json');
 echo json_encode([
     'success' => true,
     'message' => 'Signed out successfully.',
-    'redirect' => '../frontend/login.php?success=' . urlencode("You have been signed out.")
+    'redirect' => '/frontend/login.php?success=' . urlencode("You have been signed out.")
 ]);
 exit();
 ?>

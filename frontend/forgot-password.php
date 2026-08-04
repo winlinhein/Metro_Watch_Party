@@ -6,35 +6,21 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Forgot Password - Nexus</title>
     <!-- Tailwind CSS (Play CDN) -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script>
-        tailwind.config = {
-            theme: {
-                extend: {
-                    colors: {
-                        'nexus-dark': '#050505',
-                        'nexus-card': 'rgba(255, 255, 255, 0.05)',
-                        'nexus-accent': '#dc2626', /* red-600 */
-                    },
-                    fontFamily: {
-                        sans: ['Inter', 'sans-serif'],
-                    }
-                }
-            }
-        }
-    </script>
+    <script src="https://cdn.tailwindcss.com/3.4.17"></script>
+    
     <!-- Google Fonts & Material Symbols -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;900&display=swap" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet" />
     
     <!-- Alpine.js -->
-    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.1/dist/cdn.min.js" crossorigin="anonymous"></script>
     <!-- HTMX -->
-    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+    <script src="https://unpkg.com/htmx.org@1.9.10/dist/htmx.min.js" crossorigin="anonymous"></script>
     <!-- GSAP -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js" crossorigin="anonymous"></script>
+    <script>if(window.gsap) gsap.config({nullTargetWarn: false});</script>
 
-    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="/frontend/style.css">
     
     <style>
         .ultimate-reveal { opacity: 0; }
@@ -42,6 +28,7 @@
 
 
 
+    <script src="/js/nexus_scripts.js?v=5"></script>
 </head>
 <body class="bg-[#050505] text-white flex items-center justify-center font-sans antialiased relative overflow-hidden min-h-screen" data-barba="wrapper">
     <?php include __DIR__ . '/components/cursor.php'; ?>
@@ -156,120 +143,8 @@
     </div>
 
     <!-- GSAP Animations & Interactions -->
-    <script src="/frontend/animations.js"></script>
-    <script>
-        setTimeout(() => {
-            // 1. GSAP Entrance Animations
-            const tl = gsap.timeline({ defaults: { ease: 'expo.out' } });
-            tl.fromTo("#branding", 
-                { y: -50, opacity: 0, scale: 0.9 },
-                { y: 0, opacity: 1, scale: 1, duration: 1.5, ease: "elastic.out(1, 0.5)" },
-                0
-            )
-            .fromTo("#logo-box",
-                { rotation: 180, borderRadius: "50%" },
-                { rotation: 0, borderRadius: "0.75rem", duration: 1.5, ease: "expo.inOut" },
-                "-=1.2"
-            )
-            .fromTo("#glass-card",
-                { y: 100, opacity: 0, rotationX: 15, scale: 0.9 },
-                { y: 0, opacity: 1, rotationX: 0, scale: 1, duration: 1.2, transformPerspective: 1000 },
-                "-=1"
-            )
-            .fromTo(".gs-stagger",
-                { y: 20, opacity: 0 },
-                { y: 0, opacity: 1, duration: 0.8, stagger: 0.1 },
-                "-=0.8"
-            )
-            .fromTo(".gs-footer",
-                { opacity: 0 },
-                { opacity: 1, duration: 1 },
-                "-=0.5"
-            );
-
-            // 2. Submit Button Click Interaction
-            const submitBtn = document.getElementById('submitBtn');
-            if(submitBtn) {
-                submitBtn.addEventListener('mousedown', () => {
-                    gsap.to(submitBtn, { scale: 0.95, duration: 0.1, ease: 'power2.inOut' });
-                });
-                submitBtn.addEventListener('mouseup', () => {
-                    gsap.to(submitBtn, { scale: 1, duration: 0.5, ease: 'elastic.out(1, 0.3)' });
-                });
-            }
-
-            // 3. Automatically Display Server Errors in Modal
-            const urlParams = new URLSearchParams(window.location.search);
-            if (urlParams.has('error')) {
-                const serverError = urlParams.get('error');
-                if (serverError) {
-                    showErrorModal([decodeURIComponent(serverError)]);
-                }
-            }
-        });
-
-        // Client-side Recovery Form Validation
-        function validateRecoveryForm() {
-            let errors = [];
-            let email = document.getElementById('email').value.trim();
-
-            const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-            if (email.length === 0) {
-                errors.push('Email address is required.');
-            } else if (!emailPattern.test(email)) {
-                errors.push('Please enter a valid email address.');
-            }
-
-            if (errors.length > 0) {
-                showErrorModal(errors);
-                return false;
-            }
-
-            // Validation passed — real POST navigation is about to happen,
-            // so show the loader now instead of after the fact.
-            if (typeof window.showPageLoader === 'function') {
-                window.showPageLoader();
-            }
-
-            return true;
-        }
-
-        function showErrorModal(errors) {
-            const modal = document.getElementById('errorModal');
-            const card = document.getElementById('errorModalCard');
-            const list = document.getElementById('errorList');
-
-            list.innerHTML = errors.map(err => `
-                <li class="flex items-start gap-2">
-                    <span class="material-symbols-outlined text-[16px] text-red-400 mt-0.5">error</span>
-                    <span>${err}</span>
-                </li>
-            `).join('');
-
-            modal.classList.remove('hidden');
-            setTimeout(() => {
-                modal.classList.remove('opacity-0');
-                card.classList.remove('scale-95');
-            }, 10);
-        }
-
-        function closeErrorModal() {
-            const modal = document.getElementById('errorModal');
-            const card = document.getElementById('errorModalCard');
-
-            modal.classList.add('opacity-0');
-            card.classList.add('scale-95');
-            setTimeout(() => {
-                modal.classList.add('hidden');
-            }, 300);
-        }
-
-        function closeErrorModalOnBackdrop(event) {
-            if (event.target.id === 'errorModal') {
-                closeErrorModal();
-            }
-        }
-    </script>
+    
+    
 
 
 
@@ -281,90 +156,9 @@
 
 
 
-    <script src="https://unpkg.com/@barba/core@2.9.7/dist/barba.umd.js"></script>
-    <script>
-        if (typeof gsap !== 'undefined' && typeof ScrollTrigger !== 'undefined') { gsap.registerPlugin(ScrollTrigger); }
-        function initAnimations(container = document) {
-            if (typeof gsap === 'undefined') return;
-            const q = gsap.utils.selector(container);
-            const tl = gsap.timeline();
-            
-            const heroTitleWords = q('.gs-word');
-            if(heroTitleWords.length > 0) {
-                gsap.set(heroTitleWords, {opacity: 0, y: 40});
-                
-                tl.fromTo(q('.gs-hero-content .gs-reveal'), 
-                    { opacity: 0, y: 30 },
-                    { opacity: 1, y: 0, duration: 0.8, stagger: 0.1, ease: 'power3.out' }
-                )
-                .to(heroTitleWords,
-                    { opacity: 1, y: 0, duration: 0.8, stagger: 0.05, ease: 'back.out(1.7)' },
-                    "-=0.6"
-                )
-                .fromTo(q('.gs-hero-visual'),
-                    { opacity: 0, scale: 0.9, x: 50 },
-                    { opacity: 1, scale: 1, x: 0, duration: 1, ease: 'power3.out' },
-                    "-=0.8"
-                );
-            }
-
-            q('.gs-reveal-up').forEach(elem => {
-                gsap.fromTo(elem,
-                    { opacity: 0, y: 50 },
-                    {
-                        opacity: 1, 
-                        y: 0, 
-                        duration: 0.8, 
-                        ease: 'power3.out',
-                        scrollTrigger: {
-                            trigger: elem,
-                            start: "top 85%",
-                            toggleActions: "play none none reverse"
-                        }
-                    }
-                );
-            });
-
-            q('.gs-movie-card').forEach((elem, i) => {
-                gsap.fromTo(elem,
-                    { opacity: 0, scale: 0.8, y: 40 },
-                    {
-                        opacity: 1, 
-                        scale: 1, 
-                        y: 0, 
-                        duration: 0.6, 
-                        delay: (i % 4) * 0.1,
-                        ease: 'back.out(1.4)',
-                        scrollTrigger: {
-                            trigger: elem.parentElement,
-                            start: "top 80%"
-                        }
-                    }
-                );
-            });
-
-            q('.gs-step').forEach((elem, i) => {
-                gsap.fromTo(elem,
-                    { opacity: 0, y: 40 },
-                    {
-                        opacity: 1, 
-                        y: 0, 
-                        duration: 0.6,
-                        ease: 'power2.out',
-                        scrollTrigger: {
-                            trigger: elem.parentElement,
-                            start: "top 80%"
-                        }
-                    }
-                );
-            });
-        }
-
-        // Initialize animations on first load
-        initAnimations();
-
-    </script>
-    <script src="/js/barba_setup.js"></script>
+    <script src="https://unpkg.com/@barba/core@2.9.7/dist/barba.umd.js" crossorigin="anonymous"></script>
+    
+    <script src="/js/barba_setup.js?v=4"></script>
 
 </body>
 </html>

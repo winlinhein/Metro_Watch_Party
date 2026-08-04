@@ -1,4 +1,3 @@
-<?php $isBarba = isset($_SERVER["HTTP_X_BARBA"]); ?>
 <?php
 session_start();
 
@@ -8,15 +7,13 @@ if (
     $_SESSION['authenticated'] !== true || 
     empty($_SESSION['user_role']) 
 ) {
-    header("Location: ../frontend/login.php?error=" . urlencode("Access denied. Admin privileges required."));
+    header("Location: ../frontend/login.php?error=" . urlencode("Access denied. Please log in to view your dashboard."));
     exit();
 }
 
-    $userName  = $_SESSION['user_name']  ?? 'Agent';
-    $userEmail = $_SESSION['user_email'] ?? '';
-    $userRole  = $_SESSION['user_role']  ?? 'user';
-    
-
+$userName  = $_SESSION['user_name']  ?? 'Agent';
+$userEmail = $_SESSION['user_email'] ?? '';
+$userRole  = $_SESSION['user_role']  ?? 'user';
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -26,7 +23,7 @@ if (
     <title>Nexus - User Dashboard</title>
     
     <!-- Tailwind CSS -->
-    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.tailwindcss.com/3.4.17"></script>
     <script>
         tailwind.config = {
             theme: {
@@ -52,10 +49,10 @@ if (
     <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined" rel="stylesheet" />
     
     <!-- Alpine.js & GSAP -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/ScrollTrigger.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js" crossorigin="anonymous"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/ScrollTrigger.min.js" crossorigin="anonymous"></script>
     <script>if(window.gsap) gsap.config({nullTargetWarn: false});</script>
-    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.1/dist/cdn.min.js" crossorigin="anonymous"></script>
     
     <style>
         body { 
@@ -63,12 +60,8 @@ if (
             background-color: #030305; 
             color: #ffffff; 
             overflow: hidden; 
-            
             cursor: none;
         }
-        
-        
-        
 
         .mono { font-family: 'JetBrains Mono', monospace; }
         
@@ -96,13 +89,7 @@ if (
         ::-webkit-scrollbar-track { background: transparent; }
         ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 10px; }
         ::-webkit-scrollbar-thumb:hover { background: rgba(239,68,68,0.5); }
-        
-        
-        
-        
-        
 
-        /* Hover Effects */
         .hover-glow {
             transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
         }
@@ -119,7 +106,6 @@ if (
             transform: scale(1.2) translateY(-4px);
         }
 
-        /* Ambient Background */
         .bg-mesh {
             position: fixed;
             top: -20%; left: -20%; right: -20%; bottom: -20%;
@@ -163,29 +149,25 @@ if (
         }
     </style>
 
-
-
+    <script src="/js/nexus_scripts.js?v=6"></script>
 </head>
 <body class="h-screen w-screen flex flex-col relative selection:bg-red-500/30" data-barba="wrapper">
     <?php include __DIR__ . '/../frontend/components/page_loader.php'; ?>
     <?php include __DIR__ . '/../frontend/components/cursor.php'; ?>
     <?php include __DIR__ . '/../frontend/components/toast.php'; ?>
-<div id="barba-container" class="flex w-full h-full" data-barba="container" data-barba-namespace="dashboard" <?php echo $isBarba ? "x-ignore" : ""; ?>  x-data="userDashboard()" x-init="initDashboard()">
 
+<div id="barba-container" class="flex w-full h-full" data-barba="container" data-barba-namespace="dashboard" x-data="userDashboard()" x-init="initDashboard()">
 
-<div class="bg-mesh"></div>
+    <div class="bg-mesh"></div>
     <div class="noise"></div>
 
     <!-- Side Navigation Drawer -->
-    <div id="nav-overlay" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-[90] opacity-0 pointer-events-none" @click="closeNav()"></div>
-    <div id="side-panel" class="fixed top-0 left-0 w-full md:w-[320px] h-screen bg-[#050508]/95 backdrop-blur-3xl border-r border-white/10 z-[100] flex flex-col pointer-events-none -translate-x-full">
+    <div id="nav-overlay" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-[90] opacity-0 pointer-events-none transition-opacity duration-300" @click="closeNav()"></div>
+    <div id="side-panel" class="fixed top-0 left-0 w-full md:w-[320px] h-screen bg-[#050508]/95 backdrop-blur-3xl border-r border-white/10 z-[100] flex flex-col pointer-events-none -translate-x-full transition-transform duration-500">
         <div class="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-10"></div>
-        <div class="absolute inset-0 bg-gradient-to-b from-red-500/5 to-transparent pointer-events-none opacity-50"></div>
-        
         <div class="p-6 flex justify-between items-center border-b border-white/5 relative z-10 shrink-0">
-            <div class="flex items-center gap-4 side-panel-stagger group cursor-pointer">
+            <div class="flex items-center gap-4 group cursor-pointer">
                 <div class="w-10 h-10 bg-gradient-to-tr from-indigo-500 to-red-600 rounded-xl flex items-center justify-center shadow-[0_0_20px_rgba(239,68,68,0.4)] relative overflow-hidden icon-bounce">
-                    <div class="absolute inset-0 bg-white/20 scale-0 group-hover:scale-100 transition-transform duration-300 rounded-xl opacity-0 group-hover:opacity-100"></div>
                     <span class="material-symbols-outlined text-white font-bold relative z-10 text-[20px]">dashboard_customize</span>
                 </div>
                 <div>
@@ -193,60 +175,35 @@ if (
                     <span class="text-[10px] text-white/50 tracking-widest uppercase font-semibold">Menu</span>
                 </div>
             </div>
-            <button @click="closeNav()" class="relative w-8 h-8 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 flex items-center justify-center transition-all duration-300 group cursor-pointer pointer-events-auto side-panel-stagger icon-bounce">
-                <span class="material-symbols-outlined text-white/70 group-hover:text-white group-hover:rotate-90 transition-all duration-500 text-[18px]">close</span>
+            <button @click="closeNav()" class="w-8 h-8 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 flex items-center justify-center transition-all duration-300 pointer-events-auto">
+                <span class="material-symbols-outlined text-white/70 text-[18px]">close</span>
             </button>
         </div>
 
         <div class="flex-1 flex flex-col p-6 relative z-10 overflow-y-auto">
-            
-            <!-- Nav Items -->
             <nav class="flex-1 flex flex-col gap-2">
                 <template x-for="item in navItems" :key="item.id">
                     <a href="#" @click.prevent="currentTab = item.id; closeNav()" 
                        :class="{'bg-red-500/10 border-red-500/30 text-white shadow-[0_0_20px_rgba(239,68,68,0.1)]': currentTab === item.id, 'bg-white/[0.02] border-white/5 text-white/50': currentTab !== item.id}"
-                       class="side-nav-item flex items-center gap-3 p-3 rounded-xl border hover:bg-white/[0.05] hover:text-white transition-all duration-300 cursor-pointer group pointer-events-auto">
-                        <div class="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center group-hover:bg-red-500/20 group-hover:text-red-400 transition-colors relative overflow-hidden shrink-0"
+                       class="flex items-center gap-3 p-3 rounded-xl border hover:bg-white/[0.05] hover:text-white transition-all duration-300 cursor-pointer group pointer-events-auto">
+                        <div class="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center group-hover:bg-red-500/20 group-hover:text-red-400 transition-colors shrink-0"
                              :class="{'bg-red-500/20 text-red-400': currentTab === item.id}">
-                            <span class="material-symbols-outlined icon text-[18px] group-hover:scale-110 transition-transform duration-300 relative z-10" x-text="item.icon"></span>
+                            <span class="material-symbols-outlined text-[18px]" x-text="item.icon"></span>
                         </div>
-                        <div class="min-w-0 flex-1">
-                            <span class="text-sm font-bold tracking-wider block truncate" x-text="item.label"></span>
-                        </div>
+                        <span class="text-sm font-bold tracking-wider block truncate" x-text="item.label"></span>
                     </a>
                 </template>
             </nav>
-            
-            <div class="mt-6 flex gap-2 side-panel-stagger">
-                <button class="flex-1 py-2.5 bg-white/5 rounded-xl text-[10px] font-bold uppercase tracking-widest text-white/70 hover:text-white hover:bg-white/10 border border-white/5 transition-colors flex items-center justify-center gap-2 pointer-events-auto">
-                    <span class="material-symbols-outlined text-[16px]">settings</span> Settings
-                </button>
-                <button id="logoutBtn" 
-                        onclick="handleLogout()"
-                        class="flex-1 py-2.5 bg-red-500/10 rounded-xl text-[10px] font-bold uppercase tracking-widest text-red-400 hover:text-red-300 hover:bg-red-500/20 border border-red-500/20 transition-colors flex items-center justify-center gap-2 pointer-events-auto">
-                    <span class="material-symbols-outlined text-[16px]">logout</span> Sign Out
-                </button>
-            </div>
         </div>
     </div>
 
-    
     <!-- Quests Drawer -->
-    <div x-show="showQuestsPanel" 
-         class="fixed inset-0 bg-black/60 backdrop-blur-sm z-[90]" 
-         x-transition.opacity 
-         @click="showQuestsPanel = false"
-         style="display: none;"></div>
-         
-    <div class="fixed top-0 right-0 w-full md:w-[400px] h-screen bg-[#050508]/95 backdrop-blur-3xl border-l border-white/10 z-[100] flex flex-col shadow-[0_0_50px_rgba(0,0,0,0.5)] transition-transform duration-500 ease-[cubic-bezier(0.19,1,0.22,1)]"
-         :class="showQuestsPanel ? 'translate-x-0' : 'translate-x-full'">
-        <div class="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-10"></div>
-        <div class="absolute top-0 right-0 w-full h-1/2 bg-gradient-to-b from-yellow-500/5 to-transparent pointer-events-none opacity-50"></div>
-        
-        <div class="p-6 border-b border-white/5 relative z-10 shrink-0 quest-header">
+    <div x-show="showQuestsPanel" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-[90]" x-transition.opacity @click="showQuestsPanel = false" style="display: none;"></div>
+    <div class="fixed top-0 right-0 w-full md:w-[400px] h-screen bg-[#050508]/95 backdrop-blur-3xl border-l border-white/10 z-[100] flex flex-col shadow-[0_0_50px_rgba(0,0,0,0.5)] transition-transform duration-500" :class="showQuestsPanel ? 'translate-x-0' : 'translate-x-full'">
+        <div class="p-6 border-b border-white/5 relative z-10 shrink-0">
             <div class="flex items-center justify-between mb-6">
                 <div class="flex items-center gap-3">
-                    <div class="w-10 h-10 rounded-xl bg-yellow-500/10 border border-yellow-500/20 flex items-center justify-center shadow-[0_0_15px_rgba(234,179,8,0.2)]">
+                    <div class="w-10 h-10 rounded-xl bg-yellow-500/10 border border-yellow-500/20 flex items-center justify-center">
                         <span class="material-symbols-outlined text-yellow-400">stars</span>
                     </div>
                     <div>
@@ -254,175 +211,212 @@ if (
                         <p class="text-xs text-white/50 mono"><span x-text="stats[3].value"></span> PTS AVAILABLE</p>
                     </div>
                 </div>
-                <div class="flex gap-2">
-                    <button @click="showQuestsPanel = false" class="w-8 h-8 rounded-lg bg-white/5 hover:bg-white/10 flex items-center justify-center text-white/50 hover:text-white transition-all duration-300 hover:rotate-90" title="Close">
-                        <span class="material-symbols-outlined text-[18px]">close</span>
-                    </button>
-                </div>
+                <button @click="showQuestsPanel = false" class="w-8 h-8 rounded-lg bg-white/5 hover:bg-white/10 flex items-center justify-center text-white/50 hover:text-white">
+                    <span class="material-symbols-outlined text-[18px]">close</span>
+                </button>
             </div>
             
-            <!-- Tabs -->
             <div class="flex items-center gap-2 bg-black/40 p-1 rounded-xl border border-white/5">
-                <button @click="questActiveTab = 'daily'" class="flex-1 py-1.5 text-xs font-bold rounded-lg transition-all duration-300 uppercase tracking-widest" :class="questActiveTab === 'daily' ? 'bg-yellow-500/20 text-yellow-400 shadow-[0_0_15px_rgba(234,179,8,0.2)]' : 'text-white/40 hover:text-white/80'">Daily</button>
-                <button @click="questActiveTab = 'weekly'" class="flex-1 py-1.5 text-xs font-bold rounded-lg transition-all duration-300 uppercase tracking-widest" :class="questActiveTab === 'weekly' ? 'bg-yellow-500/20 text-yellow-400 shadow-[0_0_15px_rgba(234,179,8,0.2)]' : 'text-white/40 hover:text-white/80'">Weekly</button>
-                <button @click="questActiveTab = 'monthly'" class="flex-1 py-1.5 text-xs font-bold rounded-lg transition-all duration-300 uppercase tracking-widest" :class="questActiveTab === 'monthly' ? 'bg-yellow-500/20 text-yellow-400 shadow-[0_0_15px_rgba(234,179,8,0.2)]' : 'text-white/40 hover:text-white/80'">Monthly</button>
+                <button @click="questActiveTab = 'daily'" class="flex-1 py-1.5 text-xs font-bold rounded-lg uppercase" :class="questActiveTab === 'daily' ? 'bg-yellow-500/20 text-yellow-400' : 'text-white/40'">Daily</button>
+                <button @click="questActiveTab = 'weekly'" class="flex-1 py-1.5 text-xs font-bold rounded-lg uppercase" :class="questActiveTab === 'weekly' ? 'bg-yellow-500/20 text-yellow-400' : 'text-white/40'">Weekly</button>
+                <button @click="questActiveTab = 'monthly'" class="flex-1 py-1.5 text-xs font-bold rounded-lg uppercase" :class="questActiveTab === 'monthly' ? 'bg-yellow-500/20 text-yellow-400' : 'text-white/40'">Monthly</button>
             </div>
         </div>
         
-        <div class="flex-1 overflow-y-auto p-6 relative z-10 custom-scrollbar">
-            <div class="space-y-4">
-                <template x-for="(quest, index) in quests[questActiveTab]" :key="quest.id">
-                    <div class="group relative bg-white/5 border border-white/10 rounded-xl p-4 overflow-hidden transition-all duration-300 hover:bg-white/[0.07] hover:border-white/20 quest-item">
-                        <div class="absolute inset-0 bg-gradient-to-r from-yellow-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none"></div>
-                        
-                        <div class="flex justify-between items-start mb-2 relative z-10">
-                            <div>
-                                <h4 class="text-sm font-bold text-white mb-1 group-hover:text-yellow-400 transition-colors" x-text="quest.title"></h4>
-                                <p class="text-[11px] text-white/50 leading-relaxed" x-text="quest.desc"></p>
-                            </div>
-                            <div class="flex-shrink-0 ml-4 flex items-center justify-center w-8 h-8 rounded-full" :class="quest.completed ? 'bg-green-500/20 text-green-400 border border-green-500/30 shadow-[0_0_15px_rgba(34,197,94,0.3)]' : 'bg-white/5 text-white/40 border border-white/10'">
-                                <span class="material-symbols-outlined text-[16px]" x-text="quest.completed ? 'check' : 'hourglass_empty'"></span>
-                            </div>
+        <div class="flex-1 overflow-y-auto p-6 relative z-10 space-y-4">
+            <template x-for="quest in quests[questActiveTab]" :key="quest.id">
+                <div class="bg-white/5 border border-white/10 rounded-xl p-4">
+                    <div class="flex justify-between items-start mb-2">
+                        <div>
+                            <h4 class="text-sm font-bold text-white" x-text="quest.title"></h4>
+                            <p class="text-[11px] text-white/50" x-text="quest.desc"></p>
                         </div>
-                        
-                        <div class="flex items-center justify-between mt-4 relative z-10">
-                            <div class="flex items-center gap-1.5 px-2 py-1 bg-yellow-500/10 rounded border border-yellow-500/20 shadow-[0_0_10px_rgba(234,179,8,0.1)]">
-                                <span class="material-symbols-outlined text-[14px] text-yellow-400">toll</span>
-                                <span class="text-[10px] font-bold text-yellow-400 mono tracking-widest" x-text="quest.points + ' PTS'"></span>
-                            </div>
-                            
-                            <button class="text-[10px] uppercase tracking-widest font-bold transition-all" :class="quest.completed ? 'text-green-400 cursor-default' : 'text-yellow-400 hover:text-yellow-300 hover:shadow-[0_0_10px_rgba(234,179,8,0.5)]'" x-text="quest.completed ? 'Claimed' : 'Claim'"></button>
-                        </div>
+                        <span class="material-symbols-outlined text-[18px]" :class="quest.completed ? 'text-green-400' : 'text-white/30'" x-text="quest.completed ? 'check_circle' : 'hourglass_empty'"></span>
                     </div>
-                </template>
-            </div>
-        </div>
-    </div>
-
-    <!-- Friends Drawer -->
-    <div x-show="showFriendsPanel" 
-         class="fixed inset-0 bg-black/60 backdrop-blur-sm z-[90]" 
-         x-transition.opacity 
-         @click="showFriendsPanel = false"
-         style="display: none;"></div>
-         
-    <div class="fixed top-0 right-0 w-full md:w-[360px] h-screen bg-[#050508]/95 backdrop-blur-3xl border-l border-white/10 z-[100] flex flex-col shadow-[0_0_50px_rgba(0,0,0,0.5)] transition-transform duration-500 ease-[cubic-bezier(0.19,1,0.22,1)]"
-         :class="showFriendsPanel ? 'translate-x-0' : 'translate-x-full'">
-        <div class="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-10"></div>
-        <div class="absolute top-0 right-0 w-full h-1/2 bg-gradient-to-b from-emerald-500/5 to-transparent pointer-events-none opacity-50"></div>
-        
-        <div class="p-6 border-b border-white/5 relative z-10 shrink-0 quest-header">
-            <div class="flex items-center justify-between mb-6">
-                <div class="flex items-center gap-4 group cursor-pointer">
-                    <div class="w-10 h-10 bg-gradient-to-tr from-emerald-500 to-teal-600 rounded-xl flex items-center justify-center shadow-[0_0_20px_rgba(16,185,129,0.3)] relative overflow-hidden">
-                        <div class="absolute inset-0 bg-white/20 scale-0 group-hover:scale-100 transition-transform duration-300 rounded-xl opacity-0 group-hover:opacity-100"></div>
-                        <span class="material-symbols-outlined text-white font-bold relative z-10 text-[20px]">group</span>
+                    <div class="flex justify-between items-center mt-3">
+                        <span class="text-[10px] font-bold text-yellow-400 mono" x-text="quest.points + ' PTS'"></span>
+                        <button class="text-[10px] uppercase font-bold text-yellow-400 hover:underline" x-text="quest.completed ? 'Claimed' : 'Claim'"></button>
                     </div>
-                    <div>
-                        <h2 class="text-xl font-bold tracking-tighter uppercase block leading-none">Friends</h2>
-                        <p class="text-[10px] text-emerald-400 uppercase tracking-widest mono font-semibold mt-1 flex items-center gap-1.5"><span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>9 Online</p>
-                    </div>
-                </div>
-                <div class="flex gap-2">
-                    <button @click="showInviteModal = true" class="w-8 h-8 rounded-lg bg-emerald-500/10 hover:bg-emerald-500 flex items-center justify-center text-emerald-400 hover:text-white transition-all duration-300 shadow-[0_0_15px_rgba(16,185,129,0.2)] hover:shadow-[0_0_20px_rgba(16,185,129,0.5)]" title="Invite Friends">
-                        <span class="material-symbols-outlined text-[18px]">person_add</span>
-                    </button>
-                    <button @click="showFriendsPanel = false" class="w-8 h-8 rounded-lg bg-white/5 hover:bg-white/10 flex items-center justify-center text-white/50 hover:text-white transition-all duration-300 hover:rotate-90" title="Close">
-                        <span class="material-symbols-outlined text-[18px]">close</span>
-                    </button>
-                </div>
-            </div>
-            
-            <div class="relative group">
-                <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-white/40 group-focus-within:text-emerald-400 transition-colors text-[18px]">search</span>
-                <input type="text" placeholder="Search network..." class="w-full bg-white/[0.03] border border-white/10 rounded-xl py-3 pl-10 pr-4 text-sm text-white placeholder-white/30 focus:border-emerald-500/50 focus:bg-white/[0.05] transition-all outline-none">
-            </div>
-        </div>
-        
-        <div class="flex-1 overflow-y-auto p-4 relative z-10 space-y-2">
-            <template x-for="(friend, i) in friends" :key="i">
-                <div class="flex items-center gap-3 p-3 rounded-xl bg-white/[0.01] hover:bg-white/[0.04] transition-all duration-300 cursor-pointer group border border-transparent hover:border-white/10 hover:shadow-[0_4px_20px_rgba(0,0,0,0.2)]">
-                    <div class="relative shrink-0">
-                        <img :src="friend.avatar" class="w-11 h-11 rounded-full border border-white/10 group-hover:border-emerald-500/40 transition-colors shadow-lg">
-                        <div class="absolute -bottom-1 -right-1 w-4 h-4 rounded-full border-2 border-[#050508]"
-                             :class="{'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]': friend.status === 'Online', 'bg-yellow-500 shadow-[0_0_8px_rgba(234,179,8,0.5)]': friend.status === 'Away', 'bg-white/20': friend.status === 'Offline'}"></div>
-                    </div>
-                    <div class="flex-1 min-w-0">
-                        <div class="flex justify-between items-center mb-1">
-                            <span class="text-sm font-bold text-white/90 truncate group-hover:text-emerald-400 transition-colors" x-text="friend.name"></span>
-                            <span class="text-[9px] uppercase tracking-wider text-white/40 font-mono font-bold" x-text="friend.status"></span>
-                        </div>
-                        <p class="text-xs text-white/50 truncate" x-text="friend.activity"></p>
-                    </div>
-                    <button class="w-8 h-8 rounded-lg bg-white/5 hover:bg-emerald-500 hover:text-white text-white/40 transition-all duration-300 flex items-center justify-center opacity-0 group-hover:opacity-100 shrink-0 shadow-lg hover:shadow-[0_0_15px_rgba(16,185,129,0.4)]">
-                        <span class="material-symbols-outlined text-[16px]">chat</span>
-                    </button>
                 </div>
             </template>
         </div>
     </div>
 
-    <!-- Invite Modal -->
-    <div x-show="showInviteModal" 
-         class="fixed inset-0 z-[110] flex items-center justify-center pointer-events-none" 
-         style="display: none;">
-         
-        <!-- Backdrop -->
-        <div class="absolute inset-0 bg-black/60 backdrop-blur-md pointer-events-auto transition-opacity duration-300" 
-             x-show="showInviteModal" 
-             x-transition.opacity 
-             @click="showInviteModal = false"></div>
-             
-        <!-- Modal Content -->
-        <div class="relative w-[90%] max-w-[480px] bg-[#050508]/95 backdrop-blur-3xl border border-white/10 rounded-3xl shadow-[0_20px_60px_rgba(0,0,0,0.8)] pointer-events-auto flex flex-col max-h-[85vh] overflow-hidden"
+    <!-- Friends Drawer -->
+    <div x-show="showFriendsPanel" 
+        class="fixed inset-0 bg-black/70 backdrop-blur-md z-[90] transition-opacity duration-300 ease-out" 
+        x-transition:enter="transition ease-out duration-300"
+        x-transition:enter-start="opacity-0"
+        x-transition:enter-end="opacity-100"
+        x-transition:leave="transition ease-in duration-200"
+        x-transition:leave-start="opacity-100"
+        x-transition:leave-end="opacity-0"
+        @click="showFriendsPanel = false" 
+        style="display: none;"></div>
+
+    <div class="fixed top-0 right-0 w-full md:w-[310px] h-screen bg-[#07070b]/95 backdrop-blur-2xl border-l border-white/10 z-[100] flex flex-col shadow-[0_0_60px_rgba(0,0,0,0.8)] transition-transform duration-300 ease-out" 
+        :class="showFriendsPanel ? 'translate-x-0' : 'translate-x-full'">
+        
+        <!-- Drawer Header -->
+        <div class="p-4 border-b border-white/5 relative z-10 shrink-0 bg-gradient-to-b from-white/[0.02] to-transparent">
+            <div class="flex items-center justify-between mb-4">
+                <div class="flex items-center gap-3">
+                    <div class="w-9 h-9 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center shadow-[0_0_15px_rgba(16,185,129,0.1)] shrink-0">
+                        <span class="material-symbols-outlined text-emerald-400 text-[18px]">group</span>
+                    </div>
+                    <div>
+                        <h2 class="text-base font-bold uppercase tracking-wider text-white">Friends</h2>
+                        <p class="text-[10px] text-emerald-400/90 uppercase tracking-widest font-mono mt-0.5 flex items-center gap-1.5">
+                            <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                            <span x-text="friends.length"></span> Total
+                        </p>
+                    </div>
+                </div>
+                <div class="flex items-center gap-1.5">
+                    <button @click="showInviteModal = true" class="w-8 h-8 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/20 hover:border-emerald-500/40 transition-all duration-200 flex items-center justify-center group" title="Search Users">
+                        <span class="material-symbols-outlined text-[16px] group-hover:scale-110 transition-transform">person_add</span>
+                    </button>
+                    <button @click="showFriendsPanel = false" class="w-8 h-8 rounded-lg bg-white/5 hover:bg-white/10 text-white/40 hover:text-white border border-white/5 transition-all duration-200 flex items-center justify-center">
+                        <span class="material-symbols-outlined text-[16px]">close</span>
+                    </button>
+                </div>
+            </div>
+            
+            <!-- Search Filter Input -->
+            <div class="relative">
+                <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-white/30 text-[16px]">search</span>
+                <input type="text" 
+                    x-model="friendSearchQuery" 
+                    placeholder="Filter connected friends..." 
+                    class="w-full bg-white/[0.03] hover:bg-white/[0.05] focus:bg-white/[0.07] border border-white/10 focus:border-emerald-500/50 rounded-xl py-2 pl-9 pr-3 text-[11px] text-white placeholder-white/30 outline-none transition-all duration-200">
+            </div>
+        </div>
+        
+        <!-- Friends List Container -->
+        <div class="flex-1 overflow-y-auto p-3 space-y-2.5 custom-scrollbar relative z-10">
+            <template x-for="friend in filteredFriends" :key="friend.user_id">
+                <div class="group relative bg-gradient-to-br from-white/[0.04] to-white/[0.01] hover:from-white/[0.07] hover:to-emerald-500/[0.04] border border-white/10 hover:border-emerald-500/30 rounded-xl p-3 transition-all duration-300 ease-out hover:shadow-[0_8px_25px_-5px_rgba(0,0,0,0.5),0_0_15px_rgba(16,185,129,0.1)] hover:-translate-y-0.5">
+                    
+                    <div class="flex items-center justify-between gap-2.5">
+                        <div class="flex items-center gap-2.5 min-w-0 flex-1">
+                            <!-- Avatar with online status badge -->
+                            <div class="relative shrink-0">
+                                <img :src="`https://ui-avatars.com/api/?name=${encodeURIComponent(friend.user_name)}&background=10b981&color=fff`" 
+                                    class="w-9 h-9 rounded-lg border border-emerald-500/30 shadow-md object-cover group-hover:scale-105 transition-transform duration-300">
+                                <span class="absolute -bottom-0.5 -right-0.5 flex h-2.5 w-2.5">
+                                    <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                                    <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500 border-2 border-[#07070b]"></span>
+                                </span>
+                            </div>
+                            
+                            <div class="min-w-0 flex-1">
+                                <h4 class="text-xs font-semibold text-white/90 group-hover:text-white truncate transition-colors" x-text="friend.user_name"></h4>
+                            </div>
+                        </div>
+
+                        <!-- Chat Action Button -->
+                        <button class="shrink-0 flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 text-[10px] font-semibold uppercase tracking-wider border border-emerald-500/20 hover:border-emerald-500/40 transition-all duration-200 active:scale-95 group/btn">
+                            <span class="material-symbols-outlined text-[13px] group-hover/btn:translate-x-0.5 transition-transform">chat</span>
+                            <span>Chat</span>
+                        </button>
+                    </div>
+
+                </div>
+            </template>
+
+            <!-- Empty State -->
+            <div x-show="filteredFriends.length === 0" class="py-10 px-4 text-center">
+                <div class="w-10 h-10 rounded-full bg-white/5 border border-white/10 flex items-center justify-center mx-auto mb-2 text-white/30">
+                    <span class="material-symbols-outlined text-[20px]">person_off</span>
+                </div>
+                <p class="text-[11px] font-medium text-white/40">No connected friends found</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Live User Search Modal -->
+    <div x-show="showInviteModal" class="fixed inset-0 z-[110] flex items-center justify-center" style="display: none;">
+        <div class="absolute inset-0 bg-black/70 backdrop-blur-md" x-show="showInviteModal" x-transition.opacity @click="showInviteModal = false"></div>
+        <div class="relative w-[90%] max-w-[480px] bg-[#050508]/95 backdrop-blur-3xl border border-white/10 rounded-3xl shadow-2xl flex flex-col max-h-[85vh] overflow-hidden z-10"
              x-show="showInviteModal"
-             x-transition:enter="transition-all duration-500 cubic-bezier(0.34, 1.56, 0.64, 1)"
-             x-transition:enter-start="opacity-0 scale-95 translate-y-4"
-             x-transition:enter-end="opacity-100 scale-100 translate-y-0"
-             x-transition:leave="transition-all duration-300 ease-in"
-             x-transition:leave-start="opacity-100 scale-100 translate-y-0"
-             x-transition:leave-end="opacity-0 scale-95 translate-y-4">
+             x-transition:enter="transition-all duration-300"
+             x-transition:enter-start="opacity-0 scale-95"
+             x-transition:enter-end="opacity-100 scale-100">
             
-            <div class="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-10 pointer-events-none"></div>
-            
-            <!-- Header -->
-            <div class="p-6 border-b border-white/5 relative z-10 shrink-0 quest-header">
-                <div class="flex items-center justify-between mb-6">
-                    <div class="flex items-center gap-4">
-                        <div class="w-10 h-10 bg-gradient-to-tr from-emerald-500 to-teal-600 rounded-xl flex items-center justify-center shadow-[0_0_20px_rgba(16,185,129,0.3)]">
-                            <span class="material-symbols-outlined text-white font-bold text-[20px]">person_add</span>
+            <div class="p-6 border-b border-white/5 shrink-0">
+                <div class="flex items-center justify-between mb-4">
+                    <div class="flex items-center gap-3">
+                        <div class="w-10 h-10 bg-emerald-500/10 border border-emerald-500/20 rounded-xl flex items-center justify-center">
+                            <span class="material-symbols-outlined text-emerald-400 text-[20px]">person_search</span>
                         </div>
                         <div>
-                            <h2 class="text-xl font-bold tracking-tighter uppercase block leading-none">Add Friends</h2>
-                            <p class="text-[10px] text-white/50 uppercase tracking-widest mono font-semibold mt-1">Global Directory</p>
+                            <h2 class="text-xl font-bold uppercase leading-none">User Search</h2>
+                            <p class="text-[10px] text-white/40 uppercase tracking-widest mono mt-1">Find & add friends</p>
                         </div>
                     </div>
-                    <button @click="showInviteModal = false" class="w-8 h-8 rounded-lg bg-white/5 hover:bg-white/10 flex items-center justify-center text-white/50 hover:text-white transition-all duration-300 hover:rotate-90">
+                    <button @click="showInviteModal = false" class="w-8 h-8 rounded-lg bg-white/5 hover:bg-white/10 text-white/50 hover:text-white flex items-center justify-center">
                         <span class="material-symbols-outlined text-[18px]">close</span>
                     </button>
                 </div>
                 
-                <div class="relative group">
-                    <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-white/40 group-focus-within:text-emerald-400 transition-colors text-[18px]">search</span>
-                    <input type="text" placeholder="Search by username or ID..." class="w-full bg-white/[0.03] border border-white/10 rounded-xl py-3 pl-10 pr-4 text-sm text-white placeholder-white/30 focus:border-emerald-500/50 focus:bg-white/[0.05] transition-all outline-none">
+                <div class="relative">
+                    <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-white/40 text-[18px]">search</span>
+                    <input type="text" x-model="searchQuery" placeholder="Type username or email..." class="w-full bg-white/[0.03] border border-white/10 rounded-xl py-3 pl-10 pr-4 text-sm text-white placeholder-white/30 focus:border-emerald-500/50 outline-none">
                 </div>
             </div>
             
-            <!-- Search Results / Suggestions -->
-            <div class="flex-1 overflow-y-auto p-4 relative z-10 space-y-2">
-                <p class="text-[10px] font-bold text-white/40 uppercase tracking-widest mono mb-3 px-2">Suggested Operatives</p>
-                <template x-for="i in 5" :key="i">
-                    <div class="flex items-center gap-3 p-3 rounded-xl bg-white/[0.01] hover:bg-white/[0.04] transition-all duration-300 group border border-transparent hover:border-white/10">
-                        <img :src="`https://ui-avatars.com/api/?name=Member+${i}&background=random&color=fff`" class="w-11 h-11 rounded-full border border-white/10 group-hover:border-emerald-500/40 transition-colors">
-                        <div class="flex-1 min-w-0">
-                            <h4 class="text-sm font-bold text-white/90 group-hover:text-white transition-colors truncate" x-text="`User_${Math.floor(Math.random() * 9000 + 1000)}`"></h4>
-                            <p class="text-xs text-white/40 truncate">Mutuals: 3</p>
+            <div class="flex-1 overflow-y-auto p-4 space-y-2">
+                <p class="text-[10px] font-bold text-white/40 uppercase tracking-widest mono mb-2 px-2">
+                    <span x-text="searchQuery.trim() === '' ? 'Suggested Users' : 'Search Results'"></span>
+                </p>
+                
+                <template x-for="user in searchResults" :key="user.user_id">
+                    <div class="flex items-center justify-between gap-3 p-3 rounded-xl bg-white/[0.01] hover:bg-white/[0.04] border border-white/5 transition-all duration-200">
+                        
+                        <!-- User Information -->
+                        <div class="flex items-center gap-3 min-w-0 flex-1">
+                            <img :src="`https://ui-avatars.com/api/?name=${encodeURIComponent(user.user_name || user.username || 'User')}&background=10b981&color=fff`" 
+                                class="w-9 h-9 rounded-lg border border-white/10 object-cover shrink-0">
+                            <div class="min-w-0 flex-1">
+                                <h4 class="text-xs font-semibold text-white truncate" x-text="user.user_name || user.username"></h4>
+                                <p class="text-[10px] text-white/40 truncate" x-text="user.email || ''"></p>
+                            </div>
                         </div>
-                        <button class="px-4 py-2 rounded-lg bg-emerald-500/10 hover:bg-emerald-500 text-emerald-400 hover:text-white text-[11px] font-bold uppercase tracking-wider transition-all duration-300 flex items-center gap-1 group/btn shadow-[0_0_15px_rgba(16,185,129,0)] hover:shadow-[0_0_20px_rgba(16,185,129,0.3)] shrink-0">
-                            <span>Add</span>
-                        </button>
+
+                        <!-- Relationship Status Action Buttons -->
+                        <div class="shrink-0">
+                            <!-- Friend Badge -->
+                            <template x-if="getFriendStatus(user) === 'friend'">
+                                <span class="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-[10px] font-bold uppercase tracking-wider">
+                                    <span class="material-symbols-outlined text-[14px]">check</span>
+                                    <span>Friend</span>
+                                </span>
+                            </template>
+
+                            <!-- Pending Request Badge -->
+                            <template x-if="getFriendStatus(user) === 'pending'">
+                                <span class="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-yellow-500/10 border border-yellow-500/20 text-yellow-400 text-[10px] font-bold uppercase tracking-wider">
+                                    <span class="material-symbols-outlined text-[14px]">schedule</span>
+                                    <span>Pending</span>
+                                </span>
+                            </template>
+
+                            <!-- Add Friend Button -->
+                            <template x-if="getFriendStatus(user) === 'none'">
+                                <button @click="addFriend(user.user_id)" 
+                                        class="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 hover:text-emerald-300 border border-emerald-500/30 hover:border-emerald-500/50 text-[10px] font-bold uppercase tracking-wider transition-all duration-200 active:scale-95">
+                                    <span class="material-symbols-outlined text-[14px]">person_add</span>
+                                    <span>Add</span>
+                                </button>
+                            </template>
+                        </div>
+
                     </div>
                 </template>
+
+                <div x-show="searchResults.length === 0" class="p-6 text-center text-xs text-white/40">
+                    No users matching "<span x-text="searchQuery"></span>" found.
+                </div>
             </div>
         </div>
     </div>
@@ -430,169 +424,103 @@ if (
     <!-- Main Content -->
     <main class="flex-1 flex flex-col h-full overflow-hidden relative z-10 w-full">
         
-        <!-- Header -->
-        <header class="header h-24 flex items-center justify-between px-10 shrink-0 border-b border-white/5 backdrop-blur-md relative z-50">
-            <div class="gs-header-item flex items-center gap-6">
-                <!-- Menu Toggle Button -->
-                <button @click="openNav()" class="relative w-12 h-12 rounded-xl bg-gradient-to-tr from-indigo-500 to-red-600 hover:opacity-90 flex items-center justify-center transition-all duration-300 group cursor-pointer shadow-[0_0_20px_rgba(239,68,68,0.4)] icon-bounce">
-                    <div class="absolute inset-0 bg-white/20 group-hover:scale-110 transition-transform duration-300 rounded-xl"></div>
-                    <span class="material-symbols-outlined text-white font-bold relative z-10 text-[24px]">menu</span>
+        <header class="h-24 flex items-center justify-between px-10 shrink-0 border-b border-white/5 backdrop-blur-md relative z-50">
+            <div class="flex items-center gap-6">
+                <button @click="openNav()" class="w-12 h-12 rounded-xl bg-gradient-to-tr from-indigo-500 to-red-600 flex items-center justify-center shadow-[0_0_20px_rgba(239,68,68,0.4)] icon-bounce">
+                    <span class="material-symbols-outlined text-white font-bold text-[24px]">menu</span>
                 </button>
                 
                 <div class="h-8 w-[1px] bg-white/10 hidden md:block"></div>
                 
                 <div class="hidden md:block">
-                    <div class="flex items-center gap-2">
-                        <h1 class="text-2xl font-bold tracking-tight welcome-text">Welcome back, <?php echo htmlspecialchars($userName); ?></h1>
-                    </div>
+                    <h1 class="text-2xl font-bold tracking-tight">Welcome back, <?php echo htmlspecialchars($userName); ?></h1>
                     <p class="text-xs text-white/40 mono mt-1">NEXUS PROTOCOL ACTIVE</p>
                 </div>
             </div>
             
             <div class="flex items-center gap-6">
-                <button class="relative w-10 h-10 rounded-xl bg-white/5 hover:bg-white/15 border border-white/5 hover:border-white/20 flex items-center justify-center transition-all duration-300 hover:scale-110 hover:shadow-[0_0_20px_rgba(255,255,255,0.15)] group gs-header-item">
-                    <span class="material-symbols-outlined text-white/70 group-hover:text-white transition-all duration-300 group-hover:rotate-12">notifications</span>
-                    <span class="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full shadow-[0_0_8px_#ef4444] animate-pulse"></span>
+                <button @click="showFriendsPanel = true" class="relative w-10 h-10 rounded-xl bg-white/5 hover:bg-white/15 border border-white/5 flex items-center justify-center transition-all">
+                    <span class="material-symbols-outlined text-white/70">group</span>
                 </button>
 
-                <!-- Profile Header / Trigger -->
-                <div class="relative gs-header-item z-[60] sm:min-w-[240px]" x-data="{ showProfileMenu: false }" @click.outside="showProfileMenu = false">
-                    <div @click="showProfileMenu = !showProfileMenu" 
-                         class="flex items-center justify-between p-2 bg-[#050508]/40 border cursor-pointer group transition-all duration-300 pointer-events-auto relative z-[61] w-full"
-                         :class="showProfileMenu ? 'border-white/10 rounded-t-xl rounded-b-none border-b-transparent shadow-[0_-10px_40px_rgba(0,0,0,0.5)]' : 'border-white/5 hover:bg-white/[0.05] rounded-xl'">
-                        <div class="flex items-center gap-3">
-                            <div class="relative shrink-0">
-                               <img src="https://ui-avatars.com/api/?name=<?= urlencode($userName) ?>&background=ef4444&color=fff&bold=true" 
-                                    alt="<?= htmlspecialchars($userName) ?>" 
-                                    class="w-10 h-10 rounded-full border-2 border-red-500/50 shadow-[0_0_15px_rgba(239,68,68,0.3)] relative z-10 transition-transform duration-500 group-hover:scale-105">
-                            </div>
-                            <div class="hidden sm:block min-w-0 pr-1">
-                                <p class="text-sm font-bold text-white group-hover:text-red-400 transition-colors truncate"><?php echo htmlspecialchars($userName); ?></p>
-                                <p class="text-[9px] text-red-400 uppercase tracking-widest mono font-bold bg-red-500/10 px-2 py-0.5 rounded border border-red-500/20 inline-block mt-0.5"><?php echo htmlspecialchars($userRole); ?></p>
-                            </div>
-                        </div>
-                        <div class="hidden sm:flex w-8 h-8 rounded-lg bg-white/5 items-center justify-center group-hover:bg-white/10 transition-colors mr-1">
-                            <span class="material-symbols-outlined text-white/50 group-hover:text-white transition-transform duration-500 text-[18px]" :class="{'rotate-90': showProfileMenu}">chevron_right</span>
+                <!-- Profile Menu -->
+                <div class="relative z-[60]" x-data="{ showProfileMenu: false }" @click.outside="showProfileMenu = false">
+                    <div @click="showProfileMenu = !showProfileMenu" class="flex items-center gap-3 p-2 bg-[#050508]/40 border border-white/5 rounded-xl cursor-pointer hover:bg-white/[0.05]">
+                        <img src="https://ui-avatars.com/api/?name=<?= urlencode($userName) ?>&background=ef4444&color=fff&bold=true" class="w-10 h-10 rounded-full border-2 border-red-500/50">
+                        <div class="hidden sm:block min-w-0 pr-1">
+                            <p class="text-sm font-bold text-white truncate"><?php echo htmlspecialchars($userName); ?></p>
+                            <p class="text-[9px] text-red-400 uppercase tracking-widest mono font-bold bg-red-500/10 px-2 py-0.5 rounded border border-red-500/20 inline-block mt-0.5"><?php echo htmlspecialchars($userRole); ?></p>
                         </div>
                     </div>
                     
-                    <!-- Profile Submenu -->
-                    <div class="absolute right-0 top-full mt-[-1px] w-full min-w-[240px] bg-[#050508] border border-white/10 border-t-0 rounded-b-xl shadow-[0_20px_40px_rgba(0,0,0,0.8)] transition-all duration-300 transform origin-top z-50 pointer-events-auto overflow-hidden"
-                         x-show="showProfileMenu"
-                         x-transition:enter="transition ease-out duration-200"
-                         x-transition:enter-start="opacity-0 -translate-y-2 scale-y-95"
-                         x-transition:enter-end="opacity-100 translate-y-0 scale-y-100"
-                         x-transition:leave="transition ease-in duration-150"
-                         x-transition:leave-start="opacity-100 translate-y-0 scale-y-100"
-                         x-transition:leave-end="opacity-0 -translate-y-2 scale-y-95"
-                         style="display: none;">
-                        <div class="p-2 flex flex-col gap-1">
-                            <button class="flex items-center gap-3 p-2.5 rounded-lg hover:bg-white/10 transition-colors text-white/70 hover:text-white group text-left relative overflow-hidden">
-                                <div class="absolute inset-0 bg-gradient-to-r from-red-500/0 via-red-500/10 to-transparent -translate-x-full group-hover:translate-x-0 transition-transform duration-500 ease-out"></div>
-                                <span class="material-symbols-outlined text-[16px] group-hover:text-red-400 transition-colors group-hover:scale-110 relative z-10">badge</span>
-                                <span class="text-xs font-semibold tracking-wider group-hover:translate-x-1 transition-transform relative z-10">Change Name</span>
-                            </button>
-                            <button class="flex items-center gap-3 p-2.5 rounded-lg hover:bg-white/10 transition-colors text-white/70 hover:text-white group text-left relative overflow-hidden">
-                                <div class="absolute inset-0 bg-gradient-to-r from-red-500/0 via-red-500/10 to-transparent -translate-x-full group-hover:translate-x-0 transition-transform duration-500 ease-out"></div>
-                                <span class="material-symbols-outlined text-[16px] group-hover:text-red-400 transition-colors group-hover:scale-110 relative z-10">border_outer</span>
-                                <span class="text-xs font-semibold tracking-wider group-hover:translate-x-1 transition-transform relative z-10">Change Borders</span>
-                            </button>
-                            <button class="flex items-center gap-3 p-2.5 rounded-lg hover:bg-white/10 transition-colors text-white/70 hover:text-white group text-left relative overflow-hidden">
-                                <div class="absolute inset-0 bg-gradient-to-r from-red-500/0 via-red-500/10 to-transparent -translate-x-full group-hover:translate-x-0 transition-transform duration-500 ease-out"></div>
-                                <span class="material-symbols-outlined text-[16px] group-hover:text-red-400 transition-colors group-hover:scale-110 relative z-10">manage_accounts</span>
-                                <span class="text-xs font-semibold tracking-wider group-hover:translate-x-1 transition-transform relative z-10">Account Settings</span>
-                            </button>
-                        </div>
+                    <div class="absolute right-0 top-full mt-2 w-48 bg-[#050508] border border-white/10 rounded-xl shadow-2xl p-2 z-50" x-show="showProfileMenu" style="display: none;">
+                        <button class="w-full text-left p-2 hover:bg-white/10 rounded-lg text-xs font-semibold text-white/70 hover:text-white flex items-center gap-2">
+                            <span class="material-symbols-outlined text-[16px]">manage_accounts</span> Account
+                        </button>
                     </div>
                 </div>
             </div>
         </header>
 
-        <!-- Dashboard Content -->
-        <div class="flex-1 overflow-y-auto p-10 tab-content relative scroll-smooth" 
-             x-show="currentTab === 'dashboard'"
-             x-transition:enter="transition-all duration-500 delay-300 cubic-bezier(0.34, 1.56, 0.64, 1)"
-             x-transition:enter-start="opacity-0 translate-y-8"
-             x-transition:enter-end="opacity-100 translate-y-0"
-             x-transition:leave="transition-all duration-300 ease-in"
-             x-transition:leave-start="opacity-100 translate-y-0"
-             x-transition:leave-end="opacity-0 -translate-y-8 absolute w-full"
-             >
+        <div class="flex-1 overflow-y-auto p-10 relative scroll-smooth" x-show="currentTab === 'dashboard'">
             <div class="max-w-[1400px] mx-auto space-y-8">
                 
-                <!-- Stats Grid -->
+                <!-- Demo Stats Grid -->
                 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                     <template x-for="(stat, index) in stats" :key="index">
-                        <div class="glass-card rounded-2xl p-6 stagger-item group cursor-pointer hover-glow" @click="if(stat.label === 'Friends') showFriendsPanel = true; if(stat.label === 'Quests') showQuestsPanel = true">
-                            <div class="w-full h-full">
-                                <div class="flex justify-between items-start mb-4">
-                                    <div>
-                                        <p class="text-white/50 text-xs uppercase tracking-widest mono mb-2" x-text="stat.label"></p>
-                                        <h3 class="text-4xl font-bold text-white tracking-tight flex items-end gap-1">
-                                            <span class="stat-counter font-mono tracking-tighter" :data-target="stat.value">0</span>
-                                            <span class="text-lg text-white/50 mb-1" x-text="stat.suffix" x-show="stat.suffix"></span>
-                                        </h3>
-                                    </div>
-                                    <div class="w-12 h-12 rounded-xl flex items-center justify-center transition-all duration-500" :class="stat.colorClass">
-                                        <span class="material-symbols-outlined text-[24px] icon-bounce" x-text="stat.icon"></span>
-                                    </div>
+                        <div class="glass-card rounded-2xl p-6 cursor-pointer hover-glow" @click="if(stat.label === 'Friends') showFriendsPanel = true; if(stat.label === 'Quests') showQuestsPanel = true">
+                            <div class="flex justify-between items-start mb-4">
+                                <div>
+                                    <p class="text-white/50 text-xs uppercase tracking-widest mono mb-2" x-text="stat.label"></p>
+                                    <h3 class="text-4xl font-bold text-white tracking-tight flex items-end gap-1">
+                                        <span class="font-mono" x-text="stat.value"></span>
+                                        <span class="text-lg text-white/50 mb-1" x-text="stat.suffix" x-show="stat.suffix"></span>
+                                    </h3>
                                 </div>
-                                <div class="flex items-center gap-2 mt-4">
-                                    <span class="text-[11px] px-2 py-1 rounded bg-white/5 mono border border-white/10" :class="stat.trendClass" x-text="stat.trend"></span>
-                                    <span class="text-xs text-white/40" x-text="stat.desc"></span>
+                                <div class="w-12 h-12 rounded-xl flex items-center justify-center" :class="stat.colorClass">
+                                    <span class="material-symbols-outlined text-[24px]" x-text="stat.icon"></span>
                                 </div>
+                            </div>
+                            <div class="flex items-center gap-2 mt-4">
+                                <span class="text-[11px] px-2 py-1 rounded bg-white/5 mono border border-white/10" :class="stat.trendClass" x-text="stat.trend"></span>
+                                <span class="text-xs text-white/40" x-text="stat.desc"></span>
                             </div>
                         </div>
                     </template>
                 </div>
 
-                <!-- Main Layout -->
                 <div class="grid grid-cols-1 xl:grid-cols-3 gap-8">
-                    
-                    <!-- Upcoming Parties -->
+                    <!-- Demo Active Directives / Stream Rooms -->
                     <div class="xl:col-span-2 space-y-6">
-                        <div class="flex items-center justify-between stagger-item">
+                        <div class="flex items-center justify-between">
                             <h2 class="text-xl font-bold tracking-wide uppercase flex items-center gap-2">
                                 <span class="w-2 h-2 rounded-full bg-red-500 shadow-[0_0_10px_#ef4444]"></span>
-                                Active Directives (Parties)
+                                Active Directives (Stream Rooms)
                             </h2>
-                            <button class="text-xs text-red-400 hover:text-white uppercase tracking-widest font-bold mono transition-colors">View All</button>
+                            <button class="text-xs text-red-400 hover:text-white uppercase tracking-widest font-bold mono">View All</button>
                         </div>
                         
                         <div class="space-y-4">
                             <template x-for="(party, index) in upcomingParties" :key="index">
-                                <div class="glass-card hover-glow animated-gradient-border rounded-2xl p-5 flex flex-col sm:flex-row gap-6 items-center stagger-item group cursor-pointer">
-                                    <!-- Poster -->
+                                <div class="glass-card hover-glow animated-gradient-border rounded-2xl p-5 flex flex-col sm:flex-row gap-6 items-center group cursor-pointer">
                                     <div class="w-full sm:w-48 h-32 rounded-xl overflow-hidden relative shrink-0">
-                                        <div class="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent z-10 group-hover:opacity-0 transition-opacity duration-300"></div>
-                                        <img :src="party.img" class="w-full h-full object-cover group-hover:scale-110 transition-all duration-700" alt="Cover">
+                                        <img :src="party.img" class="w-full h-full object-cover group-hover:scale-110 transition-all duration-500" alt="Cover">
                                         <div class="absolute bottom-2 left-2 z-20 flex items-center gap-1 bg-black/60 backdrop-blur-md px-2 py-1 rounded-md border border-white/10">
                                             <span class="material-symbols-outlined text-red-500 text-[12px]">schedule</span>
                                             <span class="text-[10px] font-bold mono" x-text="party.time"></span>
                                         </div>
                                     </div>
                                     
-                                    <!-- Details -->
-                                    <div class="flex-1 w-full min-w-0 relative z-10">
+                                    <div class="flex-1 w-full min-w-0">
                                         <div class="flex items-center gap-2 mb-2">
                                             <span class="px-2 py-0.5 rounded text-[10px] font-bold tracking-wider uppercase border border-red-500/30 text-red-400 bg-red-500/10" x-text="party.genre"></span>
                                         </div>
-                                        <h3 class="text-2xl font-bold text-white mb-2 truncate group-hover:text-red-400 transition-colors tracking-tight" x-text="party.title"></h3>
-                                        <div class="flex items-center gap-2 text-sm text-white/50 mb-4">
-                                            <span class="material-symbols-outlined text-[16px]">account_circle</span>
-                                            <span>Hosted by <span class="text-white font-medium" x-text="party.host"></span></span>
-                                        </div>
+                                        <h3 class="text-2xl font-bold text-white mb-2 truncate group-hover:text-red-400 transition-colors" x-text="party.title"></h3>
+                                        <p class="text-sm text-white/50 mb-4">Hosted by <span class="text-white font-medium" x-text="party.host"></span></p>
                                         
-                                        <!-- Avatars -->
                                         <div class="flex items-center justify-between">
-                                            <div class="flex -space-x-3 icon-bounce">
-                                                <template x-for="i in 3">
-                                                    <img :src="'https://ui-avatars.com/api/?name=U'+i+'&background=random&color=fff&bold=true'" class="inline-block h-8 w-8 rounded-full ring-2 ring-[#030305] shadow-lg">
-                                                </template>
-                                                <div class="h-8 w-8 rounded-full ring-2 ring-[#030305] bg-white/10 backdrop-blur-md border border-white/20 flex items-center justify-center text-[10px] font-bold mono text-white shadow-lg" x-text="'+' + (party.members - 3)"></div>
-                                            </div>
-                                            
-                                            <button class="px-6 py-2 bg-white/5 hover:bg-white/10 border border-white/10 text-white font-bold tracking-wide rounded-xl transition-all hover:scale-105 hover:shadow-[0_0_15px_rgba(255,255,255,0.1)] flex items-center gap-2">
+                                            <span class="text-xs text-white/60 mono" x-text="party.members + ' Members Active'"></span>
+                                            <button class="px-5 py-2 bg-white/5 hover:bg-white/10 border border-white/10 text-white font-bold tracking-wide rounded-xl transition-all flex items-center gap-2">
                                                 Enter Room
                                                 <span class="material-symbols-outlined text-[18px]">arrow_forward</span>
                                             </button>
@@ -603,196 +531,53 @@ if (
                         </div>
                     </div>
 
-                    <!-- Right Sidebar Activity -->
+                    <!-- PRO Banner & Transmission Log -->
                     <div class="space-y-6">
-                        <!-- Premium Card -->
-                        <div class="glass-card hover-glow rounded-2xl p-8 bg-gradient-to-br from-indigo-500/20 to-red-600/20 stagger-item border border-white/10 relative overflow-hidden group cursor-pointer">
-                            <div class="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-20"></div>
-                            <div class="absolute -right-10 -top-10 w-40 h-40 bg-red-500/30 rounded-full blur-[50px] group-hover:scale-150 transition-transform duration-700"></div>
+                        <div class="glass-card hover-glow rounded-2xl p-8 bg-gradient-to-br from-indigo-500/20 to-red-600/20 border border-white/10 relative overflow-hidden">
+                            <div class="flex items-center gap-3 mb-4">
+                                <span class="material-symbols-outlined text-red-400 text-3xl">workspace_premium</span>
+                                <h3 class="text-xl font-bold tracking-wider">PRO PLAN</h3>
+                            </div>
+                            <p class="text-sm text-white/70 mb-6 leading-relaxed">Your premium access is active. Host up to 100 viewers per session with 4K streaming.</p>
                             
-                            <div class="relative z-10">
-                                <div class="flex items-center gap-3 mb-4">
-                                    <span class="material-symbols-outlined text-red-400 text-3xl icon-bounce">workspace_premium</span>
-                                    <h3 class="text-xl font-bold tracking-wider">PRO PLAN</h3>
-                                </div>
-                                <p class="text-sm text-white/70 mb-6 leading-relaxed">Your premium access is active. Host up to 100 viewers per session with 4K streaming.</p>
-                                
-                                <div class="w-full bg-black/40 rounded-full h-1.5 mb-2 overflow-hidden border border-white/10">
-                                    <div class="bg-gradient-to-r from-indigo-500 to-red-500 h-1.5 rounded-full w-[75%] relative overflow-hidden">
-                                        <div class="absolute inset-0 bg-white/20 animate-pulse"></div>
-                                    </div>
-                                </div>
-                                <div class="flex justify-between text-[10px] text-white/50 mono font-bold">
-                                    <span>75% STORAGE USED</span>
-                                    <span class="text-red-400 hover:text-red-300 transition-colors">UPGRADE</span>
-                                </div>
+                            <div class="w-full bg-black/40 rounded-full h-1.5 mb-2 overflow-hidden border border-white/10">
+                                <div class="bg-gradient-to-r from-indigo-500 to-red-500 h-1.5 rounded-full w-[75%]"></div>
+                            </div>
+                            <div class="flex justify-between text-[10px] text-white/50 mono font-bold">
+                                <span>75% STORAGE USED</span>
+                                <span class="text-red-400">UPGRADE</span>
                             </div>
                         </div>
 
-                        <!-- Activity Feed -->
-                        <div class="glass-panel rounded-2xl p-6 stagger-item">
+                        <!-- Transmission Log -->
+                        <div class="glass-panel rounded-2xl p-6">
                             <h2 class="text-lg font-bold tracking-wide uppercase mb-6 flex items-center gap-2">
                                 <span class="material-symbols-outlined text-white/50">history</span>
                                 Transmission Log
                             </h2>
-                            
-                            <div class="relative pl-4 space-y-6 before:absolute before:inset-y-0 before:left-[11px] before:w-[1px] before:bg-gradient-to-b before:from-red-500/50 before:via-white/10 before:to-transparent">
+                            <div class="relative pl-4 space-y-6 before:absolute before:inset-y-0 before:left-[11px] before:w-[1px] before:bg-white/10">
                                 <template x-for="(item, index) in activityFeed" :key="index">
-                                    <div class="relative activity-item group cursor-default">
-                                        <div class="absolute -left-[27px] top-1 w-3 h-3">
-                                            <span class="absolute inset-0 rounded-full dot-pulse opacity-50" :class="item.dotColor"></span>
-                                            <span class="absolute inset-0 rounded-full ring-4 ring-[#030305] transition-transform duration-300 group-hover:scale-125" :class="item.dotColor"></span>
-                                        </div>
-                                        <p class="text-sm text-white/80 group-hover:text-white transition-colors" x-html="item.text"></p>
-                                        <p class="text-[10px] text-white/40 mono mt-1 font-semibold tracking-wider" x-text="item.time"></p>
+                                    <div class="relative">
+                                        <p class="text-sm text-white/80" x-html="item.text"></p>
+                                        <p class="text-[10px] text-white/40 mono mt-1 font-semibold" x-text="item.time"></p>
                                     </div>
                                 </template>
                             </div>
                         </div>
                     </div>
                 </div>
-                
             </div>
         </div>
 
+        <!-- Watchlist Section Included -->
         <?php include "watchlist.php"; ?>
     </main>
 
     <?php include __DIR__ . '/../frontend/components/host_party_fab.php'; ?>
 
-    <script src="/user/user_animations.js"></script>
-    <script>
-        async function handleLogout() {
-            const btn = document.getElementById('logoutBtn');
+</div>
 
-            // Show the loader immediately on click, before the network
-            // request even starts, instead of only after logout.php responds.
-            if (typeof window.showPageLoader === 'function') {
-                window.showPageLoader();
-            }
-
-            try {
-                // Optional UI Feedback (disable button during request)
-                if (btn) btn.style.opacity = '0.5';
-
-                const response = await fetch('../backend/logout.php', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    }
-                });
-
-                const data = await response.json();
-
-                if (data.success) {
-                    // Redirect to login page
-                    window.location.href = data.redirect;
-                } else {
-                    console.error('Logout failed');
-                    if (btn) btn.style.opacity = '1';
-                    if (typeof window.hidePageLoader === 'function') window.hidePageLoader();
-                }
-            } catch (error) {
-                console.error('Error during sign out:', error);
-                if (btn) btn.style.opacity = '1';
-                if (typeof window.hidePageLoader === 'function') window.hidePageLoader();
-            }
-        }
-    </script>
-
-
-    
-
-
-    </div>
-
-
-
-    <script src="https://unpkg.com/@barba/core@2.9.7/dist/barba.umd.js"></script>
-    <script>
-        if (typeof gsap !== 'undefined' && typeof ScrollTrigger !== 'undefined') { gsap.registerPlugin(ScrollTrigger); }
-        function initAnimations(container = document) {
-            if (typeof gsap === 'undefined') return;
-            const q = gsap.utils.selector(container);
-            const tl = gsap.timeline();
-            
-            const heroTitleWords = q('.gs-word');
-            if(heroTitleWords.length > 0) {
-                gsap.set(heroTitleWords, {opacity: 0, y: 40});
-                
-                tl.fromTo(q('.gs-hero-content .gs-reveal'), 
-                    { opacity: 0, y: 30 },
-                    { opacity: 1, y: 0, duration: 0.8, stagger: 0.1, ease: 'power3.out' }
-                )
-                .to(heroTitleWords,
-                    { opacity: 1, y: 0, duration: 0.8, stagger: 0.05, ease: 'back.out(1.7)' },
-                    "-=0.6"
-                )
-                .fromTo(q('.gs-hero-visual'),
-                    { opacity: 0, scale: 0.9, x: 50 },
-                    { opacity: 1, scale: 1, x: 0, duration: 1, ease: 'power3.out' },
-                    "-=0.8"
-                );
-            }
-
-            q('.gs-reveal-up').forEach(elem => {
-                gsap.fromTo(elem,
-                    { opacity: 0, y: 50 },
-                    {
-                        opacity: 1, 
-                        y: 0, 
-                        duration: 0.8, 
-                        ease: 'power3.out',
-                        scrollTrigger: {
-                            trigger: elem,
-                            start: "top 85%",
-                            toggleActions: "play none none reverse"
-                        }
-                    }
-                );
-            });
-
-            q('.gs-movie-card').forEach((elem, i) => {
-                gsap.fromTo(elem,
-                    { opacity: 0, scale: 0.8, y: 40 },
-                    {
-                        opacity: 1, 
-                        scale: 1, 
-                        y: 0, 
-                        duration: 0.6, 
-                        delay: (i % 4) * 0.1,
-                        ease: 'back.out(1.4)',
-                        scrollTrigger: {
-                            trigger: elem.parentElement,
-                            start: "top 80%"
-                        }
-                    }
-                );
-            });
-
-            q('.gs-step').forEach((elem, i) => {
-                gsap.fromTo(elem,
-                    { opacity: 0, y: 40 },
-                    {
-                        opacity: 1, 
-                        y: 0, 
-                        duration: 0.6,
-                        ease: 'power2.out',
-                        scrollTrigger: {
-                            trigger: elem.parentElement,
-                            start: "top 80%"
-                        }
-                    }
-                );
-            });
-        }
-
-        // Initialize animations on first load
-        initAnimations();
-
-    </script>
-    <script src="/user/watch_party.js"></script>
-    <script src="/js/barba_setup.js"></script>
-
+<script src="https://unpkg.com/@barba/core@2.9.7/dist/barba.umd.js" crossorigin="anonymous"></script>
+<script src="/js/barba_setup.js?v=4"></script>
 </body>
 </html>

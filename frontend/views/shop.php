@@ -1,5 +1,5 @@
 <!-- Shop View -->
-<div x-data="shopPage()" data-tab-panel="shop" style="display: none;" class="absolute inset-0 p-10 w-full min-h-full">
+<div   data-tab-panel="shop" style="display: none;" class="absolute inset-0 p-10 w-full min-h-full">
     <div class="flex items-center justify-between mb-10 stagger-item">
         <div>
             <h2 class="text-3xl font-bold text-white tracking-tight mb-1">Avatar Borders</h2>
@@ -141,68 +141,4 @@
     </div>
 </div>
 
-<script>
-document.addEventListener('alpine:init', () => {
-    Alpine.data('shopPage', () => ({
-        shopItems: [
-            { id: 1, name: "Angel's wing(Dark)", price: 1000, rarity: 'Legendary', image: "/frontend/assets/borders/Angel's wing(Dark).gif" },
-            { id: 2, name: 'Encom grid', price: 1000, rarity: 'Epic', image: '/frontend/assets/borders/Encom grid.gif' },
-            { id: 3, name: 'Glitch', price: 1000, rarity: 'Legendary', image: '/frontend/assets/borders/Glitch.gif' },
-            { id: 4, name: 'Hallunication', price: 1000, rarity: 'Rare', image: '/frontend/assets/borders/Hallunication.gif' },
-            { id: 5, name: 'Pandoran sea', price: 1000, rarity: 'Epic', image: '/frontend/assets/borders/Pandoran sea.gif' },
-            { id: 6, name: "Satiru's unlimited void", price: 1000, rarity: 'Legendary', image: "/frontend/assets/borders/Satiru's unlimited void.gif" },
-            { id: 7, name: 'Spray doodle', price: 1000, rarity: 'Epic', image: '/frontend/assets/borders/Spray doodle.gif' },
-            { id: 8, name: "Sukuna's slashes", price: 1000, rarity: 'Legendary', image: "/frontend/assets/borders/Sukuna's slashes.gif" },
-            { id: 9, name: 'The anomaly', price: 1000, rarity: 'Epic', image: '/frontend/assets/borders/The anomaly.gif' }
-        ],
-        modalOpen: false,
-        modalMode: 'add',
-        formData: {
-            id: null,
-            name: '',
-            price: 0,
-            rarity: 'Common',
-            image: ''
-        },
-        handleFileUpload(event) {
-            const file = event.target.files[0];
-            if (!file) return;
-            const reader = new FileReader();
-            reader.onload = (e) => {
-                this.formData.image = e.target.result;
-            };
-            reader.readAsDataURL(file);
-        },
-        openModal(mode, item = null) {
-            this.modalMode = mode;
-            if (mode === 'edit' && item) {
-                this.formData = { ...item };
-            } else {
-                this.formData = { id: null, name: '', price: 1000, rarity: 'Common', image: '' };
-            }
-            this.modalOpen = true;
-        },
-        closeModal() {
-            this.modalOpen = false;
-        },
-        saveItem() {
-            if (this.modalMode === 'add') {
-                this.shopItems.push({
-                    ...this.formData,
-                    id: Date.now()
-                });
-            } else {
-                const index = this.shopItems.findIndex(i => i.id === this.formData.id);
-                if (index > -1) {
-                    this.shopItems[index] = { ...this.formData };
-                }
-            }
-            this.closeModal();
-            // Stagger animation is handled mostly via GSAP but Alpine deals with DOM updates nicely here.
-        },
-        deleteItem(id) {
-            this.shopItems = this.shopItems.filter(i => i.id !== id);
-        }
-    }));
-});
-</script>
+

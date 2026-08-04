@@ -6,33 +6,19 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>2FA Verification - Nexus</title>
     <!-- Tailwind CSS (Play CDN) -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script>
-        tailwind.config = {
-            theme: {
-                extend: {
-                    colors: {
-                        'nexus-dark': '#050505',
-                        'nexus-card': 'rgba(255, 255, 255, 0.05)',
-                        'nexus-accent': '#dc2626', /* red-600 */
-                    },
-                    fontFamily: {
-                        sans: ['Inter', 'sans-serif'],
-                    }
-                }
-            }
-        }
-    </script>
+    <script src="https://cdn.tailwindcss.com/3.4.17"></script>
+    
     <!-- Google Fonts & Material Symbols -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;900&display=swap" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet" />
     
     <!-- Alpine.js -->
-    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.1/dist/cdn.min.js" crossorigin="anonymous"></script>
     <!-- GSAP -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js" crossorigin="anonymous"></script>
+    <script>if(window.gsap) gsap.config({nullTargetWarn: false});</script>
 
-    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="/frontend/style.css">
     
     <style>
         .ultimate-reveal { opacity: 0; }
@@ -42,6 +28,7 @@
 
 
 
+    <script src="/js/nexus_scripts.js?v=5"></script>
 </head>
 <body class="bg-[#050505] text-white flex items-center justify-center font-sans antialiased relative overflow-hidden min-h-screen" data-barba="wrapper">
     <?php include __DIR__ . '/components/page_loader.php'; ?>
@@ -133,125 +120,8 @@
         </div>
     </main>
 
-    <script src="/frontend/animations.js"></script>
-    <script>
-        function otpForm() {
-            return {
-                otpCode: '',
-                inputs: [],
-                init() {
-                    this.$nextTick(() => {
-                        this.inputs = Array.from(this.$el.querySelectorAll('#otp-inputs input'));
-                        if(this.inputs.length > 0) this.inputs[0].focus();
-                    });
-                },
-                updateHiddenInput() {
-                    this.otpCode = this.inputs.map(input => input.value).join('');
-                },
-                handleInput(e, index) {
-                    const val = e.target.value;
-                    // Allow only numbers
-                    if (/[^0-9]/.test(val)) {
-                        e.target.value = val.replace(/[^0-9]/g, '');
-                        return;
-                    }
-                    
-                    if (val) {
-                        // animate the input
-                        if (typeof gsap !== 'undefined') {
-                            gsap.fromTo(e.target, { scale: 0.8 }, { scale: 1, duration: 0.3, ease: "back.out(2)" });
-                        }
-                        // move to next
-                        if (index < 5) {
-                            this.inputs[index + 1].focus();
-                        }
-                    }
-                    this.updateHiddenInput();
-                },
-                handleKeyDown(e, index) {
-                    if (e.key === 'Backspace') {
-                        if (!e.target.value && index > 0) {
-                            this.inputs[index - 1].focus();
-                            this.inputs[index - 1].value = '';
-                        }
-                        this.updateHiddenInput();
-                    } else if (e.key === 'ArrowLeft' && index > 0) {
-                        this.inputs[index - 1].focus();
-                    } else if (e.key === 'ArrowRight' && index < 5) {
-                        this.inputs[index + 1].focus();
-                    }
-                },
-                handlePaste(e) {
-                    e.preventDefault();
-                    const pastedData = e.clipboardData.getData('text').replace(/[^0-9]/g, '').slice(0, 6);
-                    if (!pastedData) return;
-                    
-                    pastedData.split('').forEach((char, i) => {
-                        if (i < 6) {
-                            this.inputs[i].value = char;
-                            if (typeof gsap !== 'undefined') {
-                                gsap.fromTo(this.inputs[i], { scale: 0.8 }, { scale: 1, duration: 0.3, ease: "back.out(2)", delay: i * 0.05 });
-                            }
-                        }
-                    });
-                    
-                    const focusIndex = Math.min(pastedData.length, 5);
-                    if(this.inputs[focusIndex]) this.inputs[focusIndex].focus();
-                    this.updateHiddenInput();
-                }
-            }
-        }
-
-        // Ultimate entrance animation & opacity fallback safety
-        setTimeout(() => {
-            if (typeof gsap !== 'undefined') {
-                const tl = gsap.timeline({ defaults: { ease: 'expo.out' } });
-                tl.fromTo("#branding", 
-                    { y: -50, opacity: 0, scale: 0.9 },
-                    { y: 0, opacity: 1, scale: 1, duration: 1.5, ease: "elastic.out(1, 0.5)" },
-                    0
-                )
-                .fromTo("#logo-box",
-                    { rotation: 180, borderRadius: "50%", scale: 0 },
-                    { rotation: 0, borderRadius: "0.75rem", scale: 1, duration: 1.5, ease: "expo.inOut" },
-                    "-=1.2"
-                )
-                .fromTo("#glass-card",
-                    { y: 50, opacity: 0, rotationY: 15, scale: 0.95 },
-                    { y: 0, opacity: 1, rotationY: 0, scale: 1, duration: 1.2, transformPerspective: 1000 },
-                    "-=1"
-                )
-                .fromTo("#otp-inputs input",
-                    { y: 20, opacity: 0, scale: 0.5 },
-                    { y: 0, opacity: 1, scale: 1, duration: 0.8, stagger: 0.05, ease: "back.out(1.5)" },
-                    "-=0.8"
-                )
-                .fromTo(".gs-stagger",
-                    { y: 20, opacity: 0 },
-                    { y: 0, opacity: 1, duration: 0.8, stagger: 0.1 },
-                    "-=0.6"
-                )
-                .fromTo(".gs-footer",
-                    { opacity: 0 },
-                    { opacity: 1, duration: 1 },
-                    "-=0.5"
-                );
-
-                const submitBtn = document.getElementById('submitBtn');
-                if(submitBtn) {
-                    submitBtn.addEventListener('mousedown', () => {
-                        gsap.to(submitBtn, { scale: 0.95, duration: 0.1, ease: 'power2.inOut' });
-                    });
-                    submitBtn.addEventListener('mouseup', () => {
-                        gsap.to(submitBtn, { scale: 1, duration: 0.5, ease: 'elastic.out(1, 0.3)' });
-                    });
-                }
-            } else {
-                // Safety fallback if GSAP or animations.js is blocked
-                document.querySelectorAll('.ultimate-reveal').forEach(el => el.style.opacity = '1');
-            }
-        });
-    </script>
+    
+    
 
 
 
@@ -263,90 +133,9 @@
 
 
 
-    <script src="https://unpkg.com/@barba/core@2.9.7/dist/barba.umd.js"></script>
-    <script>
-        if (typeof gsap !== 'undefined' && typeof ScrollTrigger !== 'undefined') { gsap.registerPlugin(ScrollTrigger); }
-        function initAnimations(container = document) {
-            if (typeof gsap === 'undefined') return;
-            const q = gsap.utils.selector(container);
-            const tl = gsap.timeline();
-            
-            const heroTitleWords = q('.gs-word');
-            if(heroTitleWords.length > 0) {
-                gsap.set(heroTitleWords, {opacity: 0, y: 40});
-                
-                tl.fromTo(q('.gs-hero-content .gs-reveal'), 
-                    { opacity: 0, y: 30 },
-                    { opacity: 1, y: 0, duration: 0.8, stagger: 0.1, ease: 'power3.out' }
-                )
-                .to(heroTitleWords,
-                    { opacity: 1, y: 0, duration: 0.8, stagger: 0.05, ease: 'back.out(1.7)' },
-                    "-=0.6"
-                )
-                .fromTo(q('.gs-hero-visual'),
-                    { opacity: 0, scale: 0.9, x: 50 },
-                    { opacity: 1, scale: 1, x: 0, duration: 1, ease: 'power3.out' },
-                    "-=0.8"
-                );
-            }
-
-            q('.gs-reveal-up').forEach(elem => {
-                gsap.fromTo(elem,
-                    { opacity: 0, y: 50 },
-                    {
-                        opacity: 1, 
-                        y: 0, 
-                        duration: 0.8, 
-                        ease: 'power3.out',
-                        scrollTrigger: {
-                            trigger: elem,
-                            start: "top 85%",
-                            toggleActions: "play none none reverse"
-                        }
-                    }
-                );
-            });
-
-            q('.gs-movie-card').forEach((elem, i) => {
-                gsap.fromTo(elem,
-                    { opacity: 0, scale: 0.8, y: 40 },
-                    {
-                        opacity: 1, 
-                        scale: 1, 
-                        y: 0, 
-                        duration: 0.6, 
-                        delay: (i % 4) * 0.1,
-                        ease: 'back.out(1.4)',
-                        scrollTrigger: {
-                            trigger: elem.parentElement,
-                            start: "top 80%"
-                        }
-                    }
-                );
-            });
-
-            q('.gs-step').forEach((elem, i) => {
-                gsap.fromTo(elem,
-                    { opacity: 0, y: 40 },
-                    {
-                        opacity: 1, 
-                        y: 0, 
-                        duration: 0.6,
-                        ease: 'power2.out',
-                        scrollTrigger: {
-                            trigger: elem.parentElement,
-                            start: "top 80%"
-                        }
-                    }
-                );
-            });
-        }
-
-        // Initialize animations on first load
-        initAnimations();
-
-    </script>
-    <script src="/js/barba_setup.js"></script>
+    <script src="https://unpkg.com/@barba/core@2.9.7/dist/barba.umd.js" crossorigin="anonymous"></script>
+    
+    <script src="/js/barba_setup.js?v=4"></script>
 
 </body>
 </html>

@@ -23,9 +23,10 @@ if (
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Nexus - Admin Dashboard</title>
     
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
-    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <script src="https://cdn.tailwindcss.com/3.4.17"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js" crossorigin="anonymous"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/ScrollTrigger.min.js" crossorigin="anonymous"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.1/dist/cdn.min.js" crossorigin="anonymous"></script>
     <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined" rel="stylesheet" />
     
@@ -132,11 +133,21 @@ if (
 
 
 
+    <script src="/js/nexus_scripts.js?v=5"></script>
+    <script src="https://unpkg.com/htmx.org@1.9.10/dist/htmx.min.js" crossorigin="anonymous"></script>
 </head>
 <body class="h-screen w-screen flex relative selection:bg-red-500/30" data-barba="wrapper">
     <?php include __DIR__ . '/components/page_loader.php'; ?>
     <?php include __DIR__ . '/components/cursor.php'; ?>
-<div id="barba-container" class="flex h-full w-full" data-barba="container" data-barba-namespace="admin_dashboard" x-data="adminDashboard()" x-init="initDashboard()">
+<div id="barba-container" 
+     class="flex h-full w-full" 
+     data-barba="container" 
+     data-barba-namespace="admin_dashboard" 
+     x-data="adminDashboard({ 
+         user_name: '<?= htmlspecialchars($userName, ENT_QUOTES) ?>', 
+         email: '<?= htmlspecialchars($userEmail, ENT_QUOTES) ?>' 
+     })" 
+     x-init="initDashboard()">
 
 
 <div class="bg-mesh"></div>
@@ -199,17 +210,25 @@ if (
                     <?php include __DIR__ . '/components/notifications.php'; ?>
                 </div>
                 
-                <!-- Profile -->
-                <div class="flex items-center gap-4 pl-6 border-l border-white/10 cursor-pointer group gs-header-item">
+                <!-- Top Bar Profile Header -->
+                <div @click="switchTab('profile')" class="flex items-center gap-4 pl-6 border-l border-white/10 cursor-pointer group gs-header-item">
                     <div class="text-right hidden md:block">
-                        <p class="text-sm font-bold text-white group-hover:text-red-400 transition-colors tracking-wide"><?php echo htmlspecialchars($userName); ?></p>
-                        <p class="text-xs text-white/40 mono uppercase"><?php echo htmlspecialchars($userRole); ?></p>
+                        <!-- 1. Dynamically displays the confirmed name from saveProfile() -->
+                        <p class="text-sm font-bold text-white group-hover:text-red-400 transition-colors tracking-wide" x-text="displayName">
+                            <?php echo htmlspecialchars($userName); ?>
+                        </p>
+                        <p class="text-xs text-white/40 mono uppercase">
+                            <?php echo htmlspecialchars($userRole); ?>
+                        </p>
                     </div>
                     <div class="relative w-12 h-12">
-                        <img src="https://ui-avatars.com/api/?name=<?= urlencode($userName) ?>&background=ef4444&color=fff&bold=true" 
-                            alt="<?= htmlspecialchars($userName) ?>" 
+                        <!-- 2. Dynamically updates avatar image & alt text -->
+                        <img :src="selectedAvatar" 
+                            :alt="displayName"
+                            src="https://ui-avatars.com/api/?name=<?= urlencode($userName) ?>&background=ef4444&color=fff&bold=true" 
                             class="w-full h-full rounded-full border border-white/20 group-hover:border-red-500/50 group-hover:shadow-[0_0_15px_rgba(239,68,68,0.3)] transition-all duration-300 relative z-10">
-                            <template x-if="selectedBorder">
+                        
+                        <template x-if="selectedBorder">
                             <img :src="selectedBorder" class="absolute inset-0 w-full h-full object-cover z-20 pointer-events-none scale-[1.3] drop-shadow-[0_0_15px_rgba(255,255,255,0.2)] mix-blend-screen opacity-90">
                         </template>
                         <div class="absolute -bottom-1 -right-1 w-3.5 h-3.5 bg-green-500 border-2 border-[#030305] rounded-full z-30"></div>
@@ -233,469 +252,9 @@ if (
         </div>
     </main>
 
-    <script>
-        function adminDashboard() {
-            return {
-                currentTab: 'dashboard',
-                isTabAnimating: false,
-                sidebarOpen: true,
-                notificationsOpen: false,
-                notifications: [
-                    {
-                        id: 1, 
-                        read: false,
-                        gradientFrom: 'from-red-500/10',
-                        bgClass: 'bg-red-500/10',
-                        borderClass: 'border-red-500/20',
-                        hoverBgClass: 'group-hover:bg-red-500/20',
-                        hoverBorderClass: 'group-hover:border-red-500/50',
-                        hoverShadowClass: 'group-hover:shadow-[0_0_15px_rgba(239,68,68,0.2)]',
-                        icon: 'movie',
-                        iconColorClass: 'text-red-400',
-                        hoverIconColorClass: 'text-red-400',
-                        message: 'New asset ingested: <span class="text-white font-bold group-hover:text-red-400 transition-colors">Dune: Part Two</span>',
-                        time: '2m ago',
-                        indicatorClass: 'bg-red-500 shadow-[0_0_8px_#ef4444]'
-                    },
-                    {
-                        id: 2, 
-                        read: false,
-                        gradientFrom: 'from-indigo-500/10',
-                        bgClass: 'bg-indigo-500/10',
-                        borderClass: 'border-indigo-500/20',
-                        hoverBgClass: 'group-hover:bg-indigo-500/20',
-                        hoverBorderClass: 'group-hover:border-indigo-500/50',
-                        hoverShadowClass: 'group-hover:shadow-[0_0_15px_rgba(99,102,241,0.2)]',
-                        icon: 'trending_up',
-                        iconColorClass: 'text-indigo-400',
-                        hoverIconColorClass: 'text-indigo-400',
-                        message: 'Traffic spike detected in <span class="font-bold text-white group-hover:text-indigo-400 transition-colors">US-East</span> sector',
-                        time: '12m ago',
-                        indicatorClass: 'bg-indigo-500 shadow-[0_0_8px_#6366f1]'
-                    },
-                    {
-                        id: 3, 
-                        read: true,
-                        gradientFrom: 'from-green-500/10',
-                        bgClass: 'bg-white/5',
-                        borderClass: 'border-white/10',
-                        hoverBgClass: 'group-hover:bg-green-500/20',
-                        hoverBorderClass: 'group-hover:border-green-500/50',
-                        hoverShadowClass: 'group-hover:shadow-[0_0_15px_rgba(34,197,94,0.2)]',
-                        icon: 'security_update_good',
-                        iconColorClass: 'text-white/50',
-                        hoverIconColorClass: 'group-hover:text-green-400',
-                        message: 'System defense matrix updated successfully.',
-                        time: '1h ago',
-                        indicatorClass: ''
-                    }
-                ],
-                get unreadNotifications() {
-                    return this.notifications.filter(n => !n.read).length;
-                },
-                markAllRead() {
-                    this.notifications.forEach(n => n.read = true);
-                },
-                navItems: [
-                    { id: 'dashboard', label: 'Overview', icon: 'monitoring' },
-                    { id: 'movies', label: 'Movies', icon: 'movie' },
-                    { id: 'rooms', label: 'Sessions', icon: 'satellite_alt' },
-                    { id: 'users', label: 'Directory', icon: 'shield_person' },
-                    { id: 'reports', label: 'Reports Analysis', icon: 'report' },
-                    { id: 'shop', label: 'Shop', icon: 'storefront' },
-                    { id: 'profile', label: 'Profile', icon: 'person' }
-                ],
-                avatarModalOpen: false,
-                selectedAvatar: 'https://ui-avatars.com/api/?name=SA&background=050505&color=ef4444&bold=true',
-                presetAvatars: [
-
-                    'https://ui-avatars.com/api/?name=SA&background=050505&color=ef4444&bold=true',
-                    'https://ui-avatars.com/api/?name=01&background=random&color=fff&bold=true',
-                    'https://ui-avatars.com/api/?name=MK&background=random&color=fff&bold=true',
-                    'https://ui-avatars.com/api/?name=X&background=random&color=fff&bold=true',
-                    'https://ui-avatars.com/api/?name=V&background=random&color=fff&bold=true',
-                    'https://ui-avatars.com/api/?name=Z&background=random&color=fff&bold=true'
-                ],
-                selectedBorder: "/frontend/assets/borders/Angel's wing(Dark).gif",
-                borders: [
-                    { id: 'none', url: '' },
-                    { id: 'angel', url: "/frontend/assets/borders/Angel's wing(Dark).gif" },
-                    { id: 'encom', url: '/frontend/assets/borders/Encom grid.gif' },
-                    { id: 'glitch', url: '/frontend/assets/borders/Glitch.gif' },
-                    { id: 'hallu', url: '/frontend/assets/borders/Hallunication.gif' },
-                    { id: 'pandoran', url: '/frontend/assets/borders/Pandoran sea.gif' },
-                    { id: 'satiru', url: "/frontend/assets/borders/Satiru's unlimited void.gif" },
-                    { id: 'spray', url: '/frontend/assets/borders/Spray doodle.gif' },
-                    { id: 'sukuna', url: "/frontend/assets/borders/Sukuna's slashes.gif" },
-                    { id: 'anomaly', url: '/frontend/assets/borders/The anomaly.gif' }
-                ],
-                stats: [
-                    { label: 'Active Users', value: '12.4k', change: '+12%', icon: 'group' },
-                    { label: 'Live Streams', value: '342', change: '+5%', icon: 'rss_feed' },
-                    { label: 'Media Assets', value: '8,921', change: '+2%', icon: 'dns' },
-                    { label: 'System Load', value: '24%', change: 'Stable', icon: 'memory' }
-                ],
-                movies: [
-                    { id: 1, title: 'Inception', year: 2010, rating: '8.8', genre: 'Sci-Fi', img: 'https://images.unsplash.com/photo-1536440136628-849c177e76a1?auto=format&fit=crop&w=500&q=80', description: 'An amazing cinematic experience.', trailer: 'https://youtube.com', comments: [{id: 1, user: 'Fan88', text: 'Great watch!', date: '2024-01-01'}] },
-                    { id: 2, title: 'Interstellar', year: 2014, rating: '8.6', genre: 'Sci-Fi', img: 'https://images.unsplash.com/photo-1614730321146-b6fa6a46bcb4?auto=format&fit=crop&w=500&q=80', description: 'An amazing cinematic experience.', trailer: 'https://youtube.com', comments: [{id: 1, user: 'Fan88', text: 'Great watch!', date: '2024-01-01'}] },
-                    { id: 3, title: 'The Matrix', year: 1999, rating: '8.7', genre: 'Action', img: 'https://images.unsplash.com/photo-1526304640581-d334cdbbf45e?auto=format&fit=crop&w=500&q=80', description: 'An amazing cinematic experience.', trailer: 'https://youtube.com', comments: [{id: 1, user: 'Fan88', text: 'Great watch!', date: '2024-01-01'}] },
-                    { id: 4, title: 'Blade Runner 2049', year: 2017, rating: '8.0', genre: 'Sci-Fi', img: 'https://images.unsplash.com/photo-1505672678657-cc70370f5e60?auto=format&fit=crop&w=500&q=80', description: 'An amazing cinematic experience.', trailer: 'https://youtube.com', comments: [{id: 1, user: 'Fan88', text: 'Great watch!', date: '2024-01-01'}] },
-                    { id: 5, title: 'Dune', year: 2021, rating: '8.0', genre: 'Adventure', img: 'https://images.unsplash.com/photo-1542451313056-b7c8e626645f?auto=format&fit=crop&w=500&q=80', description: 'An amazing cinematic experience.', trailer: 'https://youtube.com', comments: [{id: 1, user: 'Fan88', text: 'Great watch!', date: '2024-01-01'}] },
-                    { id: 6, title: 'Gravity', year: 2013, rating: '7.7', genre: 'Sci-Fi', img: 'https://images.unsplash.com/photo-1451187580459-43490279c0fa?auto=format&fit=crop&w=500&q=80', description: 'An amazing cinematic experience.', trailer: 'https://youtube.com', comments: [{id: 1, user: 'Fan88', text: 'Great watch!', date: '2024-01-01'}] },
-                    { id: 7, title: 'Star Wars', year: 1977, rating: '8.6', genre: 'Fantasy', img: 'https://images.unsplash.com/photo-1578374173705-969cbe6f2d6b?auto=format&fit=crop&w=500&q=80', description: 'An amazing cinematic experience.', trailer: 'https://youtube.com', comments: [{id: 1, user: 'Fan88', text: 'Great watch!', date: '2024-01-01'}] },
-                    { id: 8, title: 'Avatar', year: 2009, rating: '7.8', genre: 'Action', img: 'https://images.unsplash.com/photo-1618331835717-801e976710b2?auto=format&fit=crop&w=500&q=80', description: 'An amazing cinematic experience.', trailer: 'https://youtube.com', comments: [{id: 1, user: 'Fan88', text: 'Great watch!', date: '2024-01-01'}] }
-                ],
-                movieModalOpen: false,
-                editingMovie: null,
-                newMovie: { title: '', year: '', rating: '', genre: '', img: '', description: '', trailer: '', comments: [] },
-                openAddMovieModal() {
-                    this.editingMovie = null;
-                    this.newMovie = { title: '', year: '', rating: '', genre: '', img: '', description: '', trailer: '', comments: [] };
-                    this.movieModalOpen = true;
-                },
-                openEditMovieModal(movie) {
-                    this.editingMovie = movie;
-                    this.newMovie = { ...movie };
-                    this.movieModalOpen = true;
-                },
-                saveMovie() {
-                    if (this.editingMovie) {
-                        const index = this.movies.findIndex(m => m.id === this.editingMovie.id);
-                        if (index !== -1) {
-                            this.movies[index] = { ...this.newMovie };
-                        }
-                    } else {
-                        this.movies.push({ ...this.newMovie, id: Date.now() });
-                    }
-                    this.movieModalOpen = false;
-                },
-                
-                reportStats: {
-                    total: 142,
-                    pending: 28,
-                    read: 114
-                },
-                reportsList: [
-                    { id: 'REP-001', type: 'Bug Report', status: 'Pending', date: '2026-07-19', user: 'Alex Johnson', priority: 'High', excerpt: 'Video playback stuttering on Matrix...' },
-                    { id: 'REP-002', type: 'Content Issue', status: 'Pending', date: '2026-07-18', user: 'Sarah Connor', priority: 'Medium', excerpt: 'Missing subtitles for Dune part 2...' },
-                    { id: 'REP-003', type: 'User Report', status: 'Read', date: '2026-07-17', user: 'Kenji Murakami', priority: 'Low', excerpt: 'User LP-331 spamming in chat...' },
-                    { id: 'REP-004', type: 'Billing', status: 'Read', date: '2026-07-15', user: 'Lisa Palmer', priority: 'High', excerpt: 'Double charged for premium sub...' },
-                    { id: 'REP-005', type: 'Bug Report', status: 'Read', date: '2026-07-14', user: 'David Wilson', priority: 'Medium', excerpt: 'App crashes when switching tabs...' }
-                ],
-                
-                selectedRoom: null,
-                roomModalOpen: false,
-                mockRoomUsers: [],
-                viewRoom(room) {
-                    this.selectedRoom = room;
-                    this.mockRoomUsers = Array.from({ length: Math.min(room.users, 18) }, (_, i) => ({
-                        id: i,
-                        name: 'Viewer_' + (Math.floor(Math.random() * 9000) + 1000),
-                        avatar: 'https://ui-avatars.com/api/?name=V' + i + '&background=random&color=fff&bold=true'
-                    }));
-                    // Ensure host is first
-                    if (this.mockRoomUsers.length > 0) {
-                        this.mockRoomUsers[0].name = room.host;
-                        this.mockRoomUsers[0].isHost = true;
-                        this.mockRoomUsers[0].avatar = 'https://ui-avatars.com/api/?name=' + room.host.substring(0, 2) + '&background=050505&color=ef4444&bold=true';
-                    }
-                    this.roomModalOpen = true;
-                },
-                disbandRoom(roomId) {
-                    gsap.to('#room-card-' + roomId, {
-                        scale: 0.8,
-                        opacity: 0,
-                        duration: 0.4,
-                        ease: 'power2.in',
-                        onComplete: () => {
-                            this.rooms = this.rooms.filter(r => r.id !== roomId);
-                            if (this.selectedRoom && this.selectedRoom.id === roomId) {
-                                this.roomModalOpen = false;
-                            }
-                        }
-                    });
-                },
-                rooms: [
-                    { id: 1, name: 'Sci-Fi Watch Party', host: 'AX-992', users: 45 },
-                    { id: 2, name: 'Horror Night 💀', host: 'SC-102', users: 120 },
-                    { id: 3, name: 'Anime Marathon', host: 'KM-404', users: 89 },
-                    { id: 4, name: 'Nolan Fans', host: 'DW-777', users: 210 },
-                    { id: 5, name: 'Classic 80s', host: 'LP-331', users: 34 }
-                ],
-                usersList: [
-                    { id: 1, name: 'Alex Johnson', email: 'alex@nexus.net', status: 'Online', role: 'Premium' },
-                    { id: 2, name: 'Sarah Connor', email: 'sarah@skynet.com', status: 'Offline', role: 'Standard' },
-                    { id: 3, name: 'Kenji Murakami', email: 'kenji@cyber.jp', status: 'Online', role: 'Moderator' },
-                    { id: 4, name: 'David Wilson', email: 'david@corp.org', status: 'Online', role: 'Standard' },
-                    { id: 5, name: 'Lisa Palmer', email: 'lisa@nexus.net', status: 'Offline', role: 'Premium' },
-                ],
-                
-                switchTab(tab) {
-                    // Ignore clicks on the active tab, and ignore rapid double-clicks
-                    // while a transition is already in flight (this used to let GSAP
-                    // overwrite the in-flight tween and silently drop onComplete,
-                    // which is why the panel could get stuck showing stale content).
-                    if (this.currentTab === tab || this.isTabAnimating) return;
-                    this.isTabAnimating = true;
-
-                    const tabContent = document.querySelector('.tab-content');
-                    const currentPanel = tabContent ? tabContent.querySelector(`:scope > [data-tab-panel="${this.currentTab}"]`) : null;
-
-                    const showNextPanel = () => {
-                        this.currentTab = tab;
-
-                        const nextPanel = tabContent ? tabContent.querySelector(`:scope > [data-tab-panel="${tab}"]`) : null;
-                        if (!nextPanel) { this.isTabAnimating = false; return; }
-
-                        // Wipe any leftover inline styles from a previous visit before
-                        // animating in, so panels can never get stuck mid-transition.
-                        gsap.set(nextPanel, { clearProps: "all" });
-                        nextPanel.style.display = "block";
-
-                        gsap.fromTo(nextPanel,
-                            { opacity: 0, y: 24, scale: 0.98 },
-                            {
-                                opacity: 1, y: 0, scale: 1, duration: 0.35, ease: "power2.out",
-                                overwrite: "auto",
-                                onComplete: () => {
-                                    gsap.set(nextPanel, { clearProps: "all" });
-                                    this.isTabAnimating = false;
-                                }
-                            }
-                        );
-
-                        gsap.fromTo(nextPanel.querySelectorAll(".stagger-item"),
-                            { opacity: 0, y: 50, scale: 0.95 },
-                            { opacity: 1, y: 0, scale: 1, duration: 0.4, stagger: 0.04, ease: "power2.out", clearProps: "all" }
-                        );
-
-                        // Re-animate the traffic chart whenever the dashboard is (re)entered
-                        if (tab === 'dashboard') {
-                            gsap.fromTo(nextPanel.querySelectorAll(".chart-bar"),
-                                { scaleY: 0 },
-                                { scaleY: 1, duration: 0.6, stagger: 0.03, ease: "elastic.out(1, 0.8)", delay: 0.15 }
-                            );
-                        }
-                    };
-
-                    if (!currentPanel) {
-                        // Nothing visible to animate out (first paint) — just show the new tab.
-                        this.$nextTick(showNextPanel);
-                        return;
-                    }
-
-                    gsap.to(currentPanel, {
-                        opacity: 0, y: -16, scale: 0.98, duration: 0.25, ease: "power2.inOut",
-                        overwrite: "auto",
-                        onComplete: () => {
-                            gsap.set(currentPanel, { clearProps: "all" });
-                            currentPanel.style.display = "none";
-                            this.$nextTick(showNextPanel);
-                        }
-                    });
-                },
-                
-                initDashboard() {
-                    gsap.config({ nullTargetWarn: false });
-
-                    // Movie Card 3D Hover
-                    this.$nextTick(() => {
-                        document.querySelectorAll('.movie-card-container').forEach(container => {
-                            const card = container.querySelector('.movie-card');
-                            if (!card) return;
-                            container.addEventListener('mousemove', (e) => {
-                                const rect = container.getBoundingClientRect();
-                                const x = e.clientX - rect.left;
-                                const y = e.clientY - rect.top;
-                                const centerX = rect.width / 2;
-                                const centerY = rect.height / 2;
-                                const rotateX = ((y - centerY) / centerY) * -10;
-                                const rotateY = ((x - centerX) / centerX) * 10;
-
-                                gsap.to(card, {
-                                    rotateX: rotateX,
-                                    rotateY: rotateY,
-                                    duration: 0.5,
-                                    ease: "power2.out"
-                                });
-                            });
-                            container.addEventListener('mouseleave', () => {
-                                gsap.to(card, {
-                                    rotateX: 0,
-                                    rotateY: 0,
-                                    duration: 0.8,
-                                    ease: "elastic.out(1, 0.5)"
-                                });
-                            });
-                        });
-
-                        setTimeout(() => {
-                            // Initial load animation sequence — scoped to the tab that's
-                            // actually visible on first paint so hidden panels' items
-                            // aren't silently pre-animated in the background.
-                            const initialPanel = document.querySelector(`.tab-content > [data-tab-panel="${this.currentTab}"]`);
-                            const tl = gsap.timeline();
-                            
-                            tl.fromTo(".sidebar-brand", 
-                                { y: -20, opacity: 0 }, 
-                                { y: 0, opacity: 1, duration: 0.4, ease: "power2.out", clearProps: "all" }
-                              )
-                              .fromTo(".gs-nav-item", 
-                                { x: -30, opacity: 0 }, 
-                                { x: 0, opacity: 1, stagger: 0.04, duration: 0.4, ease: "power2.out", clearProps: "all" }, 
-                                "-=0.4"
-                              )
-                              .fromTo(".gs-header-item", 
-                                { y: -20, opacity: 0 }, 
-                                { y: 0, opacity: 1, stagger: 0.04, duration: 0.4, ease: "power2.out", clearProps: "all" }, 
-                                "-=0.4"
-                              )
-                              .fromTo(initialPanel ? initialPanel.querySelectorAll(".stagger-item") : ".stagger-item", 
-                                  { opacity: 0, y: 50, scale: 0.95 }, 
-                                  { opacity: 1, y: 0, scale: 1, stagger: 0.04, duration: 0.4, ease: "power2.out", clearProps: "all" }, 
-                                  "-=0.2"
-                              );
-        
-                            gsap.fromTo(initialPanel ? initialPanel.querySelectorAll(".chart-bar") : ".chart-bar", 
-                                { scaleY: 0 }, 
-                                { scaleY: 1, duration: 0.6, stagger: 0.03, ease: "elastic.out(1, 0.8)", delay: 0.15 }
-                            );
-                        }, 50);
-                    });
-                }
-            }
-        }
-
-         async function handleLogout() {
-            const btn = document.getElementById('logoutBtn');
-
-            // Show the loader immediately on click, before the network
-            // request even starts, instead of only after logout.php responds.
-            if (typeof window.showPageLoader === 'function') {
-                window.showPageLoader();
-            }
-
-            try {
-                // Optional UI Feedback (disable button during request)
-                if (btn) btn.style.opacity = '0.5';
-
-                const response = await fetch('../backend/logout.php', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    }
-                });
-
-                const data = await response.json();
-
-                if (data.success) {
-                    // Redirect to login page
-                    window.location.href = data.redirect;
-                } else {
-                    console.error('Logout failed');
-                    if (btn) btn.style.opacity = '1';
-                    if (typeof window.hidePageLoader === 'function') window.hidePageLoader();
-                }
-            } catch (error) {
-                console.error('Error during sign out:', error);
-                if (btn) btn.style.opacity = '1';
-                if (typeof window.hidePageLoader === 'function') window.hidePageLoader();
-            }
-        }
-    </script>
+    <script src="https://unpkg.com/@barba/core@2.9.7/dist/barba.umd.js" crossorigin="anonymous"></script>
     
-
-    
-
-
-    </div>
-
-
-
-    <script src="https://unpkg.com/@barba/core@2.9.7/dist/barba.umd.js"></script>
-    <script>
-        if (typeof gsap !== 'undefined' && typeof ScrollTrigger !== 'undefined') { gsap.registerPlugin(ScrollTrigger); }
-        function initAnimations(container = document) {
-            if (typeof gsap === 'undefined') return;
-            const q = gsap.utils.selector(container);
-            const tl = gsap.timeline();
-            
-            const heroTitleWords = q('.gs-word');
-            if(heroTitleWords.length > 0) {
-                gsap.set(heroTitleWords, {opacity: 0, y: 40});
-                
-                tl.fromTo(q('.gs-hero-content .gs-reveal'), 
-                    { opacity: 0, y: 30 },
-                    { opacity: 1, y: 0, duration: 0.8, stagger: 0.1, ease: 'power3.out' }
-                )
-                .to(heroTitleWords,
-                    { opacity: 1, y: 0, duration: 0.8, stagger: 0.05, ease: 'back.out(1.7)' },
-                    "-=0.6"
-                )
-                .fromTo(q('.gs-hero-visual'),
-                    { opacity: 0, scale: 0.9, x: 50 },
-                    { opacity: 1, scale: 1, x: 0, duration: 1, ease: 'power3.out' },
-                    "-=0.8"
-                );
-            }
-
-            q('.gs-reveal-up').forEach(elem => {
-                gsap.fromTo(elem,
-                    { opacity: 0, y: 50 },
-                    {
-                        opacity: 1, 
-                        y: 0, 
-                        duration: 0.8, 
-                        ease: 'power3.out',
-                        scrollTrigger: {
-                            trigger: elem,
-                            start: "top 85%",
-                            toggleActions: "play none none reverse"
-                        }
-                    }
-                );
-            });
-
-            q('.gs-movie-card').forEach((elem, i) => {
-                gsap.fromTo(elem,
-                    { opacity: 0, scale: 0.8, y: 40 },
-                    {
-                        opacity: 1, 
-                        scale: 1, 
-                        y: 0, 
-                        duration: 0.6, 
-                        delay: (i % 4) * 0.1,
-                        ease: 'back.out(1.4)',
-                        scrollTrigger: {
-                            trigger: elem.parentElement,
-                            start: "top 80%"
-                        }
-                    }
-                );
-            });
-
-            q('.gs-step').forEach((elem, i) => {
-                gsap.fromTo(elem,
-                    { opacity: 0, y: 40 },
-                    {
-                        opacity: 1, 
-                        y: 0, 
-                        duration: 0.6,
-                        ease: 'power2.out',
-                        scrollTrigger: {
-                            trigger: elem.parentElement,
-                            start: "top 80%"
-                        }
-                    }
-                );
-            });
-        }
-
-        // Initialize animations on first load
-        initAnimations();
-
-    </script>
-    <script src="/js/barba_setup.js"></script>
+    <script src="/js/barba_setup.js?v=4"></script>
 
 </body>
 </html>

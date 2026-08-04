@@ -1,130 +1,209 @@
 // Barba.js Initialization
-if (typeof barba !== 'undefined') { barba.init({
-    prevent: ({ el }) => {
-        if (el.hasAttribute('data-barba-prevent')) return true;
-        if (el.getAttribute('href') && el.getAttribute('href').startsWith('#')) return true;
-        if (el.href && el.href.includes('backend/')) return true;
-        return false;
-    },
-    transitions: [{
-        name: 'opacity-transition',
-        beforeEnter(data) {
-            data.next.container.setAttribute("x-ignore", "");
-            // Using x-ignore instead of removing x-data
+if (typeof barba !== 'undefined') {
+    barba.init({
+        prevent: ({ el }) => {
+            if (el.hasAttribute('data-barba-prevent')) return true;
+            if (el.getAttribute('href') && el.getAttribute('href').startsWith('#')) return true;
+            if (el.href && el.href.includes('backend/')) return true;
+            return false;
         },
-        leave(data) {
-            // Stop any playing videos in the old container
-            const oldVideos = data.current.container.querySelectorAll('video');
-            oldVideos.forEach(v => {
-                v.pause();
-                v.removeAttribute('src');
-                v.load();
-                        v.remove();
-            });
+        transitions: [{
+            name: 'opacity-transition',
+            leave(data) {
+                // Stop any playing videos in the old container
+                const oldVideos = data.current.container.querySelectorAll('video');
+                oldVideos.forEach(v => {
+                    v.pause();
+                    v.removeAttribute('src');
+                    v.load();
+                    v.remove();
+                });
 
-            // Kill all ScrollTriggers before leaving
-            if (typeof ScrollTrigger !== 'undefined') { ScrollTrigger.getAll().forEach(t => t.kill()); }
-            
-            // Reset custom cursor state
-            const innerCursor = document.querySelector('.inner-cursor');
-            if(innerCursor && typeof gsap !== 'undefined') {
-                gsap.to(innerCursor, { scale: 1, backgroundColor: '#ef4444', border: 'none', duration: 0.2 });
-            }
-            
-            return new Promise(resolve => {
-                if (typeof window.showPageLoader === 'function') {
-                    window.showPageLoader(resolve);
-                } else {
-                    gsap.to(data.current.container, {
-                        opacity: 0,
-                        duration: 0.3,
-                        onComplete: resolve
+                // Kill all ScrollTriggers before leaving to prevent memory leaks and conflicts
+                if (typeof ScrollTrigger !== 'undefined') {
+                    ScrollTrigger.getAll().forEach(t => t.kill());
+                }
+                
+                // Reset custom cursor state if present
+                const innerCursor = document.querySelector('.inner-cursor');
+                if (innerCursor && typeof gsap !== 'undefined') {
+                    gsap.to(innerCursor, { scale: 1, backgroundColor: '#ef4444', border: 'none', duration: 0.2 });
+                }
+                
+                return new Promise(resolve => {
+                    if (typeof window.showPageLoader === 'function') {
+                        window.showPageLoader(resolve);
+                    } else {
+                        gsap.to(data.current.container, {
+                            opacity: 0,
+                            duration: 0.3,
+                            onComplete: resolve
+                        });
+                    }
+                });
+            },
+            enter(data) {
+                // Alpine v3 automatically detects new elements via MutationObserver when data.next.container is inserted.
+                // We do not manually call Alpine.start() or Alpine.initTree() to avoid duplicate errors.
+
+                // Start entering animation
+                gsap.from(data.next.container, {
+                    opacity: 0,
+                    duration: 0.3
+                });
+                
+                // Update body classes safely
+                if (data.next.html) {
+                    const parser = new DOMParser();
+                    const htmlDoc = parser.parseFromString(data.next.html, 'text/html');
+                    
+                    if (htmlDoc.title) {
+                        document.title = htmlDoc.title;
+                    }
+
+                    if (htmlDoc.body.className) {
+                        let newClass = htmlDoc.body.className;
+                        newClass = newClass.replace(/is-loading/g, '').trim();
+                        document.body.className = newClass;
+                    }
+
+                    // Swap inline styles
+                    const oldStyles = document.head.querySelectorAll('style');
+                    oldStyles.forEach(s => s.remove());
+                    htmlDoc.head.querySelectorAll('style').forEach(newStyle => {
+                        const style = document.createElement('style');
+                        style.innerHTML = newStyle.innerHTML;
+                        document.head.appendChild(style);
+                    });
+
+                    // Swap external stylesheets
+                    const newLinkHrefs = Array.from(htmlDoc.head.querySelectorAll('link[rel="stylesheet"]')).map(l => l.href);
+                    document.head.querySelectorAll('link[rel="stylesheet"]').forEach(link => {
+                        if (!newLinkHrefs.includes(link.href)) {
+                            link.remove();
+                        }
+                    });
+                    
+                    const currentLinks = Array.from(document.head.querySelectorAll('link[rel="stylesheet"]')).map(l => l.href);
+                    htmlDoc.head.querySelectorAll('link[rel="stylesheet"]').forEach(newLink => {
+                        if (newLink.href && !currentLinks.includes(newLink.href)) {
+                            const link = document.createElement('link');
+                            link.rel = 'stylesheet';
+                            link.href = newLink.href;
+                            document.head.appendChild(link);
+                        }
                     });
                 }
-            });
-        },
-        enter(data) {
-            // Start entering animation
-            gsap.from(data.next.container, {
-                opacity: 0,
-                duration: 0.3
-            });
-            
-            // Update body classes safely
-            if (data.next.html) {
-                const parser = new DOMParser();
-                const htmlDoc = parser.parseFromString(data.next.html, 'text/html');
-                if (htmlDoc.body.className) {
-                    let newClass = htmlDoc.body.className;
-                    newClass = newClass.replace(/is-loading/g, '').trim();
-                    document.body.className = newClass;
-                }
-            }
 
-            // Evaluate scripts in the new container safely
-            let externalScriptsToLoad = 0;
-            let initCalled = false;
-            
-            const checkAndInitAlpine = () => {
-                if (externalScriptsToLoad > 0) return;
-                if (initCalled) return;
-                initCalled = true; console.log("checkAndInitAlpine running... typeof watchParty: " + typeof window.watchParty); if (data.next.container.hasAttribute("x-ignore")) { data.next.container.removeAttribute("x-ignore"); delete data.next.container._x_ignore; } if (typeof Alpine !== "undefined" && Alpine.initTree) { Alpine.initTree(data.next.container); }
+                // Re-bind HTMX strictly as requested
+                if (typeof htmx !== 'undefined') {
+                    htmx.process(data.next.container);
+                }
                 
-                // Restore x-data AFTER all scripts (including external) have evaluated
-                const tempElements = data.next.container.querySelectorAll('[data-x-data-temp]');
-                tempElements.forEach(el => {
-                    el.setAttribute('x-data', el.getAttribute('data-x-data-temp'));
-                    el.removeAttribute('data-x-data-temp');
-                });
-                if (data.next.container.hasAttribute('data-x-data-temp')) {
-                    data.next.container.setAttribute('x-data', data.next.container.getAttribute('data-x-data-temp'));
-                    data.next.container.removeAttribute('data-x-data-temp');
+                // Re-bind cursor interactivity
+                if (typeof window.initInteractiveElements === 'function') {
+                    window.initInteractiveElements();
                 }
-            };
-
-            const scripts = data.next.container.querySelectorAll('script');
-            scripts.forEach(oldScript => {
-                const newScript = document.createElement('script');
-                Array.from(oldScript.attributes).forEach(attr => newScript.setAttribute(attr.name, attr.value));
-                newScript.appendChild(document.createTextNode(oldScript.innerHTML));
                 
-                if (oldScript.src) {
-                    externalScriptsToLoad++;
-                    newScript.onload = () => {
-                        externalScriptsToLoad--;
-                        checkAndInitAlpine();
-                    };
-                    newScript.onerror = () => {
-                        externalScriptsToLoad--;
-                        checkAndInitAlpine();
-                    };
+                // Re-initialize GSAP scoped strictly to the new container
+                if (typeof initAnimations === 'function') {
+                    initAnimations(data.next.container);
                 }
-                oldScript.parentNode.replaceChild(newScript, oldScript);
-            });
-            
-            // Fallback if no external scripts, or to trigger initial check
-            setTimeout(checkAndInitAlpine, 10);
+                
+                if (typeof initLocalAnimations === 'function') {
+                    initLocalAnimations(data.next.container);
+                }
 
-            // Re-bind HTMX
-            if (typeof htmx !== 'undefined') {
-                htmx.process(data.next.container);
+                // Check for URL parameters (error/success messages) after Barba transition
+                setTimeout(() => {
+                    const urlParams = new URLSearchParams(window.location.search);
+                    const phpError = urlParams.get('error');
+                    const phpSuccess = urlParams.get('success');
+                    if (phpError && typeof window.showToast === 'function') {
+                        window.showToast(decodeURIComponent(phpError), 'error');
+                        window.history.replaceState({}, document.title, window.location.pathname);
+                    } else if (phpSuccess && typeof window.showToast === 'function') {
+                        window.showToast(decodeURIComponent(phpSuccess), 'success');
+                        window.history.replaceState({}, document.title, window.location.pathname);
+                    }
+                }, 100);
+                
+                // Hide loader after enter
+                if (typeof window.hidePageLoader === 'function') {
+                    window.hidePageLoader();
+                }
             }
-            
-            // CRITICAL FIX: Re-bind cursor interactivity
-            if (typeof window.initInteractiveElements === 'function') {
-                window.initInteractiveElements();
-            }
-            
-            // Re-initialize GSAP scoped to the new container
-            if (typeof initAnimations === 'function') {
-                initAnimations(data.next.container);
-            }
-            
-            // Hide loader after enter
-            if (typeof window.hidePageLoader === 'function') {
-                window.hidePageLoader();
-            }
-        }
-    }]
-});
+        }]
+    });
 }
+
+
+document.addEventListener('DOMContentLoaded', () => {
+    if (typeof initAnimations === 'function') {
+        initAnimations(document);
+    }
+    if (typeof initLocalAnimations === 'function') {
+        initLocalAnimations(document);
+    }
+});
+if(typeof gsap !== 'undefined') gsap.config({nullTargetWarn: false});
+
+// Global Form Submission Interceptor for Barba.js
+document.addEventListener('submit', async (e) => {
+    const form = e.target;
+    if (form && form.tagName === 'FORM') {
+        if (e.defaultPrevented) return;
+        if (form.hasAttribute('data-barba-prevent')) return;
+        if (typeof barba === 'undefined' || !barba.go) return;
+        
+        e.preventDefault();
+        const formData = new FormData(form);
+        const action = form.getAttribute('action') || window.location.href;
+        const method = (form.getAttribute('method') || 'GET').toUpperCase();
+        
+        if (typeof window.showPageLoader === 'function') window.showPageLoader();
+        
+        try {
+            let fetchOpts = { method, redirect: 'follow', credentials: 'same-origin' };
+            let finalAction = action;
+            if (method === 'POST') {
+                fetchOpts.body = formData;
+            } else {
+                const params = new URLSearchParams(formData).toString();
+                finalAction += (finalAction.includes('?') ? '&' : '?') + params;
+            }
+            
+            const response = await fetch(finalAction, fetchOpts);
+            const finalUrl = response.url;
+            
+            // Re-hide loader is handled by Barba's enter hook
+            barba.go(finalUrl);
+        } catch(err) {
+            console.error('Form submission error:', err);
+            if (typeof window.hidePageLoader === 'function') window.hidePageLoader();
+        }
+    }
+});
+
+
+// Global Link Interceptor for backend/ links
+document.addEventListener('click', async (e) => {
+    const link = e.target.closest('a');
+    if (link && link.href && link.href.includes('backend/')) {
+        if (e.defaultPrevented) return;
+        if (link.hasAttribute('data-barba-prevent')) return;
+        if (typeof barba === 'undefined' || !barba.go) return;
+        
+        e.preventDefault();
+        
+        if (typeof window.showPageLoader === 'function') window.showPageLoader();
+        
+        try {
+            const response = await fetch(link.href, { redirect: 'follow', credentials: 'same-origin' });
+            barba.go(response.url);
+        } catch(err) {
+            console.error('Link fetch error:', err);
+            if (typeof window.hidePageLoader === 'function') window.hidePageLoader();
+        }
+    }
+});

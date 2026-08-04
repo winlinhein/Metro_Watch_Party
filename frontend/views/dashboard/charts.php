@@ -10,10 +10,10 @@
         </div>
         <!-- Animated CSS Chart -->
         <div class="h-64 flex items-end gap-3 border-l-2 border-b-2 border-white/5 pb-2 pl-3 relative" id="traffic-chart">
-            <template x-for="i in 14">
-                <div class="flex-1 bg-gradient-to-t from-red-600/50 to-indigo-500/80 rounded-t-sm relative group cursor-pointer hover:brightness-125 transition-all chart-bar" :style="`height: ${Math.random() * 70 + 30}%`">
+                        <template x-for="(data, index) in networkTraffic" :key="index">
+                <div class="flex-1 bg-gradient-to-t from-red-600/50 to-indigo-500/80 rounded-t-sm relative group cursor-pointer hover:brightness-125 transition-all chart-bar" :style="`height: ${data.height}%`">
                     <div class="absolute -top-10 left-1/2 -translate-x-1/2 bg-white/10 backdrop-blur-md text-xs py-1.5 px-3 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-10 border border-white/20 text-white font-bold shadow-xl translate-y-2 group-hover:translate-y-0 duration-200">
-                        <span x-text="Math.floor(Math.random() * 5000 + 1000)"></span> reqs
+                        <span x-text="data.reqs"></span> reqs
                     </div>
                 </div>
             </template>
