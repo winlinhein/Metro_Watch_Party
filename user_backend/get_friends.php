@@ -1,4 +1,5 @@
 <?php
+// user_backend/get_friends.php
 session_start();
 header('Content-Type: application/json');
 
@@ -13,7 +14,8 @@ require_once __DIR__ . '/../conn.php';
 $currentUserId = (int)$_SESSION['user_id'];
 
 try {
-    $stmt = $conn->prepare("
+    // 1. Fetch Accepted Friends
+    $friendsStmt = $conn->prepare("
         SELECT 
             u.user_id, 
             u.user_name, 
@@ -25,18 +27,29 @@ try {
         WHERE (uf.user_id_1 = :id2 OR uf.user_id_2 = :id3)
           AND uf.status = 'accepted'
     ");
+    $friendsStmt->execute(['id1' => $currentUserId, 'id2' => $currentUserId, 'id3' => $currentUserId]);
+    $friends = $friendsStmt->fetchAll(PDO::FETCH_ASSOC);
 
-    $stmt->execute([
-        'id1' => $currentUserId,
-        'id2' => $currentUserId,
-        'id3' => $currentUserId
+    // 2. Fetch Incoming Pending Friend Requests ("Users who added you")
+    $pendingStmt = $conn->prepare("
+        SELECT 
+            u.user_id, 
+            u.user_name, 
+            u.email, 
+            u.is_premium
+        FROM user_friends uf
+        JOIN users u ON u.user_id = uf.user_id_1
+        WHERE uf.user_id_2 = :current_id AND uf.status = 'pending'
+    ");
+    $pendingStmt->execute(['current_id' => $currentUserId]);
+    $pendingRequests = $pendingStmt->fetchAll(PDO::FETCH_ASSOC);
+
+    echo json_encode([
+        'friends' => $friends,
+        'pending_requests' => $pendingRequests
     ]);
-
-    $friends = $stmt->fetchAll(PDO::FETCH_ASSOC);
-    echo json_encode($friends);
 
 } catch (PDOException $e) {
     http_response_code(500);
-    // Explicitly returning 'error' so JS data.error is not undefined
     echo json_encode(['error' => $e->getMessage()]);
 }

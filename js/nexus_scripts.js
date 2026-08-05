@@ -9,6 +9,9 @@ function userDashboard() {
         showQuestsPanel: false,
         questActiveTab: 'daily',
         showInviteModal: false,
+        showInviteModal: false,
+        showNotifications: false,
+        friendsTab: 'connected',
         movieModalOpen: false,
         editingMovie: false,
         banModalOpen: false,
@@ -24,50 +27,106 @@ function userDashboard() {
         selectedReport: null,
         selectedRoom: null,
         formData: { name: '', price: 0, rarity: 'Common', image: '' },
-        newMovie: { title: '', genre: '', year: '', rating: '', description: '', trailer: '', img: '', comments: [] },
         shopItems: [],
+
+        // Movie State & Modals
         movies: [],
+        movieSearchQuery: '',
+        selectedMovie: null,
+        showMovieDetailModal: false,
+
+       // Live filtered movies getter
+        get filteredMovies() {
+            if (!this.movieSearchQuery.trim()) return this.movies;
+            const query = this.movieSearchQuery.toLowerCase();
+            return this.movies.filter(movie => 
+                (movie.title && movie.title.toLowerCase().includes(query)) ||
+                (Array.isArray(movie.genres) && movie.genres.some(g => g.toLowerCase().includes(query)))
+            );
+        },
+
+        // API Fetching
         async fetchMovies() { 
             try { 
-                const response = await fetch("/backend/movies_api.php"); 
-                const text = await response.text(); 
-                try { 
-                    const data = JSON.parse(text); 
-                    if (response.ok) { 
-                        this.movies = data; 
-                    } 
-                } catch(e) {} 
-            } catch(e) {} 
-        }, 
+                const response = await fetch("/user_backend/movies_api.php");
+                if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                
+                const data = await response.json(); 
+                this.movies = data;
+            } catch(e) {
+                console.error("Failed to load movies from database:", e);
+            } 
+        },
+
+        // Detect if URL is from YouTube
+        isYouTubeUrl(url) {
+            if (!url) return false;
+            return url.includes('youtube.com') || url.includes('youtu.be');
+        },
+
+        // Convert any standard YouTube link into a clean Embed URL
+        getYouTubeEmbedUrl(url, isHover = false) {
+            if (!url) return '';
+            
+            // Extract Video ID
+            const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
+            const match = url.match(regExp);
+            
+            if (match && match[2].length === 11) {
+                const videoId = match[2];
+                
+                // Query parameters for YouTube Embed
+                const params = new URLSearchParams({
+                    autoplay: isHover ? '1' : '1',
+                    mute: isHover ? '1' : '0',            // Browser policy requires mute for auto-play on hover
+                    controls: isHover ? '0' : '1',        // Hide controls during hover
+                    loop: '1',
+                    playlist: videoId,                    // Required for looping
+                    modestbranding: '1',
+                    rel: '0'
+                });
+
+                return `https://www.youtube.com/embed/${videoId}?${params.toString()}`;
+            }
+            
+            return url;
+        },
+
+        // Modal triggers
+        openMovieDetail(movie) {
+            this.selectedMovie = movie;
+            this.showMovieDetailModal = true;
+        },
+        closeMovieDetail() {
+            this.showMovieDetailModal = false;
+            this.selectedMovie = null;
+        },
+
         init() { 
             this.fetchMovies(); 
         },
 
         // Quests Data
-        quests: {
-            daily: [
-                { id: 1, title: 'Watch a Movie', desc: 'Watch any movie for at least 30 minutes', points: 50, completed: true },
-                { id: 2, title: 'Host a Watch Party', desc: 'Invite at least 1 friend to a party', points: 100, completed: false },
-                { id: 3, title: 'Chat Master', desc: 'Send 10 messages in party chat', points: 30, completed: false }
-            ],
-            weekly: [
-                { id: 4, title: 'Movie Marathon', desc: 'Watch 3 movies this week', points: 300, completed: false },
-                { id: 5, title: 'Social Butterfly', desc: 'Host 3 watch parties', points: 500, completed: false },
-                { id: 6, title: 'Genre Explorer', desc: 'Watch movies from 3 different genres', points: 250, completed: true }
-            ],
-            monthly: [
-                { id: 7, title: 'Cinephile', desc: 'Watch 15 movies this month', points: 1500, completed: false },
-                { id: 8, title: 'Party Animal', desc: 'Host 10 watch parties', points: 2000, completed: false },
-                { id: 9, title: 'Community Pillar', desc: 'Add 5 new friends', points: 1000, completed: false }
-            ]
+       quests: {
+            daily: [],
+            weekly: [],
+            monthly: []
         },
 
         // Friends & User Search State
+        
+
+        // Data Lists
         friends: [],
-        searchQuery: '',
+        pendingRequests: [],
+        notifications: [],
         searchResults: [],
+        unreadNotifCount: 0,
+        
+        searchQuery: '',
         friendSearchQuery: '',
         searchTimeout: null,
+        pollingInterval: null,
 
         // Navigation Items
         navItems: [
@@ -123,118 +182,171 @@ function userDashboard() {
             { day: 'Sun', reqs: 4600, height: 88 }
         ],
 
-        // Keep stat card for Friends synchronized dynamically
+        async loadMissions() {
+            try {
+                const response = await fetch('/user_backend/mission.php');
+                const data = await response.json();
+                
+                if (data.success) {
+                    // Update Total Points in stats array
+                    this.stats[3].value = data.totalPoints;
+                    
+                    // Populate daily, weekly, and monthly quests dynamically
+                    ['daily', 'weekly', 'monthly'].forEach(type => {
+                        this.quests[type] = (data.quests[type] || []).map(q => ({
+                            id: q.mission_id,
+                            title: q.title,
+                            desc: `Reward: ${q.points_reward} Points`, // Fixed backticks
+                            points: q.points_reward,
+                            completed: Number(q.completed) === 1
+                        }));
+                    });
+                }
+            } catch (err) {
+                console.error('Failed to fetch missions:', err);
+            }
+        },
+
+        // Fetch Friends & Incoming Pending Requests
+        async fetchFriends() {
+            try {
+                const response = await fetch('/user_backend/get_friends.php');
+                if (!response.ok) throw new Error('Failed to fetch friends');
+                
+                const data = await response.json();
+                
+                if (data && !data.error) {
+                    this.friends = data.friends || [];
+                    this.pendingRequests = data.pending_requests || [];
+                    this.updateFriendsCount();
+                }
+            } catch (err) {
+                console.error('Fetch friends error:', err);
+            }
+        },
+
+        // Fetch Notifications
+        async fetchNotifications() {
+            try {
+                const response = await fetch('/user_backend/get_notifications.php');
+                if (!response.ok) return;
+
+                const data = await response.json();
+                if (data.success && Array.isArray(data.notifications)) {
+                    this.notifications = data.notifications;
+                    this.unreadNotifCount = this.notifications.filter(n => Number(n.is_read) === 0).length;
+                }
+            } catch (err) {
+                console.error('Notification error:', err);
+            }
+        },
+
+        // Respond to Friend Request (Accept / "Add Back" or Decline)
+        async respondToFriendRequest(senderId, action) {
+            try {
+                const res = await fetch('/user_backend/respond_friend.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ sender_id: senderId, action: action })
+                });
+
+                const data = await res.json();
+                if (data.success) {
+                    if (typeof window.showToast === 'function') {
+                        window.showToast(data.message, 'success');
+                    } else {
+                        alert(data.message);
+                    }
+
+                    // Synchronize state immediately
+                    await this.fetchFriends();
+                    await this.fetchNotifications();
+                    this.searchUsers();
+                } else {
+                    alert(data.message || 'Action failed.');
+                }
+            } catch (err) {
+                console.error('Error responding to request:', err);
+            }
+        },
+
+        // Send Friend Request
+        async sendFriendRequest(friendId) {
+            try {
+                const res = await fetch('/user_backend/add_friend.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ friend_id: friendId })
+                });
+
+                const data = await res.json();
+                if (data.success) {
+                    if (typeof window.showToast === 'function') {
+                        window.showToast(data.message, 'success');
+                    } else {
+                        alert(data.message);
+                    }
+
+                    await this.fetchFriends();
+                    this.searchUsers();
+                } else {
+                    alert(data.message || 'Request failed.');
+                }
+            } catch (err) {
+                console.error('Send request error:', err);
+            }
+        },
+
+        // Search Users
+        searchUsers(query = null) {
+            const searchTerm = (query !== null ? query : this.searchQuery) || '';
+            fetch(`/user_backend/search_users.php?q=${encodeURIComponent(searchTerm.trim())}`)
+                .then(res => res.json())
+                .then(data => {
+                    if (Array.isArray(data)) {
+                        this.searchResults = data;
+                    }
+                })
+                .catch(err => console.error('Search error:', err));
+        },
+
+        // Get Status for Search Result Item
+       getFriendStatus(user) {
+            const userId = Number(user.user_id);
+
+            // 1. Already connected as friends
+            if (user.friend_status === 'accepted' || this.friends.some(f => Number(f.user_id) === userId)) {
+                return 'friend';
+            }
+
+            // 2. The other user sent YOU a request -> Show "Add Back"
+            const isIncoming = this.pendingRequests.some(r => Number(r.user_id) === userId);
+            if (isIncoming) {
+                return 'incoming_pending';
+            }
+
+            // 3. YOU sent them a request -> Show "Pending"
+            if (user.friend_status === 'pending') {
+                return 'outgoing_pending';
+            }
+
+            // 4. No existing relationship -> Show "Add Friend"
+            return 'none';
+        },
+        // Update Dashboard Stat Card
         updateFriendsCount() {
             const friendStat = this.stats.find(s => s.label === 'Friends');
             if (friendStat) {
                 friendStat.value = this.friends ? this.friends.length : 0;
             }
         },
-        addFriend(friendId) {
-            this.sendFriendRequest(friendId);
-        },
-
-       fetchFriends() {
-            fetch('/user_backend/get_friends.php')
-                .then(async (response) => {
-                    const data = await response.json().catch(() => ({}));
-                    
-                    if (!response.ok) {
-                        // Fallback to response status text if data.error is missing
-                        throw new Error(data.error || `HTTP ${response.status}: ${response.statusText}`);
-                    }
-                    
-                    return data;
-                })
-                .then((data) => {
-                    if (Array.isArray(data)) {
-                        this.friends = data;
-                        this.updateFriendsCount(); // Synchronize dashboard Friends stat card
-                    }
-                })
-                .catch((error) => {
-                    console.error('Failed to fetch friends:', error.message || error);
-                });
-        },
-
-        getFriendStatus(user) {
-            // 1. Return direct status from backend API if available ('friend', 'pending', 'none')
-            const status = (user.friend_status || user.status || '').toLowerCase();
-            if (['friend', 'pending', 'none'].includes(status)) {
-                return status;
-            }
-
-            // 2. Fallback check against loaded friends list
-            const isFriend = this.friends.some(f => (f.user_id || f.id) === user.user_id);
-            if (isFriend) return 'friend';
-
-            // 3. Fallback check for pending flag
-            if (user.is_pending) return 'pending';
-
-            return 'none';
-        },
-
-        sendFriendRequest(friendId) {
-            fetch('/user_backend/add_friend.php', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({ friend_id: friendId })
-            })
-            .then(async res => {
-                const text = await res.text();
-                let data;
-                
-                try {
-                    data = JSON.parse(text);
-                } catch (e) {
-                    // Strips HTML tags from PHP error output so you can see the exact cause
-                    const cleanText = text.replace(/<[^>]*>?/gm, ' ').replace(/\s+/g, ' ').trim();
-                    throw new Error(cleanText || 'Server outputted non-JSON response.');
-                }
-
-                if (!res.ok || !data.success) {
-                    throw new Error(data.message || 'Failed to send friend request.');
-                }
-
-                return data;
-            })
-            .then(data => {
-                alert(data.message);
-                if (typeof this.searchUsers === 'function') {
-                    this.searchUsers(); // Refresh search view
-                }
-            })
-            .catch(err => {
-                console.error('Error sending friend request:', err);
-                alert(`Request Failed: ${err.message}`);
-            });
-        },
-        searchUsers(query = null) {
-            const searchTerm = (query !== null ? query : this.searchQuery) || '';
-            fetch(`/user_backend/search_users.php?q=${encodeURIComponent(searchTerm.trim())}`)
-                .then(response => {
-                    if (!response.ok) throw new Error('Network response was not ok');
-                    return response.json();
-                })
-                .then(data => {
-                    if (Array.isArray(data)) {
-                        this.searchResults = data;
-                    }
-                })
-                .catch(error => {
-                    console.error('Search error:', error);
-                });
-        },
 
         get filteredFriends() {
             if (!this.friendSearchQuery) return this.friends;
             return this.friends.filter(f => 
-                (f.user_name || f.username || '').toLowerCase().includes(this.friendSearchQuery.toLowerCase())
+                (f.user_name || '').toLowerCase().includes(this.friendSearchQuery.toLowerCase())
             );
         },
-
         // Tab Navigation
         switchTab(tabId) {
             if (this.currentTab === tabId) return;
@@ -377,24 +489,26 @@ function userDashboard() {
             // Initial data fetch
             this.fetchFriends();
             this.searchUsers();
+            this.loadMissions();
+            this.fetchNotifications();
 
-           // Debounced watcher: reset to default users when empty, search when >= 2 chars
+            // Start Live Notification Polling every 5 seconds
+            this.pollingInterval = setInterval(() => {
+                this.fetchNotifications();
+                this.fetchFriends();
+            }, 5000);
+
+            // Debounce search watcher
             this.$watch('searchQuery', (query) => {
                 clearTimeout(this.searchTimeout);
                 const trimmed = (query || '').trim();
 
-                // If input is completely erased, reload default users from PHP
                 if (trimmed === '') {
                     this.searchUsers();
                     return;
                 }
+                if (trimmed.length < 2) return;
 
-                // Don't trigger API call for a single character
-                if (trimmed.length < 2) {
-                    return;
-                }
-
-                // Debounce search requests for 2+ characters
                 this.searchTimeout = setTimeout(() => {
                     this.searchUsers();
                 }, 300);

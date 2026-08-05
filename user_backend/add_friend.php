@@ -22,8 +22,8 @@ if (!$friendId || $friendId === $userId) {
 }
 
 try {
-    // 1. Check if relationship already exists in user_friends
-    $checkSql = "SELECT user_id_1, status FROM user_friends 
+    // 1. Check existing relationship in user_friends
+    $checkSql = "SELECT id, user_id_1, user_id_2, status FROM user_friends 
                  WHERE (user_id_1 = :u1 AND user_id_2 = :u2) 
                     OR (user_id_1 = :u3 AND user_id_2 = :u4)
                  LIMIT 1";
@@ -36,22 +36,55 @@ try {
         ':u4' => $userId
     ]);
 
-    if ($checkStmt->fetch()) {
-        echo json_encode(['success' => false, 'message' => 'Friend request or connection already exists.']);
+    $existing = $checkStmt->fetch(PDO::FETCH_ASSOC);
+
+    if ($existing) {
+        if ($existing['status'] === 'accepted') {
+            echo json_encode(['success' => false, 'message' => 'You are already friends.']);
+            exit();
+        }
+
+        // If the other user already sent a pending request -> Automatically accept ("Add Back")
+        if ($existing['status'] === 'pending' && (int)$existing['user_id_1'] === $friendId) {
+            $updateStmt = $conn->prepare("UPDATE user_friends SET status = 'accepted' WHERE id = :id");
+            $updateStmt->execute([':id' => $existing['id']]);
+
+            // Notify original sender
+            $notifStmt = $conn->prepare("
+                INSERT INTO notifications (user_id, sender_id, type, message, is_read, created_at) 
+                VALUES (:user_id, :sender_id, 'friend_accepted', 'accepted your friend request.', 0, NOW())
+            ");
+            $notifStmt->execute([':user_id' => $friendId, ':sender_id' => $userId]);
+
+            echo json_encode(['success' => true, 'message' => 'Friend request accepted!', 'action' => 'accepted']);
+            exit();
+        }
+
+        echo json_encode(['success' => false, 'message' => 'Friend request is already pending.']);
         exit();
     }
 
-    // 2. Insert new friend request into user_friends table
-    $insertSql = "INSERT INTO user_friends (user_id_1, user_id_2, status) 
-                  VALUES (:sender, :receiver, 'pending')";
-                  
-    $insertStmt = $conn->prepare($insertSql);
+    // 2. Insert new friend request
+    $insertStmt = $conn->prepare("
+        INSERT INTO user_friends (user_id_1, user_id_2, status) 
+        VALUES (:sender, :receiver, 'pending')
+    ");
     $insertStmt->execute([
         ':sender'   => $userId,
         ':receiver' => $friendId
     ]);
 
-    echo json_encode(['success' => true, 'message' => 'Friend request sent successfully!']);
+    // 3. Send notification to receiver
+    $notifStmt = $conn->prepare("
+        INSERT INTO notifications (user_id, sender_id, type, message, is_read, created_at) 
+        VALUES (:receiver, :sender, 'friend_request', 'sent you a friend request.', 0, NOW())
+    ");
+    $notifStmt->execute([
+        ':receiver' => $friendId,
+        ':sender'   => $userId
+    ]);
+
+    echo json_encode(['success' => true, 'message' => 'Friend request sent successfully!', 'action' => 'sent']);
 
 } catch (PDOException $e) {
     error_log("Add Friend Error: " . $e->getMessage());

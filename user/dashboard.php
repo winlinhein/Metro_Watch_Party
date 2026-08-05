@@ -250,22 +250,17 @@ $userRole  = $_SESSION['user_role']  ?? 'user';
         </div>
     </div>
 
-    <!-- Friends Drawer -->
+    <!-- Upgraded Friends Drawer -->
     <div x-show="showFriendsPanel" 
         class="fixed inset-0 bg-black/70 backdrop-blur-md z-[90] transition-opacity duration-300 ease-out" 
-        x-transition:enter="transition ease-out duration-300"
-        x-transition:enter-start="opacity-0"
-        x-transition:enter-end="opacity-100"
-        x-transition:leave="transition ease-in duration-200"
-        x-transition:leave-start="opacity-100"
-        x-transition:leave-end="opacity-0"
+        x-transition.opacity
         @click="showFriendsPanel = false" 
         style="display: none;"></div>
 
-    <div class="fixed top-0 right-0 w-full md:w-[310px] h-screen bg-[#07070b]/95 backdrop-blur-2xl border-l border-white/10 z-[100] flex flex-col shadow-[0_0_60px_rgba(0,0,0,0.8)] transition-transform duration-300 ease-out" 
+    <div class="fixed top-0 right-0 w-full md:w-[320px] h-screen bg-[#07070b]/95 backdrop-blur-2xl border-l border-white/10 z-[100] flex flex-col shadow-[0_0_60px_rgba(0,0,0,0.8)] transition-transform duration-300 ease-out" 
         :class="showFriendsPanel ? 'translate-x-0' : 'translate-x-full'">
         
-        <!-- Drawer Header -->
+        <!-- Header -->
         <div class="p-4 border-b border-white/5 relative z-10 shrink-0 bg-gradient-to-b from-white/[0.02] to-transparent">
             <div class="flex items-center justify-between mb-4">
                 <div class="flex items-center gap-3">
@@ -276,7 +271,7 @@ $userRole  = $_SESSION['user_role']  ?? 'user';
                         <h2 class="text-base font-bold uppercase tracking-wider text-white">Friends</h2>
                         <p class="text-[10px] text-emerald-400/90 uppercase tracking-widest font-mono mt-0.5 flex items-center gap-1.5">
                             <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
-                            <span x-text="friends.length"></span> Total
+                            <span x-text="friends.length"></span> Active Friends
                         </p>
                     </div>
                 </div>
@@ -289,55 +284,100 @@ $userRole  = $_SESSION['user_role']  ?? 'user';
                     </button>
                 </div>
             </div>
+
+            <!-- Friends Sub-Tabs (Connected vs Pending Add Back) -->
+            <div class="flex items-center gap-2 bg-black/40 p-1 rounded-xl border border-white/5 mb-3">
+                <button @click="friendsTab = 'connected'" 
+                        class="flex-1 py-1.5 text-[11px] font-bold rounded-lg uppercase transition-all" 
+                        :class="friendsTab === 'connected' ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'text-white/40 hover:text-white'">
+                    Connected (<span x-text="friends.length"></span>)
+                </button>
+                <button @click="friendsTab = 'pending'" 
+                        class="flex-1 py-1.5 text-[11px] font-bold rounded-lg uppercase transition-all relative" 
+                        :class="friendsTab === 'pending' ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'text-white/40 hover:text-white'">
+                    Requests (<span x-text="pendingRequests.length"></span>)
+                    <template x-if="pendingRequests.length > 0">
+                        <span class="w-2 h-2 rounded-full bg-red-500 absolute top-1 right-1 animate-pulse"></span>
+                    </template>
+                </button>
+            </div>
             
-            <!-- Search Filter Input -->
+            <!-- Filter Input -->
             <div class="relative">
                 <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-white/30 text-[16px]">search</span>
                 <input type="text" 
                     x-model="friendSearchQuery" 
-                    placeholder="Filter connected friends..." 
-                    class="w-full bg-white/[0.03] hover:bg-white/[0.05] focus:bg-white/[0.07] border border-white/10 focus:border-emerald-500/50 rounded-xl py-2 pl-9 pr-3 text-[11px] text-white placeholder-white/30 outline-none transition-all duration-200">
+                    placeholder="Filter users..." 
+                    class="w-full bg-white/[0.03] border border-white/10 focus:border-emerald-500/50 rounded-xl py-2 pl-9 pr-3 text-[11px] text-white placeholder-white/30 outline-none">
             </div>
         </div>
         
-        <!-- Friends List Container -->
-        <div class="flex-1 overflow-y-auto p-3 space-y-2.5 custom-scrollbar relative z-10">
+        <!-- Tab 1: Connected Friends List -->
+        <div x-show="friendsTab === 'connected'" class="flex-1 overflow-y-auto p-3 space-y-2.5 custom-scrollbar relative z-10">
             <template x-for="friend in filteredFriends" :key="friend.user_id">
-                <div class="group relative bg-gradient-to-br from-white/[0.04] to-white/[0.01] hover:from-white/[0.07] hover:to-emerald-500/[0.04] border border-white/10 hover:border-emerald-500/30 rounded-xl p-3 transition-all duration-300 ease-out hover:shadow-[0_8px_25px_-5px_rgba(0,0,0,0.5),0_0_15px_rgba(16,185,129,0.1)] hover:-translate-y-0.5">
-                    
+                <div class="group relative bg-gradient-to-br from-white/[0.04] to-white/[0.01] hover:from-white/[0.07] hover:to-emerald-500/[0.04] border border-white/10 hover:border-emerald-500/30 rounded-xl p-3 transition-all duration-300">
                     <div class="flex items-center justify-between gap-2.5">
                         <div class="flex items-center gap-2.5 min-w-0 flex-1">
-                            <!-- Avatar with online status badge -->
                             <div class="relative shrink-0">
                                 <img :src="`https://ui-avatars.com/api/?name=${encodeURIComponent(friend.user_name)}&background=10b981&color=fff`" 
-                                    class="w-9 h-9 rounded-full border border-emerald-500/30 shadow-md object-cover group-hover:scale-105 transition-transform duration-300">
+                                    class="w-9 h-9 rounded-full border border-emerald-500/30 shadow-md object-cover">
                                 <span class="absolute -bottom-0.5 -right-0.5 flex h-2.5 w-2.5">
                                     <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
                                     <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500 border-2 border-[#07070b]"></span>
                                 </span>
                             </div>
-                            
                             <div class="min-w-0 flex-1">
-                                <h4 class="text-xs font-semibold text-white/90 group-hover:text-white truncate transition-colors" x-text="friend.user_name"></h4>
+                                <h4 class="text-xs font-semibold text-white/90 truncate" x-text="friend.user_name"></h4>
                             </div>
                         </div>
 
-                        <!-- Chat Action Button -->
-                        <button class="shrink-0 flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 text-[10px] font-semibold uppercase tracking-wider border border-emerald-500/20 hover:border-emerald-500/40 transition-all duration-200 active:scale-95 group/btn">
-                            <span class="material-symbols-outlined text-[13px] group-hover/btn:translate-x-0.5 transition-transform">chat</span>
+                        <button class="shrink-0 flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 text-[10px] font-semibold uppercase tracking-wider border border-emerald-500/20 hover:border-emerald-500/40 transition-all">
+                            <span class="material-symbols-outlined text-[13px]">chat</span>
                             <span>Chat</span>
                         </button>
                     </div>
-
                 </div>
             </template>
 
-            <!-- Empty State -->
-            <div x-show="filteredFriends.length === 0" class="py-10 px-4 text-center">
-                <div class="w-10 h-10 rounded-full bg-white/5 border border-white/10 flex items-center justify-center mx-auto mb-2 text-white/30">
-                    <span class="material-symbols-outlined text-[20px]">person_off</span>
+            <div x-show="filteredFriends.length === 0" class="py-10 text-center">
+                <span class="material-symbols-outlined text-white/30 text-[24px]">group_off</span>
+                <p class="text-[11px] text-white/40 mt-1">No friends found</p>
+            </div>
+        </div>
+
+        <!-- Tab 2: Pending Incoming Friend Requests ("Added You") -->
+        <div x-show="friendsTab === 'pending'" class="flex-1 overflow-y-auto p-3 space-y-2.5 custom-scrollbar relative z-10" style="display: none;">
+            <template x-for="req in pendingRequests" :key="req.user_id">
+                <div class="bg-gradient-to-br from-white/[0.04] to-white/[0.01] border border-yellow-500/30 rounded-xl p-3 transition-all">
+                    <div class="flex items-center justify-between gap-2 mb-2">
+                        <div class="flex items-center gap-2.5 min-w-0 flex-1">
+                            <img :src="`https://ui-avatars.com/api/?name=${encodeURIComponent(req.user_name)}&background=f59e0b&color=fff`" 
+                                class="w-8 h-8 rounded-full border border-yellow-500/30 object-cover shrink-0">
+                            <div class="min-w-0 flex-1">
+                                <h4 class="text-xs font-semibold text-white truncate" x-text="req.user_name"></h4>
+                                <p class="text-[9px] text-yellow-400 uppercase font-mono tracking-wider">Added you</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Add Back / Decline Action Buttons -->
+                    <div class="flex items-center gap-2 mt-2">
+                        <button @click="respondToFriendRequest(req.user_id, 'accept')" 
+                                class="flex-1 py-1.5 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 border border-emerald-500/30 text-[10px] font-bold uppercase tracking-wider transition-all flex items-center justify-center gap-1">
+                            <span class="material-symbols-outlined text-[14px]">person_add</span>
+                            <span>Add Back</span>
+                        </button>
+                        <button @click="respondToFriendRequest(req.user_id, 'decline')" 
+                                class="py-1.5 px-3 rounded-lg bg-white/5 hover:bg-white/10 text-white/40 hover:text-white border border-white/10 text-[10px] font-bold uppercase transition-all">
+                            Decline
+                        </button>
+                    </div>
                 </div>
-                <p class="text-[11px] font-medium text-white/40">No connected friends found</p>
+            </template>
+
+            <div x-show="pendingRequests.length === 0" class="py-10 text-center">
+                <span class="material-symbols-outlined text-white/30 text-[24px]">inbox</span>
+                <p class="text-[11px] text-white/40 mt-1">No pending requests</p>
             </div>
         </div>
     </div>
@@ -378,47 +418,58 @@ $userRole  = $_SESSION['user_role']  ?? 'user';
                     <span x-text="searchQuery.trim() === '' ? 'Suggested Users' : 'Search Results'"></span>
                 </p>
                 
+                <!-- Search User Item Template -->
                 <template x-for="user in searchResults" :key="user.user_id">
-                    <div class="flex items-center justify-between gap-3 p-3 rounded-xl bg-white/[0.01] hover:bg-white/[0.04] border border-white/5 transition-all duration-200">
+                    <div class="flex items-center justify-between p-3 rounded-xl bg-white/[0.03] border border-white/10 hover:border-emerald-500/30 transition-all">
                         
-                        <!-- User Information -->
+                        <!-- User Info -->
                         <div class="flex items-center gap-3 min-w-0 flex-1">
-                            <img :src="`https://ui-avatars.com/api/?name=${encodeURIComponent(user.user_name || user.username || 'User')}&background=10b981&color=fff`" 
-                                class="w-9 h-9 rounded-full border border-white/10 object-cover shrink-0">
+                            <img :src="`https://ui-avatars.com/api/?name=${encodeURIComponent(user.user_name)}&background=10b981&color=fff`" 
+                                class="w-9 h-9 rounded-full border border-emerald-500/30 object-cover shrink-0">
                             <div class="min-w-0 flex-1">
-                                <h4 class="text-xs font-semibold text-white truncate" x-text="user.user_name || user.username"></h4>
-                                <p class="text-[10px] text-white/40 truncate" x-text="user.email || ''"></p>
+                                <h4 class="text-xs font-bold text-white truncate" x-text="user.user_name"></h4>
+                                <p class="text-[10px] text-white/40 truncate" x-text="user.email"></p>
                             </div>
                         </div>
 
-                        <!-- Relationship Status Action Buttons -->
-                        <div class="shrink-0">
-                            <!-- Friend Badge -->
+                        <!-- Conditional Action Buttons -->
+                        <div class="shrink-0 ml-2">
+                            
+                            <!-- STATE 1: Already Friends -->
                             <template x-if="getFriendStatus(user) === 'friend'">
-                                <span class="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-[10px] font-bold uppercase tracking-wider">
-                                    <span class="material-symbols-outlined text-[14px]">check</span>
-                                    <span>Friend</span>
+                                <span class="px-3 py-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-[10px] font-bold uppercase tracking-wider flex items-center gap-1">
+                                    <span class="material-symbols-outlined text-[14px]">check_circle</span>
+                                    Friends
                                 </span>
                             </template>
 
-                            <!-- Pending Request Badge -->
-                            <template x-if="getFriendStatus(user) === 'pending'">
-                                <span class="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-yellow-500/10 border border-yellow-500/20 text-yellow-400 text-[10px] font-bold uppercase tracking-wider">
-                                    <span class="material-symbols-outlined text-[14px]">schedule</span>
-                                    <span>Pending</span>
-                                </span>
-                            </template>
-
-                            <!-- Add Friend Button -->
-                            <template x-if="getFriendStatus(user) === 'none'">
-                                <button @click="addFriend(user.user_id)" 
-                                        class="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 hover:text-emerald-300 border border-emerald-500/30 hover:border-emerald-500/50 text-[10px] font-bold uppercase tracking-wider transition-all duration-200 active:scale-95">
+                            <!-- STATE 2: Incoming Request -> SHOW "ADD BACK" -->
+                            <template x-if="getFriendStatus(user) === 'incoming_pending'">
+                                <button @click="respondToFriendRequest(user.user_id, 'accept')" 
+                                        class="px-3 py-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-black font-extrabold text-[10px] uppercase tracking-wider shadow-[0_0_15px_rgba(16,185,129,0.4)] transition-all flex items-center gap-1">
                                     <span class="material-symbols-outlined text-[14px]">person_add</span>
-                                    <span>Add</span>
+                                    Add Back
                                 </button>
                             </template>
-                        </div>
 
+                            <!-- STATE 3: Outgoing Request -> SHOW "PENDING" -->
+                            <template x-if="getFriendStatus(user) === 'outgoing_pending'">
+                                <span class="px-3 py-1.5 rounded-lg bg-yellow-500/10 border border-yellow-500/30 text-yellow-400 text-[10px] font-bold uppercase tracking-wider flex items-center gap-1">
+                                    <span class="material-symbols-outlined text-[14px]">schedule</span>
+                                    Pending
+                                </span>
+                            </template>
+
+                            <!-- STATE 4: Not Friends -> SHOW "ADD FRIEND" -->
+                            <template x-if="getFriendStatus(user) === 'none'">
+                                <button @click="sendFriendRequest(user.user_id)" 
+                                        class="px-3 py-1.5 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/30 text-emerald-400 font-bold text-[10px] uppercase tracking-wider transition-all flex items-center gap-1">
+                                    <span class="material-symbols-outlined text-[14px]">person_add</span>
+                                    Add Friend
+                                </button>
+                            </template>
+
+                        </div>
                     </div>
                 </template>
 
@@ -590,5 +641,7 @@ $userRole  = $_SESSION['user_role']  ?? 'user';
 
 <script src="https://unpkg.com/@barba/core@2.9.7/dist/barba.umd.js" crossorigin="anonymous"></script>
 <script src="/js/barba_setup.js?v=4"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+<script src="/js/nexus_scripts.js?v=6"></script>
 </body>
 </html>
