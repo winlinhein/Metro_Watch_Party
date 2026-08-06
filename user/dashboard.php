@@ -14,7 +14,13 @@ if (
 $userName  = $_SESSION['user_name']  ?? 'Agent';
 $userEmail = $_SESSION['user_email'] ?? '';
 $userRole  = $_SESSION['user_role']  ?? 'user';
+$userId = $_SESSION['user_id'] ?? 0;
 ?>
+<script src="https://js.pusher.com/8.2.0/pusher.min.js"></script>
+<script>
+    window.CURRENT_USER_ID = <?php echo json_encode($userId); ?>;
+</script>
+
 <!DOCTYPE html>
 <html lang="en">
 <head>

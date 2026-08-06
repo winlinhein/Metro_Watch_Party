@@ -9,7 +9,6 @@ function userDashboard() {
         showQuestsPanel: false,
         questActiveTab: 'daily',
         showInviteModal: false,
-        showInviteModal: false,
         showNotifications: false,
         friendsTab: 'connected',
         movieModalOpen: false,
@@ -34,6 +33,9 @@ function userDashboard() {
         movieSearchQuery: '',
         selectedMovie: null,
         showMovieDetailModal: false,
+
+        //Pusher
+        pusherClient: null,
 
        // Live filtered movies getter
         get filteredMovies() {
@@ -300,14 +302,28 @@ function userDashboard() {
         // Search Users
         searchUsers(query = null) {
             const searchTerm = (query !== null ? query : this.searchQuery) || '';
+            
             fetch(`/user_backend/search_users.php?q=${encodeURIComponent(searchTerm.trim())}`)
-                .then(res => res.json())
+                .then(async res => {
+                    const data = await res.json();
+                    if (!res.ok) {
+                        // Throws error containing backend response message
+                        throw new Error(data.error || `HTTP error! Status: ${res.status}`);
+                    }
+                    return data;
+                })
                 .then(data => {
                     if (Array.isArray(data)) {
                         this.searchResults = data;
+                    } else {
+                        console.warn('Unexpected response format:', data);
+                        this.searchResults = [];
                     }
                 })
-                .catch(err => console.error('Search error:', err));
+                .catch(err => {
+                    console.error('Search error:', err.message);
+                    this.searchResults = [];
+                });
         },
 
         // Get Status for Search Result Item
@@ -480,23 +496,70 @@ function userDashboard() {
             }
         },
 
+        // Initialize Pusher Connection
+        initPusher() {
+            if (!window.CURRENT_USER_ID || typeof Pusher === 'undefined') return;
+
+            // Replace with your actual Pusher App Key and Cluster
+            this.pusherClient = new Pusher('YOUR_PUSHER_APP_KEY', {
+                cluster: 'ap1',
+                encrypted: true
+            });
+
+            // Subscribe to current user's dedicated channel
+            const channel = this.pusherClient.subscribe(`user-${window.CURRENT_USER_ID}`);
+
+            // Listen for incoming friend events
+            channel.bind('friend_event', (data) => {
+                // 1. Prepend notification to Alpine state list
+                this.notifications.unshift({
+                    id: Date.now(),
+                    type: data.type,
+                    sender_id: data.sender_id,
+                    sender_name: data.sender_name,
+                    message: data.message,
+                    created_at: data.created_at,
+                    is_read: 0
+                });
+
+                // 2. Increment unread notification badge count
+                this.unreadNotifCount++;
+
+                // 3. Show live toast alert
+                if (typeof window.showToast === 'function') {
+                    const toastType = data.type === 'friend_rejected' ? 'error' : 'success';
+                    window.showToast(`${data.sender_name} ${data.message}`, toastType);
+                }
+
+                // 4. Synchronize live state (Friends & Pending lists)
+                this.fetchFriends();
+                if (this.showInviteModal) {
+                    this.searchUsers();
+                }
+            });
+        },
+
         // Life cycle initialization
         initDashboard() {
             gsap.config({ nullTargetWarn: false });
             this.$watch('friends', () => {
                 this.updateFriendsCount();
             });
+
             // Initial data fetch
             this.fetchFriends();
             this.searchUsers();
             this.loadMissions();
             this.fetchNotifications();
 
-            // Start Live Notification Polling every 5 seconds
+            // Initialize Pusher Live Listening
+            this.initPusher();
+
+            // Polling backup (optional: increase interval to 15s or 30s since Pusher is live)
             this.pollingInterval = setInterval(() => {
                 this.fetchNotifications();
                 this.fetchFriends();
-            }, 5000);
+            }, 30000);
 
             // Debounce search watcher
             this.$watch('searchQuery', (query) => {

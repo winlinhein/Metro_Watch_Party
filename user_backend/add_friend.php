@@ -1,29 +1,25 @@
 <?php
-// user_backend/add_friend.php
 session_start();
+require_once __DIR__ . '/../conn.php';
+require_once __DIR__ . '/../pusher_helper.php'; // Include Pusher Helper
+
 header('Content-Type: application/json');
 
-require_once __DIR__ . '/../conn.php'; 
-
-if (empty($_SESSION['authenticated']) || empty($_SESSION['user_id'])) {
-    http_response_code(401);
-    echo json_encode(['success' => false, 'message' => 'Unauthorized access.']);
-    exit();
-}
+$userId = $_SESSION['user_id'] ?? 0;
+$senderId   = $userId; // Defined to fix parameter check and payload
+$senderName = $_SESSION['user_name'] ?? 'Someone';
 
 $data = json_decode(file_get_contents('php://input'), true);
-$friendId = filter_var($data['friend_id'] ?? null, FILTER_VALIDATE_INT);
-$userId = (int)$_SESSION['user_id'];
+$friendId = (int)($data['friend_id'] ?? 0);
 
-if (!$friendId || $friendId === $userId) {
-    http_response_code(400);
-    echo json_encode(['success' => false, 'message' => 'Invalid friend ID request.']);
+if (!$senderId || !$friendId) {
+    echo json_encode(['success' => false, 'message' => 'Invalid parameters.']);
     exit();
 }
 
 try {
     // 1. Check existing relationship in user_friends
-    $checkSql = "SELECT id, user_id_1, user_id_2, status FROM user_friends 
+    $checkSql = "SELECT user_id_1, user_id_2, status FROM user_friends 
                  WHERE (user_id_1 = :u1 AND user_id_2 = :u2) 
                     OR (user_id_1 = :u3 AND user_id_2 = :u4)
                  LIMIT 1";
@@ -84,7 +80,20 @@ try {
         ':sender'   => $userId
     ]);
 
-    echo json_encode(['success' => true, 'message' => 'Friend request sent successfully!', 'action' => 'sent']);
+
+    // Payload for live event
+    $payload = [
+        'type'        => 'friend_request',
+        'sender_id'   => $senderId,
+        'sender_name' => $senderName,
+        'message'     => 'sent you a friend request.',
+        'created_at'  => date('Y-m-d H:i:s')
+    ];
+
+    // Trigger event on target user's private channel
+    // Adjust function name according to your pusher_helper.php implementation
+    triggerPusherEvent("user-{$friendId}", "friend_event", $payload);
+    echo json_encode(['success' => true, 'message' => 'Friend request sent!']);   
 
 } catch (PDOException $e) {
     error_log("Add Friend Error: " . $e->getMessage());
