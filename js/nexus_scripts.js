@@ -95,6 +95,29 @@ function userDashboard() {
         },
 
         // Modal triggers
+        toggleWatchlist(movie) {
+            if(movie.inWatchlist === undefined) movie.inWatchlist = false;
+            movie.inWatchlist = !movie.inWatchlist;
+            
+            if(movie.inWatchlist) {
+                // Check if already in watchlist to prevent duplicates
+                if (!this.watchlist.find(w => w.title === movie.title)) {
+                    this.watchlist.unshift({
+                        title: movie.title,
+                        year: movie.created_at ? new Date(movie.created_at).getFullYear() : "2024",
+                        genre: movie.genres && movie.genres.length > 0 ? movie.genres[0] : "Movie",
+                        rating: movie.rating ? movie.rating + " / 5" : "N/A",
+                        status: "Next Up",
+                        img: movie.img || movie.cover_image || "https://via.placeholder.com/300x450/0d0d12/ffffff?text=No+Poster"
+                    });
+                }
+                if (window.showToast) window.showToast('Added to watchlist', 'success');
+            } else {
+                this.watchlist = this.watchlist.filter(w => w.title !== movie.title);
+                if (window.showToast) window.showToast('Removed from watchlist', 'info');
+            }
+        },
+
         openMovieDetail(movie) {
             this.selectedMovie = movie;
             this.showMovieDetailModal = true;
@@ -135,7 +158,7 @@ function userDashboard() {
             { id: 'dashboard', label: 'Command Center', icon: 'dashboard', module: 'MODULE_1' },
             { id: 'watchlist', label: 'Watchlist', icon: 'bookmark', module: 'MODULE_2' },
             { id: 'movies', label: 'Movies', icon: 'movie', module: 'MODULE_3' },
-            { id: 'history', label: 'Watch History', icon: 'history_toggle_off', module: 'MODULE_4' },
+            { id: 'shop', label: 'Point Shop', icon: 'storefront', module: 'MODULE_4' },
             { id: 'settings', label: 'System Preferences', icon: 'settings', module: 'MODULE_5' }
         ],
 

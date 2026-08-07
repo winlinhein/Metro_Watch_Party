@@ -55,6 +55,24 @@
                             <span x-text="movie.rating ? movie.rating : '0.0'"></span>
                         </div>
 
+                        <!-- Watchlist Button Overlay -->
+                        <button @click.stop="toggleWatchlist(movie)" 
+                                class="absolute top-4 right-4 z-40 group/watchlist w-10 h-10 flex items-center justify-center rounded-xl backdrop-blur-xl border transition-all duration-500 overflow-hidden transform-gpu"
+                                :class="movie.inWatchlist ? 'bg-indigo-500/20 border-indigo-400/50 shadow-[0_0_20px_rgba(99,102,241,0.5)]' : 'bg-black/40 border-white/10 hover:border-indigo-500/50 hover:bg-black/60'">
+                            <!-- Hover gradient effect -->
+                            <div class="absolute inset-0 bg-gradient-to-tr from-indigo-500/0 via-indigo-500/0 to-purple-500/0 opacity-0 group-hover/watchlist:opacity-100 group-hover/watchlist:from-indigo-500/20 group-hover/watchlist:to-purple-500/20 transition-all duration-500"></div>
+                            
+                            <!-- Icon -->
+                            <span class="material-symbols-outlined relative z-10 transition-all duration-500 transform group-hover/watchlist:scale-110"
+                                  :class="movie.inWatchlist ? 'text-indigo-400' : 'text-white/60 group-hover/watchlist:text-white'"
+                                  :style="movie.inWatchlist ? 'font-variation-settings: \'FILL\' 1;' : ''"
+                                  x-text="movie.inWatchlist ? 'bookmark_added' : 'bookmark_add'"></span>
+                            
+                            <!-- Ripple effect on click (could use GSAP if we wanted, but CSS is fine) -->
+                            <div class="absolute inset-0 rounded-xl bg-indigo-400/30 opacity-0 scale-0 transition-all duration-500"
+                                 :class="movie.inWatchlist ? 'animate-[ping_0.5s_ease-out_1]' : ''"></div>
+                        </button>
+
                         <!-- Play Icon Overlay -->
                         <div class="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-300 z-30 scale-90 group-hover:scale-100 pointer-events-none">
                             <div class="w-16 h-16 rounded-full bg-indigo-500/90 backdrop-blur-sm flex items-center justify-center text-white shadow-[0_0_30px_rgba(99,102,241,0.8)]">
@@ -98,9 +116,9 @@
                     <!-- Video Player Container in Modal -->
                     <div class="relative aspect-video w-full bg-black">
                         <!-- YouTube Embed Player -->
-                        <template x-if="isYouTubeUrl(selectedMovie.video_url || selectedMovie.trailer)">
+                        <template x-if="isYouTubeUrl(selectedMovie?.video_url || selectedMovie?.trailer)">
                             <iframe 
-                                :src="getYouTubeEmbedUrl(selectedMovie.video_url || selectedMovie.trailer, false)" 
+                                :src="getYouTubeEmbedUrl(selectedMovie?.video_url || selectedMovie?.trailer, false)" 
                                 class="w-full h-full" 
                                 frameborder="0" 
                                 allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
@@ -109,8 +127,8 @@
                         </template>
 
                         <!-- Standard HTML5 MP4 Player Fallback -->
-                        <template x-if="!isYouTubeUrl(selectedMovie.video_url || selectedMovie.trailer)">
-                            <video :src="selectedMovie.video_url || selectedMovie.trailer" controls class="w-full h-full object-contain"></video>
+                        <template x-if="!isYouTubeUrl(selectedMovie?.video_url || selectedMovie?.trailer)">
+                            <video :src="selectedMovie?.video_url || selectedMovie?.trailer" controls class="w-full h-full object-contain"></video>
                         </template>
 
                         <!-- Close Button -->
@@ -143,26 +161,124 @@
 
                         <p class="text-sm text-white/70 leading-relaxed" x-text="selectedMovie.description || 'No description available for this movie.'"></p>
 
-                        <!-- Comments Section -->
-                        <div class="pt-4 border-t border-white/5">
-                            <h3 class="text-sm font-bold uppercase tracking-wider text-white mb-4 flex items-center gap-2">
-                                <span class="material-symbols-outlined text-indigo-400 text-[18px]">chat</span>
-                                Comments (<span x-text="selectedMovie.comments ? selectedMovie.comments.length : 0"></span>)
+                        <!-- Rating and Comment Section -->
+                        <div class="pt-8 mt-6 border-t border-white/10" 
+                             x-data="{ 
+                                newRating: 0, 
+                                hoveredRating: 0, 
+                                commentText: '', 
+                                isSubmitting: false,
+                                submitReview() {
+                                    if(this.newRating === 0) return window.showToast('Please select a rating', 'error');
+                                    this.isSubmitting = true;
+                                    // Simulate API call
+                                    setTimeout(() => {
+                                        if(!this.selectedMovie.comments) this.selectedMovie.comments = [];
+                                        this.selectedMovie.comments.unshift({
+                                            comment_id: Date.now(),
+                                            user_id: 'You',
+                                            comment_text: this.commentText,
+                                            created_at: new Date().toISOString(),
+                                            rating: this.newRating
+                                        });
+                                        this.newRating = 0;
+                                        this.commentText = '';
+                                        this.isSubmitting = false;
+                                        window.showToast('Review posted successfully!', 'success');
+                                    }, 800);
+                                }
+                             }">
+                            
+                            <h3 class="text-lg font-black uppercase tracking-widest text-white mb-6 flex items-center gap-3">
+                                <span class="material-symbols-outlined text-indigo-400 text-[24px]">reviews</span>
+                                Ratings & Reviews
+                                <span class="px-2 py-0.5 rounded-full bg-white/5 text-white/50 text-[10px]" x-text="selectedMovie.comments ? selectedMovie.comments.length : 0"></span>
                             </h3>
 
-                            <div class="space-y-3 max-h-48 overflow-y-auto pr-2 custom-scrollbar">
-                                <template x-for="comment in selectedMovie.comments" :key="comment.comment_id">
-                                    <div class="p-3 rounded-xl bg-white/[0.02] border border-white/5">
-                                        <div class="flex justify-between items-center mb-1">
-                                            <span class="text-xs font-bold text-indigo-300" x-text="'User #' + comment.user_id"></span>
-                                            <span class="text-[10px] text-white/30 font-mono" x-text="new Date(comment.created_at).toLocaleDateString()"></span>
+                            <!-- Submit Form -->
+                            <div class="bg-gradient-to-br from-[#0a0a0f] to-[#050508] p-5 rounded-2xl border border-white/5 shadow-inner mb-8 relative overflow-hidden group">
+                                <div class="absolute inset-0 bg-indigo-500/5 opacity-0 group-hover:opacity-100 transition-opacity duration-700 pointer-events-none"></div>
+                                
+                                <div class="relative z-10">
+                                    <div class="flex flex-col sm:flex-row sm:items-center gap-4 mb-4">
+                                        <div class="flex gap-1">
+                                            <template x-for="i in 5">
+                                                <button @mouseenter="hoveredRating = i" 
+                                                        @mouseleave="hoveredRating = 0" 
+                                                        @click="newRating = i" 
+                                                        class="transition-all duration-300 transform hover:scale-125 focus:outline-none"
+                                                        :class="(hoveredRating >= i || newRating >= i) ? 'text-yellow-400 drop-shadow-[0_0_10px_rgba(234,179,8,0.5)]' : 'text-white/20'">
+                                                    <span class="material-symbols-outlined text-[28px]" :class="(hoveredRating >= i || newRating >= i) ? 'filled' : ''" style="font-variation-settings: 'FILL' 1;">star</span>
+                                                </button>
+                                            </template>
                                         </div>
-                                        <p class="text-xs text-white/80" x-text="comment.comment_text"></p>
+                                        <span class="text-xs font-bold uppercase tracking-wider transition-colors duration-300" 
+                                              :class="newRating > 0 ? 'text-yellow-400' : 'text-white/30'"
+                                              x-text="newRating === 0 ? 'Select Rating' : newRating + ' out of 5 stars'"></span>
+                                    </div>
+                                    
+                                    <div class="relative">
+                                        <textarea x-model="commentText" 
+                                                  class="w-full bg-black/40 border border-white/10 rounded-xl p-4 pb-14 text-sm text-white placeholder-white/30 focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/50 outline-none resize-none transition-all duration-300 custom-scrollbar"
+                                                  rows="3" 
+                                                  placeholder="Share your thoughts about this title..."></textarea>
+                                                  
+                                        <div class="absolute bottom-3 right-3">
+                                            <button @click="submitReview()" 
+                                                    :disabled="isSubmitting || newRating === 0"
+                                                    class="px-5 py-2 rounded-lg font-bold text-xs uppercase tracking-wider transition-all duration-300 flex items-center gap-2 overflow-hidden relative group/btn"
+                                                    :class="(isSubmitting || newRating === 0) ? 'bg-white/5 text-white/30 cursor-not-allowed' : 'bg-indigo-600 hover:bg-indigo-500 text-white shadow-[0_0_20px_rgba(99,102,241,0.4)] hover:shadow-[0_0_30px_rgba(99,102,241,0.6)] hover:-translate-y-0.5'">
+                                                
+                                                <span x-show="!isSubmitting" class="relative z-10 flex items-center gap-2">
+                                                    Post Review <span class="material-symbols-outlined text-[16px]">send</span>
+                                                </span>
+                                                
+                                                <span x-show="isSubmitting" class="relative z-10 flex items-center gap-2">
+                                                    Posting <span class="material-symbols-outlined text-[16px] animate-spin">sync</span>
+                                                </span>
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Comments List -->
+                            <div class="space-y-4 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar relative">
+                                <template x-for="(comment, index) in selectedMovie.comments" :key="comment.comment_id || index">
+                                    <div class="p-5 rounded-2xl bg-white/[0.02] border border-white/5 hover:border-white/10 hover:bg-white/[0.04] transition-all duration-300 transform-gpu"
+                                         x-data="{ show: false }" x-init="setTimeout(() => show = true, index * 50)"
+                                         :class="show ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'"
+                                         style="transition-duration: 500ms;">
+                                        
+                                        <div class="flex justify-between items-start mb-3">
+                                            <div class="flex items-center gap-3">
+                                                <div class="w-10 h-10 rounded-full bg-gradient-to-tr from-indigo-500/20 to-purple-500/20 border border-indigo-500/30 flex items-center justify-center text-indigo-300 font-black uppercase shadow-inner">
+                                                    <span x-text="(comment.user_name || comment.user_id || 'U').substring(0, 1)"></span>
+                                                </div>
+                                                <div>
+                                                    <div class="flex items-center gap-2">
+                                                        <span class="text-sm font-bold text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]" x-text="comment.user_name || 'User ' + (comment.user_id || '')"></span>
+                                                        <span x-show="comment.user_id === 'You'" class="px-1.5 py-0.5 rounded text-[9px] font-black uppercase bg-indigo-500/20 text-indigo-400 border border-indigo-500/30">You</span>
+                                                    </div>
+                                                    <span class="text-[10px] text-white/40 font-mono" x-text="new Date(comment.created_at).toLocaleDateString(undefined, {year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute:'2-digit'})"></span>
+                                                </div>
+                                            </div>
+                                            
+                                            <!-- Rating Display -->
+                                            <div class="flex items-center gap-0.5 bg-black/40 px-2 py-1 rounded-lg border border-white/5" x-show="comment.rating">
+                                                <span class="font-bold text-yellow-400 text-xs mr-1" x-text="comment.rating"></span>
+                                                <span class="material-symbols-outlined text-[14px] text-yellow-400" style="font-variation-settings: 'FILL' 1;">star</span>
+                                            </div>
+                                        </div>
+                                        
+                                        <p class="text-sm text-white/70 leading-relaxed ml-[52px]" x-text="comment.comment_text"></p>
                                     </div>
                                 </template>
 
-                                <div x-show="!selectedMovie.comments || selectedMovie.comments.length === 0" class="text-xs text-white/30 italic">
-                                    No comments yet on this title.
+                                <div x-show="!selectedMovie.comments || selectedMovie.comments.length === 0" class="py-12 flex flex-col items-center justify-center text-center opacity-50">
+                                    <span class="material-symbols-outlined text-6xl text-white/20 mb-4 animate-pulse">forum</span>
+                                    <p class="text-sm font-bold text-white uppercase tracking-widest">No reviews yet</p>
+                                    <p class="text-xs text-white/60 mt-2">Be the first to share your thoughts on this title.</p>
                                 </div>
                             </div>
                         </div>
