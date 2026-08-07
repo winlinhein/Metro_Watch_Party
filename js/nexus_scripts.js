@@ -9,6 +9,8 @@ function userDashboard() {
         showQuestsPanel: false,
         questActiveTab: 'daily',
         showInviteModal: false,
+        showNotifications: false,
+        friendsTab: 'connected',
         movieModalOpen: false,
         editingMovie: false,
         banModalOpen: false,
@@ -20,43 +22,119 @@ function userDashboard() {
         // Form & Data Objects
         userToBan: null,
         banReason: '',
+        banNotes: '',
         selectedReport: null,
         selectedRoom: null,
         formData: { name: '', price: 0, rarity: 'Common', image: '' },
-        newMovie: { title: '', genre: '', year: '', rating: '', description: '', trailer: '', img: '', comments: [] },
         shopItems: [],
 
+        // Movie State & Modals
+        movies: [],
+        movieSearchQuery: '',
+        selectedMovie: null,
+        showMovieDetailModal: false,
+
+        //Pusher
+        pusherClient: null,
+
+       // Live filtered movies getter
+        get filteredMovies() {
+            if (!this.movieSearchQuery.trim()) return this.movies;
+            const query = this.movieSearchQuery.toLowerCase();
+            return this.movies.filter(movie => 
+                (movie.title && movie.title.toLowerCase().includes(query)) ||
+                (Array.isArray(movie.genres) && movie.genres.some(g => g.toLowerCase().includes(query)))
+            );
+        },
+
+        // API Fetching
+        async fetchMovies() { 
+            try { 
+                const response = await fetch("/user_backend/movies_api.php");
+                if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                
+                const data = await response.json(); 
+                this.movies = data;
+            } catch(e) {
+                console.error("Failed to load movies from database:", e);
+            } 
+        },
+
+        // Detect if URL is from YouTube
+        isYouTubeUrl(url) {
+            if (!url) return false;
+            return url.includes('youtube.com') || url.includes('youtu.be');
+        },
+
+        // Convert any standard YouTube link into a clean Embed URL
+        getYouTubeEmbedUrl(url, isHover = false) {
+            if (!url) return '';
+            
+            // Extract Video ID
+            const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
+            const match = url.match(regExp);
+            
+            if (match && match[2].length === 11) {
+                const videoId = match[2];
+                
+                // Query parameters for YouTube Embed
+                const params = new URLSearchParams({
+                    autoplay: isHover ? '1' : '1',
+                    mute: isHover ? '1' : '0',            // Browser policy requires mute for auto-play on hover
+                    controls: isHover ? '0' : '1',        // Hide controls during hover
+                    loop: '1',
+                    playlist: videoId,                    // Required for looping
+                    modestbranding: '1',
+                    rel: '0'
+                });
+
+                return `https://www.youtube.com/embed/${videoId}?${params.toString()}`;
+            }
+            
+            return url;
+        },
+
+        // Modal triggers
+        openMovieDetail(movie) {
+            this.selectedMovie = movie;
+            this.showMovieDetailModal = true;
+        },
+        closeMovieDetail() {
+            this.showMovieDetailModal = false;
+            this.selectedMovie = null;
+        },
+
+        init() { 
+            this.fetchMovies(); 
+        },
+
         // Quests Data
-        quests: {
-            daily: [
-                { id: 1, title: 'Watch a Movie', desc: 'Watch any movie for at least 30 minutes', points: 50, completed: true },
-                { id: 2, title: 'Host a Watch Party', desc: 'Invite at least 1 friend to a party', points: 100, completed: false },
-                { id: 3, title: 'Chat Master', desc: 'Send 10 messages in party chat', points: 30, completed: false }
-            ],
-            weekly: [
-                { id: 4, title: 'Movie Marathon', desc: 'Watch 3 movies this week', points: 300, completed: false },
-                { id: 5, title: 'Social Butterfly', desc: 'Host 3 watch parties', points: 500, completed: false },
-                { id: 6, title: 'Genre Explorer', desc: 'Watch movies from 3 different genres', points: 250, completed: true }
-            ],
-            monthly: [
-                { id: 7, title: 'Cinephile', desc: 'Watch 15 movies this month', points: 1500, completed: false },
-                { id: 8, title: 'Party Animal', desc: 'Host 10 watch parties', points: 2000, completed: false },
-                { id: 9, title: 'Community Pillar', desc: 'Add 5 new friends', points: 1000, completed: false }
-            ]
+       quests: {
+            daily: [],
+            weekly: [],
+            monthly: []
         },
 
         // Friends & User Search State
+        
+
+        // Data Lists
         friends: [],
-        searchQuery: '',
+        pendingRequests: [],
+        notifications: [],
         searchResults: [],
+        unreadNotifCount: 0,
+        
+        searchQuery: '',
         friendSearchQuery: '',
         searchTimeout: null,
+        pollingInterval: null,
 
         // Navigation Items
         navItems: [
             { id: 'dashboard', label: 'Command Center', icon: 'dashboard', module: 'MODULE_1' },
             { id: 'watchlist', label: 'Watchlist', icon: 'bookmark', module: 'MODULE_2' },
-            { id: 'friends', label: 'Network (Friends)', icon: 'hub', module: 'MODULE_3' },
+            { id: 'movies', label: 'Movies', icon: 'movie', module: 'MODULE_3' },
             { id: 'history', label: 'Watch History', icon: 'history_toggle_off', module: 'MODULE_4' },
             { id: 'settings', label: 'System Preferences', icon: 'settings', module: 'MODULE_5' }
         ],
@@ -106,118 +184,185 @@ function userDashboard() {
             { day: 'Sun', reqs: 4600, height: 88 }
         ],
 
-        // Keep stat card for Friends synchronized dynamically
+        async loadMissions() {
+            try {
+                const response = await fetch('/user_backend/mission.php');
+                const data = await response.json();
+                
+                if (data.success) {
+                    // Update Total Points in stats array
+                    this.stats[3].value = data.totalPoints;
+                    
+                    // Populate daily, weekly, and monthly quests dynamically
+                    ['daily', 'weekly', 'monthly'].forEach(type => {
+                        this.quests[type] = (data.quests[type] || []).map(q => ({
+                            id: q.mission_id,
+                            title: q.title,
+                            desc: `Reward: ${q.points_reward} Points`, // Fixed backticks
+                            points: q.points_reward,
+                            completed: Number(q.completed) === 1
+                        }));
+                    });
+                }
+            } catch (err) {
+                console.error('Failed to fetch missions:', err);
+            }
+        },
+
+        // Fetch Friends & Incoming Pending Requests
+        async fetchFriends() {
+            try {
+                const response = await fetch('/user_backend/get_friends.php');
+                if (!response.ok) throw new Error('Failed to fetch friends');
+                
+                const data = await response.json();
+                
+                if (data && !data.error) {
+                    this.friends = data.friends || [];
+                    this.pendingRequests = data.pending_requests || [];
+                    this.updateFriendsCount();
+                }
+            } catch (err) {
+                console.error('Fetch friends error:', err);
+            }
+        },
+
+        // Fetch Notifications
+        async fetchNotifications() {
+            try {
+                const response = await fetch('/user_backend/get_notifications.php');
+                if (!response.ok) return;
+
+                const data = await response.json();
+                if (data.success && Array.isArray(data.notifications)) {
+                    this.notifications = data.notifications;
+                    this.unreadNotifCount = this.notifications.filter(n => Number(n.is_read) === 0).length;
+                }
+            } catch (err) {
+                console.error('Notification error:', err);
+            }
+        },
+
+        // Respond to Friend Request (Accept / "Add Back" or Decline)
+        async respondToFriendRequest(senderId, action) {
+            try {
+                const res = await fetch('/user_backend/respond_friend.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ sender_id: senderId, action: action })
+                });
+
+                const data = await res.json();
+                if (data.success) {
+                    if (typeof window.showToast === 'function') {
+                        window.showToast(data.message, 'success');
+                    } else {
+                        alert(data.message);
+                    }
+
+                    // Synchronize state immediately
+                    await this.fetchFriends();
+                    await this.fetchNotifications();
+                    this.searchUsers();
+                } else {
+                    alert(data.message || 'Action failed.');
+                }
+            } catch (err) {
+                console.error('Error responding to request:', err);
+            }
+        },
+
+        // Send Friend Request
+        async sendFriendRequest(friendId) {
+            try {
+                const res = await fetch('/user_backend/add_friend.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ friend_id: friendId })
+                });
+
+                const data = await res.json();
+                if (data.success) {
+                    if (typeof window.showToast === 'function') {
+                        window.showToast(data.message, 'success');
+                    } else {
+                        alert(data.message);
+                    }
+
+                    await this.fetchFriends();
+                    this.searchUsers();
+                } else {
+                    alert(data.message || 'Request failed.');
+                }
+            } catch (err) {
+                console.error('Send request error:', err);
+            }
+        },
+
+        // Search Users
+        searchUsers(query = null) {
+            const searchTerm = (query !== null ? query : this.searchQuery) || '';
+            
+            fetch(`/user_backend/search_users.php?q=${encodeURIComponent(searchTerm.trim())}`)
+                .then(async res => {
+                    const data = await res.json();
+                    if (!res.ok) {
+                        // Throws error containing backend response message
+                        throw new Error(data.error || `HTTP error! Status: ${res.status}`);
+                    }
+                    return data;
+                })
+                .then(data => {
+                    if (Array.isArray(data)) {
+                        this.searchResults = data;
+                    } else {
+                        console.warn('Unexpected response format:', data);
+                        this.searchResults = [];
+                    }
+                })
+                .catch(err => {
+                    console.error('Search error:', err.message);
+                    this.searchResults = [];
+                });
+        },
+
+        // Get Status for Search Result Item
+       getFriendStatus(user) {
+            const userId = Number(user.user_id);
+
+            // 1. Already connected as friends
+            if (user.friend_status === 'accepted' || this.friends.some(f => Number(f.user_id) === userId)) {
+                return 'friend';
+            }
+
+            // 2. The other user sent YOU a request -> Show "Add Back"
+            const isIncoming = this.pendingRequests.some(r => Number(r.user_id) === userId);
+            if (isIncoming) {
+                return 'incoming_pending';
+            }
+
+            // 3. YOU sent them a request -> Show "Pending"
+            if (user.friend_status === 'pending') {
+                return 'outgoing_pending';
+            }
+
+            // 4. No existing relationship -> Show "Add Friend"
+            return 'none';
+        },
+        // Update Dashboard Stat Card
         updateFriendsCount() {
             const friendStat = this.stats.find(s => s.label === 'Friends');
             if (friendStat) {
                 friendStat.value = this.friends ? this.friends.length : 0;
             }
         },
-        addFriend(friendId) {
-            this.sendFriendRequest(friendId);
-        },
-
-       fetchFriends() {
-            fetch('/user_backend/get_friends.php')
-                .then(async (response) => {
-                    const data = await response.json().catch(() => ({}));
-                    
-                    if (!response.ok) {
-                        // Fallback to response status text if data.error is missing
-                        throw new Error(data.error || `HTTP ${response.status}: ${response.statusText}`);
-                    }
-                    
-                    return data;
-                })
-                .then((data) => {
-                    if (Array.isArray(data)) {
-                        this.friends = data;
-                        this.updateFriendsCount(); // Synchronize dashboard Friends stat card
-                    }
-                })
-                .catch((error) => {
-                    console.error('Failed to fetch friends:', error.message || error);
-                });
-        },
-
-        getFriendStatus(user) {
-            // 1. Return direct status from backend API if available ('friend', 'pending', 'none')
-            const status = (user.friend_status || user.status || '').toLowerCase();
-            if (['friend', 'pending', 'none'].includes(status)) {
-                return status;
-            }
-
-            // 2. Fallback check against loaded friends list
-            const isFriend = this.friends.some(f => (f.user_id || f.id) === user.user_id);
-            if (isFriend) return 'friend';
-
-            // 3. Fallback check for pending flag
-            if (user.is_pending) return 'pending';
-
-            return 'none';
-        },
-
-        sendFriendRequest(friendId) {
-            fetch('/user_backend/add_friend.php', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({ friend_id: friendId })
-            })
-            .then(async res => {
-                const text = await res.text();
-                let data;
-                
-                try {
-                    data = JSON.parse(text);
-                } catch (e) {
-                    // Strips HTML tags from PHP error output so you can see the exact cause
-                    const cleanText = text.replace(/<[^>]*>?/gm, ' ').replace(/\s+/g, ' ').trim();
-                    throw new Error(cleanText || 'Server outputted non-JSON response.');
-                }
-
-                if (!res.ok || !data.success) {
-                    throw new Error(data.message || 'Failed to send friend request.');
-                }
-
-                return data;
-            })
-            .then(data => {
-                alert(data.message);
-                if (typeof this.searchUsers === 'function') {
-                    this.searchUsers(); // Refresh search view
-                }
-            })
-            .catch(err => {
-                console.error('Error sending friend request:', err);
-                alert(`Request Failed: ${err.message}`);
-            });
-        },
-        searchUsers(query = null) {
-            const searchTerm = (query !== null ? query : this.searchQuery) || '';
-            fetch(`/user_backend/search_users.php?q=${encodeURIComponent(searchTerm.trim())}`)
-                .then(response => {
-                    if (!response.ok) throw new Error('Network response was not ok');
-                    return response.json();
-                })
-                .then(data => {
-                    if (Array.isArray(data)) {
-                        this.searchResults = data;
-                    }
-                })
-                .catch(error => {
-                    console.error('Search error:', error);
-                });
-        },
 
         get filteredFriends() {
             if (!this.friendSearchQuery) return this.friends;
             return this.friends.filter(f => 
-                (f.user_name || f.username || '').toLowerCase().includes(this.friendSearchQuery.toLowerCase())
+                (f.user_name || '').toLowerCase().includes(this.friendSearchQuery.toLowerCase())
             );
         },
-
         // Tab Navigation
         switchTab(tabId) {
             if (this.currentTab === tabId) return;
@@ -351,33 +496,82 @@ function userDashboard() {
             }
         },
 
+        // Initialize Pusher Connection
+        initPusher() {
+            if (!window.CURRENT_USER_ID || typeof Pusher === 'undefined') return;
+
+            // Replace with your actual Pusher App Key and Cluster
+            this.pusherClient = new Pusher('YOUR_PUSHER_APP_KEY', {
+                cluster: 'ap1',
+                encrypted: true
+            });
+
+            // Subscribe to current user's dedicated channel
+            const channel = this.pusherClient.subscribe(`user-${window.CURRENT_USER_ID}`);
+
+            // Listen for incoming friend events
+            channel.bind('friend_event', (data) => {
+                // 1. Prepend notification to Alpine state list
+                this.notifications.unshift({
+                    id: Date.now(),
+                    type: data.type,
+                    sender_id: data.sender_id,
+                    sender_name: data.sender_name,
+                    message: data.message,
+                    created_at: data.created_at,
+                    is_read: 0
+                });
+
+                // 2. Increment unread notification badge count
+                this.unreadNotifCount++;
+
+                // 3. Show live toast alert
+                if (typeof window.showToast === 'function') {
+                    const toastType = data.type === 'friend_rejected' ? 'error' : 'success';
+                    window.showToast(`${data.sender_name} ${data.message}`, toastType);
+                }
+
+                // 4. Synchronize live state (Friends & Pending lists)
+                this.fetchFriends();
+                if (this.showInviteModal) {
+                    this.searchUsers();
+                }
+            });
+        },
+
         // Life cycle initialization
         initDashboard() {
             gsap.config({ nullTargetWarn: false });
             this.$watch('friends', () => {
                 this.updateFriendsCount();
             });
+
             // Initial data fetch
             this.fetchFriends();
             this.searchUsers();
+            this.loadMissions();
+            this.fetchNotifications();
 
-           // Debounced watcher: reset to default users when empty, search when >= 2 chars
+            // Initialize Pusher Live Listening
+            this.initPusher();
+
+            // Polling backup (optional: increase interval to 15s or 30s since Pusher is live)
+            this.pollingInterval = setInterval(() => {
+                this.fetchNotifications();
+                this.fetchFriends();
+            }, 30000);
+
+            // Debounce search watcher
             this.$watch('searchQuery', (query) => {
                 clearTimeout(this.searchTimeout);
                 const trimmed = (query || '').trim();
 
-                // If input is completely erased, reload default users from PHP
                 if (trimmed === '') {
                     this.searchUsers();
                     return;
                 }
+                if (trimmed.length < 2) return;
 
-                // Don't trigger API call for a single character
-                if (trimmed.length < 2) {
-                    return;
-                }
-
-                // Debounce search requests for 2+ characters
                 this.searchTimeout = setTimeout(() => {
                     this.searchUsers();
                 }, 300);
@@ -1496,19 +1690,7 @@ window.handleLogout = async function() {
 function adminDashboard(userData = {}) {
     return {
         init() {
-            
-            // 2. Run initial UI animations
-            this.$nextTick(() => {
-                if (typeof window.gsap !== 'undefined') {
-                    window.gsap.to('.chart-bar', {
-                        scaleY: 1,
-                        duration: 1,
-                        stagger: 0.05,
-                        ease: 'power3.out',
-                        delay: 0.5
-                    });
-                }
-            });
+            // Initial GSAP animations are now handled globally in admin_animations.js via Barba hooks
         },
 
         currentTab: 'dashboard',
@@ -1545,6 +1727,7 @@ function adminDashboard(userData = {}) {
         banModalOpen: false,
         userToBan: null,
         banReason: '',
+        banNotes: '',
         
         // CHANGED: Renamed from usersList to users to match filteredUsers getter
         users: [],
@@ -1587,6 +1770,21 @@ function adminDashboard(userData = {}) {
 
         // Movies
         movies: [],
+        async fetchMovies() { 
+            try { 
+                const response = await fetch("/backend/movies_api.php"); 
+                const text = await response.text(); 
+                try { 
+                    const data = JSON.parse(text); 
+                    if (response.ok) { 
+                        this.movies = data; 
+                    } 
+                } catch(e) {} 
+            } catch(e) {} 
+        }, 
+        init() { 
+            this.fetchMovies(); 
+        },
         availableGenres: [], // Holds list from genres table
         movieModalOpen: false,
         editingMovie: false,
@@ -1789,10 +1987,62 @@ function adminDashboard(userData = {}) {
         },
     
         switchTab(tabId) {
+            if (this.currentTab === tabId) return;
+            const oldTab = this.currentTab;
             this.currentTab = tabId;
-            document.querySelectorAll('[data-tab-panel]').forEach(panel => {
-                panel.style.display = panel.getAttribute('data-tab-panel') === tabId ? 'block' : 'none';
-            });
+            const oldPanel = document.querySelector(`[data-tab-panel="${oldTab}"]`);
+            const newPanel = document.querySelector(`[data-tab-panel="${tabId}"]`);
+            
+            if (oldPanel && newPanel && typeof window.gsap !== 'undefined') {
+                // Outro animation for old panel
+                window.gsap.to(oldPanel, {
+                    opacity: 0,
+                    y: -30,
+                    scale: 0.95,
+                    filter: "blur(10px)",
+                    duration: 0.4,
+                    ease: "power3.in",
+                    onComplete: () => {
+                        oldPanel.style.display = 'none';
+                        newPanel.style.display = 'block';
+                        
+                        // Set initial state for new panel to avoid flicker
+                        window.gsap.set(newPanel, { opacity: 0, y: 50, scale: 0.95, rotationX: 15, filter: "blur(15px)", transformPerspective: 1000 });
+                        
+                        // Intro animation for new panel
+                        window.gsap.to(newPanel, {
+                            opacity: 1, 
+                            y: 0, 
+                            scale: 1, 
+                            rotationX: 0, 
+                            filter: "blur(0px)", 
+                            duration: 0.8, 
+                            ease: "expo.out"
+                        });
+                        
+                        // Re-trigger internal staggered items (like charts, stats, tables, forms, etc)
+                        const staggers = newPanel.querySelectorAll('.gs-stat-card, .gs-table-row, .stagger-item, tbody tr, .card, .glass-card, .movie-card-container');
+                        if (staggers.length > 0) {
+                            window.gsap.fromTo(staggers,
+                                { opacity: 0, y: 40, scale: 0.9, rotationX: -15, transformPerspective: 1000 },
+                                { opacity: 1, y: 0, scale: 1, rotationX: 0, duration: 0.8, stagger: 0.05, ease: "back.out(1.5)", delay: 0.1 }
+                            );
+                        }
+                        
+                        // Re-trigger chart bars specifically
+                        const chartBars = newPanel.querySelectorAll('.chart-bar');
+                        if (chartBars.length > 0) {
+                            window.gsap.fromTo(chartBars,
+                                { scaleY: 0, transformOrigin: 'bottom' },
+                                { scaleY: 1, duration: 1, stagger: 0.05, ease: 'power3.out', delay: 0.4 }
+                            );
+                        }
+                    }
+                });
+            } else if (oldPanel && newPanel) {
+                oldPanel.style.display = 'none';
+                newPanel.style.display = 'block';
+            }
         },
         // Toggle genre string or object ID in newMovie.genres
         toggleGenre(genre) {

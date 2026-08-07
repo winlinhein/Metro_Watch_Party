@@ -16,27 +16,46 @@ $query = trim($_GET['q'] ?? '');
 try {
     if ($query === '') {
         $stmt = $conn->prepare("
-            SELECT user_id, user_name, email, is_premium 
-            FROM users 
-            WHERE user_id != :current_id 
-            ORDER BY user_id DESC 
+            SELECT 
+                u.user_id, 
+                u.user_name, 
+                u.email, 
+                u.is_premium, 
+                f.status AS friend_status,
+                f.user_id_1 AS requester_id
+            FROM users u
+            LEFT JOIN user_friends f 
+                   ON (f.user_id_1 = ? AND f.user_id_2 = u.user_id)
+                   OR (f.user_id_2 = ? AND f.user_id_1 = u.user_id)
+            WHERE u.user_id != ?
+            ORDER BY u.user_id DESC 
             LIMIT 10
         ");
-        $stmt->execute(['current_id' => $currentUserId]);
+        $stmt->execute([$currentUserId, $currentUserId, $currentUserId]);
     } else {
         $searchTerm = '%' . $query . '%';
         $stmt = $conn->prepare("
-            SELECT user_id, user_name, email, is_premium 
-            FROM users 
-            WHERE user_id != :current_id 
-              AND (user_name LIKE :search1 OR email LIKE :search2) 
+            SELECT 
+                u.user_id, 
+                u.user_name, 
+                u.email, 
+                u.is_premium, 
+                f.status AS friend_status,
+                f.user_id_1 AS requester_id
+            FROM users u
+            LEFT JOIN user_friends f 
+                   ON (f.user_id_1 = ? AND f.user_id_2 = u.user_id)
+                   OR (f.user_id_2 = ? AND f.user_id_1 = u.user_id)
+            WHERE u.user_id != ? 
+              AND (u.user_name LIKE ? OR u.email LIKE ?) 
             LIMIT 20
         ");
-        
         $stmt->execute([
-            'current_id' => $currentUserId,
-            'search1'    => $searchTerm,
-            'search2'    => $searchTerm
+            $currentUserId, 
+            $currentUserId, 
+            $currentUserId, 
+            $searchTerm, 
+            $searchTerm
         ]);
     }
 
@@ -45,5 +64,5 @@ try {
 
 } catch (PDOException $e) {
     http_response_code(500);
-    echo json_encode(['error' => 'Database query failed']);
+    echo json_encode(['error' => 'Database query failed: ' . $e->getMessage()]);
 }

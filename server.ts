@@ -60,6 +60,54 @@ app.post("/backend/logout.php", (req, res) => {
   });
 });
 
+app.get("/user_backend/search_users.php", (req, res) => {
+  const query = req.query.q as string || "";
+  const users = [
+    { user_id: 1, user_name: "Alice", email: "alice@example.com", is_premium: 1 },
+    { user_id: 2, user_name: "Bob", email: "bob@example.com", is_premium: 0 },
+    { user_id: 3, user_name: "Charlie", email: "charlie@example.com", is_premium: 1 }
+  ];
+  if (!query) return res.json(users);
+  res.json(users.filter(u => 
+    u.user_name.toLowerCase().includes(query.toLowerCase()) || 
+    u.email.toLowerCase().includes(query.toLowerCase())
+  ));
+});
+
+app.get("/user_backend/get_friends.php", (req, res) => {
+  res.json([
+    { friend_id: 1, user_name: "Alice", email: "alice@example.com", is_premium: 1 }
+  ]);
+});
+
+app.post("/user_backend/add_friend.php", (req, res) => {
+  res.json({ success: true, message: "Friend added successfully." });
+});
+
+app.get("/backend/users_api.php", (req, res) => {
+  res.json([]);
+});
+
+app.get("/backend/movies_api.php", (req, res) => {
+  res.json([]);
+});
+
+app.post("/backend/movies_api.php", (req, res) => {
+  res.json({ success: true, message: "Movie updated." });
+});
+
+app.get("/backend/genres_api.php", (req, res) => {
+  res.json([]);
+});
+
+app.post("/backend/update_profile.php", (req, res) => {
+  res.json({ success: true });
+});
+
+app.post("/backend/delete_account.php", (req, res) => {
+  res.json({ success: true });
+});
+
 function handlePhpRequest(req: express.Request, res: express.Response) {
   let requestPath = req.path;
   if (requestPath === "/") {

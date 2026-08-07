@@ -47,7 +47,7 @@
                 </thead>
                 <tbody>
                     <template x-for="(user, index) in filteredUsers" :key="user.id">
-                        <tr class="border-b border-white/5 hover:bg-white/[0.03] transition-colors group user-row" :style="`animation-delay: ${index * 0.05}s`">
+                        <tr class="border-b border-white/5 hover:bg-white/[0.03] transition-colors group user-row" >
                             <td class="p-5 flex items-center gap-4">
                                 <div class="relative">
                                     <img :src="`https://ui-avatars.com/api/?name=${encodeURIComponent(user.name)}&background=random&color=fff&bold=true`" class="w-10 h-10 rounded-xl border border-white/10 group-hover:border-white/30 transition-colors">

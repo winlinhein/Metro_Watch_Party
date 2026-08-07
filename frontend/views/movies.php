@@ -1,5 +1,5 @@
 <!-- Movies View Container -->
-<div data-tab-panel="movies" x-show="currentTab === 'movies'" style="display: none;" class="relative w-full min-h-full p-8 lg:p-12">
+<div data-tab-panel="movies"  style="display: none;" class="relative w-full min-h-full p-8 lg:p-12">
     <!-- Section Header -->
     <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-10 stagger-item">
         <div>
@@ -147,7 +147,7 @@
                                 <div>
                                     <label class="block text-[11px] font-extrabold text-white/40 uppercase tracking-widest mb-2">Assign Genres</label>
                                     <div class="flex flex-wrap gap-2 max-h-36 overflow-y-auto p-3 bg-white/[0.02] border border-white/10 rounded-2xl">
-                                        <template x-for="genre in (availableGenres && availableGenres.length ? availableGenres : (allGenres && allGenres.length ? allGenres : ['Action', 'Comedy', 'Drama', 'Horror', 'Sci-Fi', 'Thriller', 'Romance', 'Animation', 'Adventure']))" :key="typeof genre === 'object' ? (genre.id || genre.name) : genre">
+                                        <template x-for="genre in (availableGenres && availableGenres.length ? availableGenres : (typeof allGenres !== 'undefined' && allGenres && allGenres.length ? allGenres : ['Action', 'Comedy', 'Drama', 'Horror', 'Sci-Fi', 'Thriller', 'Romance', 'Animation', 'Adventure']))" :key="typeof genre === 'object' ? (genre.id || genre.name) : genre">
                                             <button type="button" 
                                                     @click="toggleGenre(genre)" 
                                                     :class="isGenreSelected(genre) 
