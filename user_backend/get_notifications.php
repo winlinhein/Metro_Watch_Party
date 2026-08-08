@@ -12,6 +12,7 @@ if (empty($_SESSION['user_id'])) {
 require_once __DIR__ . '/../conn.php';
 
 $currentUserId = (int)$_SESSION['user_id'];
+session_write_close();
 
 try {
     $stmt = $conn->prepare("

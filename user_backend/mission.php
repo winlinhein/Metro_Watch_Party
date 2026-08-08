@@ -17,6 +17,7 @@ $userMissionsTable = 'user_missions';
 
 // 1. Fetch Total Available Points for the logged-in user
 $totalPoints = 0;
+
 try {
     // JOIN is required here because 'points_reward' is in the missions table, 
     // but we only want to sum them if 'done_status' = 1 in user_missions

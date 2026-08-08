@@ -11,6 +11,7 @@ $data = json_decode(file_get_contents('php://input'), true);
 
 $senderId = (int)($data['sender_id'] ?? 0); // The user who originally sent the request
 $action   = $data['action'] ?? ''; // 'accept' or 'decline'
+session_write_close();
 
 if (!$userId || !$senderId) {
     echo json_encode(['success' => false, 'message' => 'Invalid request.']);

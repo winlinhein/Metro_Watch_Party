@@ -5,6 +5,7 @@ header('Content-Type: application/json');
 require_once __DIR__ . '/../conn.php';
 
 $movieId = intval($_GET['movie_id'] ?? 0);
+session_write_close();
 
 if (!$movieId) {
     echo json_encode(['success' => false, 'message' => 'Invalid Movie ID']);
@@ -19,10 +20,13 @@ $stmt = $conn->prepare("
         c.parent_comment_id AS parent_id,
         c.comment_text AS comment,
         c.created_at,
-        u.name AS user_name
+        u.user_name,
+        COUNT(l.comment_id) AS likes_count
     FROM movie_comments c
     INNER JOIN users u ON c.user_id = u.user_id
+    LEFT JOIN comment_likes l ON c.comment_id = l.comment_id
     WHERE c.movie_id = ?
+    GROUP BY c.comment_id
     ORDER BY c.created_at ASC
 ");
 $stmt->execute([$movieId]);

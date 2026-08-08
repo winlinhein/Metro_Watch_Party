@@ -1,56 +1,44 @@
 <?php
 session_start();
-header('Content-Type: application/json');
-
-require_once __DIR__ . '/../conn.php';
 require_once __DIR__ . '/../pusher_helper.php';
-
-if (empty($_SESSION['user_id'])) {
-    echo json_encode(['success' => false, 'message' => 'Unauthorized']);
-    exit();
-}
+require_once __DIR__ . '/../conn.php'; 
 
 $input = json_decode(file_get_contents('php://input'), true);
 $movieId = intval($input['movie_id'] ?? 0);
-$parentId = !empty($input['parent_id']) ? intval($input['parent_id']) : null;
 $commentText = trim($input['comment'] ?? '');
+$userId = $_SESSION['user_id'] ?? 0;
+$userName = $_SESSION['user_name'] ?? 'Anonymous'; 
 
-if (!$movieId || empty($commentText)) {
-    echo json_encode(['success' => false, 'message' => 'Comment cannot be empty']);
-    exit();
+if (!$userId || !$movieId || empty($commentText)) {
+    echo json_encode(['success' => false]);
+    exit;
 }
 
-// 1. Insert comment into movie_comments table
+// 1. Insert comment into database
 $stmt = $conn->prepare("
-    INSERT INTO movie_comments (user_id, movie_id, parent_comment_id, comment_text)
-    VALUES (?, ?, ?, ?)
+    INSERT INTO movie_comments (user_id, movie_id, comment_text, created_at) 
+    VALUES (:user_id, :movie_id, :comment_text, NOW())
 ");
-$stmt->execute([$_SESSION['user_id'], $movieId, $parentId, $commentText]);
-$newCommentId = $conn->lastInsertId();
+$stmt->execute([
+    'user_id' => $userId,
+    'movie_id' => $movieId,
+    'comment_text' => $commentText
+]);
 
-// 2. Retrieve newly inserted comment details with user name
-$stmtFetch = $conn->prepare("
-    SELECT 
-        c.comment_id AS id, 
-        c.movie_id, 
-        c.user_id, 
-        c.parent_comment_id AS parent_id,
-        c.comment_text AS comment, 
-        c.created_at, 
-        u.name AS user_name
-    FROM movie_comments c
-    INNER JOIN users u ON c.user_id = u.user_id
-    WHERE c.comment_id = ?
-");
-$stmtFetch->execute([$newCommentId]);
-$commentData = $stmtFetch->fetch(PDO::FETCH_ASSOC);
-$commentData['replies'] = [];
+$commentId = $conn->lastInsertId();
 
-// 3. Broadcast real-time comment using pusher_helper
-if (isset($pusher)) {
-    $pusher->trigger("movie-{$movieId}", 'new_comment', $commentData);
-} elseif (function_exists('triggerPusherEvent')) {
-    triggerPusherEvent("movie-{$movieId}", 'new_comment', $commentData);
-}
+// 2. Prepare payload for Pusher
+$commentData = [
+    'id' => $commentId,
+    'movie_id' => $movieId,
+    'user_name' => $userName,
+    'comment' => $commentText,
+    'created_at' => date('Y-m-d H:i:s'),
+    'likes_count' => 0,
+    'replies' => []
+];
+
+// 3. Broadcast
+triggerPusherEvent("movie-{$movieId}", 'new_comment', $commentData);
 
 echo json_encode(['success' => true, 'comment' => $commentData]);

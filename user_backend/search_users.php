@@ -12,6 +12,7 @@ require_once __DIR__ . '/../conn.php';
 
 $currentUserId = (int)$_SESSION['user_id'];
 $query = trim($_GET['q'] ?? '');
+session_write_close();
 
 try {
     if ($query === '') {
