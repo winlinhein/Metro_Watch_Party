@@ -75,8 +75,36 @@ app.get("/user_backend/search_users.php", (req, res) => {
 });
 
 app.get("/user_backend/get_friends.php", (req, res) => {
+  res.json({
+    friends: [
+      { friend_id: 1, user_name: "Alice", email: "alice@example.com", is_premium: 1 }
+    ],
+    pending_requests: []
+  });
+});
+
+app.get("/user_backend/mission.php", (req, res) => {
+  res.json({
+    success: true,
+    totalPoints: 1250,
+    quests: {
+      daily: [{ mission_id: 1, title: "Watch a movie", points_reward: 50, completed: 0 }],
+      weekly: [{ mission_id: 2, title: "Host a watch party", points_reward: 200, completed: 0 }],
+      monthly: [{ mission_id: 3, title: "Watch 10 movies", points_reward: 1000, completed: 0 }]
+    }
+  });
+});
+
+app.get("/user_backend/get_notifications.php", (req, res) => {
+  res.json({
+    success: true,
+    notifications: []
+  });
+});
+
+app.get("/user_backend/movies_api.php", (req, res) => {
   res.json([
-    { friend_id: 1, user_name: "Alice", email: "alice@example.com", is_premium: 1 }
+    { id: 1, title: "Inception", genres: ["Sci-Fi", "Action"], year: 2010 }
   ]);
 });
 

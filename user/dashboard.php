@@ -639,6 +639,7 @@ $userId = $_SESSION['user_id'] ?? 0;
         <!-- Watchlist Section Included -->
         <?php include "watchlist.php"; ?>
         <?php include "user_movies.php"; ?>
+        <?php include "user_shop.php"; ?>
     </main>
 
     <?php include __DIR__ . '/../frontend/components/host_party_fab.php'; ?>
@@ -651,3 +652,4 @@ $userId = $_SESSION['user_id'] ?? 0;
 <script src="/js/nexus_scripts.js?v=6"></script>
 </body>
 </html>
+

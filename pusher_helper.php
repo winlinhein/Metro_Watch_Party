@@ -34,11 +34,23 @@ function triggerPusherEvent($channel, $event, $data) {
         CURLOPT_POSTFIELDS => $payload,
         CURLOPT_HTTPHEADER => ['Content-Type: application/json'],
         CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_TIMEOUT => 5
+        CURLOPT_TIMEOUT => 5,
+        // 🔥 FIX: Bypass SSL verification for local Windows environments
+        CURLOPT_SSL_VERIFYPEER => false 
     ]);
 
     $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
     curl_close($ch);
 
+    // 🔥 FIX: Log errors to the same folder as this script, not /tmp/
+    if ($httpCode !== 200) {
+        error_log(
+            date('[Y-m-d H:i:s] ') . "Pusher error: HTTP $httpCode, response: $response\n", 
+            3, 
+            __DIR__ . '/pusher_errors.log'
+        );
+    }
+    
     return $response;
 }

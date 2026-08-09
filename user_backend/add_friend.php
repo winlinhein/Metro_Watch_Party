@@ -11,6 +11,7 @@ $senderName = $_SESSION['user_name'] ?? 'Someone';
 
 $data = json_decode(file_get_contents('php://input'), true);
 $friendId = (int)($data['friend_id'] ?? 0);
+session_write_close();
 
 if (!$senderId || !$friendId) {
     echo json_encode(['success' => false, 'message' => 'Invalid parameters.']);
@@ -42,9 +43,16 @@ try {
 
         // If the other user already sent a pending request -> Automatically accept ("Add Back")
         if ($existing['status'] === 'pending' && (int)$existing['user_id_1'] === $friendId) {
-            $updateStmt = $conn->prepare("UPDATE user_friends SET status = 'accepted' WHERE id = :id");
-            $updateStmt->execute([':id' => $existing['id']]);
-
+            $updateStmt = $conn->prepare("
+                UPDATE user_friends 
+                SET status = 'accepted' 
+                WHERE user_id_1 = :u1 AND user_id_2 = :u2
+            ");
+            $updateStmt->execute([
+                ':u1' => $existing['user_id_1'],
+                ':u2' => $existing['user_id_2']
+            ]);
+            
             // Notify original sender
             $notifStmt = $conn->prepare("
                 INSERT INTO notifications (user_id, sender_id, type, message, is_read, created_at) 

@@ -97,7 +97,7 @@ friends: [
             { id: 'dashboard', label: 'Command Center', icon: 'dashboard', module: 'MODULE_1' },
             { id: 'watchlist', label: 'Watchlist', icon: 'bookmark', module: 'MODULE_2' },
             { id: 'friends', label: 'Network (Friends)', icon: 'hub', module: 'MODULE_3' },
-            { id: 'history', label: 'Watch History', icon: 'history_toggle_off', module: 'MODULE_4' },
+            { id: 'shop', label: 'Point Shop', icon: 'storefront', module: 'MODULE_4' },
             { id: 'settings', label: 'System Preferences', icon: 'settings', module: 'MODULE_5' }
         ],
         stats: [
