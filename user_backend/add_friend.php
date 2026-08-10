@@ -1,25 +1,31 @@
 <?php
 session_start();
 require_once __DIR__ . '/../conn.php';
-require_once __DIR__ . '/../pusher_helper.php'; // Include Pusher Helper
+require_once __DIR__ . '/../pusher_helper.php';
 
 header('Content-Type: application/json');
 
-$userId = $_SESSION['user_id'] ?? 0;
-$senderId   = $userId; // Defined to fix parameter check and payload
+$userId     = $_SESSION['user_id'] ?? 0;
+$senderId   = $userId;
 $senderName = $_SESSION['user_name'] ?? 'Someone';
 
-$data = json_decode(file_get_contents('php://input'), true);
+$data     = json_decode(file_get_contents('php://input'), true);
 $friendId = (int)($data['friend_id'] ?? 0);
 session_write_close();
 
+// 1. Validation & Self-Request Check
 if (!$senderId || !$friendId) {
     echo json_encode(['success' => false, 'message' => 'Invalid parameters.']);
     exit();
 }
 
+if ($senderId === $friendId) {
+    echo json_encode(['success' => false, 'message' => 'You cannot send a friend request to yourself.']);
+    exit();
+}
+
 try {
-    // 1. Check existing relationship in user_friends
+    // 2. Check existing relationship
     $checkSql = "SELECT user_id_1, user_id_2, status FROM user_friends 
                  WHERE (user_id_1 = :u1 AND user_id_2 = :u2) 
                     OR (user_id_1 = :u3 AND user_id_2 = :u4)
@@ -41,7 +47,7 @@ try {
             exit();
         }
 
-        // If the other user already sent a pending request -> Automatically accept ("Add Back")
+        // Auto-accept if the target user already sent a pending request
         if ($existing['status'] === 'pending' && (int)$existing['user_id_1'] === $friendId) {
             $updateStmt = $conn->prepare("
                 UPDATE user_friends 
@@ -53,14 +59,28 @@ try {
                 ':u2' => $existing['user_id_2']
             ]);
             
-            // Notify original sender
+            // Insert notification
             $notifStmt = $conn->prepare("
                 INSERT INTO notifications (user_id, sender_id, type, message, is_read, created_at) 
                 VALUES (:user_id, :sender_id, 'friend_accepted', 'accepted your friend request.', 0, NOW())
             ");
             $notifStmt->execute([':user_id' => $friendId, ':sender_id' => $userId]);
 
-            echo json_encode(['success' => true, 'message' => 'Friend request accepted!', 'action' => 'accepted']);
+            // Real-time Pusher notification for the auto-accept event
+            $payload = [
+                'type'        => 'friend_accepted',
+                'sender_id'   => $senderId,
+                'sender_name' => $senderName,
+                'message'     => 'accepted your friend request.',
+                'created_at'  => date('Y-m-d H:i:s')
+            ];
+            triggerPusherEvent("user-{$friendId}", "friend_event", $payload);
+
+            echo json_encode([
+                'success' => true, 
+                'message' => 'Friend request accepted!', 
+                'status'  => 'accepted'
+            ]);
             exit();
         }
 
@@ -68,7 +88,7 @@ try {
         exit();
     }
 
-    // 2. Insert new friend request
+    // 3. Insert new friend request
     $insertStmt = $conn->prepare("
         INSERT INTO user_friends (user_id_1, user_id_2, status) 
         VALUES (:sender, :receiver, 'pending')
@@ -78,7 +98,7 @@ try {
         ':receiver' => $friendId
     ]);
 
-    // 3. Send notification to receiver
+    // Insert notification
     $notifStmt = $conn->prepare("
         INSERT INTO notifications (user_id, sender_id, type, message, is_read, created_at) 
         VALUES (:receiver, :sender, 'friend_request', 'sent you a friend request.', 0, NOW())
@@ -88,8 +108,7 @@ try {
         ':sender'   => $userId
     ]);
 
-
-    // Payload for live event
+    // 4. Trigger event on target user's channel
     $payload = [
         'type'        => 'friend_request',
         'sender_id'   => $senderId,
@@ -98,13 +117,16 @@ try {
         'created_at'  => date('Y-m-d H:i:s')
     ];
 
-    // Trigger event on target user's private channel
-    // Adjust function name according to your pusher_helper.php implementation
     triggerPusherEvent("user-{$friendId}", "friend_event", $payload);
-    echo json_encode(['success' => true, 'message' => 'Friend request sent!']);   
+
+    echo json_encode([
+        'success' => true, 
+        'message' => 'Friend request sent!', 
+        'status'  => 'pending'
+    ]);   
 
 } catch (PDOException $e) {
     error_log("Add Friend Error: " . $e->getMessage());
     http_response_code(500);
-    echo json_encode(['success' => false, 'message' => 'Database error: ' . $e->getMessage()]);
+    echo json_encode(['success' => false, 'message' => 'A server error occurred. Please try again later.']);
 }

@@ -89,7 +89,10 @@
         </div>
     </div>
 
-    <!-- Movie Detail & Playback Modal -->
+   
+</div>
+
+ <!-- Movie Detail & Playback Modal -->
     <div x-show="showMovieDetailModal" class="fixed inset-0 z-[120] flex items-center justify-center p-4" style="display: none;">
         <div class="absolute inset-0 bg-black/80 backdrop-blur-xl" @click="closeMovieDetail()"></div>
         
@@ -333,4 +336,3 @@
             </template>
         </div>
     </div>
-</div>

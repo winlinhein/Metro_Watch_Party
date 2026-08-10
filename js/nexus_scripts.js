@@ -37,8 +37,20 @@ function userDashboard() {
         activeMovieChannel: null,
         replyInputText: '',
 
-        //Pusher
+        // Pusher Client
         pusherClient: null,
+
+        // Data Lists
+        friends: [],
+        pendingRequests: [],
+        notifications: [],
+        searchResults: [],
+        unreadNotifCount: 0,
+        
+        searchQuery: '',
+        friendSearchQuery: '',
+        searchTimeout: null,
+        pollingInterval: null,
 
        // Live filtered movies getter
         get filteredMovies() {
@@ -305,59 +317,75 @@ function userDashboard() {
         },
 
         // Respond to Friend Request (Accept / "Add Back" or Decline)
-        async respondToFriendRequest(senderId, action) {
-            try {
-                const res = await fetch('/user_backend/respond_friend.php', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ sender_id: senderId, action: action })
-                });
-
-                const data = await res.json();
+        respondToFriendRequest(userId, action) {
+            fetch('/user_backend/respond_friend.php', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ sender_id: userId, action: action })
+            })
+            .then(res => res.json())
+            .then(data => {
                 if (data.success) {
-                    if (typeof window.showToast === 'function') {
-                        window.showToast(data.message, 'success');
-                    } else {
-                        alert(data.message);
+                    // 1. Show success toast (e.g., "Friend request accepted")
+
+                    // 2. SYNCHRONIZE STATE: Remove from incoming requests array
+                    this.pendingRequests = this.pendingRequests.filter(req => req.user_id !== userId);
+                    
+                    // 3. SYNCHRONIZE STATE: Remove from notifications array so the user can't click it again
+                    this.notifications = this.notifications.filter(notif => notif.sender_id !== userId);
+                    
+                    // 4. Update the unread notification count
+                    this.unreadNotifCount = this.notifications.filter(n => n.is_read == 0).length;
+
+                    // 5. SYNCHRONIZE STATE: Update Search Results if the modal happens to be open
+                    const userIndex = this.searchResults.findIndex(u => u.user_id === userId);
+                    if (userIndex !== -1) {
+                        this.searchResults[userIndex].friend_status = action === 'accept' ? 'accepted' : null;
                     }
 
-                    // Synchronize state immediately
-                    await this.fetchFriends();
-                    await this.fetchNotifications();
-                    this.searchUsers();
-                } else {
-                    alert(data.message || 'Action failed.');
+                    // 6. Refresh the friends list from the server to get their full data
+                    if (action === 'accept') {
+                        this.fetchFriends(); 
+                    }
                 }
-            } catch (err) {
-                console.error('Error responding to request:', err);
-            }
+            })
+            .catch(error => console.error("Error:", error));
         },
 
-        // Send Friend Request
-        async sendFriendRequest(friendId) {
-            try {
-                const res = await fetch('/user_backend/add_friend.php', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ friend_id: friendId })
-                });
-
-                const data = await res.json();
-                if (data.success) {
-                    if (typeof window.showToast === 'function') {
-                        window.showToast(data.message, 'success');
-                    } else {
-                        alert(data.message);
-                    }
-
-                    await this.fetchFriends();
-                    this.searchUsers();
-                } else {
-                    alert(data.message || 'Request failed.');
+        sendFriendRequest(userId) {
+            fetch('/user_backend/add_friend.php', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ friend_id: userId })
+            })
+            .then(async res => {
+                // Read the response as raw text first instead of forcing JSON
+                const rawText = await res.text(); 
+                try {
+                    // Try to parse it manually
+                    return JSON.parse(rawText);
+                } catch (err) {
+                    // If it fails, log the raw HTML so you can see the exact PHP error!
+                    console.error("Backend returned HTML instead of JSON. Raw response:", rawText);
+                    throw new Error("Invalid JSON response from server");
                 }
-            } catch (err) {
-                console.error('Send request error:', err);
-            }
+            })
+            .then(data => {
+                if (data && data.success) {
+                    // 1. Show your success toast notification here
+                    
+                    // 2. SYNCHRONIZE STATE
+                    const userIndex = this.searchResults.findIndex(u => u.user_id === userId);
+                    if (userIndex !== -1) {
+                        this.searchResults[userIndex].friend_status = 'pending';
+                        this.searchResults[userIndex].requester_id = window.CURRENT_USER_ID; 
+                    }
+                } else {
+                    // Handle error toast
+                    console.error("Request failed:", data);
+                }
+            })
+            .catch(error => console.error("Fetch/Network Error:", error));
         },
 
         // Search Users
@@ -805,74 +833,53 @@ function userDashboard() {
             });
         },
 
-        async toggleWatchlist(movie) {
-            if (!movie) return;
-            const movieId = this.getMovieId(movie);
-            const targetState = !movie.inWatchlist;
-
-            try {
-                const response = await fetch('/user_backend/toggle_watchlist.php', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ movie_id: movieId, status: targetState })
-                });
-                const data = await response.json();
-
-                if (data.success) {
-                    movie.inWatchlist = targetState;
-
-                    // Sync with main movies catalog array
-                    const catalogItem = this.movies.find(m => Number(this.getMovieId(m)) === Number(movieId));
-                    if (catalogItem) catalogItem.inWatchlist = targetState;
-
-                    if (targetState) {
-                        this.watchlist.unshift({
-                            id: movieId,
-                            title: movie.title,
-                            year: movie.created_at ? new Date(movie.created_at).getFullYear() : "2026",
-                            genre: movie.genres && movie.genres.length > 0 ? movie.genres[0] : "Movie",
-                            rating: movie.rating ? movie.rating + " / 5" : "N/A",
-                            status: "Saved",
-                            img: movie.img || movie.cover_image || "https://via.placeholder.com/300x450/0d0d12/ffffff?text=No+Poster",
-                            video_url: movie.video_url || movie.trailer || ''
-                        });
-                        if (window.showToast) window.showToast('Added to watchlist', 'success');
-                    } else {
-                        this.watchlist = this.watchlist.filter(w => Number(w.id) !== Number(movieId));
-                        if (window.showToast) window.showToast('Removed from watchlist', 'info');
-                    }
-                }
-            } catch (e) {
-                console.error("Watchlist API error:", e);
+       // 1. REPLACE your existing toggleWatchlist with this updated version:
+    toggleWatchlist(movie) {
+        if(movie.inWatchlist === undefined) movie.inWatchlist = false;
+        movie.inWatchlist = !movie.inWatchlist;
+        
+        if(movie.inWatchlist) {
+            const movieId = movie.id || movie.movie_id;
+            // Check if already in watchlist to prevent duplicates
+            if (!this.watchlist.find(w => (w.id || w.movie_id) === movieId)) {
+                // FIX: Spread the full ...movie object so all data (video_url, etc.) is retained
+                // FIX: Reassign the array to force Alpine.js to update the UI instantly
+                this.watchlist = [{
+                    ...movie, 
+                    year: movie.created_at ? new Date(movie.created_at).getFullYear() : "2024",
+                    genre: movie.genres && movie.genres.length > 0 ? movie.genres[0] : "Movie",
+                    rating: movie.rating ? movie.rating + " / 5" : "N/A",
+                    status: "Next Up",
+                    img: movie.img || movie.cover_image || "https://via.placeholder.com/300x450/0d0d12/ffffff?text=No+Poster"
+                }, ...this.watchlist];
             }
-        },
+            if (window.showToast) window.showToast('Added to watchlist', 'success');
+            
+            // NOTE: Add your fetch() call here if you need to push this save to your backend database
 
-        openWatchlistMovie(item) {
-            // 1. Check if the movie already exists in your full catalog array
-            let targetMovie = this.movies.find(m => 
-                (m.id && item.id && Number(m.id) === Number(item.id)) || 
-                (m.title && item.title && m.title.toLowerCase() === item.title.toLowerCase())
-            );
+        } else {
+            const movieId = movie.id || movie.movie_id;
+            // FIX: Reassign the array to trigger UI reactivity on removal
+            this.watchlist = this.watchlist.filter(w => (w.id || w.movie_id) !== movieId);
+            if (window.showToast) window.showToast('Removed from watchlist', 'info');
+            
+            // NOTE: Add your fetch() call here if you need to delete this save from your backend
+        }
+    },
 
-            // 2. Construct modal-compatible object if it isn't in local state
-            if (!targetMovie) {
-                targetMovie = {
-                    id: item.id || item.movie_id,
-                    title: item.title,
-                    img: item.img,
-                    rating: item.rating || '0.0',
-                    genres: item.genre ? [item.genre] : [],
-                    video_url: item.video_url || item.trailer || '',
-                    inWatchlist: true
-                };
-            } else {
-                targetMovie.inWatchlist = true;
-            }
-
-            // 3. Open the detail modal
-            this.openMovieDetail(targetMovie);
-        },
-
+    // 2. ADD this entirely new function right beneath toggleWatchlist:
+    openWatchlistMovie(item) {
+        // Switch the active tab to 'movies'
+        
+        // Find the original, complete movie data to pass into the modal
+        const movieId = item.id || item.movie_id;
+        const fullMovie = this.movies.find(m => (m.id || m.movie_id) === movieId) || item;
+        
+        // Use a tiny delay to allow Alpine to render the 'movies' tab before showing the modal overlay
+        setTimeout(() => {
+            this.openMovieDetail(fullMovie);
+        }, 100);
+    },
          // Real-Time Listener with Alpine Reactivity Fixes
         subscribeToLiveMovieEvents(movieId) {
             if (typeof Pusher === 'undefined') return;
@@ -998,6 +1005,42 @@ function userDashboard() {
             }
         },
 
+        fetchNotifications() {
+            fetch('user_backend/get_notifications.php')
+                .then(res => res.json())
+                .then(data => {
+                    if (data.success) {
+                        this.notifications = data.notifications;
+                        // Calculate unread badge count
+                        this.unreadNotifCount = this.notifications.filter(n => parseInt(n.is_read) === 0).length;
+                    }
+                });
+        },
+
+        markNotificationsAsRead() {
+            if (this.unreadNotifCount === 0) return;
+
+            fetch('user_backend/mark_notifications_read.php', { method: 'POST' })
+                .then(res => res.json())
+                .then(data => {
+                    if (data.success) {
+                        this.unreadNotifCount = 0;
+                        this.notifications.forEach(n => n.is_read = 1);
+                    }
+                });
+        },
+
+        clearAllNotifications() {
+            fetch('user_backend/clear_notifications.php', { method: 'POST' })
+                .then(res => res.json())
+                .then(data => {
+                    if (data.success) {
+                        this.notifications = [];
+                        this.unreadNotifCount = 0;
+                    }
+                });
+        },
+
         // Initialize Pusher Connection
         initPusher() {
             if (!window.CURRENT_USER_ID || typeof Pusher === 'undefined') return;
@@ -1032,6 +1075,7 @@ function userDashboard() {
             });
 
             channel.bind('friend_event', (data) => {
+                // Existing notification logic
                 this.notifications.unshift({
                     id: Date.now(),
                     type: data.type,
@@ -1044,14 +1088,26 @@ function userDashboard() {
 
                 this.unreadNotifCount++;
 
+                // 2. OPTIMISTIC UI FIX: Instantly inject into the Request Panel
+                if (data.type === 'friend_request') {
+                    const alreadyExists = this.pendingRequests.some(r => r.user_id == data.sender_id);
+                    if (!alreadyExists) {
+                        this.pendingRequests.unshift({
+                            user_id: data.sender_id,
+                            user_name: data.sender_name
+                        });
+                    }
+                }
+
                 if (typeof window.showToast === 'function') {
                     const toastType = data.type === 'friend_rejected' ? 'error' : 'success';
                     window.showToast(`${data.sender_name} ${data.message}`, toastType);
                 }
 
-                // Live re-fetch to keep lists synced across tabs and clients
+                // Background re-fetch to keep lists synced across tabs and clients
                 this.fetchFriends();
                 this.searchUsers();
+                this.fetchNotifications();
             });
         },
 

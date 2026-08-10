@@ -1,6 +1,6 @@
 <!-- Notifications Button & Panel Component -->
 <div class="relative z-[60]" x-data>
-    <button @click="showNotifications = !showNotifications; if(showNotifications) fetchNotifications();" 
+    <button @click="showNotifications = !showNotifications; if(showNotifications) { fetchNotifications(); markNotificationsAsRead(); }" 
             class="relative w-10 h-10 rounded-xl bg-gradient-to-br from-red-500/20 to-purple-600/20 hover:from-red-500/40 hover:to-purple-600/40 border border-red-500/30 flex items-center justify-center transition-all duration-300 group shadow-[0_0_15px_rgba(239,68,68,0.3)] hover:shadow-[0_0_30px_rgba(239,68,68,0.6)] hover:scale-110 active:scale-95">
         <span class="absolute inset-0 rounded-xl bg-white/5 group-hover:bg-transparent transition-colors"></span>
         <span class="material-symbols-outlined text-white/90 group-hover:text-white transition-colors relative z-10 group-hover:animate-bounce">notifications</span>

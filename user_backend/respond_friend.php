@@ -35,6 +35,17 @@ try {
         $notifStmt->execute([':user_id' => $senderId, ':sender_id' => $userId]);
 
         $message = "Friend request accepted!";
+
+        // Mark the original friend_request notification as read for the receiver
+        $cleanNotifStmt = $conn->prepare("
+            UPDATE notifications 
+            SET is_read = 1 
+            WHERE user_id = :receiver AND sender_id = :sender AND type = 'friend_request'
+        ");
+        $cleanNotifStmt->execute([
+            ':receiver' => $userId,
+            ':sender'   => $senderId
+        ]);
     } else {
         $stmt = $conn->prepare("
             DELETE FROM user_friends 
