@@ -21,11 +21,41 @@
                 </h2>
                 <p class="text-white/40 mono text-sm uppercase tracking-widest pl-16">Queued for protocol initiation</p>
             </div>
-            <div class="flex items-center gap-3">
-                <div class="flex gap-2 p-1.5 bg-white/[0.03] rounded-2xl border border-white/10 shadow-inner">
-                    <button class="px-5 py-2.5 rounded-xl bg-white/10 text-white text-[11px] font-bold uppercase tracking-wider shadow-lg">All</button>
-                    <button class="px-5 py-2.5 rounded-xl hover:bg-white/5 text-white/50 hover:text-white transition-all text-[11px] font-bold uppercase tracking-wider">Movies</button>
-                    <button class="px-5 py-2.5 rounded-xl hover:bg-white/5 text-white/50 hover:text-white transition-all text-[11px] font-bold uppercase tracking-wider">Shows</button>
+            <div class="flex items-center gap-3" x-data="{ searchOpen: false, searchFocused: false }">
+                <div class="relative group">
+                    <!-- Animated Glow Behind -->
+                    <div class="absolute inset-0 bg-gradient-to-r from-red-500 via-rose-500 to-purple-500 rounded-2xl blur-xl transition-all duration-700 opacity-0"
+                         :class="searchOpen ? 'opacity-30 scale-105' : 'group-hover:opacity-20'"></div>
+                    
+                    <!-- Search Container -->
+                    <div class="relative flex items-center bg-black/40 backdrop-blur-xl border transition-all duration-700 ease-[cubic-bezier(0.34,1.56,0.64,1)] rounded-2xl overflow-hidden"
+                         :class="searchOpen ? 'w-80 border-red-500/50 shadow-[inset_0_0_20px_rgba(239,68,68,0.2)]' : 'w-14 border-white/10 hover:border-white/30'">
+                        
+                        <!-- Icon Button -->
+                        <button @click="searchOpen = !searchOpen; if(searchOpen) $nextTick(() => $refs.searchInput.focus())" 
+                                class="w-14 h-14 shrink-0 flex items-center justify-center transition-colors duration-300 relative z-10"
+                                :class="searchOpen ? 'text-red-400' : 'text-white/50 group-hover:text-white'">
+                            <!-- Search Icon (Fades out and down) -->
+                            <span class="material-symbols-outlined absolute text-[24px] transition-all duration-500"
+                                  :class="searchOpen ? 'opacity-0 scale-50 rotate-90 translate-y-4' : 'opacity-100 scale-100 rotate-0 translate-y-0'">search</span>
+                            <!-- Close Icon (Fades in and up) -->
+                            <span class="material-symbols-outlined absolute text-[24px] transition-all duration-500"
+                                  :class="searchOpen ? 'opacity-100 scale-100 rotate-0 translate-y-0' : 'opacity-0 scale-50 -rotate-90 -translate-y-4'">close</span>
+                        </button>
+
+                        <!-- Input Field -->
+                        <input x-ref="searchInput" 
+                               type="text" 
+                               @focus="searchFocused = true" 
+                               @blur="searchFocused = false"
+                               placeholder="INITIATE SEARCH..." 
+                               class="w-full bg-transparent text-white text-[11px] font-bold uppercase tracking-widest outline-none placeholder-red-500/30 pr-4 transition-all duration-500"
+                               :class="searchOpen ? 'opacity-100 translate-x-0' : 'opacity-0 translate-x-8 pointer-events-none'">
+                               
+                        <!-- Scanning Line Effect -->
+                        <div class="absolute inset-y-0 left-14 w-[1px] bg-red-500/80 shadow-[0_0_15px_#ef4444] transition-all duration-[1.5s] ease-in-out"
+                             :class="searchFocused ? 'opacity-100 translate-x-[240px]' : 'opacity-0 translate-x-0'"></div>
+                    </div>
                 </div>
             </div>
         </div>

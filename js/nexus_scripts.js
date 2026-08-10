@@ -4,6 +4,12 @@ function userDashboard() {
         currentTab: 'dashboard',
         isNavOpen: false,
         
+        // Chat State
+        showChatPanel: false,
+        activeChatFriend: null,
+        chatMessages: [],
+        chatInput: '',
+        
         // Drawer Panels & Modals State
         showFriendsPanel: false,
         showQuestsPanel: false,
@@ -542,6 +548,88 @@ function userDashboard() {
                 this.viewModalOpen = false;
             }
         },
+        
+        // Chat Methods
+        openChat(friend) {
+            this.activeChatFriend = friend;
+            this.chatMessages = [
+                { sender: 'them', text: 'Hey there! Are you watching the movie tonight?', time: '10:00 AM' },
+                { sender: 'me', text: 'Yeah absolutely! Setting up the watch party now.', time: '10:05 AM' }
+            ];
+            this.showChatPanel = true;
+            this.showFriendsPanel = false; // Optionally close friends panel
+            
+            // GSAP Entrance Animation
+            setTimeout(() => {
+                if (typeof gsap !== 'undefined') {
+                    gsap.fromTo('.chat-panel-container', 
+                        { x: '100%', opacity: 0, scale: 0.95 }, 
+                        { x: '0%', opacity: 1, scale: 1, duration: 0.6, ease: 'power3.out' }
+                    );
+                    gsap.fromTo('.chat-message-item',
+                        { y: 20, opacity: 0 },
+                        { y: 0, opacity: 1, duration: 0.4, stagger: 0.1, delay: 0.3, ease: 'back.out(1.2)' }
+                    );
+                }
+            }, 50);
+        },
+        closeChat() {
+            if (typeof gsap !== 'undefined') {
+                gsap.to('.chat-panel-container', 
+                    { x: '100%', opacity: 0, scale: 0.95, duration: 0.4, ease: 'power2.in', onComplete: () => {
+                        this.showChatPanel = false;
+                        this.activeChatFriend = null;
+                    }}
+                );
+            } else {
+                this.showChatPanel = false;
+                this.activeChatFriend = null;
+            }
+        },
+        sendMessage() {
+            if (!this.chatInput.trim()) return;
+            this.chatMessages.push({
+                sender: 'me',
+                text: this.chatInput,
+                time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+            });
+            this.chatInput = '';
+            
+            setTimeout(() => {
+                const chatContainer = document.querySelector('.chat-messages-container');
+                if (chatContainer) {
+                    chatContainer.scrollTop = chatContainer.scrollHeight;
+                }
+                if (typeof gsap !== 'undefined') {
+                    gsap.fromTo('.chat-message-item:last-child',
+                        { scale: 0.8, opacity: 0, y: 20, transformOrigin: 'bottom right' },
+                        { scale: 1, opacity: 1, y: 0, duration: 0.5, ease: 'elastic.out(1, 0.7)' }
+                    );
+                }
+            }, 10);
+            
+            // Simulated reply
+            setTimeout(() => {
+                this.chatMessages.push({
+                    sender: 'them',
+                    text: 'Awesome, can\'t wait! Send me the invite code when ready.',
+                    time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                });
+                setTimeout(() => {
+                    const chatContainer = document.querySelector('.chat-messages-container');
+                    if (chatContainer) {
+                        chatContainer.scrollTop = chatContainer.scrollHeight;
+                    }
+                    if (typeof gsap !== 'undefined') {
+                        gsap.fromTo('.chat-message-item:last-child',
+                            { scale: 0.8, opacity: 0, y: 20, transformOrigin: 'bottom left' },
+                            { scale: 1, opacity: 1, y: 0, duration: 0.5, ease: 'elastic.out(1, 0.7)' }
+                        );
+                    }
+                }, 10);
+            }, 2000);
+        },
+
         openAddMovieModal() {
             this.editingMovie = false;
             this.newMovie = { title: '', genre: '', year: '', rating: '', description: '', trailer: '', img: '', comments: [] };
@@ -2172,11 +2260,55 @@ window.otpForm = function() {
     return {
         otpCode: '',
         inputs: [],
+        timeLeft: 180, // 3 minutes in seconds
+        timerInterval: null,
+        isResending: false,
         init() {
             this.$nextTick(() => {
                 this.inputs = Array.from(this.$el.querySelectorAll('#otp-inputs input'));
                 if(this.inputs.length > 0) this.inputs[0].focus();
+                this.startTimer();
             });
+        },
+        startTimer() {
+            if (this.timerInterval) clearInterval(this.timerInterval);
+            this.timeLeft = 180;
+            this.timerInterval = setInterval(() => {
+                if (this.timeLeft > 0) {
+                    this.timeLeft--;
+                } else {
+                    clearInterval(this.timerInterval);
+                }
+            }, 1000);
+        },
+        get formattedTime() {
+            const m = Math.floor(this.timeLeft / 60);
+            const s = this.timeLeft % 60;
+            return `${m}:${s < 10 ? '0' : ''}${s}`;
+        },
+        async resendOTP(url) {
+            if (this.timeLeft > 0 || this.isResending) return;
+            this.isResending = true;
+            
+            // GSAP Animation for resend button
+            if (this.$refs.resendIcon) {
+                gsap.to(this.$refs.resendIcon, { rotation: "+=360", duration: 1, ease: "power2.inOut" });
+            }
+
+            try {
+                const res = await fetch(url, { method: 'POST' });
+                // We're ignoring the response content to keep it simple, just reset timer
+                if (res.ok) {
+                    this.startTimer();
+                    // trigger a toast if available
+                    if (window.showToast) window.showToast('OTP Resent Successfully!', 'success');
+                }
+            } catch (e) {
+                console.error(e);
+                if (window.showToast) window.showToast('Failed to resend OTP', 'error');
+            } finally {
+                this.isResending = false;
+            }
         },
         updateHiddenInput() {
             this.otpCode = this.inputs.map(input => input.value).join('');

@@ -100,14 +100,36 @@
                 
             </form>
 
-            <div class="text-center gs-stagger mt-6 flex flex-col gap-2">
-                <p class="text-gray-400 text-sm">
-                    Didn't receive the code? 
-                    <a href="../backend/resend_otp.php" class="text-white font-medium hover:text-red-500 transition-colors ml-1 inline-flex items-center gap-1 group">
-                        Resend <span class="material-symbols-outlined text-[14px] group-hover:rotate-180 transition-transform duration-500">refresh</span>
-                    </a>
-                </p>
-                <p class="text-gray-500 text-xs">
+            <div class="text-center gs-stagger mt-8 flex flex-col gap-4">
+                
+                <!-- Insane Visual Timer -->
+                <div class="relative w-full max-w-[200px] mx-auto h-1.5 bg-white/5 rounded-full overflow-hidden shadow-[inset_0_1px_3px_rgba(0,0,0,0.5)]">
+                    <div class="absolute top-0 left-0 h-full bg-gradient-to-r from-red-500 to-indigo-500 rounded-full transition-all duration-1000 ease-linear shadow-[0_0_10px_rgba(220,38,38,0.5)]"
+                         :style="`width: ${(timeLeft / 180) * 100}%`"></div>
+                </div>
+
+                <div class="flex items-center justify-center gap-3">
+                    <p class="text-gray-400 text-sm flex items-center gap-2">
+                        <span class="material-symbols-outlined text-[16px] text-indigo-400" x-show="timeLeft > 0">timer</span>
+                        <span class="font-mono text-white tracking-widest" x-show="timeLeft > 0" x-text="formattedTime"></span>
+                        <span x-show="timeLeft === 0" class="text-red-400 font-bold uppercase tracking-wider text-xs animate-pulse">Expired</span>
+                    </p>
+                    
+                    <span class="w-1 h-1 rounded-full bg-white/20"></span>
+
+                    <button 
+                        @click.prevent="resendOTP('../backend/resend_otp.php')" 
+                        :disabled="timeLeft > 0 || isResending"
+                        class="text-sm font-medium transition-all duration-300 inline-flex items-center gap-1.5 group relative"
+                        :class="timeLeft > 0 ? 'text-white/20 cursor-not-allowed' : 'text-white hover:text-red-400 cursor-pointer'"
+                    >
+                        Resend
+                        <span x-ref="resendIcon" class="material-symbols-outlined text-[14px]">refresh</span>
+                        <div x-show="timeLeft === 0" class="absolute -bottom-1 left-0 w-full h-[1px] bg-gradient-to-r from-red-500 to-transparent origin-left scale-x-0 group-hover:scale-x-100 transition-transform duration-300"></div>
+                    </button>
+                </div>
+
+                <p class="text-gray-500 text-xs mt-2">
                     <a href="login.php" class="hover:text-white transition-colors">Back to Login</a>
                 </p>
             </div>
