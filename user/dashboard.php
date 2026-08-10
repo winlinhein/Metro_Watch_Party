@@ -337,7 +337,7 @@ $userId = $_SESSION['user_id'] ?? 0;
                             </div>
                         </div>
 
-                        <button class="shrink-0 flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 text-[10px] font-semibold uppercase tracking-wider border border-emerald-500/20 hover:border-emerald-500/40 transition-all">
+                        <button @click="openChat(friend)" class="shrink-0 flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 text-[10px] font-semibold uppercase tracking-wider border border-emerald-500/20 hover:border-emerald-500/40 transition-all">
                             <span class="material-symbols-outlined text-[13px]">chat</span>
                             <span>Chat</span>
                         </button>
@@ -696,6 +696,8 @@ $userId = $_SESSION['user_id'] ?? 0;
     </main>
 
     <?php include __DIR__ . '/../frontend/components/host_party_fab.php'; ?>
+
+    <?php include "user_chat.php"; ?>
 
 </div>
 
