@@ -51,22 +51,9 @@ try {
         $movie['user_rating'] = (int)$movie['user_rating'];
         
         $movie['genres'] = $movie['genres'] ? explode(', ', $movie['genres']) : [];
-
-        // Fetch comments for this specific movie
-        $commentQuery = "
-            SELECT 
-                comment_id,
-                user_id,
-                parent_comment_id,
-                comment_text,
-                created_at
-            FROM movie_comments
-            WHERE movie_id = :movie_id
-            ORDER BY created_at ASC
-        ";
-        $commentStmt = $conn->prepare($commentQuery);
-        $commentStmt->execute([':movie_id' => $movie['id']]);
-        $movie['comments'] = $commentStmt->fetchAll(PDO::FETCH_ASSOC);
+        
+        // Comments are loaded dynamically when the modal opens via get_comments.php
+        $movie['comments'] = [];
     }
 
     echo json_encode($movies);
