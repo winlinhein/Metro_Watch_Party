@@ -123,20 +123,19 @@ function userDashboard() {
 
         async openMovieDetail(movie) {
             this.selectedMovie = movie;
+            this.showMovieDetailModal = true;
             
             // Extract the reliable ID
             const movieId = this.getMovieId(movie);
             
             if (movieId) {
-                // 1. Fetch historical comments from the database
-                await this.fetchMovieComments(movieId);
+                // 1. Fetch historical comments from the database (does not block modal opening)
+                this.fetchMovieComments(movieId);
                 
                 // 2. Subscribe to the real-time Pusher channel
                 this.subscribeToLiveMovieEvents(movieId);
                 
             }
-            
-            this.showMovieDetailModal = true;
         },
 
         closeMovieDetail() {
@@ -285,6 +284,23 @@ function userDashboard() {
                 }
             } catch (err) {
                 console.error('Notification error:', err);
+            }
+        },
+
+        async clearAllNotifications() {
+            try {
+                const res = await fetch('/user_backend/clear_notifications.php', { method: 'POST' });
+                const data = await res.json();
+                if (data.success) {
+                    this.notifications = [];
+                    this.unreadNotifCount = 0;
+                    window.showToast('All notifications cleared.', 'success');
+                }
+            } catch (err) {
+                console.error('Failed to clear notifications:', err);
+                // Even if it fails server-side or mock, we can clear locally for UX if we want.
+                this.notifications = [];
+                this.unreadNotifCount = 0;
             }
         },
 

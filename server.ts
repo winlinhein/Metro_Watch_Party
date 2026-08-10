@@ -7,6 +7,7 @@ const PORT = 3000;
 
 // Parse POST requests
 app.use(express.urlencoded({ extended: true }));
+app.use(express.json());
 
 // Mock backend route for backend.php
 app.post("/backend/backend.php", (req, res) => {
@@ -95,6 +96,10 @@ app.get("/user_backend/mission.php", (req, res) => {
   });
 });
 
+app.post("/user_backend/clear_notifications.php", (req, res) => {
+  res.json({ success: true });
+});
+
 app.get("/user_backend/get_notifications.php", (req, res) => {
   res.json({
     success: true,
@@ -106,6 +111,51 @@ app.get("/user_backend/movies_api.php", (req, res) => {
   res.json([
     { id: 1, title: "Inception", genres: ["Sci-Fi", "Action"], year: 2010 }
   ]);
+});
+
+app.get("/user_backend/get_watchlist.php", (req, res) => {
+  res.json({
+    success: true,
+    watchlist: [
+      {
+        id: 1,
+        title: "Inception",
+        year: "2010",
+        genre: "Sci-Fi, Action",
+        img: "https://via.placeholder.com/300x450/0d0d12/ffffff?text=No+Poster",
+        status: "Saved",
+        rating: "N/A"
+      }
+    ]
+  });
+});
+
+app.post("/user_backend/toggle_watchlist.php", (req, res) => {
+  res.json({ success: true, action: "added" });
+});
+
+app.get("/user_backend/get_comments.php", (req, res) => {
+  res.json({ success: true, comments: [] });
+});
+
+app.post("/user_backend/like_comment.php", (req, res) => {
+  res.json({ success: true, likes: 1 });
+});
+
+app.post("/user_backend/rate_movie.php", (req, res) => {
+  res.json({ success: true, rating: 5 });
+});
+
+app.post("/user_backend/post_comment.php", (req, res) => {
+  res.json({ success: true, comment: { comment_id: Date.now(), user_name: "MockUser", content: req.body?.content || "Mock comment", created_at: new Date().toISOString() } });
+});
+
+app.post("/user_backend/post_reply.php", (req, res) => {
+  res.json({ success: true, reply: { reply_id: Date.now(), user_name: "MockUser", content: req.body?.content || "Mock reply", created_at: new Date().toISOString() } });
+});
+
+app.post("/user_backend/respond_friend.php", (req, res) => {
+  res.json({ success: true });
 });
 
 app.post("/user_backend/add_friend.php", (req, res) => {

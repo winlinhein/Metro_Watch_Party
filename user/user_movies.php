@@ -264,16 +264,49 @@
                                                     <span x-text="comment.likes_count || 0"></span>
                                                 </button>
                                                 <button @click="replyingToCommentId = replyingToCommentId === (comment.id || comment.comment_id) ? null : (comment.id || comment.comment_id)" class="text-white/50 hover:text-white transition-colors">Reply</button>
+                                                
+                                                <template x-if="comment.replies && comment.replies.length > 0">
+                                                    <button @click="comment.show_replies = comment.show_replies === undefined ? false : !comment.show_replies" 
+                                                            class="ml-auto group relative flex items-center gap-2 px-2.5 py-1 rounded-full bg-white/5 hover:bg-white/10 border border-white/5 hover:border-indigo-500/30 transition-all duration-300 overflow-hidden">
+                                                        <div class="absolute inset-0 bg-gradient-to-r from-indigo-500/10 via-purple-500/10 to-indigo-500/10 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+                                                        <div class="relative z-10 flex items-center gap-1.5">
+                                                            <span class="material-symbols-outlined text-[14px] text-indigo-400 transition-all duration-500 ease-out"
+                                                                  :class="comment.show_replies !== false ? 'rotate-180 text-purple-400 drop-shadow-[0_0_8px_rgba(168,85,247,0.5)]' : 'rotate-0'">
+                                                                keyboard_arrow_down
+                                                            </span>
+                                                            <span class="text-[9px] font-bold tracking-widest uppercase transition-colors duration-300"
+                                                                  :class="comment.show_replies !== false ? 'text-purple-300' : 'text-white/70 group-hover:text-white'"
+                                                                  x-text="comment.show_replies !== false ? 'Hide' : 'Replies'"></span>
+                                                            <div x-show="comment.show_replies === false" 
+                                                                  x-transition:enter="transition ease-out duration-300"
+                                                                  x-transition:enter-start="opacity-0 scale-50"
+                                                                  x-transition:enter-end="opacity-100 scale-100"
+                                                                  class="flex items-center justify-center min-w-[16px] h-[16px] rounded-full bg-indigo-500/20 text-indigo-300 text-[9px] font-black"
+                                                                  x-text="comment.replies.length"></div>
+                                                        </div>
+                                                    </button>
+                                                </template>
                                             </div>
 
                                             <!-- Reply Input -->
-                                            <div x-show="replyingToCommentId === (comment.id || comment.comment_id)" class="mt-3 flex gap-2">
-                                                <input type="text" x-model="replyInputText" placeholder="Write a reply..." class="flex-1 bg-black/40 border border-white/10 rounded-lg px-3 py-1.5 text-xs text-white outline-none focus:border-indigo-500/50">
-                                                <button @click="postReply(comment.id || comment.comment_id)" class="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 rounded-lg text-xs font-bold text-white transition-colors">Send</button>
+                                            <div x-show="replyingToCommentId === (comment.id || comment.comment_id)" 
+                                                 x-transition:enter="transition-all ease-out duration-300"
+                                                 x-transition:enter-start="opacity-0 -translate-y-2"
+                                                 x-transition:enter-end="opacity-100 translate-y-0"
+                                                 class="mt-3 flex gap-2">
+                                                <input type="text" x-model="replyInputText" placeholder="Write a reply..." class="flex-1 bg-black/40 border border-white/10 rounded-lg px-3 py-1.5 text-xs text-white outline-none focus:border-indigo-500/50 transition-colors duration-300">
+                                                <button @click="postReply(comment.id || comment.comment_id)" class="px-3 py-1.5 bg-indigo-600/80 hover:bg-indigo-500 border border-indigo-500/50 rounded-lg text-xs font-bold text-white transition-all duration-300 hover:shadow-[0_0_15px_rgba(99,102,241,0.4)]">Send</button>
                                             </div>
 
                                             <!-- Nested Replies -->
-                                            <div x-show="comment.replies && comment.replies.length > 0" class="pl-4 mt-3 border-l border-white/10 space-y-2">
+                                            <div x-show="comment.show_replies !== false && comment.replies && comment.replies.length > 0" 
+                                                 x-transition:enter="transition-all ease-out duration-400"
+                                                 x-transition:enter-start="opacity-0 -translate-y-4 scale-95 blur-sm"
+                                                 x-transition:enter-end="opacity-100 translate-y-0 scale-100 blur-0"
+                                                 x-transition:leave="transition-all ease-in duration-300"
+                                                 x-transition:leave-start="opacity-100 translate-y-0 scale-100 blur-0"
+                                                 x-transition:leave-end="opacity-0 -translate-y-2 scale-95 blur-sm"
+                                                 class="pl-4 mt-3 border-l-2 border-indigo-500/30 space-y-2 relative origin-top">
                                                 <template x-for="reply in comment.replies" :key="reply.id || reply.comment_id">
                                                     <div class="p-2.5 bg-black/30 rounded-lg border border-white/5">
                                                         <div class="flex justify-between items-center mb-1">

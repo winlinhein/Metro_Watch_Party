@@ -22,12 +22,22 @@
          x-transition:enter-end="opacity-100 scale-100 translate-y-0"
          class="absolute right-0 top-full mt-4 w-[380px] bg-[#050508]/95 backdrop-blur-3xl border border-red-500/30 rounded-2xl shadow-[0_20px_60px_-15px_rgba(239,68,68,0.4)] p-4 z-50 overflow-hidden">
         
-        <div class="flex items-center justify-between mb-4 border-b border-white/10 pb-3">
-            <h3 class="text-sm font-black text-white uppercase tracking-widest flex items-center gap-2">
-                <span class="material-symbols-outlined text-red-500 text-[20px] animate-pulse">notifications_active</span>
-                Notifications
-            </h3>
-            <span class="text-[10px] text-white/50 uppercase font-mono" x-text="notifications.length + ' Total'"></span>
+        <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-4 border-b border-white/10 pb-3 gap-2 sm:gap-0">
+            <div class="flex items-center gap-3">
+                <h3 class="text-sm font-black text-white uppercase tracking-widest flex items-center gap-2">
+                    <span class="material-symbols-outlined text-red-500 text-[20px] animate-pulse">notifications_active</span>
+                    Notifications
+                </h3>
+                <span class="px-2 py-0.5 rounded-full bg-white/5 border border-white/10 text-[9px] text-white/50 uppercase font-mono tracking-widest" x-text="notifications.length + ' Total'"></span>
+            </div>
+            
+            <button @click="clearAllNotifications()" x-show="notifications.length > 0" class="group relative overflow-hidden px-3 py-1.5 rounded-lg border border-red-500/30 bg-red-500/10 hover:bg-red-500/20 transition-all duration-300">
+                <div class="absolute inset-0 w-full h-full bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:animate-[shimmer_1.5s_infinite]"></div>
+                <div class="flex items-center gap-1.5 relative z-10">
+                    <span class="material-symbols-outlined text-[14px] text-red-400 group-hover:rotate-12 transition-transform duration-300">delete_sweep</span>
+                    <span class="text-[10px] font-bold text-red-400 uppercase tracking-widest">Clear All</span>
+                </div>
+            </button>
         </div>
 
         <div class="space-y-3 max-h-[320px] overflow-y-auto custom-scrollbar pr-1">

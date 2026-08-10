@@ -598,21 +598,74 @@ $userId = $_SESSION['user_id'] ?? 0;
                         </div>
                     </div>
 
-                    <!-- PRO Banner & Transmission Log -->
+                    <!-- Premium Plan Upgrade Card -->
                     <div class="space-y-6">
-                        <div class="glass-card hover-glow rounded-2xl p-8 bg-gradient-to-br from-indigo-500/20 to-red-600/20 border border-white/10 relative overflow-hidden">
-                            <div class="flex items-center gap-3 mb-4">
-                                <span class="material-symbols-outlined text-red-400 text-3xl">workspace_premium</span>
-                                <h3 class="text-xl font-bold tracking-wider">PRO PLAN</h3>
-                            </div>
-                            <p class="text-sm text-white/70 mb-6 leading-relaxed">Your premium access is active. Host up to 100 viewers per session with 4K streaming.</p>
+                        <div class="group relative rounded-[2rem] p-8 bg-[#0a0a0f] border border-yellow-500/30 overflow-hidden hover:shadow-[0_0_50px_rgba(234,179,8,0.2)] transition-all duration-700">
+                            <!-- Animated Background Effects -->
+                            <div class="absolute inset-0 bg-gradient-to-br from-yellow-500/10 via-orange-500/5 to-purple-600/10 opacity-50 group-hover:opacity-100 transition-opacity duration-700"></div>
+                            <div class="absolute -top-24 -right-24 w-48 h-48 bg-yellow-500/20 rounded-full blur-[60px] group-hover:scale-150 transition-transform duration-1000"></div>
+                            <div class="absolute -bottom-24 -left-24 w-64 h-64 bg-orange-500/10 rounded-full blur-[80px] group-hover:scale-125 transition-transform duration-1000 delay-100"></div>
                             
-                            <div class="w-full bg-black/40 rounded-full h-1.5 mb-2 overflow-hidden border border-white/10">
-                                <div class="bg-gradient-to-r from-indigo-500 to-red-500 h-1.5 rounded-full w-[75%]"></div>
-                            </div>
-                            <div class="flex justify-between text-[10px] text-white/50 mono font-bold">
-                                <span>75% STORAGE USED</span>
-                                <span class="text-red-400">UPGRADE</span>
+                            <!-- Shimmer Sweep -->
+                            <div class="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent -translate-x-full group-hover:animate-[shimmer_2s_infinite]"></div>
+
+                            <div class="relative z-10">
+                                <!-- Header -->
+                                <div class="flex items-center justify-between mb-6">
+                                    <div class="flex items-center gap-3">
+                                        <div class="relative flex items-center justify-center w-12 h-12 rounded-xl bg-gradient-to-br from-yellow-400 to-orange-500 p-[1px] group-hover:scale-110 transition-transform duration-500">
+                                            <div class="w-full h-full bg-[#0a0a0f] rounded-xl flex items-center justify-center">
+                                                <span class="material-symbols-outlined text-transparent bg-clip-text bg-gradient-to-br from-yellow-400 to-orange-500 text-2xl group-hover:rotate-12 transition-transform duration-500">diamond</span>
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <h3 class="text-2xl font-black tracking-widest text-transparent bg-clip-text bg-gradient-to-r from-yellow-400 to-orange-500 uppercase">Premium</h3>
+                                            <p class="text-[10px] font-mono text-yellow-500/70 tracking-[0.2em] uppercase">Membership</p>
+                                        </div>
+                                    </div>
+                                    <span class="px-3 py-1 bg-yellow-500/10 border border-yellow-500/30 rounded-full text-yellow-400 text-[10px] font-bold uppercase tracking-widest animate-pulse">Active</span>
+                                </div>
+
+                                <!-- Benefits List -->
+                                <div class="space-y-4 mb-8">
+                                    <div class="flex items-center gap-3 transform group-hover:translate-x-2 transition-transform duration-500 delay-75">
+                                        <div class="w-8 h-8 rounded-full bg-white/5 border border-white/10 flex items-center justify-center shadow-[inset_0_0_10px_rgba(255,255,255,0.05)]">
+                                            <span class="material-symbols-outlined text-[16px] text-emerald-400">group</span>
+                                        </div>
+                                        <div>
+                                            <p class="text-sm font-bold text-white">Host Watch Parties</p>
+                                            <p class="text-[10px] text-white/50 font-mono">Room capacity up to 4 people</p>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="flex items-center gap-3 transform group-hover:translate-x-2 transition-transform duration-500 delay-150">
+                                        <div class="w-8 h-8 rounded-full bg-white/5 border border-white/10 flex items-center justify-center shadow-[inset_0_0_10px_rgba(255,255,255,0.05)]">
+                                            <span class="material-symbols-outlined text-[16px] text-purple-400">blur_on</span>
+                                        </div>
+                                        <div>
+                                            <p class="text-sm font-bold text-white">Exclusive Cosmetics</p>
+                                            <p class="text-[10px] text-white/50 font-mono">Unlock animated profile borders</p>
+                                        </div>
+                                    </div>
+
+                                    <div class="flex items-center gap-3 transform group-hover:translate-x-2 transition-transform duration-500 delay-200">
+                                        <div class="w-8 h-8 rounded-full bg-white/5 border border-white/10 flex items-center justify-center shadow-[inset_0_0_10px_rgba(255,255,255,0.05)]">
+                                            <span class="material-symbols-outlined text-[16px] text-orange-400">explore</span>
+                                        </div>
+                                        <div>
+                                            <p class="text-sm font-bold text-white">Expanded Quests</p>
+                                            <p class="text-[10px] text-white/50 font-mono">More daily & weekly missions</p>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Action Button -->
+                                <button class="mt-2 relative overflow-hidden rounded-xl bg-gradient-to-r from-yellow-500 to-orange-500 p-[1px] group/btn transition-all duration-300 hover:shadow-[0_0_20px_rgba(234,179,8,0.4)] hover:-translate-y-1">
+                                    <div class="bg-[#0a0a0f] px-5 py-2.5 rounded-xl flex items-center gap-3 group-hover/btn:bg-transparent transition-colors duration-300">
+                                        <span class="text-[10px] font-black uppercase tracking-widest text-yellow-400 group-hover/btn:text-[#0a0a0f] transition-colors duration-300">Manage Plan</span>
+                                        <span class="material-symbols-outlined text-[14px] text-yellow-400 group-hover/btn:text-[#0a0a0f] transition-colors duration-300 group-hover/btn:translate-x-1">arrow_forward</span>
+                                    </div>
+                                </button>
                             </div>
                         </div>
 
