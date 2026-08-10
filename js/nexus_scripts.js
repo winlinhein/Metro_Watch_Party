@@ -2409,12 +2409,8 @@ function adminDashboard(userData = {}) {
             { id: 1, text: 'New user registered', time: '5m ago' },
             { id: 2, text: 'Server CPU high', time: '1h ago' }
         ],
-        stats: [
-            { label: 'Total Users', value: '12,450', change: '+12%', icon: 'group' },
-            { label: 'Active Sessions', value: '342', change: '+5%', icon: 'live_tv' },
-            { label: 'Revenue', value: '$45,231', change: '+23%', icon: 'payments' },
-            { label: 'Server Load', value: '42%', change: '-2%', icon: 'memory' }
-        ],
+        stats: [],
+        statsLoading: false,
 
        // Add Loading & Error states
         isLoading: false,
@@ -2437,6 +2433,29 @@ function adminDashboard(userData = {}) {
                 (u.name.toLowerCase().includes(this.searchQuery.toLowerCase()) || 
                  u.email.toLowerCase().includes(this.searchQuery.toLowerCase()))
             ); 
+        },
+
+        async fetchStats() {
+            this.statsLoading = true;
+            try {
+                const response = await fetch('/backend/dashboard_stats_api.php');
+                const text = await response.text();
+
+                try {
+                    const data = JSON.parse(text);
+                    if (response.ok && Array.isArray(data)) {
+                        this.stats = data;
+                    } else {
+                        console.error('Stats API Error:', data.error || 'Failed to load dashboard stats.');
+                    }
+                } catch (e) {
+                    console.error('Invalid JSON response from stats API:', text);
+                }
+            } catch (err) {
+                console.error('Network error fetching dashboard stats:', err);
+            } finally {
+                this.statsLoading = false;
+            }
         },
 
         // ADDED: Fetch users from the PHP backend API
@@ -2871,6 +2890,7 @@ function adminDashboard(userData = {}) {
         ],
 
          initDashboard() {
+            this.fetchStats();
             this.fetchMovies();
             this.fetchGenres();
             this.fetchUsers();
