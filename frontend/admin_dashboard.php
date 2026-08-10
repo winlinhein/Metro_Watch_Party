@@ -36,7 +36,7 @@ if (
             background-color: #030305; 
             color: #ffffff; 
             overflow: hidden; 
-            cursor: default;
+            cursor: default; 
         }
         .mono { font-family: 'JetBrains Mono', monospace; }
         
@@ -133,7 +133,7 @@ if (
 
 
 
-    <script src="/js/nexus_scripts.js?v=5"></script>
+    <script src="/js/nexus_scripts.js?v=6"></script>
     <script src="https://unpkg.com/htmx.org@1.9.10/dist/htmx.min.js" crossorigin="anonymous"></script>
 </head>
 <body class="h-screen w-screen flex relative selection:bg-red-500/30" data-barba="wrapper">
@@ -194,7 +194,7 @@ if (
             <div class="flex items-center gap-4 bg-white/[0.03] border border-white/10 rounded-2xl px-5 py-3 w-[400px] focus-within:border-red-500/50 focus-within:bg-white/[0.05] transition-all duration-300 shadow-inner gs-header-item group">
                 <span class="material-symbols-outlined text-white/40 group-focus-within:text-red-400 transition-colors">search</span>
                 <input type="text" placeholder="Search databases..." class="bg-transparent border-none outline-none text-white text-sm w-full placeholder-white/30 font-medium">
-                <div class="px-2 py-0.5 rounded bg-white/10 text-[10px] text-white/50 mono border border-white/5">⌘K</div>
+                <div class="px-2 py-0.5 rounded bg-white/10 text-[10px] text-white/50 mono border border-white/5">😘</div>
             </div>
             
             <div class="flex items-center gap-6 relative">
