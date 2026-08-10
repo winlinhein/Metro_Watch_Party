@@ -321,7 +321,13 @@ $userId = $_SESSION['user_id'] ?? 0;
         <!-- Tab 1: Connected Friends List -->
         <div x-show="friendsTab === 'connected'" class="flex-1 overflow-y-auto p-3 space-y-2.5 custom-scrollbar relative z-10">
             <template x-for="friend in filteredFriends" :key="friend.user_id">
-                <div class="group relative bg-gradient-to-br from-white/[0.04] to-white/[0.01] hover:from-white/[0.07] hover:to-emerald-500/[0.04] border border-white/10 hover:border-emerald-500/30 rounded-xl p-3 transition-all duration-300">
+                <div @click="openChat(friend)" class="friend-card group relative bg-gradient-to-br from-white/[0.04] to-white/[0.01] hover:from-white/[0.07] hover:to-emerald-500/[0.04] border border-white/10 hover:border-emerald-500/30 rounded-xl p-3 transition-all duration-300 cursor-pointer">
+                    
+                    <!-- Display Alert Badge if unread messages exist -->
+                    <template x-if="friend.unread_count > 0">
+                        <span class="absolute -top-2 -right-2 bg-red-500 text-white rounded-full px-2 py-0.5 text-[10px] font-bold shadow-[0_0_10px_rgba(239,68,68,0.8)] z-20" x-text="friend.unread_count"></span>
+                    </template>
+
                     <div class="flex items-center justify-between gap-2.5">
                         <div class="flex items-center gap-2.5 min-w-0 flex-1">
                             <div class="relative shrink-0">
@@ -337,10 +343,10 @@ $userId = $_SESSION['user_id'] ?? 0;
                             </div>
                         </div>
 
-                        <button @click="openChat(friend)" class="shrink-0 flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 text-[10px] font-semibold uppercase tracking-wider border border-emerald-500/20 hover:border-emerald-500/40 transition-all">
+                        <div class="shrink-0 flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-emerald-500/10 group-hover:bg-emerald-500/20 text-emerald-400 text-[10px] font-semibold uppercase tracking-wider border border-emerald-500/20 group-hover:border-emerald-500/40 transition-all">
                             <span class="material-symbols-outlined text-[13px]">chat</span>
                             <span>Chat</span>
-                        </button>
+                        </div>
                     </div>
                 </div>
             </template>
@@ -350,7 +356,7 @@ $userId = $_SESSION['user_id'] ?? 0;
                 <p class="text-[11px] text-white/40 mt-1">No friends found</p>
             </div>
         </div>
-
+        
         <!-- Tab 2: Pending Incoming Friend Requests ("Added You") -->
         <div x-show="friendsTab === 'pending'" class="flex-1 overflow-y-auto p-3 space-y-2.5 custom-scrollbar relative z-10" style="display: none;">
             <template x-for="req in pendingRequests" :key="req.user_id">

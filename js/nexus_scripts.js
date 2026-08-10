@@ -292,16 +292,20 @@ function userDashboard() {
         // Fetch Notifications
         async fetchNotifications() {
             try {
-                const response = await fetch('/user_backend/get_notifications.php');
-                if (!response.ok) return;
-
-                const data = await response.json();
-                if (data.success && Array.isArray(data.notifications)) {
-                    this.notifications = data.notifications;
-                    this.unreadNotifCount = this.notifications.filter(n => Number(n.is_read) === 0).length;
+                const response = await fetch('/user/user_backend/get_notifications.php');
+                
+                // 1. Check if the response is actually successful (Status 200-299)
+                if (!response.ok) {
+                    console.error(`Fetch failed with status: ${response.status}`);
+                    return; // Stop execution here so we don't try to parse an HTML error page
                 }
-            } catch (err) {
-                console.error('Notification error:', err);
+
+                // 2. Safely parse the JSON now that we know the response is valid
+                const data = await response.json();
+                this.notifications = data; 
+
+            } catch (error) {
+                console.error("Network or parsing error:", error);
             }
         },
 
@@ -550,15 +554,41 @@ function userDashboard() {
         },
         
         // Chat Methods
-        openChat(friend) {
+        // 1.Open Chat & Fetch Real Data
+        async openChat(friend) {
             this.activeChatFriend = friend;
-            this.chatMessages = [
-                { sender: 'them', text: 'Hey there! Are you watching the movie tonight?', time: '10:00 AM' },
-                { sender: 'me', text: 'Yeah absolutely! Setting up the watch party now.', time: '10:05 AM' }
-            ];
             this.showChatPanel = true;
-            this.showFriendsPanel = false; // Optionally close friends panel
+            this.showFriendsPanel = false;
+            this.chatMessages = []; // Clear previous chat
             
+            // Mark locally as read to clear the UI alert badge instantly
+            friend.unread_count = 0;
+
+            try {
+                // Fetch real messages from DB
+                const res = await fetch(`/user_backend/get_chat_messages.php?friend_id=${friend.user_id}`);
+                const data = await res.json();
+                
+                if (data.success) {
+                    this.chatMessages = data.messages.map(msg => ({
+                        sender: Number(msg.sender_id) === Number(window.CURRENT_USER_ID) ? 'me' : 'them',
+                        text: msg.message,
+                        time: new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                    }));
+                    this.scrollToChatBottom();
+                }
+
+                // Tell the backend to update unread status from 1 to 0
+                await fetch('/user_backend/mark_chat_read.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ friend_id: friend.user_id })
+                });
+
+            } catch (e) {
+                console.error("Failed to load chat", e);
+            }
+
             // GSAP Entrance Animation
             setTimeout(() => {
                 if (typeof gsap !== 'undefined') {
@@ -566,14 +596,11 @@ function userDashboard() {
                         { x: '100%', opacity: 0, scale: 0.95 }, 
                         { x: '0%', opacity: 1, scale: 1, duration: 0.6, ease: 'power3.out' }
                     );
-                    gsap.fromTo('.chat-message-item',
-                        { y: 20, opacity: 0 },
-                        { y: 0, opacity: 1, duration: 0.4, stagger: 0.1, delay: 0.3, ease: 'back.out(1.2)' }
-                    );
                 }
+                this.scrollToChatBottom();
             }, 50);
         },
-        closeChat() {
+       closeChat() {
             if (typeof gsap !== 'undefined') {
                 gsap.to('.chat-panel-container', 
                     { x: '100%', opacity: 0, scale: 0.95, duration: 0.4, ease: 'power2.in', onComplete: () => {
@@ -586,48 +613,50 @@ function userDashboard() {
                 this.activeChatFriend = null;
             }
         },
-        sendMessage() {
-            if (!this.chatInput.trim()) return;
-            this.chatMessages.push({
-                sender: 'me',
-                text: this.chatInput,
-                time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-            });
+        // 2.Send Message & Push to DB
+        async sendMessage() {
+            if (!this.chatInput.trim() || !this.activeChatFriend) return;
+            
+            const msgText = this.chatInput;
             this.chatInput = '';
             
+            // Optimistic UI update
+            this.chatMessages.push({
+                sender: 'me',
+                text: msgText,
+                time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+            });
+            this.scrollToChatBottom(true);
+            
+            try {
+                // Post to database
+                await fetch('/user_backend/send_chat_message.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        receiver_id: this.activeChatFriend.user_id,
+                        message: msgText
+                    })
+                });
+            } catch (e) {
+                console.error("Failed to send message", e);
+                window.showToast("Message failed to send", "error");
+            }
+        },
+        // Helper to keep chat scrolled to the newest message
+        scrollToChatBottom(animate = false) {
             setTimeout(() => {
                 const chatContainer = document.querySelector('.chat-messages-container');
                 if (chatContainer) {
                     chatContainer.scrollTop = chatContainer.scrollHeight;
                 }
-                if (typeof gsap !== 'undefined') {
+                if (animate && typeof gsap !== 'undefined') {
                     gsap.fromTo('.chat-message-item:last-child',
                         { scale: 0.8, opacity: 0, y: 20, transformOrigin: 'bottom right' },
                         { scale: 1, opacity: 1, y: 0, duration: 0.5, ease: 'elastic.out(1, 0.7)' }
                     );
                 }
-            }, 10);
-            
-            // Simulated reply
-            setTimeout(() => {
-                this.chatMessages.push({
-                    sender: 'them',
-                    text: 'Awesome, can\'t wait! Send me the invite code when ready.',
-                    time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-                });
-                setTimeout(() => {
-                    const chatContainer = document.querySelector('.chat-messages-container');
-                    if (chatContainer) {
-                        chatContainer.scrollTop = chatContainer.scrollHeight;
-                    }
-                    if (typeof gsap !== 'undefined') {
-                        gsap.fromTo('.chat-message-item:last-child',
-                            { scale: 0.8, opacity: 0, y: 20, transformOrigin: 'bottom left' },
-                            { scale: 1, opacity: 1, y: 0, duration: 0.5, ease: 'elastic.out(1, 0.7)' }
-                        );
-                    }
-                }, 10);
-            }, 2000);
+            }, 50);
         },
 
         openAddMovieModal() {
@@ -1196,6 +1225,48 @@ function userDashboard() {
                 this.fetchFriends();
                 this.searchUsers();
                 this.fetchNotifications();
+            });
+
+            // NEW: Listen for live chat messages
+            channel.bind('new_chat_message', (data) => {
+                const senderId = Number(data.sender_id);
+
+                // Scenario A: You currently have the chat open with this friend
+                if (this.showChatPanel && this.activeChatFriend && Number(this.activeChatFriend.user_id) === senderId) {
+                    
+                    // Add message to view
+                    this.chatMessages.push({
+                        sender: 'them',
+                        text: data.text,
+                        time: data.time
+                    });
+                    this.scrollToChatBottom(true);
+
+                    // Silently mark as read in the DB since you are looking at it
+                    fetch('/user_backend/mark_chat_read.php', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ friend_id: senderId })
+                    });
+                    
+                } else {
+                    // Scenario B: Chat is closed, or you are talking to someone else. Show the unread alert!
+                    const friendIndex = this.friends.findIndex(f => Number(f.user_id) === senderId);
+                    
+                    if (friendIndex > -1) {
+                        // Increment unread count (Changing 0 to 1+)
+                        this.friends[friendIndex].unread_count = (this.friends[friendIndex].unread_count || 0) + 1;
+                        
+                        // Force Alpine reactivity if necessary
+                        this.friends = [...this.friends]; 
+                        
+                        // Show a toast notification
+                        if (typeof window.showToast === 'function') {
+                            const friendName = this.friends[friendIndex].user_name || 'A friend';
+                            window.showToast(`New message from ${friendName}`, 'info');
+                        }
+                    }
+                }
             });
         },
 
