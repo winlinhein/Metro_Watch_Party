@@ -58,6 +58,9 @@ function userDashboard() {
         searchTimeout: null,
         pollingInterval: null,
 
+        // Add channel reference to Alpine state
+        activeChatChannel: null,
+
        // Live filtered movies getter
         get filteredMovies() {
             if (!this.movieSearchQuery.trim()) return this.movies;
@@ -550,84 +553,219 @@ function userDashboard() {
         },
         
         // Chat Methods
-        openChat(friend) {
-            this.activeChatFriend = friend;
-            this.chatMessages = [
-                { sender: 'them', text: 'Hey there! Are you watching the movie tonight?', time: '10:00 AM' },
-                { sender: 'me', text: 'Yeah absolutely! Setting up the watch party now.', time: '10:05 AM' }
-            ];
-            this.showChatPanel = true;
-            this.showFriendsPanel = false; // Optionally close friends panel
-            
-            // GSAP Entrance Animation
-            setTimeout(() => {
-                if (typeof gsap !== 'undefined') {
-                    gsap.fromTo('.chat-panel-container', 
-                        { x: '100%', opacity: 0, scale: 0.95 }, 
-                        { x: '0%', opacity: 1, scale: 1, duration: 0.6, ease: 'power3.out' }
-                    );
-                    gsap.fromTo('.chat-message-item',
-                        { y: 20, opacity: 0 },
-                        { y: 0, opacity: 1, duration: 0.4, stagger: 0.1, delay: 0.3, ease: 'back.out(1.2)' }
-                    );
-                }
-            }, 50);
-        },
-        closeChat() {
-            if (typeof gsap !== 'undefined') {
-                gsap.to('.chat-panel-container', 
-                    { x: '100%', opacity: 0, scale: 0.95, duration: 0.4, ease: 'power2.in', onComplete: () => {
-                        this.showChatPanel = false;
-                        this.activeChatFriend = null;
-                    }}
-                );
-            } else {
+// 1. Time Formatting Helper (Uniform Time Display)
+formatTime(timeInput) {
+    if (!timeInput) return '';
+    
+    // If it's already a formatted local string like "10:30 PM", return it directly
+    if (typeof timeInput === 'string' && /^([0-1]?[0-9]|2[0-3]):[0-5][0-9]\s?(AM|PM)?$/i.test(timeInput.trim())) {
+        return timeInput.trim();
+    }
+
+    let parsableTime = timeInput;
+    
+    // If it's a SQL timestamp (e.g., "2026-08-11 16:00:00")
+    if (typeof timeInput === 'string' && timeInput.includes(' ') && !timeInput.includes('T')) {
+        // Replace space with 'T' and add 'Z' to force UTC timezone parsing
+        parsableTime = timeInput.replace(' ', 'T') + 'Z'; 
+    }
+
+    const date = new Date(parsableTime);
+    if (isNaN(date.getTime())) return timeInput;
+
+    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+},
+
+// 2. Updated openChat Method
+async openChat(friend) {
+    const friendId = friend.user_id || friend.friend_id || friend.id;
+    if (!friendId) {
+        console.error("Cannot open chat: Friend ID is missing from object", friend);
+        return;
+    }
+
+    this.activeChatFriend = { ...friend, user_id: friendId };
+    this.chatMessages = [];
+    this.showChatPanel = true;
+
+    // Reset inline GSAP styles and animate the chat panel into view
+    this.$nextTick(() => {
+        if (typeof gsap !== 'undefined') {
+            gsap.fromTo('.chat-panel-container', 
+                { x: '100%', opacity: 0 }, 
+                { x: '0%', opacity: 1, duration: 0.35, ease: 'power2.out' }
+            );
+        }
+    });
+
+    // Reset unread count locally
+    friend.unread_count = 0;
+
+    // Mark messages as read in DB
+    await fetch('/user_backend/mark_as_read.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sender_id: friendId })
+    });
+
+    await this.fetchChatHistory(friendId);
+    this.subscribeToChatChannel(friendId);
+},
+
+// 3. Updated closeChat Method
+closeChat() {
+    if (this.activeChatChannel) {
+        this.pusherClient.unsubscribe(this.activeChatChannel.name);
+        this.activeChatChannel = null;
+    }
+
+    if (typeof gsap !== 'undefined') {
+        gsap.to('.chat-panel-container', {
+            x: '100%',
+            opacity: 0,
+            duration: 0.3,
+            ease: 'power2.in',
+            onComplete: () => {
                 this.showChatPanel = false;
                 this.activeChatFriend = null;
+                // Clear GSAP inline styles so Alpine can open cleanly on subsequent clicks
+                gsap.set('.chat-panel-container', { clearProps: 'all' });
             }
-        },
-        sendMessage() {
-            if (!this.chatInput.trim()) return;
+        });
+    } else {
+        this.showChatPanel = false;
+        this.activeChatFriend = null;
+    }
+},
+
+// 4. Updated fetchChatHistory Method
+async fetchChatHistory(friendId) {
+    if (!friendId) return;
+
+    try {
+        const res = await fetch(`/user_backend/get_chat_history.php?friend_id=${friendId}`);
+        const rawText = await res.text();
+
+        let data;
+        try {
+            data = JSON.parse(rawText);
+        } catch (jsonErr) {
+            console.error("Non-JSON output returned from server:", rawText);
+            return;
+        }
+
+        if (data.success) {
+            this.chatMessages = data.messages.map(msg => ({
+                sender: Number(msg.sender_id) === Number(window.CURRENT_USER_ID) ? 'me' : 'them',
+                text: msg.message_text,
+                time: this.formatTime(msg.time)
+            }));
+            this.scrollToBottom();
+        } else {
+            console.error("Backend error loading chats:", data.message);
+        }
+    } catch (e) {
+        console.error("Network or execution error loading chat history:", e);
+    }
+},
+
+// 5. Updated subscribeToChatChannel Method
+subscribeToChatChannel(friendId) {
+    if (typeof Pusher === 'undefined') return;
+
+    if (!this.pusherClient) {
+        this.pusherClient = new Pusher('f4b5637ef4b8952b6eb8', {
+            cluster: 'ap1',
+            encrypted: true
+        });
+    }
+
+    const minId = Math.min(Number(window.CURRENT_USER_ID), Number(friendId));
+    const maxId = Math.max(Number(window.CURRENT_USER_ID), Number(friendId));
+    const channelName = `chat-${minId}-${maxId}`;
+
+    if (this.activeChatChannel) {
+        this.pusherClient.unsubscribe(this.activeChatChannel.name);
+        this.activeChatChannel = null;
+    }
+
+    this.activeChatChannel = this.pusherClient.subscribe(channelName);
+
+    this.activeChatChannel.bind('new_message', (data) => {
+        const isFromFriend = Number(data.sender_id) === Number(this.activeChatFriend?.user_id);
+
+        if (isFromFriend && this.showChatPanel) {
             this.chatMessages.push({
-                sender: 'me',
-                text: this.chatInput,
-                time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                sender: 'them',
+                text: data.message_text,
+                time: this.formatTime(data.time)
             });
-            this.chatInput = '';
+            this.scrollToBottom();
+
+            fetch('/user_backend/mark_as_read.php', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ sender_id: data.sender_id })
+            });
+        } else {
+            const friendItem = this.friends.find(f => Number(f.user_id) === Number(data.sender_id));
+            if (friendItem) {
+                friendItem.unread_count = (Number(friendItem.unread_count) || 0) + 1;
+            }
+        }
+    });
+
+    this.activeChatChannel.bind('messages_read', (data) => {
+        // If the person who triggered the read event is the friend we are currently chatting with
+        if (Number(data.reader_id) === Number(this.activeChatFriend?.user_id)) {
             
-            setTimeout(() => {
-                const chatContainer = document.querySelector('.chat-messages-container');
-                if (chatContainer) {
-                    chatContainer.scrollTop = chatContainer.scrollHeight;
+            // Loop through the active chat and mark all our sent messages as read
+            this.chatMessages.forEach(msg => {
+                if (msg.sender === 'me') {
+                    msg.is_read = 1; // Updates the UI instantly
                 }
-                if (typeof gsap !== 'undefined') {
-                    gsap.fromTo('.chat-message-item:last-child',
-                        { scale: 0.8, opacity: 0, y: 20, transformOrigin: 'bottom right' },
-                        { scale: 1, opacity: 1, y: 0, duration: 0.5, ease: 'elastic.out(1, 0.7)' }
-                    );
+            });
+        }
+    });
+},
+
+// 6. Updated sendMessage Method
+async sendMessage() {
+    if (!this.chatInput.trim() || !this.activeChatFriend) return;
+
+    const messageText = this.chatInput.trim();
+    this.chatInput = '';
+
+    // Render locally with formatted current time
+    this.chatMessages.push({
+        sender: 'me',
+        text: messageText,
+        time: this.formatTime(new Date())
+    });
+    this.scrollToBottom();
+
+    try {
+        await fetch('/user_backend/send_chat.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                receiver_id: this.activeChatFriend.user_id,
+                message: messageText
+            })
+        });
+    } catch (e) {
+        console.error("Failed to send message:", e);
+    }
+},
+
+        // Auto-scroll utility
+        scrollToBottom() {
+            this.$nextTick(() => {
+                const container = document.querySelector('.chat-messages-container');
+                if (container) {
+                    container.scrollTop = container.scrollHeight;
                 }
-            }, 10);
-            
-            // Simulated reply
-            setTimeout(() => {
-                this.chatMessages.push({
-                    sender: 'them',
-                    text: 'Awesome, can\'t wait! Send me the invite code when ready.',
-                    time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-                });
-                setTimeout(() => {
-                    const chatContainer = document.querySelector('.chat-messages-container');
-                    if (chatContainer) {
-                        chatContainer.scrollTop = chatContainer.scrollHeight;
-                    }
-                    if (typeof gsap !== 'undefined') {
-                        gsap.fromTo('.chat-message-item:last-child',
-                            { scale: 0.8, opacity: 0, y: 20, transformOrigin: 'bottom left' },
-                            { scale: 1, opacity: 1, y: 0, duration: 0.5, ease: 'elastic.out(1, 0.7)' }
-                        );
-                    }
-                }, 10);
-            }, 2000);
+            });
         },
 
         openAddMovieModal() {
