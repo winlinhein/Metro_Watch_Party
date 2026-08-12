@@ -41,7 +41,7 @@
         
         <!-- Chat Messages -->
         <div class="chat-messages-container flex-1 overflow-y-auto custom-scrollbar p-6 flex flex-col gap-6 relative z-10">
-            <template x-for="(msg, index) in chatMessages" :key="index">
+            <template x-for="msg in chatMessages" :key="msg.id">
                 <div class="chat-message-item flex flex-col" :class="msg.sender === 'me' ? 'items-end' : 'items-start'">
                     <div class="flex items-end gap-2 max-w-[85%]" :class="msg.sender === 'me' ? 'flex-row-reverse' : 'flex-row'">
                         <template x-if="msg.sender !== 'me'">

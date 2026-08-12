@@ -163,7 +163,7 @@ $userId = $_SESSION['user_id'] ?? 0;
     <?php include __DIR__ . '/../frontend/components/cursor.php'; ?>
     <?php include __DIR__ . '/../frontend/components/toast.php'; ?>
 
-<div id="barba-container" class="flex w-full h-full" data-barba="container" data-barba-namespace="dashboard" x-data="userDashboard()" x-init="initDashboard()">
+<div id="barba-container" class="flex w-full h-full" data-barba="container" data-barba-namespace="dashboard" x-data="userDashboard()" x-init="init()">
 
     <div class="bg-mesh"></div>
     <div class="noise"></div>

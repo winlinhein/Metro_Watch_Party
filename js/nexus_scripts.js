@@ -46,18 +46,6 @@ function userDashboard() {
         // Pusher Client
         pusherClient: null,
 
-        // Data Lists
-        friends: [],
-        pendingRequests: [],
-        notifications: [],
-        searchResults: [],
-        unreadNotifCount: 0,
-        
-        searchQuery: '',
-        friendSearchQuery: '',
-        searchTimeout: null,
-        pollingInterval: null,
-
         // Add channel reference to Alpine state
         activeChatChannel: null,
 
@@ -176,10 +164,6 @@ function userDashboard() {
         }, 300);
     },
 
-        init() { 
-            this.fetchMovies(); 
-        },
-
         // Quests Data
        quests: {
             daily: [],
@@ -286,6 +270,7 @@ function userDashboard() {
                     this.friends = data.friends || [];
                     this.pendingRequests = data.pending_requests || [];
                     this.updateFriendsCount();
+                    this.initAllChatSubscriptions();
                 }
             } catch (err) {
                 console.error('Fetch friends error:', err);
@@ -325,36 +310,42 @@ function userDashboard() {
             }
         },
 
-        // Respond to Friend Request (Accept / "Add Back" or Decline)
         respondToFriendRequest(userId, action) {
+            const targetUserId = Number(userId);
+
             fetch('/user_backend/respond_friend.php', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ sender_id: userId, action: action })
+                body: JSON.stringify({ sender_id: targetUserId, action: action })
             })
             .then(res => res.json())
             .then(data => {
                 if (data.success) {
-                    // 1. Show success toast (e.g., "Friend request accepted")
+                    if (window.showToast) window.showToast(`Friend request ${action}ed!`, 'success');
 
-                    // 2. SYNCHRONIZE STATE: Remove from incoming requests array
-                    this.pendingRequests = this.pendingRequests.filter(req => req.user_id !== userId);
-                    
-                    // 3. SYNCHRONIZE STATE: Remove from notifications array so the user can't click it again
-                    this.notifications = this.notifications.filter(notif => notif.sender_id !== userId);
-                    
-                    // 4. Update the unread notification count
-                    this.unreadNotifCount = this.notifications.filter(n => n.is_read == 0).length;
+                    const acceptedUser = this.pendingRequests.find(req => Number(req.user_id) === targetUserId);
 
-                    // 5. SYNCHRONIZE STATE: Update Search Results if the modal happens to be open
-                    const userIndex = this.searchResults.findIndex(u => u.user_id === userId);
+                    // Synchronize state using numeric comparisons
+                    this.pendingRequests = this.pendingRequests.filter(req => Number(req.user_id) !== targetUserId);
+                    this.notifications = this.notifications.filter(notif => Number(notif.sender_id) !== targetUserId);
+                    this.unreadNotifCount = this.notifications.filter(n => Number(n.is_read) === 0).length;
+
+                    const userIndex = this.searchResults.findIndex(u => Number(u.user_id) === targetUserId);
                     if (userIndex !== -1) {
                         this.searchResults[userIndex].friend_status = action === 'accept' ? 'accepted' : null;
+                        this.searchResults = [...this.searchResults];
                     }
 
-                    // 6. Refresh the friends list from the server to get their full data
                     if (action === 'accept') {
-                        this.fetchFriends(); 
+                        if (acceptedUser) {
+                            this.friends = [...this.friends, {
+                                user_id: acceptedUser.user_id,
+                                user_name: acceptedUser.user_name
+                            }];
+                        }
+                        this.fetchFriends().then(() => {
+                            this.initAllChatSubscriptions();
+                        });
                     }
                 }
             })
@@ -368,29 +359,28 @@ function userDashboard() {
                 body: JSON.stringify({ friend_id: userId })
             })
             .then(async res => {
-                // Read the response as raw text first instead of forcing JSON
                 const rawText = await res.text(); 
                 try {
-                    // Try to parse it manually
                     return JSON.parse(rawText);
                 } catch (err) {
-                    // If it fails, log the raw HTML so you can see the exact PHP error!
                     console.error("Backend returned HTML instead of JSON. Raw response:", rawText);
                     throw new Error("Invalid JSON response from server");
                 }
             })
             .then(data => {
                 if (data && data.success) {
-                    // 1. Show your success toast notification here
+                    if (window.showToast) window.showToast('Friend request sent!', 'success');
                     
-                    // 2. SYNCHRONIZE STATE
+                    // SYNCHRONIZE STATE
                     const userIndex = this.searchResults.findIndex(u => u.user_id === userId);
                     if (userIndex !== -1) {
                         this.searchResults[userIndex].friend_status = 'pending';
                         this.searchResults[userIndex].requester_id = window.CURRENT_USER_ID; 
+                        
+                        // 🔥 FIX: Force Alpine to recognize the array changed
+                        this.searchResults = [...this.searchResults];
                     }
                 } else {
-                    // Handle error toast
                     console.error("Request failed:", data);
                 }
             })
@@ -552,211 +542,208 @@ function userDashboard() {
             }
         },
         
-        // Chat Methods
-// 1. Time Formatting Helper (Uniform Time Display)
-formatTime(timeInput) {
-    if (!timeInput) return '';
-    
-    // If it's already a formatted local string like "10:30 PM", return it directly
-    if (typeof timeInput === 'string' && /^([0-1]?[0-9]|2[0-3]):[0-5][0-9]\s?(AM|PM)?$/i.test(timeInput.trim())) {
-        return timeInput.trim();
-    }
+        // 1. Time Formatting Helper (Uniform Time Display)
+        formatTime(timeInput) {
+            if (!timeInput) return '';
+            
+            if (typeof timeInput === 'string' && /^([0-1]?[0-9]|2[0-3]):[0-5][0-9]\s?(AM|PM)?$/i.test(timeInput.trim())) {
+                return timeInput.trim();
+            }
 
-    let parsableTime = timeInput;
-    
-    // If it's a SQL timestamp (e.g., "2026-08-11 16:00:00")
-    if (typeof timeInput === 'string' && timeInput.includes(' ') && !timeInput.includes('T')) {
-        // Replace space with 'T' and add 'Z' to force UTC timezone parsing
-        parsableTime = timeInput.replace(' ', 'T') + 'Z'; 
-    }
+            let parsableTime = timeInput;
+            if (typeof timeInput === 'string' && timeInput.includes(' ') && !timeInput.includes('T')) {
+                parsableTime = timeInput.replace(' ', 'T') + 'Z'; 
+            }
 
-    const date = new Date(parsableTime);
-    if (isNaN(date.getTime())) return timeInput;
+            const date = new Date(parsableTime);
+            if (isNaN(date.getTime())) return timeInput;
 
-    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-},
+            return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        },
 
-// 2. Updated openChat Method
-async openChat(friend) {
-    const friendId = friend.user_id || friend.friend_id || friend.id;
-    if (!friendId) {
-        console.error("Cannot open chat: Friend ID is missing from object", friend);
-        return;
-    }
+        // Add activeSubscriptions to your state object at the top:
+        activeSubscriptions: new Set(),
 
-    this.activeChatFriend = { ...friend, user_id: friendId };
-    this.chatMessages = [];
-    this.showChatPanel = true;
+        // Reusable Channel Subscription Helper
+        subscribeToChatChannel(friendId) {
+            const targetFriendId = Number(friendId);
+            const currentUserId = Number(window.CURRENT_USER_ID);
 
-    // Reset inline GSAP styles and animate the chat panel into view
-    this.$nextTick(() => {
-        if (typeof gsap !== 'undefined') {
-            gsap.fromTo('.chat-panel-container', 
-                { x: '100%', opacity: 0 }, 
-                { x: '0%', opacity: 1, duration: 0.35, ease: 'power2.out' }
-            );
-        }
-    });
+            if (typeof Pusher === 'undefined' || !currentUserId || !targetFriendId) return;
 
-    // Reset unread count locally
-    friend.unread_count = 0;
+            if (!this.pusherClient) {
+                this.pusherClient = new Pusher('f4b5637ef4b8952b6eb8', { cluster: 'ap1', encrypted: true });
+            }
 
-    // Mark messages as read in DB
-    await fetch('/user_backend/mark_as_read.php', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sender_id: friendId })
-    });
+            const minId = Math.min(currentUserId, targetFriendId);
+            const maxId = Math.max(currentUserId, targetFriendId);
+            const channelName = `chat-${minId}-${maxId}`;
 
-    await this.fetchChatHistory(friendId);
-    this.subscribeToChatChannel(friendId);
-},
+            if (this.activeSubscriptions.has(channelName)) return;
+            this.activeSubscriptions.add(channelName);
 
-// 3. Updated closeChat Method
-closeChat() {
-    if (this.activeChatChannel) {
-        this.pusherClient.unsubscribe(this.activeChatChannel.name);
-        this.activeChatChannel = null;
-    }
+            const channel = this.pusherClient.subscribe(channelName);
 
-    if (typeof gsap !== 'undefined') {
-        gsap.to('.chat-panel-container', {
-            x: '100%',
-            opacity: 0,
-            duration: 0.3,
-            ease: 'power2.in',
-            onComplete: () => {
+           channel.bind('new_message', (data) => {
+                const senderId = Number(data.sender_id);
+                if (senderId === Number(window.CURRENT_USER_ID)) return;
+
+                const activeFriendId = Number(this.activeChatFriend?.user_id || this.activeChatFriend?.friend_id || this.activeChatFriend?.id);
+                const isCurrentActiveChat = this.showChatPanel && activeFriendId === senderId;
+
+                if (isCurrentActiveChat) {
+                    // ADDED: Fallback ID using Date.now() if your backend doesn't send data.id
+                    this.chatMessages = [...this.chatMessages, {
+                        id: data.id || 'live-' + Date.now(), 
+                        sender: 'them',
+                        text: data.message_text,
+                        time: this.formatTime(data.time)
+                    }];
+                    this.scrollToBottom();
+
+                    fetch('/user_backend/mark_as_read.php', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ sender_id: senderId })
+                    });
+                } else {
+                    const friendItem = this.friends.find(f => Number(f.user_id || f.friend_id || f.id) === senderId);
+                    if (friendItem) {
+                        friendItem.unread_count = (Number(friendItem.unread_count) || 0) + 1;
+                    }
+                }
+            });
+
+            channel.bind('messages_read', (data) => {
+                const activeFriendId = Number(this.activeChatFriend?.user_id || this.activeChatFriend?.friend_id || this.activeChatFriend?.id);
+                if (Number(data.reader_id) === activeFriendId) {
+                    this.chatMessages.forEach(msg => {
+                        if (msg.sender === 'me') msg.is_read = 1;
+                    });
+                }
+            });
+        },
+
+        initAllChatSubscriptions() {
+            this.friends.forEach(friend => {
+                const friendId = friend.user_id || friend.friend_id || friend.id;
+                if (friendId) this.subscribeToChatChannel(friendId);
+            });
+        },
+
+        async openChat(friend) {
+            const friendId = Number(friend.user_id || friend.friend_id || friend.id);
+            if (!friendId) return;
+
+            this.activeChatFriend = { ...friend, user_id: friendId };
+            this.chatMessages = [];
+            this.showChatPanel = true;
+            friend.unread_count = 0;
+
+            // Ensure live subscription is active for this friend immediately
+            this.subscribeToChatChannel(friendId);
+
+            this.$nextTick(() => {
+                if (typeof gsap !== 'undefined') {
+                    gsap.fromTo('.chat-panel-container', 
+                        { x: '100%', opacity: 0 }, 
+                        { x: '0%', opacity: 1, duration: 0.35, ease: 'power2.out' }
+                    );
+                }
+            });
+
+            await fetch('/user_backend/mark_as_read.php', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ sender_id: friendId })
+            });
+
+            await this.fetchChatHistory(friendId);
+        },
+
+        // 4. Updated closeChat Method
+        closeChat() {
+            if (typeof gsap !== 'undefined') {
+                gsap.to('.chat-panel-container', {
+                    x: '100%',
+                    opacity: 0,
+                    duration: 0.3,
+                    ease: 'power2.in',
+                    onComplete: () => {
+                        this.showChatPanel = false;
+                        this.activeChatFriend = null;
+                        gsap.set('.chat-panel-container', { clearProps: 'all' });
+                    }
+                });
+            } else {
                 this.showChatPanel = false;
                 this.activeChatFriend = null;
-                // Clear GSAP inline styles so Alpine can open cleanly on subsequent clicks
-                gsap.set('.chat-panel-container', { clearProps: 'all' });
             }
-        });
-    } else {
-        this.showChatPanel = false;
-        this.activeChatFriend = null;
-    }
-},
+        },
 
-// 4. Updated fetchChatHistory Method
-async fetchChatHistory(friendId) {
-    if (!friendId) return;
+        // 5. Updated fetchChatHistory Method
+        async fetchChatHistory(friendId) {
+            if (!friendId) return;
 
-    try {
-        const res = await fetch(`/user_backend/get_chat_history.php?friend_id=${friendId}`);
-        const rawText = await res.text();
+            try {
+                const res = await fetch(`/user_backend/get_chat_history.php?friend_id=${friendId}`);
+                const rawText = await res.text();
 
-        let data;
-        try {
-            data = JSON.parse(rawText);
-        } catch (jsonErr) {
-            console.error("Non-JSON output returned from server:", rawText);
-            return;
-        }
+                let data;
+                try {
+                    data = JSON.parse(rawText);
+                } catch (jsonErr) {
+                    console.error("Non-JSON output returned from server:", rawText);
+                    return;
+                }
 
-        if (data.success) {
-            this.chatMessages = data.messages.map(msg => ({
-                sender: Number(msg.sender_id) === Number(window.CURRENT_USER_ID) ? 'me' : 'them',
-                text: msg.message_text,
-                time: this.formatTime(msg.time)
-            }));
-            this.scrollToBottom();
-        } else {
-            console.error("Backend error loading chats:", data.message);
-        }
-    } catch (e) {
-        console.error("Network or execution error loading chat history:", e);
-    }
-},
+                if (data.success) {
+                    this.chatMessages = data.messages.map(msg => ({
+                        id: msg.id || msg.message_id || 'db-' + Math.random(), // ADDED: ID mapping
+                        sender: Number(msg.sender_id) === Number(window.CURRENT_USER_ID) ? 'me' : 'them',
+                        text: msg.message_text,
+                        time: this.formatTime(msg.time),
+                        is_read: msg.is_read
+                    }));
+                    this.scrollToBottom();
+                } else {
+                    console.error("Backend error loading chats:", data.message);
+                }
+            } catch (e) {
+                console.error("Network error loading chat history:", e);
+            }
+        },
 
-// 5. Updated subscribeToChatChannel Method
-subscribeToChatChannel(friendId) {
-    if (typeof Pusher === 'undefined') return;
+        // 6. Updated sendMessage Method
+        async sendMessage() {
+            if (!this.chatInput.trim() || !this.activeChatFriend) return;
 
-    if (!this.pusherClient) {
-        this.pusherClient = new Pusher('f4b5637ef4b8952b6eb8', {
-            cluster: 'ap1',
-            encrypted: true
-        });
-    }
+            const messageText = this.chatInput.trim();
+            this.chatInput = '';
 
-    const minId = Math.min(Number(window.CURRENT_USER_ID), Number(friendId));
-    const maxId = Math.max(Number(window.CURRENT_USER_ID), Number(friendId));
-    const channelName = `chat-${minId}-${maxId}`;
-
-    if (this.activeChatChannel) {
-        this.pusherClient.unsubscribe(this.activeChatChannel.name);
-        this.activeChatChannel = null;
-    }
-
-    this.activeChatChannel = this.pusherClient.subscribe(channelName);
-
-    this.activeChatChannel.bind('new_message', (data) => {
-        const isFromFriend = Number(data.sender_id) === Number(this.activeChatFriend?.user_id);
-
-        if (isFromFriend && this.showChatPanel) {
-           this.chatMessages = [...this.chatMessages, {
-                sender: 'them',
-                text: data.message_text,
-                time: this.formatTime(data.time)
+            // ADDED: A unique ID so Alpine.js renders it instantly
+            this.chatMessages = [...this.chatMessages, {
+                id: 'local-' + Date.now(), 
+                sender: 'me',
+                text: messageText,
+                time: this.formatTime(new Date()),
+                is_read: 0
             }];
             this.scrollToBottom();
 
-            fetch('/user_backend/mark_as_read.php', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ sender_id: data.sender_id })
-            });
-        } else {
-            const friendItem = this.friends.find(f => Number(f.user_id) === Number(data.sender_id));
-            if (friendItem) {
-                friendItem.unread_count = (Number(friendItem.unread_count) || 0) + 1;
+            try {
+                await fetch('/user_backend/send_chat.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        receiver_id: this.activeChatFriend.user_id,
+                        message: messageText
+                    })
+                });
+            } catch (e) {
+                console.error("Failed to send message:", e);
             }
-        }
-    });
-
-    this.activeChatChannel.bind('messages_read', (data) => {
-        // If the person who triggered the read event is the friend we are currently chatting with
-        if (Number(data.reader_id) === Number(this.activeChatFriend?.user_id)) {
-            
-            // Loop through the active chat and mark all our sent messages as read
-            this.chatMessages.forEach(msg => {
-                if (msg.sender === 'me') {
-                    msg.is_read = 1; // Updates the UI instantly
-                }
-            });
-        }
-    });
-},
-
-// 6. Updated sendMessage Method
-async sendMessage() {
-    if (!this.chatInput.trim() || !this.activeChatFriend) return;
-
-    const messageText = this.chatInput.trim();
-    this.chatInput = '';
-
-    // Render locally with formatted current time
-    this.chatMessages = [...this.chatMessages, {
-        sender: 'me',
-        text: messageText,
-        time: this.formatTime(new Date())
-    }];
-    this.scrollToBottom();
-
-    try {
-        await fetch('/user_backend/send_chat.php', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                receiver_id: this.activeChatFriend.user_id,
-                message: messageText
-            })
-        });
-    } catch (e) {
-        console.error("Failed to send message:", e);
-    }
-},
+        },
 
         // Auto-scroll utility
         scrollToBottom() {
@@ -1026,16 +1013,6 @@ async sendMessage() {
             return await this.processLiveReview(rating, commentText);
         },
 
-        //watchlist
-        async init() { 
-            await this.fetchMovies(); 
-            await this.fetchWatchlist();
-            this.loadMissions();
-            this.fetchFriends();
-            this.fetchNotifications();
-            this.initPusher();
-        },
-
         async fetchWatchlist() {
             try {
                 const response = await fetch("/user_backend/get_watchlist.php");
@@ -1095,7 +1072,8 @@ async sendMessage() {
 
     // 2. ADD this entirely new function right beneath toggleWatchlist:
     openWatchlistMovie(item) {
-        // Switch the active tab to 'movies'
+        // Switch the active tab to 'movies' (FIXED)
+        this.switchTab('movies');
         
         // Find the original, complete movie data to pass into the modal
         const movieId = item.id || item.movie_id;
@@ -1204,7 +1182,6 @@ async sendMessage() {
             channel.bind('comment_liked', (data) => {
                 if (!this.selectedMovie || Number(this.getMovieId(this.selectedMovie)) !== Number(data.movie_id)) return;
 
-                // Recursive search helper for main comments & nested replies
                 const findAndSetLikes = (list) => {
                     for (let item of list) {
                         if (Number(item.id) === Number(data.comment_id)) {
@@ -1220,6 +1197,9 @@ async sendMessage() {
 
                 if (Array.isArray(this.selectedMovie.comments)) {
                     findAndSetLikes(this.selectedMovie.comments);
+                    
+                    //Force Alpine to re-render the updated likes_count
+                    this.selectedMovie.comments = [...this.selectedMovie.comments];
                 }
             });
         },
@@ -1229,18 +1209,6 @@ async sendMessage() {
                 this.pusherClient.unsubscribe(`movie-${movieId}`);
                 this.activeMovieChannel = null;
             }
-        },
-
-        fetchNotifications() {
-            fetch('user_backend/get_notifications.php')
-                .then(res => res.json())
-                .then(data => {
-                    if (data.success) {
-                        this.notifications = data.notifications;
-                        // Calculate unread badge count
-                        this.unreadNotifCount = this.notifications.filter(n => parseInt(n.is_read) === 0).length;
-                    }
-                });
         },
 
         markNotificationsAsRead() {
@@ -1271,10 +1239,12 @@ async sendMessage() {
         initPusher() {
             if (!window.CURRENT_USER_ID || typeof Pusher === 'undefined') return;
 
-                this.pusherClient = new Pusher('f4b5637ef4b8952b6eb8', {
-                    cluster: 'ap1',
-                    encrypted: true
-                });
+                if (!this.pusherClient) {
+                    this.pusherClient = new Pusher('f4b5637ef4b8952b6eb8', {
+                        cluster: 'ap1',
+                        encrypted: true
+                    });
+                }   
 
                 // Subscribing using the correctly injected PHP variable
                 const channel = this.pusherClient.subscribe(`user-${window.CURRENT_USER_ID}`);
@@ -1301,28 +1271,58 @@ async sendMessage() {
             });
 
             channel.bind('friend_event', (data) => {
-                // Existing notification logic
-                this.notifications.unshift({
-                    id: Date.now(),
-                    type: data.type,
-                    sender_id: data.sender_id,
-                    sender_name: data.sender_name,
-                    message: data.message,
-                    created_at: data.created_at,
-                    is_read: 0
-                });
+                //Reassign the array so Alpine triggers a UI update instantly
+                this.notifications = [
+                    {
+                        id: Date.now(),
+                        type: data.type,
+                        sender_id: data.sender_id,
+                        sender_name: data.sender_name,
+                        message: data.message,
+                        created_at: data.created_at,
+                        is_read: 0
+                    },
+                    ...this.notifications
+                ];
 
                 this.unreadNotifCount++;
 
-                // 2. OPTIMISTIC UI FIX: Instantly inject into the Request Panel
                 if (data.type === 'friend_request') {
                     const alreadyExists = this.pendingRequests.some(r => r.user_id == data.sender_id);
                     if (!alreadyExists) {
-                        this.pendingRequests.unshift({
-                            user_id: data.sender_id,
-                            user_name: data.sender_name
-                        });
+                        //Reassign the array instead of using unshift()
+                        this.pendingRequests = [
+                            {
+                                user_id: data.sender_id,
+                                user_name: data.sender_name
+                            }, 
+                            ...this.pendingRequests
+                        ];
                     }
+                }
+
+                if (data.type === 'friend_accepted') {
+                    // Force Alpine to update the friends list instantly
+                    const friendExists = this.friends.some(f => f.user_id == data.acceptor_id);
+                    
+                    if (!friendExists) {
+                        this.friends = [
+                            ...this.friends, 
+                            {
+                                user_id: data.acceptor_id,
+                                user_name: data.acceptor_name
+                            }
+                        ];
+                    }
+
+                    // Update search results status if they happen to be looking at them
+                    const userIndex = this.searchResults.findIndex(u => u.user_id == data.acceptor_id);
+                    if (userIndex !== -1) {
+                        this.searchResults[userIndex].friend_status = 'accepted';
+                        this.searchResults = [...this.searchResults];
+                    }
+                    
+                    if (window.showToast) window.showToast(`${data.acceptor_name} accepted your request!`, 'success');
                 }
 
                 if (typeof window.showToast === 'function') {
@@ -1337,53 +1337,41 @@ async sendMessage() {
             });
         },
 
-        // Life cycle initialization
-        initDashboard() {
-            gsap.config({ nullTargetWarn: false });
-            this.$watch('friends', () => {
-                this.updateFriendsCount();
-            });
+        async init() { 
+            // 1. Core Config
+            if (typeof gsap !== 'undefined') gsap.config({ nullTargetWarn: false });
 
-            // Initial data fetch
+            // 2. Initial Data Fetches
+            await this.fetchMovies(); 
+            await this.fetchWatchlist();
             this.fetchFriends();
             this.searchUsers();
             this.loadMissions();
             this.fetchNotifications();
 
-            // Initialize Pusher Live Listening
+            // 3. Real-Time Connections
             this.initPusher();
+            this.initAllChatSubscriptions();
+            this.subscribeToLiveMovieEvents();
 
+            // 4. Watchers & Interactions
+            this.$watch('friends', () => this.updateFriendsCount());
+            
             // Debounce search watcher
             this.$watch('searchQuery', (query) => {
                 clearTimeout(this.searchTimeout);
                 const trimmed = (query || '').trim();
-
-                if (trimmed === '') {
-                    this.searchUsers();
-                    return;
-                }
+                if (trimmed === '') { this.searchUsers(); return; }
                 if (trimmed.length < 2) return;
-
-                this.searchTimeout = setTimeout(() => {
-                    this.searchUsers();
-                }, 300);
+                this.searchTimeout = setTimeout(() => this.searchUsers(), 300);
             });
 
             // Auto-trigger initial search when invite modal opens
             this.$watch('showInviteModal', (isOpen) => {
-                if (isOpen) {
-                    this.searchUsers(this.searchQuery);
-                }
+                if (isOpen) this.searchUsers(this.searchQuery);
             });
-            
-            // Escape key listener for navigation drawer
-            window.addEventListener('keydown', (e) => {
-                if (e.key === 'Escape' && this.isNavOpen) {
-                    this.closeNav();
-                }
-            });
-            
-            // Watchers for Quests UI animations
+
+            // Watchers for Quests UI animations (Runs GSAP only when panel is toggled)
             this.$watch('showQuestsPanel', value => {
                 if(value) {
                     this.$nextTick(() => {
@@ -1408,8 +1396,16 @@ async sendMessage() {
                 });
             });
 
-            // Animated Number Counters
+            // 5. Global Event Listeners
+            window.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape' && this.isNavOpen) this.closeNav();
+            });
+
+            // 6. Initial GSAP UI Animations 
+            // Uses a single $nextTick to ensure Alpine has finished rendering the HTML
             this.$nextTick(() => {
+                
+                // A. Animated Number Counters
                 const counters = this.$root.querySelectorAll('.stat-counter');
                 counters.forEach(counter => {
                     const target = parseFloat(counter.getAttribute('data-target'));
@@ -1425,53 +1421,41 @@ async sendMessage() {
                         }
                     });
                 });
-            });
-            
-            this.$nextTick(() => {
-            // Intro Animations
-            const tl = gsap.timeline();
-            tl.fromTo(".gs-header-item", 
-                { y: -40, opacity: 0, scale: 0.95 }, 
-                { y: 0, opacity: 1, scale: 1, stagger: 0.1, duration: 0.8, ease: "back.out(1.5)" }, 
-                0.2
-            )
-            .fromTo(".stagger-item", 
-                { opacity: 0, y: 80, rotationY: 15, scale: 0.9 }, 
-                { opacity: 1, y: 0, rotationY: 0, scale: 1, stagger: 0.1, duration: 0.9, ease: "back.out(1.2)" }, 
-                "-=0.6"
-            );
-
-            // Split text animation for welcome header
-            const welcomeText = this.$root.querySelector('.welcome-text');
-            if (welcomeText) {
-                const text = welcomeText.innerText;
-                welcomeText.innerHTML = '';
-                [...text].forEach(char => {
-                    const span = document.createElement('span');
-                    span.innerText = char;
-                    span.style.opacity = '0';
-                    span.style.display = 'inline-block';
-                    if (char === ' ') span.innerHTML = '&nbsp;';
-                    welcomeText.appendChild(span);
-                });
                 
-                gsap.fromTo(welcomeText.querySelectorAll('span'), 
-                    { opacity: 0, y: 30, rotationX: 90 },
-                    {
-                        opacity: 1,
-                        y: 0,
-                        rotationX: 0,
-                        stagger: 0.04,
-                        duration: 0.7,
-                        ease: "back.out(2)",
-                        delay: 0.5
-                    }
+                // B. Intro Animations
+                const tl = gsap.timeline();
+                tl.fromTo(".gs-header-item", 
+                    { y: -40, opacity: 0, scale: 0.95 }, 
+                    { y: 0, opacity: 1, scale: 1, stagger: 0.1, duration: 0.8, ease: "back.out(1.5)" }, 
+                    0.2
+                )
+                .fromTo(".stagger-item", 
+                    { opacity: 0, y: 80, rotationY: 15, scale: 0.9 }, 
+                    { opacity: 1, y: 0, rotationY: 0, scale: 1, stagger: 0.1, duration: 0.9, ease: "back.out(1.2)" }, 
+                    "-=0.6"
                 );
-            }
-            });
 
-            // Continuous pulse micro-animation for activity feed items
-            this.$nextTick(() => {
+                // C. Split text animation for welcome header
+                const welcomeText = this.$root.querySelector('.welcome-text');
+                if (welcomeText) {
+                    const text = welcomeText.innerText;
+                    welcomeText.innerHTML = '';
+                    [...text].forEach(char => {
+                        const span = document.createElement('span');
+                        span.innerText = char;
+                        span.style.opacity = '0';
+                        span.style.display = 'inline-block';
+                        if (char === ' ') span.innerHTML = '&nbsp;';
+                        welcomeText.appendChild(span);
+                    });
+                    
+                    gsap.fromTo(welcomeText.querySelectorAll('span'), 
+                        { opacity: 0, y: 30, rotationX: 90 },
+                        { opacity: 1, y: 0, rotationX: 0, stagger: 0.04, duration: 0.7, ease: "back.out(2)", delay: 0.5 }
+                    );
+                }
+
+                // D. Continuous pulse micro-animation for activity feed items
                 gsap.to('.activity-item .dot-pulse', {
                     scale: 1.8,
                     opacity: 0,
@@ -1482,6 +1466,7 @@ async sendMessage() {
                 });
             });
 
+            // 7. Interval Animations
             // Random glitch effect on dashboard stat numbers periodically
             setInterval(() => {
                 const stats = this.$root.querySelectorAll('.stat-counter');
@@ -1494,7 +1479,7 @@ async sendMessage() {
                         yoyo: true,
                         repeat: 5,
                         onComplete: () => {
-                            gsap.set(randomStat, {x:0, y:0});
+                            gsap.set(randomStat, {x: 0, y: 0});
                         }
                     });
                 }
