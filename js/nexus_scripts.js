@@ -695,11 +695,11 @@ subscribeToChatChannel(friendId) {
         const isFromFriend = Number(data.sender_id) === Number(this.activeChatFriend?.user_id);
 
         if (isFromFriend && this.showChatPanel) {
-            this.chatMessages.push({
+           this.chatMessages = [...this.chatMessages, {
                 sender: 'them',
                 text: data.message_text,
                 time: this.formatTime(data.time)
-            });
+            }];
             this.scrollToBottom();
 
             fetch('/user_backend/mark_as_read.php', {
@@ -737,11 +737,11 @@ async sendMessage() {
     this.chatInput = '';
 
     // Render locally with formatted current time
-    this.chatMessages.push({
+    this.chatMessages = [...this.chatMessages, {
         sender: 'me',
         text: messageText,
         time: this.formatTime(new Date())
-    });
+    }];
     this.scrollToBottom();
 
     try {
