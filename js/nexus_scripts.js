@@ -311,48 +311,41 @@ function userDashboard() {
         },
 
         respondToFriendRequest(userId, action) {
+            const targetUserId = Number(userId);
+
             fetch('/user_backend/respond_friend.php', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ sender_id: userId, action: action })
+                body: JSON.stringify({ sender_id: targetUserId, action: action })
             })
             .then(res => res.json())
             .then(data => {
                 if (data.success) {
                     if (window.showToast) window.showToast(`Friend request ${action}ed!`, 'success');
 
-                    // 🔥 OPTIMIZATION: Grab the user data before deleting them from pendingRequests
-                    const acceptedUser = this.pendingRequests.find(req => req.user_id === userId);
+                    const acceptedUser = this.pendingRequests.find(req => Number(req.user_id) === targetUserId);
 
-                    // 2. SYNCHRONIZE STATE: Remove from incoming requests array (Works perfectly!)
-                    this.pendingRequests = this.pendingRequests.filter(req => req.user_id !== userId);
-                    
-                    // 3. SYNCHRONIZE STATE: Remove from notifications array (Works perfectly!)
-                    this.notifications = this.notifications.filter(notif => notif.sender_id !== userId);
-                    
-                    // 4. Update the unread notification count
-                    this.unreadNotifCount = this.notifications.filter(n => n.is_read == 0).length;
+                    // Synchronize state using numeric comparisons
+                    this.pendingRequests = this.pendingRequests.filter(req => Number(req.user_id) !== targetUserId);
+                    this.notifications = this.notifications.filter(notif => Number(notif.sender_id) !== targetUserId);
+                    this.unreadNotifCount = this.notifications.filter(n => Number(n.is_read) === 0).length;
 
-                    // 5. SYNCHRONIZE STATE: Update Search Results
-                    const userIndex = this.searchResults.findIndex(u => u.user_id === userId);
+                    const userIndex = this.searchResults.findIndex(u => Number(u.user_id) === targetUserId);
                     if (userIndex !== -1) {
                         this.searchResults[userIndex].friend_status = action === 'accept' ? 'accepted' : null;
-                        
-                        // 🔥 FIX: You must reassign the array so Alpine sees the deep property change!
                         this.searchResults = [...this.searchResults];
                     }
 
-                    // 6. SYNCHRONIZE STATE: Instantly update the Friends List UI
                     if (action === 'accept') {
                         if (acceptedUser) {
-                            // Add them to the UI immediately without waiting for the database
                             this.friends = [...this.friends, {
                                 user_id: acceptedUser.user_id,
-                                user_name: acceptedUser.user_name // Ensure this matches your data structure
+                                user_name: acceptedUser.user_name
                             }];
                         }
-                        // Let this run in the background to grab any extra data (like updated avatars)
-                        this.fetchFriends(); 
+                        this.fetchFriends().then(() => {
+                            this.initAllChatSubscriptions();
+                        });
                     }
                 }
             })
@@ -549,220 +542,211 @@ function userDashboard() {
             }
         },
         
-// 1. Time Formatting Helper (Uniform Time Display)
-formatTime(timeInput) {
-    if (!timeInput) return '';
-    
-    if (typeof timeInput === 'string' && /^([0-1]?[0-9]|2[0-3]):[0-5][0-9]\s?(AM|PM)?$/i.test(timeInput.trim())) {
-        return timeInput.trim();
-    }
-
-    let parsableTime = timeInput;
-    if (typeof timeInput === 'string' && timeInput.includes(' ') && !timeInput.includes('T')) {
-        parsableTime = timeInput.replace(' ', 'T') + 'Z'; 
-    }
-
-    const date = new Date(parsableTime);
-    if (isNaN(date.getTime())) return timeInput;
-
-    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-},
-
-// 2. Initialize Pusher & Subscribe to All Friend Channels (Call this on dashboard init)
-initAllChatSubscriptions() {
-    if (typeof Pusher === 'undefined' || !window.CURRENT_USER_ID) return;
-
-    if (!this.pusherClient) {
-        this.pusherClient = new Pusher('f4b5637ef4b8952b6eb8', {
-            cluster: 'ap1',
-            encrypted: true
-        });
-    }
-
-    if (!this.activeSubscriptions) {
-        this.activeSubscriptions = new Set();
-    }
-
-    this.friends.forEach(friend => {
-        const friendId = friend.user_id || friend.friend_id || friend.id;
-        if (!friendId) return;
-
-        const minId = Math.min(Number(window.CURRENT_USER_ID), Number(friendId));
-        const maxId = Math.max(Number(window.CURRENT_USER_ID), Number(friendId));
-        const channelName = `chat-${minId}-${maxId}`;
-
-        // Prevent duplicate subscriptions for the same channel
-        if (this.activeSubscriptions.has(channelName)) return;
-        this.activeSubscriptions.add(channelName);
-
-        const channel = this.pusherClient.subscribe(channelName);
-
-        // Listen for new messages globally in the background
-        channel.bind('new_message', (data) => {
-            const isSender = Number(data.sender_id) === Number(window.CURRENT_USER_ID);
-            if (isSender) return; // Ignore messages sent by yourself
-
-            const isCurrentActiveChat = this.showChatPanel && Number(this.activeChatFriend?.user_id) === Number(data.sender_id);
-
-            if (isCurrentActiveChat) {
-                // If chat panel is currently open with this sender, push message and mark as read
-                this.chatMessages = [...this.chatMessages, {
-                    sender: 'them',
-                    text: data.message_text,
-                    time: this.formatTime(data.time)
-                }];
-                this.scrollToBottom();
-
-                fetch('/user_backend/mark_as_read.php', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ sender_id: data.sender_id })
-                });
-            } else {
-                // If chat panel is closed, increment unread count for that friend
-                const friendItem = this.friends.find(f => Number(f.user_id || f.friend_id || f.id) === Number(data.sender_id));
-                if (friendItem) {
-                    friendItem.unread_count = (Number(friendItem.unread_count) || 0) + 1;
-                }
+        // 1. Time Formatting Helper (Uniform Time Display)
+        formatTime(timeInput) {
+            if (!timeInput) return '';
+            
+            if (typeof timeInput === 'string' && /^([0-1]?[0-9]|2[0-3]):[0-5][0-9]\s?(AM|PM)?$/i.test(timeInput.trim())) {
+                return timeInput.trim();
             }
-        });
 
-        // Listen for read receipts
-        channel.bind('messages_read', (data) => {
-            if (Number(data.reader_id) === Number(this.activeChatFriend?.user_id)) {
-                this.chatMessages.forEach(msg => {
-                    if (msg.sender === 'me') {
-                        msg.is_read = 1;
+            let parsableTime = timeInput;
+            if (typeof timeInput === 'string' && timeInput.includes(' ') && !timeInput.includes('T')) {
+                parsableTime = timeInput.replace(' ', 'T') + 'Z'; 
+            }
+
+            const date = new Date(parsableTime);
+            if (isNaN(date.getTime())) return timeInput;
+
+            return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        },
+
+        // Add activeSubscriptions to your state object at the top:
+        activeSubscriptions: new Set(),
+
+        // Reusable Channel Subscription Helper
+        subscribeToChatChannel(friendId) {
+            const targetFriendId = Number(friendId);
+            const currentUserId = Number(window.CURRENT_USER_ID);
+
+            if (typeof Pusher === 'undefined' || !currentUserId || !targetFriendId) return;
+
+            if (!this.pusherClient) {
+                this.pusherClient = new Pusher('f4b5637ef4b8952b6eb8', { cluster: 'ap1', encrypted: true });
+            }
+
+            const minId = Math.min(currentUserId, targetFriendId);
+            const maxId = Math.max(currentUserId, targetFriendId);
+            const channelName = `chat-${minId}-${maxId}`;
+
+            if (this.activeSubscriptions.has(channelName)) return;
+            this.activeSubscriptions.add(channelName);
+
+            const channel = this.pusherClient.subscribe(channelName);
+
+            channel.bind('new_message', (data) => {
+                const senderId = Number(data.sender_id);
+                if (senderId === currentUserId) return;
+
+                const activeFriendId = Number(this.activeChatFriend?.user_id || this.activeChatFriend?.friend_id || this.activeChatFriend?.id);
+                const isCurrentActiveChat = this.showChatPanel && activeFriendId === senderId;
+
+                if (isCurrentActiveChat) {
+                    this.chatMessages = [...this.chatMessages, {
+                        sender: 'them',
+                        text: data.message_text,
+                        time: this.formatTime(data.time)
+                    }];
+                    this.scrollToBottom();
+
+                    fetch('/user_backend/mark_as_read.php', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ sender_id: senderId })
+                    });
+                } else {
+                    const friendItem = this.friends.find(f => Number(f.user_id || f.friend_id || f.id) === senderId);
+                    if (friendItem) {
+                        friendItem.unread_count = (Number(friendItem.unread_count) || 0) + 1;
+                    }
+                }
+            });
+
+            channel.bind('messages_read', (data) => {
+                const activeFriendId = Number(this.activeChatFriend?.user_id || this.activeChatFriend?.friend_id || this.activeChatFriend?.id);
+                if (Number(data.reader_id) === activeFriendId) {
+                    this.chatMessages.forEach(msg => {
+                        if (msg.sender === 'me') msg.is_read = 1;
+                    });
+                }
+            });
+        },
+
+        initAllChatSubscriptions() {
+            this.friends.forEach(friend => {
+                const friendId = friend.user_id || friend.friend_id || friend.id;
+                if (friendId) this.subscribeToChatChannel(friendId);
+            });
+        },
+
+        async openChat(friend) {
+            const friendId = Number(friend.user_id || friend.friend_id || friend.id);
+            if (!friendId) return;
+
+            this.activeChatFriend = { ...friend, user_id: friendId };
+            this.chatMessages = [];
+            this.showChatPanel = true;
+            friend.unread_count = 0;
+
+            // Ensure live subscription is active for this friend immediately
+            this.subscribeToChatChannel(friendId);
+
+            this.$nextTick(() => {
+                if (typeof gsap !== 'undefined') {
+                    gsap.fromTo('.chat-panel-container', 
+                        { x: '100%', opacity: 0 }, 
+                        { x: '0%', opacity: 1, duration: 0.35, ease: 'power2.out' }
+                    );
+                }
+            });
+
+            await fetch('/user_backend/mark_as_read.php', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ sender_id: friendId })
+            });
+
+            await this.fetchChatHistory(friendId);
+        },
+
+        // 4. Updated closeChat Method
+        closeChat() {
+            if (typeof gsap !== 'undefined') {
+                gsap.to('.chat-panel-container', {
+                    x: '100%',
+                    opacity: 0,
+                    duration: 0.3,
+                    ease: 'power2.in',
+                    onComplete: () => {
+                        this.showChatPanel = false;
+                        this.activeChatFriend = null;
+                        gsap.set('.chat-panel-container', { clearProps: 'all' });
                     }
                 });
-            }
-        });
-    });
-},
-
-// 3. Updated openChat Method
-async openChat(friend) {
-    const friendId = friend.user_id || friend.friend_id || friend.id;
-    if (!friendId) {
-        console.error("Cannot open chat: Friend ID is missing from object", friend);
-        return;
-    }
-
-    this.activeChatFriend = { ...friend, user_id: friendId };
-    this.chatMessages = [];
-    this.showChatPanel = true;
-
-    // Reset unread count locally
-    friend.unread_count = 0;
-
-    // Animate panel into view
-    this.$nextTick(() => {
-        if (typeof gsap !== 'undefined') {
-            gsap.fromTo('.chat-panel-container', 
-                { x: '100%', opacity: 0 }, 
-                { x: '0%', opacity: 1, duration: 0.35, ease: 'power2.out' }
-            );
-        }
-    });
-
-    // Mark messages as read in DB
-    await fetch('/user_backend/mark_as_read.php', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sender_id: friendId })
-    });
-
-    await this.fetchChatHistory(friendId);
-},
-
-// 4. Updated closeChat Method
-closeChat() {
-    if (typeof gsap !== 'undefined') {
-        gsap.to('.chat-panel-container', {
-            x: '100%',
-            opacity: 0,
-            duration: 0.3,
-            ease: 'power2.in',
-            onComplete: () => {
+            } else {
                 this.showChatPanel = false;
                 this.activeChatFriend = null;
-                gsap.set('.chat-panel-container', { clearProps: 'all' });
             }
-        });
-    } else {
-        this.showChatPanel = false;
-        this.activeChatFriend = null;
-    }
-},
+        },
 
-// 5. Updated fetchChatHistory Method
-async fetchChatHistory(friendId) {
-    if (!friendId) return;
+        // 5. Updated fetchChatHistory Method
+        async fetchChatHistory(friendId) {
+            if (!friendId) return;
 
-    try {
-        const res = await fetch(`/user_backend/get_chat_history.php?friend_id=${friendId}`);
-        const rawText = await res.text();
+            try {
+                const res = await fetch(`/user_backend/get_chat_history.php?friend_id=${friendId}`);
+                const rawText = await res.text();
 
-        let data;
-        try {
-            data = JSON.parse(rawText);
-        } catch (jsonErr) {
-            console.error("Non-JSON output returned from server:", rawText);
-            return;
-        }
+                let data;
+                try {
+                    data = JSON.parse(rawText);
+                } catch (jsonErr) {
+                    console.error("Non-JSON output returned from server:", rawText);
+                    return;
+                }
 
-        if (data.success) {
-            this.chatMessages = data.messages.map(msg => ({
-                sender: Number(msg.sender_id) === Number(window.CURRENT_USER_ID) ? 'me' : 'them',
-                text: msg.message_text,
-                time: this.formatTime(msg.time)
-            }));
+                if (data.success) {
+                    this.chatMessages = data.messages.map(msg => ({
+                        sender: Number(msg.sender_id) === Number(window.CURRENT_USER_ID) ? 'me' : 'them',
+                        text: msg.message_text,
+                        time: this.formatTime(msg.time)
+                    }));
+                    this.scrollToBottom();
+                } else {
+                    console.error("Backend error loading chats:", data.message);
+                }
+            } catch (e) {
+                console.error("Network or execution error loading chat history:", e);
+            }
+        },
+
+        // 6. Updated sendMessage Method
+        async sendMessage() {
+            if (!this.chatInput.trim() || !this.activeChatFriend) return;
+
+            const messageText = this.chatInput.trim();
+            this.chatInput = '';
+
+            this.chatMessages = [...this.chatMessages, {
+                sender: 'me',
+                text: messageText,
+                time: this.formatTime(new Date())
+            }];
             this.scrollToBottom();
-        } else {
-            console.error("Backend error loading chats:", data.message);
-        }
-    } catch (e) {
-        console.error("Network or execution error loading chat history:", e);
-    }
-},
 
-// 6. Updated sendMessage Method
-async sendMessage() {
-    if (!this.chatInput.trim() || !this.activeChatFriend) return;
+            try {
+                await fetch('/user_backend/send_chat.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        receiver_id: this.activeChatFriend.user_id,
+                        message: messageText
+                    })
+                });
+            } catch (e) {
+                console.error("Failed to send message:", e);
+            }
+        },
 
-    const messageText = this.chatInput.trim();
-    this.chatInput = '';
-
-    this.chatMessages = [...this.chatMessages, {
-        sender: 'me',
-        text: messageText,
-        time: this.formatTime(new Date())
-    }];
-    this.scrollToBottom();
-
-    try {
-        await fetch('/user_backend/send_chat.php', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                receiver_id: this.activeChatFriend.user_id,
-                message: messageText
-            })
-        });
-    } catch (e) {
-        console.error("Failed to send message:", e);
-    }
-},
-
-// Auto-scroll utility
-scrollToBottom() {
-    this.$nextTick(() => {
-        const container = document.querySelector('.chat-messages-container');
-        if (container) {
-            container.scrollTop = container.scrollHeight;
-        }
-    });
-},
+        // Auto-scroll utility
+        scrollToBottom() {
+            this.$nextTick(() => {
+                const container = document.querySelector('.chat-messages-container');
+                if (container) {
+                    container.scrollTop = container.scrollHeight;
+                }
+            });
+        },
 
         openAddMovieModal() {
             this.editingMovie = false;
