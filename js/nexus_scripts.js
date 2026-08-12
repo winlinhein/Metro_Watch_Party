@@ -46,18 +46,6 @@ function userDashboard() {
         // Pusher Client
         pusherClient: null,
 
-        // Data Lists
-        friends: [],
-        pendingRequests: [],
-        notifications: [],
-        searchResults: [],
-        unreadNotifCount: 0,
-        
-        searchQuery: '',
-        friendSearchQuery: '',
-        searchTimeout: null,
-        pollingInterval: null,
-
         // Add channel reference to Alpine state
         activeChatChannel: null,
 
@@ -176,10 +164,6 @@ function userDashboard() {
         }, 300);
     },
 
-        init() { 
-            this.fetchMovies(); 
-        },
-
         // Quests Data
        quests: {
             daily: [],
@@ -286,6 +270,7 @@ function userDashboard() {
                     this.friends = data.friends || [];
                     this.pendingRequests = data.pending_requests || [];
                     this.updateFriendsCount();
+                    this.initAllChatSubscriptions();
                 }
             } catch (err) {
                 console.error('Fetch friends error:', err);
@@ -325,7 +310,6 @@ function userDashboard() {
             }
         },
 
-        // Respond to Friend Request (Accept / "Add Back" or Decline)
         respondToFriendRequest(userId, action) {
             fetch('/user_backend/respond_friend.php', {
                 method: 'POST',
@@ -335,25 +319,39 @@ function userDashboard() {
             .then(res => res.json())
             .then(data => {
                 if (data.success) {
-                    // 1. Show success toast (e.g., "Friend request accepted")
+                    if (window.showToast) window.showToast(`Friend request ${action}ed!`, 'success');
 
-                    // 2. SYNCHRONIZE STATE: Remove from incoming requests array
+                    // 🔥 OPTIMIZATION: Grab the user data before deleting them from pendingRequests
+                    const acceptedUser = this.pendingRequests.find(req => req.user_id === userId);
+
+                    // 2. SYNCHRONIZE STATE: Remove from incoming requests array (Works perfectly!)
                     this.pendingRequests = this.pendingRequests.filter(req => req.user_id !== userId);
                     
-                    // 3. SYNCHRONIZE STATE: Remove from notifications array so the user can't click it again
+                    // 3. SYNCHRONIZE STATE: Remove from notifications array (Works perfectly!)
                     this.notifications = this.notifications.filter(notif => notif.sender_id !== userId);
                     
                     // 4. Update the unread notification count
                     this.unreadNotifCount = this.notifications.filter(n => n.is_read == 0).length;
 
-                    // 5. SYNCHRONIZE STATE: Update Search Results if the modal happens to be open
+                    // 5. SYNCHRONIZE STATE: Update Search Results
                     const userIndex = this.searchResults.findIndex(u => u.user_id === userId);
                     if (userIndex !== -1) {
                         this.searchResults[userIndex].friend_status = action === 'accept' ? 'accepted' : null;
+                        
+                        // 🔥 FIX: You must reassign the array so Alpine sees the deep property change!
+                        this.searchResults = [...this.searchResults];
                     }
 
-                    // 6. Refresh the friends list from the server to get their full data
+                    // 6. SYNCHRONIZE STATE: Instantly update the Friends List UI
                     if (action === 'accept') {
+                        if (acceptedUser) {
+                            // Add them to the UI immediately without waiting for the database
+                            this.friends = [...this.friends, {
+                                user_id: acceptedUser.user_id,
+                                user_name: acceptedUser.user_name // Ensure this matches your data structure
+                            }];
+                        }
+                        // Let this run in the background to grab any extra data (like updated avatars)
                         this.fetchFriends(); 
                     }
                 }
@@ -368,29 +366,28 @@ function userDashboard() {
                 body: JSON.stringify({ friend_id: userId })
             })
             .then(async res => {
-                // Read the response as raw text first instead of forcing JSON
                 const rawText = await res.text(); 
                 try {
-                    // Try to parse it manually
                     return JSON.parse(rawText);
                 } catch (err) {
-                    // If it fails, log the raw HTML so you can see the exact PHP error!
                     console.error("Backend returned HTML instead of JSON. Raw response:", rawText);
                     throw new Error("Invalid JSON response from server");
                 }
             })
             .then(data => {
                 if (data && data.success) {
-                    // 1. Show your success toast notification here
+                    if (window.showToast) window.showToast('Friend request sent!', 'success');
                     
-                    // 2. SYNCHRONIZE STATE
+                    // SYNCHRONIZE STATE
                     const userIndex = this.searchResults.findIndex(u => u.user_id === userId);
                     if (userIndex !== -1) {
                         this.searchResults[userIndex].friend_status = 'pending';
                         this.searchResults[userIndex].requester_id = window.CURRENT_USER_ID; 
+                        
+                        // 🔥 FIX: Force Alpine to recognize the array changed
+                        this.searchResults = [...this.searchResults];
                     }
                 } else {
-                    // Handle error toast
                     console.error("Request failed:", data);
                 }
             })
@@ -609,11 +606,11 @@ initAllChatSubscriptions() {
 
             if (isCurrentActiveChat) {
                 // If chat panel is currently open with this sender, push message and mark as read
-                this.chatMessages.push({
+                this.chatMessages = [...this.chatMessages, {
                     sender: 'them',
                     text: data.message_text,
                     time: this.formatTime(data.time)
-                });
+                }];
                 this.scrollToBottom();
 
                 fetch('/user_backend/mark_as_read.php', {
@@ -1025,17 +1022,6 @@ scrollToBottom() {
             return await this.processLiveReview(rating, commentText);
         },
 
-        //watchlist
-        async init() { 
-            await this.fetchMovies(); 
-            await this.fetchWatchlist();
-            this.loadMissions();
-            this.fetchFriends();
-            this.fetchNotifications();
-            this.initPusher();
-            this.initAllChatSubscriptions()
-        },
-
         async fetchWatchlist() {
             try {
                 const response = await fetch("/user_backend/get_watchlist.php");
@@ -1095,7 +1081,8 @@ scrollToBottom() {
 
     // 2. ADD this entirely new function right beneath toggleWatchlist:
     openWatchlistMovie(item) {
-        // Switch the active tab to 'movies'
+        // Switch the active tab to 'movies' (FIXED)
+        this.switchTab('movies');
         
         // Find the original, complete movie data to pass into the modal
         const movieId = item.id || item.movie_id;
@@ -1204,7 +1191,6 @@ scrollToBottom() {
             channel.bind('comment_liked', (data) => {
                 if (!this.selectedMovie || Number(this.getMovieId(this.selectedMovie)) !== Number(data.movie_id)) return;
 
-                // Recursive search helper for main comments & nested replies
                 const findAndSetLikes = (list) => {
                     for (let item of list) {
                         if (Number(item.id) === Number(data.comment_id)) {
@@ -1220,6 +1206,9 @@ scrollToBottom() {
 
                 if (Array.isArray(this.selectedMovie.comments)) {
                     findAndSetLikes(this.selectedMovie.comments);
+                    
+                    //Force Alpine to re-render the updated likes_count
+                    this.selectedMovie.comments = [...this.selectedMovie.comments];
                 }
             });
         },
@@ -1229,18 +1218,6 @@ scrollToBottom() {
                 this.pusherClient.unsubscribe(`movie-${movieId}`);
                 this.activeMovieChannel = null;
             }
-        },
-
-        fetchNotifications() {
-            fetch('user_backend/get_notifications.php')
-                .then(res => res.json())
-                .then(data => {
-                    if (data.success) {
-                        this.notifications = data.notifications;
-                        // Calculate unread badge count
-                        this.unreadNotifCount = this.notifications.filter(n => parseInt(n.is_read) === 0).length;
-                    }
-                });
         },
 
         markNotificationsAsRead() {
@@ -1271,10 +1248,12 @@ scrollToBottom() {
         initPusher() {
             if (!window.CURRENT_USER_ID || typeof Pusher === 'undefined') return;
 
-                this.pusherClient = new Pusher('f4b5637ef4b8952b6eb8', {
-                    cluster: 'ap1',
-                    encrypted: true
-                });
+                if (!this.pusherClient) {
+                    this.pusherClient = new Pusher('f4b5637ef4b8952b6eb8', {
+                        cluster: 'ap1',
+                        encrypted: true
+                    });
+                }   
 
                 // Subscribing using the correctly injected PHP variable
                 const channel = this.pusherClient.subscribe(`user-${window.CURRENT_USER_ID}`);
@@ -1301,28 +1280,58 @@ scrollToBottom() {
             });
 
             channel.bind('friend_event', (data) => {
-                // Existing notification logic
-                this.notifications.unshift({
-                    id: Date.now(),
-                    type: data.type,
-                    sender_id: data.sender_id,
-                    sender_name: data.sender_name,
-                    message: data.message,
-                    created_at: data.created_at,
-                    is_read: 0
-                });
+                //Reassign the array so Alpine triggers a UI update instantly
+                this.notifications = [
+                    {
+                        id: Date.now(),
+                        type: data.type,
+                        sender_id: data.sender_id,
+                        sender_name: data.sender_name,
+                        message: data.message,
+                        created_at: data.created_at,
+                        is_read: 0
+                    },
+                    ...this.notifications
+                ];
 
                 this.unreadNotifCount++;
 
-                // 2. OPTIMISTIC UI FIX: Instantly inject into the Request Panel
                 if (data.type === 'friend_request') {
                     const alreadyExists = this.pendingRequests.some(r => r.user_id == data.sender_id);
                     if (!alreadyExists) {
-                        this.pendingRequests.unshift({
-                            user_id: data.sender_id,
-                            user_name: data.sender_name
-                        });
+                        //Reassign the array instead of using unshift()
+                        this.pendingRequests = [
+                            {
+                                user_id: data.sender_id,
+                                user_name: data.sender_name
+                            }, 
+                            ...this.pendingRequests
+                        ];
                     }
+                }
+
+                if (data.type === 'friend_accepted') {
+                    // Force Alpine to update the friends list instantly
+                    const friendExists = this.friends.some(f => f.user_id == data.acceptor_id);
+                    
+                    if (!friendExists) {
+                        this.friends = [
+                            ...this.friends, 
+                            {
+                                user_id: data.acceptor_id,
+                                user_name: data.acceptor_name
+                            }
+                        ];
+                    }
+
+                    // Update search results status if they happen to be looking at them
+                    const userIndex = this.searchResults.findIndex(u => u.user_id == data.acceptor_id);
+                    if (userIndex !== -1) {
+                        this.searchResults[userIndex].friend_status = 'accepted';
+                        this.searchResults = [...this.searchResults];
+                    }
+                    
+                    if (window.showToast) window.showToast(`${data.acceptor_name} accepted your request!`, 'success');
                 }
 
                 if (typeof window.showToast === 'function') {
@@ -1337,55 +1346,41 @@ scrollToBottom() {
             });
         },
 
-        // Life cycle initialization
-        initDashboard() {
-            gsap.config({ nullTargetWarn: false });
-            this.$watch('friends', () => {
-                this.updateFriendsCount();
-            });
+        async init() { 
+            // 1. Core Config
+            if (typeof gsap !== 'undefined') gsap.config({ nullTargetWarn: false });
 
-            // Initial data fetch
+            // 2. Initial Data Fetches
+            await this.fetchMovies(); 
+            await this.fetchWatchlist();
             this.fetchFriends();
             this.searchUsers();
             this.loadMissions();
             this.fetchNotifications();
 
-            // Initialize Pusher Live Listening
+            // 3. Real-Time Connections
             this.initPusher();
-            this.initAllChatSubscriptions()
-            this.subscribeToLiveMovieEvents()
+            this.initAllChatSubscriptions();
+            this.subscribeToLiveMovieEvents();
+
+            // 4. Watchers & Interactions
+            this.$watch('friends', () => this.updateFriendsCount());
             
             // Debounce search watcher
             this.$watch('searchQuery', (query) => {
                 clearTimeout(this.searchTimeout);
                 const trimmed = (query || '').trim();
-
-                if (trimmed === '') {
-                    this.searchUsers();
-                    return;
-                }
+                if (trimmed === '') { this.searchUsers(); return; }
                 if (trimmed.length < 2) return;
-
-                this.searchTimeout = setTimeout(() => {
-                    this.searchUsers();
-                }, 300);
+                this.searchTimeout = setTimeout(() => this.searchUsers(), 300);
             });
 
             // Auto-trigger initial search when invite modal opens
             this.$watch('showInviteModal', (isOpen) => {
-                if (isOpen) {
-                    this.searchUsers(this.searchQuery);
-                }
+                if (isOpen) this.searchUsers(this.searchQuery);
             });
-            
-            // Escape key listener for navigation drawer
-            window.addEventListener('keydown', (e) => {
-                if (e.key === 'Escape' && this.isNavOpen) {
-                    this.closeNav();
-                }
-            });
-            
-            // Watchers for Quests UI animations
+
+            // Watchers for Quests UI animations (Runs GSAP only when panel is toggled)
             this.$watch('showQuestsPanel', value => {
                 if(value) {
                     this.$nextTick(() => {
@@ -1410,8 +1405,16 @@ scrollToBottom() {
                 });
             });
 
-            // Animated Number Counters
+            // 5. Global Event Listeners
+            window.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape' && this.isNavOpen) this.closeNav();
+            });
+
+            // 6. Initial GSAP UI Animations 
+            // Uses a single $nextTick to ensure Alpine has finished rendering the HTML
             this.$nextTick(() => {
+                
+                // A. Animated Number Counters
                 const counters = this.$root.querySelectorAll('.stat-counter');
                 counters.forEach(counter => {
                     const target = parseFloat(counter.getAttribute('data-target'));
@@ -1427,53 +1430,41 @@ scrollToBottom() {
                         }
                     });
                 });
-            });
-            
-            this.$nextTick(() => {
-            // Intro Animations
-            const tl = gsap.timeline();
-            tl.fromTo(".gs-header-item", 
-                { y: -40, opacity: 0, scale: 0.95 }, 
-                { y: 0, opacity: 1, scale: 1, stagger: 0.1, duration: 0.8, ease: "back.out(1.5)" }, 
-                0.2
-            )
-            .fromTo(".stagger-item", 
-                { opacity: 0, y: 80, rotationY: 15, scale: 0.9 }, 
-                { opacity: 1, y: 0, rotationY: 0, scale: 1, stagger: 0.1, duration: 0.9, ease: "back.out(1.2)" }, 
-                "-=0.6"
-            );
-
-            // Split text animation for welcome header
-            const welcomeText = this.$root.querySelector('.welcome-text');
-            if (welcomeText) {
-                const text = welcomeText.innerText;
-                welcomeText.innerHTML = '';
-                [...text].forEach(char => {
-                    const span = document.createElement('span');
-                    span.innerText = char;
-                    span.style.opacity = '0';
-                    span.style.display = 'inline-block';
-                    if (char === ' ') span.innerHTML = '&nbsp;';
-                    welcomeText.appendChild(span);
-                });
                 
-                gsap.fromTo(welcomeText.querySelectorAll('span'), 
-                    { opacity: 0, y: 30, rotationX: 90 },
-                    {
-                        opacity: 1,
-                        y: 0,
-                        rotationX: 0,
-                        stagger: 0.04,
-                        duration: 0.7,
-                        ease: "back.out(2)",
-                        delay: 0.5
-                    }
+                // B. Intro Animations
+                const tl = gsap.timeline();
+                tl.fromTo(".gs-header-item", 
+                    { y: -40, opacity: 0, scale: 0.95 }, 
+                    { y: 0, opacity: 1, scale: 1, stagger: 0.1, duration: 0.8, ease: "back.out(1.5)" }, 
+                    0.2
+                )
+                .fromTo(".stagger-item", 
+                    { opacity: 0, y: 80, rotationY: 15, scale: 0.9 }, 
+                    { opacity: 1, y: 0, rotationY: 0, scale: 1, stagger: 0.1, duration: 0.9, ease: "back.out(1.2)" }, 
+                    "-=0.6"
                 );
-            }
-            });
 
-            // Continuous pulse micro-animation for activity feed items
-            this.$nextTick(() => {
+                // C. Split text animation for welcome header
+                const welcomeText = this.$root.querySelector('.welcome-text');
+                if (welcomeText) {
+                    const text = welcomeText.innerText;
+                    welcomeText.innerHTML = '';
+                    [...text].forEach(char => {
+                        const span = document.createElement('span');
+                        span.innerText = char;
+                        span.style.opacity = '0';
+                        span.style.display = 'inline-block';
+                        if (char === ' ') span.innerHTML = '&nbsp;';
+                        welcomeText.appendChild(span);
+                    });
+                    
+                    gsap.fromTo(welcomeText.querySelectorAll('span'), 
+                        { opacity: 0, y: 30, rotationX: 90 },
+                        { opacity: 1, y: 0, rotationX: 0, stagger: 0.04, duration: 0.7, ease: "back.out(2)", delay: 0.5 }
+                    );
+                }
+
+                // D. Continuous pulse micro-animation for activity feed items
                 gsap.to('.activity-item .dot-pulse', {
                     scale: 1.8,
                     opacity: 0,
@@ -1484,6 +1475,7 @@ scrollToBottom() {
                 });
             });
 
+            // 7. Interval Animations
             // Random glitch effect on dashboard stat numbers periodically
             setInterval(() => {
                 const stats = this.$root.querySelectorAll('.stat-counter');
@@ -1496,7 +1488,7 @@ scrollToBottom() {
                         yoyo: true,
                         repeat: 5,
                         onComplete: () => {
-                            gsap.set(randomStat, {x:0, y:0});
+                            gsap.set(randomStat, {x: 0, y: 0});
                         }
                     });
                 }
