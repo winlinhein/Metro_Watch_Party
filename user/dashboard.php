@@ -18,7 +18,8 @@ $userId = $_SESSION['user_id'] ?? 0;
 ?>
 <script src="https://js.pusher.com/8.2.0/pusher.min.js"></script>
 <script>
-    window.CURRENT_USER_ID = <?php echo json_encode($userId); ?>;
+    // This safely passes the logged-in user's ID from your backend session to JS
+    window.CURRENT_USER_ID = <?php echo json_encode($_SESSION['user_id'] ?? null); ?>;
 </script>
 
 <!DOCTYPE html>
