@@ -552,21 +552,16 @@ function userDashboard() {
             }
         },
         
-        // Chat Methods
 // 1. Time Formatting Helper (Uniform Time Display)
 formatTime(timeInput) {
     if (!timeInput) return '';
     
-    // If it's already a formatted local string like "10:30 PM", return it directly
     if (typeof timeInput === 'string' && /^([0-1]?[0-9]|2[0-3]):[0-5][0-9]\s?(AM|PM)?$/i.test(timeInput.trim())) {
         return timeInput.trim();
     }
 
     let parsableTime = timeInput;
-    
-    // If it's a SQL timestamp (e.g., "2026-08-11 16:00:00")
     if (typeof timeInput === 'string' && timeInput.includes(' ') && !timeInput.includes('T')) {
-        // Replace space with 'T' and add 'Z' to force UTC timezone parsing
         parsableTime = timeInput.replace(' ', 'T') + 'Z'; 
     }
 
@@ -576,7 +571,79 @@ formatTime(timeInput) {
     return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 },
 
-// 2. Updated openChat Method
+// 2. Initialize Pusher & Subscribe to All Friend Channels (Call this on dashboard init)
+initAllChatSubscriptions() {
+    if (typeof Pusher === 'undefined' || !window.CURRENT_USER_ID) return;
+
+    if (!this.pusherClient) {
+        this.pusherClient = new Pusher('f4b5637ef4b8952b6eb8', {
+            cluster: 'ap1',
+            encrypted: true
+        });
+    }
+
+    if (!this.activeSubscriptions) {
+        this.activeSubscriptions = new Set();
+    }
+
+    this.friends.forEach(friend => {
+        const friendId = friend.user_id || friend.friend_id || friend.id;
+        if (!friendId) return;
+
+        const minId = Math.min(Number(window.CURRENT_USER_ID), Number(friendId));
+        const maxId = Math.max(Number(window.CURRENT_USER_ID), Number(friendId));
+        const channelName = `chat-${minId}-${maxId}`;
+
+        // Prevent duplicate subscriptions for the same channel
+        if (this.activeSubscriptions.has(channelName)) return;
+        this.activeSubscriptions.add(channelName);
+
+        const channel = this.pusherClient.subscribe(channelName);
+
+        // Listen for new messages globally in the background
+        channel.bind('new_message', (data) => {
+            const isSender = Number(data.sender_id) === Number(window.CURRENT_USER_ID);
+            if (isSender) return; // Ignore messages sent by yourself
+
+            const isCurrentActiveChat = this.showChatPanel && Number(this.activeChatFriend?.user_id) === Number(data.sender_id);
+
+            if (isCurrentActiveChat) {
+                // If chat panel is currently open with this sender, push message and mark as read
+                this.chatMessages.push({
+                    sender: 'them',
+                    text: data.message_text,
+                    time: this.formatTime(data.time)
+                });
+                this.scrollToBottom();
+
+                fetch('/user_backend/mark_as_read.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ sender_id: data.sender_id })
+                });
+            } else {
+                // If chat panel is closed, increment unread count for that friend
+                const friendItem = this.friends.find(f => Number(f.user_id || f.friend_id || f.id) === Number(data.sender_id));
+                if (friendItem) {
+                    friendItem.unread_count = (Number(friendItem.unread_count) || 0) + 1;
+                }
+            }
+        });
+
+        // Listen for read receipts
+        channel.bind('messages_read', (data) => {
+            if (Number(data.reader_id) === Number(this.activeChatFriend?.user_id)) {
+                this.chatMessages.forEach(msg => {
+                    if (msg.sender === 'me') {
+                        msg.is_read = 1;
+                    }
+                });
+            }
+        });
+    });
+},
+
+// 3. Updated openChat Method
 async openChat(friend) {
     const friendId = friend.user_id || friend.friend_id || friend.id;
     if (!friendId) {
@@ -588,7 +655,10 @@ async openChat(friend) {
     this.chatMessages = [];
     this.showChatPanel = true;
 
-    // Reset inline GSAP styles and animate the chat panel into view
+    // Reset unread count locally
+    friend.unread_count = 0;
+
+    // Animate panel into view
     this.$nextTick(() => {
         if (typeof gsap !== 'undefined') {
             gsap.fromTo('.chat-panel-container', 
@@ -598,9 +668,6 @@ async openChat(friend) {
         }
     });
 
-    // Reset unread count locally
-    friend.unread_count = 0;
-
     // Mark messages as read in DB
     await fetch('/user_backend/mark_as_read.php', {
         method: 'POST',
@@ -609,16 +676,10 @@ async openChat(friend) {
     });
 
     await this.fetchChatHistory(friendId);
-    this.subscribeToChatChannel(friendId);
 },
 
-// 3. Updated closeChat Method
+// 4. Updated closeChat Method
 closeChat() {
-    if (this.activeChatChannel) {
-        this.pusherClient.unsubscribe(this.activeChatChannel.name);
-        this.activeChatChannel = null;
-    }
-
     if (typeof gsap !== 'undefined') {
         gsap.to('.chat-panel-container', {
             x: '100%',
@@ -628,7 +689,6 @@ closeChat() {
             onComplete: () => {
                 this.showChatPanel = false;
                 this.activeChatFriend = null;
-                // Clear GSAP inline styles so Alpine can open cleanly on subsequent clicks
                 gsap.set('.chat-panel-container', { clearProps: 'all' });
             }
         });
@@ -638,7 +698,7 @@ closeChat() {
     }
 },
 
-// 4. Updated fetchChatHistory Method
+// 5. Updated fetchChatHistory Method
 async fetchChatHistory(friendId) {
     if (!friendId) return;
 
@@ -669,66 +729,6 @@ async fetchChatHistory(friendId) {
     }
 },
 
-// 5. Updated subscribeToChatChannel Method
-subscribeToChatChannel(friendId) {
-    if (typeof Pusher === 'undefined') return;
-
-    if (!this.pusherClient) {
-        this.pusherClient = new Pusher('f4b5637ef4b8952b6eb8', {
-            cluster: 'ap1',
-            encrypted: true
-        });
-    }
-
-    const minId = Math.min(Number(window.CURRENT_USER_ID), Number(friendId));
-    const maxId = Math.max(Number(window.CURRENT_USER_ID), Number(friendId));
-    const channelName = `chat-${minId}-${maxId}`;
-
-    if (this.activeChatChannel) {
-        this.pusherClient.unsubscribe(this.activeChatChannel.name);
-        this.activeChatChannel = null;
-    }
-
-    this.activeChatChannel = this.pusherClient.subscribe(channelName);
-
-    this.activeChatChannel.bind('new_message', (data) => {
-        const isFromFriend = Number(data.sender_id) === Number(this.activeChatFriend?.user_id);
-
-        if (isFromFriend && this.showChatPanel) {
-           this.chatMessages = [...this.chatMessages, {
-                sender: 'them',
-                text: data.message_text,
-                time: this.formatTime(data.time)
-            }];
-            this.scrollToBottom();
-
-            fetch('/user_backend/mark_as_read.php', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ sender_id: data.sender_id })
-            });
-        } else {
-            const friendItem = this.friends.find(f => Number(f.user_id) === Number(data.sender_id));
-            if (friendItem) {
-                friendItem.unread_count = (Number(friendItem.unread_count) || 0) + 1;
-            }
-        }
-    });
-
-    this.activeChatChannel.bind('messages_read', (data) => {
-        // If the person who triggered the read event is the friend we are currently chatting with
-        if (Number(data.reader_id) === Number(this.activeChatFriend?.user_id)) {
-            
-            // Loop through the active chat and mark all our sent messages as read
-            this.chatMessages.forEach(msg => {
-                if (msg.sender === 'me') {
-                    msg.is_read = 1; // Updates the UI instantly
-                }
-            });
-        }
-    });
-},
-
 // 6. Updated sendMessage Method
 async sendMessage() {
     if (!this.chatInput.trim() || !this.activeChatFriend) return;
@@ -736,7 +736,6 @@ async sendMessage() {
     const messageText = this.chatInput.trim();
     this.chatInput = '';
 
-    // Render locally with formatted current time
     this.chatMessages = [...this.chatMessages, {
         sender: 'me',
         text: messageText,
@@ -758,15 +757,15 @@ async sendMessage() {
     }
 },
 
-        // Auto-scroll utility
-        scrollToBottom() {
-            this.$nextTick(() => {
-                const container = document.querySelector('.chat-messages-container');
-                if (container) {
-                    container.scrollTop = container.scrollHeight;
-                }
-            });
-        },
+// Auto-scroll utility
+scrollToBottom() {
+    this.$nextTick(() => {
+        const container = document.querySelector('.chat-messages-container');
+        if (container) {
+            container.scrollTop = container.scrollHeight;
+        }
+    });
+},
 
         openAddMovieModal() {
             this.editingMovie = false;
@@ -1034,6 +1033,7 @@ async sendMessage() {
             this.fetchFriends();
             this.fetchNotifications();
             this.initPusher();
+            this.initAllChatSubscriptions()
         },
 
         async fetchWatchlist() {
@@ -1352,7 +1352,9 @@ async sendMessage() {
 
             // Initialize Pusher Live Listening
             this.initPusher();
-
+            this.initAllChatSubscriptions()
+            this.subscribeToLiveMovieEvents()
+            
             // Debounce search watcher
             this.$watch('searchQuery', (query) => {
                 clearTimeout(this.searchTimeout);
