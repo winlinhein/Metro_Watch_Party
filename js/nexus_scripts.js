@@ -632,15 +632,23 @@ function userDashboard() {
         },
 
         async openChat(friend) {
-            const friendId = Number(friend.user_id || friend.friend_id || friend.id);
+              const friendId = Number(friend.user_id || friend.friend_id || friend.id);
             if (!friendId) return;
 
+            // Compute channel name
+            const minId = Math.min(window.CURRENT_USER_ID, friendId);
+            const maxId = Math.max(window.CURRENT_USER_ID, friendId);
+            const channelName = `chat-${minId}-${maxId}`;
+
+            // Remove from Set to force re‑subscription
+            this.activeSubscriptions.delete(channelName);
+
+            // ... rest of the existing code (setting activeChatFriend, etc.)
             this.activeChatFriend = { ...friend, user_id: friendId };
             this.chatMessages = [];
             this.showChatPanel = true;
             friend.unread_count = 0;
 
-            // Ensure live subscription is active for this friend immediately
             this.subscribeToChatChannel(friendId);
 
             this.$nextTick(() => {
@@ -1344,14 +1352,13 @@ function userDashboard() {
             // 2. Initial Data Fetches
             await this.fetchMovies(); 
             await this.fetchWatchlist();
-            this.fetchFriends();
+            await this.fetchFriends();
             this.searchUsers();
             this.loadMissions();
             this.fetchNotifications();
 
             // 3. Real-Time Connections
             this.initPusher();
-            this.initAllChatSubscriptions();
             this.subscribeToLiveMovieEvents();
 
             // 4. Watchers & Interactions
