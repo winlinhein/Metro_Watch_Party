@@ -584,15 +584,17 @@ function userDashboard() {
 
             const channel = this.pusherClient.subscribe(channelName);
 
-            channel.bind('new_message', (data) => {
+           channel.bind('new_message', (data) => {
                 const senderId = Number(data.sender_id);
-                if (senderId === currentUserId) return;
+                if (senderId === Number(window.CURRENT_USER_ID)) return;
 
                 const activeFriendId = Number(this.activeChatFriend?.user_id || this.activeChatFriend?.friend_id || this.activeChatFriend?.id);
                 const isCurrentActiveChat = this.showChatPanel && activeFriendId === senderId;
 
                 if (isCurrentActiveChat) {
+                    // ADDED: Fallback ID using Date.now() if your backend doesn't send data.id
                     this.chatMessages = [...this.chatMessages, {
+                        id: data.id || 'live-' + Date.now(), 
                         sender: 'them',
                         text: data.message_text,
                         time: this.formatTime(data.time)
@@ -697,16 +699,18 @@ function userDashboard() {
 
                 if (data.success) {
                     this.chatMessages = data.messages.map(msg => ({
+                        id: msg.id || msg.message_id || 'db-' + Math.random(), // ADDED: ID mapping
                         sender: Number(msg.sender_id) === Number(window.CURRENT_USER_ID) ? 'me' : 'them',
                         text: msg.message_text,
-                        time: this.formatTime(msg.time)
+                        time: this.formatTime(msg.time),
+                        is_read: msg.is_read
                     }));
                     this.scrollToBottom();
                 } else {
                     console.error("Backend error loading chats:", data.message);
                 }
             } catch (e) {
-                console.error("Network or execution error loading chat history:", e);
+                console.error("Network error loading chat history:", e);
             }
         },
 
@@ -717,10 +721,13 @@ function userDashboard() {
             const messageText = this.chatInput.trim();
             this.chatInput = '';
 
+            // ADDED: A unique ID so Alpine.js renders it instantly
             this.chatMessages = [...this.chatMessages, {
+                id: 'local-' + Date.now(), 
                 sender: 'me',
                 text: messageText,
-                time: this.formatTime(new Date())
+                time: this.formatTime(new Date()),
+                is_read: 0
             }];
             this.scrollToBottom();
 
