@@ -336,10 +336,21 @@ $userId = $_SESSION['user_id'] ?? 0;
                                 <h4 class="text-xs font-semibold text-white/90 truncate" x-text="friend.user_name"></h4>
                             </div>
                         </div>
-
-                        <button @click="openChat(friend)" class="shrink-0 flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 text-[10px] font-semibold uppercase tracking-wider border border-emerald-500/20 hover:border-emerald-500/40 transition-all">
+                        
+                        <button @click="openChat(friend)" 
+                            :class="friend.unread_count > 0 ? 'bg-emerald-500/20 border-emerald-500/50 shadow-lg shadow-emerald-500/10' : 'bg-emerald-500/10 hover:bg-emerald-500/20 border-emerald-500/20 hover:border-emerald-500/40'"
+                            class="shrink-0 flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-emerald-400 text-[10px] font-semibold uppercase tracking-wider border transition-all relative">
+                            
+                            <!-- Chat Icon & Label -->
                             <span class="material-symbols-outlined text-[13px]">chat</span>
                             <span>Chat</span>
+
+                            <!-- Numerical Badge (If unread exists) -->
+                            <template x-if="friend.unread_count > 0">
+                                <span class="inline-flex items-center justify-center px-1.5 py-0.5 text-[9px] font-extrabold leading-none text-white bg-red-500 rounded-full animate-pulse shadow-sm"
+                                    x-text="friend.unread_count > 99 ? '99+' : friend.unread_count">
+                                </span>
+                            </template>
                         </button>
                     </div>
                 </div>
