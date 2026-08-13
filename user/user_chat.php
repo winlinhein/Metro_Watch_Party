@@ -40,35 +40,46 @@
         </div>
         
         <!-- Chat Messages -->
-        <div class="chat-messages-container flex-1 overflow-y-auto custom-scrollbar p-6 flex flex-col gap-6 relative z-10">
-            <template x-for="msg in chatMessages" :key="msg.id">
-                <div class="chat-message-item flex flex-col" :class="msg.sender === 'me' ? 'items-end' : 'items-start'">
-                    <div class="flex items-end gap-2 max-w-[85%]" :class="msg.sender === 'me' ? 'flex-row-reverse' : 'flex-row'">
-                        <template x-if="msg.sender !== 'me'">
-                            <img :src="`https://ui-avatars.com/api/?name=${encodeURIComponent(activeChatFriend?.user_name || 'User')}&background=ef4444&color=fff`" class="w-6 h-6 rounded-full opacity-70">
-                        </template>
-                        <div class="p-4 rounded-2xl relative group" 
-                             :class="msg.sender === 'me' 
-                                ? 'bg-gradient-to-br from-red-600 to-rose-700 text-white rounded-br-sm shadow-[0_10px_20px_rgba(239,68,68,0.2)]' 
-                                : 'bg-white/10 text-white/90 rounded-bl-sm border border-white/5'">
-                            <p class="text-sm leading-relaxed" x-text="msg.text"></p>
-                        </div>
+        <div class="chat-messages-container flex-1 overflow-y-auto p-4 space-y-3">
+            <!-- Pass (msg, index) and use composite key with fallback -->
+            <template x-for="(msg, index) in chatMessages" :key="(msg && msg.id) ? String(msg.id) : 'msg-' + index">
+                <div class="flex w-full" :class="msg.sender === 'me' ? 'justify-end' : 'justify-start'">
+                    
+                    <div class="max-w-[75%] px-4 py-2 rounded-2xl text-sm shadow-sm"
+                        :class="msg.sender === 'me' 
+                                ? 'bg-blue-600 text-white rounded-tr-none' 
+                                : 'bg-gray-100 text-gray-800 rounded-tl-none dark:bg-gray-700 dark:text-gray-100'">
+                        
+                        <p class="break-words" x-text="msg.text || ''"></p>
+                        
+                        <span class="text-[10px] block mt-1 opacity-75"
+                            :class="msg.sender === 'me' ? 'text-right text-blue-100' : 'text-left text-gray-500 dark:text-gray-400'"
+                            x-text="msg.time">
+                        </span>
                     </div>
-                    <span class="text-[9px] text-white/30 font-mono mt-1 px-8" x-text="msg.time"></span>
+
                 </div>
             </template>
         </div>
         
         <!-- Chat Input Area -->
         <div class="shrink-0 p-4 border-t border-white/10 bg-black/20 backdrop-blur-md relative z-10">
+            <!-- Keep only the submit.prevent on the form -->
             <form @submit.prevent="sendMessage()" class="relative flex items-center group">
-                <input type="text" x-model="chatInput" placeholder="Transmit secure message..." 
-                       class="w-full bg-white/5 border border-white/10 rounded-2xl py-4 pl-5 pr-14 text-sm text-white placeholder-white/30 outline-none focus:border-red-500/50 focus:bg-white/10 transition-all shadow-inner">
-                <button type="submit" 
+                
+                <!-- Removed the redundant @keydown.enter -->
+                <input type="text" 
+                    x-model="newMessageText" 
+                    placeholder="Transmit secure message..." 
+                    class="w-full bg-white/5 border border-white/10 rounded-2xl py-4 pl-5 pr-14 text-sm text-white placeholder-white/30 outline-none focus:border-red-500/50 focus:bg-white/10 transition-all shadow-inner">
+                
+                <!-- Removed x-model, changed :disabled to check newMessageText -->
+                <button type="submit"
                         class="absolute right-2 w-10 h-10 rounded-xl bg-red-500 hover:bg-red-400 text-white flex items-center justify-center shadow-[0_0_15px_rgba(239,68,68,0.4)] transition-all hover:scale-105 active:scale-95 disabled:opacity-50 disabled:pointer-events-none"
-                        :disabled="!chatInput.trim()">
+                        :disabled="!newMessageText.trim()">
                     <span class="material-symbols-outlined text-[18px] translate-x-0.5">send</span>
                 </button>
+                
             </form>
         </div>
      </div>

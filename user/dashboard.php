@@ -17,9 +17,6 @@ $userRole  = $_SESSION['user_role']  ?? 'user';
 $userId = $_SESSION['user_id'] ?? 0;
 ?>
 <script src="https://js.pusher.com/8.2.0/pusher.min.js"></script>
-<script>
-    window.CURRENT_USER_ID = <?php echo json_encode($_SESSION['user_id'] ?? null); ?>;
-</script>
 
 <!DOCTYPE html>
 <html lang="en">
@@ -48,6 +45,10 @@ $userId = $_SESSION['user_id'] ?? 0;
                 }
             }
         }
+    </script>
+    <script>
+        // Safely pass the PHP session user ID to JavaScript
+        window.CURRENT_USER_ID = <?php echo json_encode($_SESSION['user_id'] ?? null); ?>;
     </script>
     
     <!-- Google Fonts -->
