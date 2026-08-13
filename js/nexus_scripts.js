@@ -9,7 +9,6 @@ function userDashboard() {
         activeChatFriend: null,
         chatMessages: [],
         chatInput: '',
-        newMessageText: '',
         
         // Drawer Panels & Modals State
         showFriendsPanel: false,
@@ -105,6 +104,30 @@ function userDashboard() {
             }
             
             return url;
+        },
+
+        // Modal triggers
+        toggleWatchlist(movie) {
+            if(movie.inWatchlist === undefined) movie.inWatchlist = false;
+            movie.inWatchlist = !movie.inWatchlist;
+            
+            if(movie.inWatchlist) {
+                // Check if already in watchlist to prevent duplicates
+                if (!this.watchlist.find(w => w.title === movie.title)) {
+                    this.watchlist.unshift({
+                        title: movie.title,
+                        year: movie.created_at ? new Date(movie.created_at).getFullYear() : "2024",
+                        genre: movie.genres && movie.genres.length > 0 ? movie.genres[0] : "Movie",
+                        rating: movie.rating ? movie.rating + " / 5" : "N/A",
+                        status: "Next Up",
+                        img: movie.img || movie.cover_image || "https://via.placeholder.com/300x450/0d0d12/ffffff?text=No+Poster"
+                    });
+                }
+                if (window.showToast) window.showToast('Added to watchlist', 'success');
+            } else {
+                this.watchlist = this.watchlist.filter(w => w.title !== movie.title);
+                if (window.showToast) window.showToast('Removed from watchlist', 'info');
+            }
         },
 
         async openMovieDetail(movie) {
@@ -546,113 +569,98 @@ function userDashboard() {
             const targetFriendId = Number(friendId);
             const currentUserId = Number(window.CURRENT_USER_ID);
 
-            if (typeof Pusher === 'undefined' || !currentUserId || !targetFriendId) {
-                console.warn("Pusher subscription skipped: missing currentUserId or targetFriendId", { currentUserId, targetFriendId });
-                return;
-            }
+            if (typeof Pusher === 'undefined' || !currentUserId || !targetFriendId) return;
 
             if (!this.pusherClient) {
-                this.pusherClient = new Pusher('f4b5637ef4b8952b6eb8', { cluster: 'ap1', encrypted: true });
+                this.pusherClient = new Pusher('f4b5637ef4b8952b6eb8', {
+                    cluster: 'ap1',
+                    encrypted: true
+                });
             }
 
             const minId = Math.min(currentUserId, targetFriendId);
             const maxId = Math.max(currentUserId, targetFriendId);
             const channelName = `chat-${minId}-${maxId}`;
 
-            let channel = this.pusherClient.channel(channelName);
-            if (!channel) {
-                channel = this.pusherClient.subscribe(channelName);
-            }
-
-            // Prevent duplicate event listeners
-            channel.unbind('new_message');
-            channel.unbind('messages_read');
-
+            if (this.activeSubscriptions.has(channelName)) return;
             this.activeSubscriptions.add(channelName);
 
-            // Bind real-time new message event
+            const channel = this.pusherClient.subscribe(channelName);
+
             channel.bind('new_message', (data) => {
-                console.log("Pusher event received on channel:", channelName, data);
+                const senderId = Number(data.sender_id);
+                if (senderId === Number(window.CURRENT_USER_ID)) return;
 
-                // Flexible key resolution matching common PHP broadcast payloads
-                const senderId = Number(data.sender_id || data.user_id || data.from_id);
-                const messageText = data.message_text || data.message || data.text || '';
-
-                // Do not render duplicate messages sent by the logged-in user
-                if (senderId === currentUserId) return;
-
-                const activeFriendId = Number(
-                    this.activeChatFriend?.user_id || 
-                    this.activeChatFriend?.friend_id || 
-                    this.activeChatFriend?.id
-                );
-
+                const activeFriendId = Number(this.activeChatFriend?.user_id || this.activeChatFriend?.friend_id || this.activeChatFriend?.id);
                 const isCurrentActiveChat = this.showChatPanel && activeFriendId === senderId;
 
                 if (isCurrentActiveChat) {
-                    const msgId = data.id ? String(data.id) : `live-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
-                    const exists = this.chatMessages.some(m => String(m.id) === String(msgId));
+                    this.chatMessages = [...this.chatMessages, {
+                        id: data.id || 'live-' + Date.now(), 
+                        sender: 'them',
+                        text: data.message_text,
+                        time: this.formatTime(data.time)
+                    }];
+                    this.scrollToBottom();
 
-                    if (!exists) {
-                        this.chatMessages = [...this.chatMessages, {
-                            id: msgId,
-                            sender: 'them',
-                            text: messageText,
-                            time: this.formatTime(data.created_at || data.time || new Date())
-                        }];
-                        this.scrollToBottom();
-                    }
+                    fetch('/user_backend/mark_as_read.php', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ sender_id: senderId })
+                    });
                 } else {
-                    // Update unread counter on the friend list item when panel is closed
-                    const friendObj = this.friends.find(f => Number(f.user_id || f.friend_id || f.id) === senderId);
-                    if (friendObj) {
-                        friendObj.unread_count = (Number(friendObj.unread_count) || 0) + 1;
-                        this.friends = [...this.friends];
+                    const friendItem = this.friends.find(f => Number(f.user_id || f.friend_id || f.id) === senderId);
+                    if (friendItem) {
+                        friendItem.unread_count = (Number(friendItem.unread_count) || 0) + 1;
                     }
                 }
             });
 
             channel.bind('messages_read', (data) => {
                 const activeFriendId = Number(this.activeChatFriend?.user_id || this.activeChatFriend?.friend_id || this.activeChatFriend?.id);
-                const readerId = Number(data.reader_id || data.user_id);
-                if (readerId === activeFriendId) {
+                if (Number(data.reader_id) === activeFriendId) {
                     this.chatMessages.forEach(msg => {
                         if (msg.sender === 'me') msg.is_read = 1;
                     });
-                    this.chatMessages = [...this.chatMessages];
                 }
             });
         },
 
         initAllChatSubscriptions() {
-            if (!window.CURRENT_USER_ID) return;
             this.friends.forEach(friend => {
-                const friendId = Number(friend.user_id || friend.friend_id || friend.id);
+                const friendId = friend.user_id || friend.friend_id || friend.id;
                 if (friendId) this.subscribeToChatChannel(friendId);
             });
         },
 
         async openChat(friend) {
             const friendId = Number(friend.user_id || friend.friend_id || friend.id);
+            if (!friendId) return;
 
-            // 1. Set active friend state FIRST to avoid race conditions
-            this.activeChatFriend = friend;
+            this.activeChatFriend = { ...friend, user_id: friendId };
+            this.chatMessages = [];
             this.showChatPanel = true;
+            friend.unread_count = 0;
 
-            // 2. Clear unread counter in UI
-            const targetFriend = this.friends.find(f => Number(f.user_id || f.friend_id || f.id) === friendId);
-            if (targetFriend) {
-                targetFriend.unread_count = 0;
-            }
-
-            // 3. Ensure active subscription to Pusher
+            // Ensure live subscription is active for this friend immediately
             this.subscribeToChatChannel(friendId);
 
-            // 4. Fetch fresh message history from DB (picks up missed messages)
-            await this.fetchChatHistory(friendId);
+            this.$nextTick(() => {
+                if (typeof gsap !== 'undefined') {
+                    gsap.fromTo('.chat-panel-container', 
+                        { x: '100%', opacity: 0 }, 
+                        { x: '0%', opacity: 1, duration: 0.35, ease: 'power2.out' }
+                    );
+                }
+            });
 
-            // 5. Scroll to bottom
-            this.$nextTick(() => this.scrollToBottom());
+            await fetch('/user_backend/mark_as_read.php', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ sender_id: friendId })
+            });
+
+            await this.fetchChatHistory(friendId);
         },
 
         // 4. Updated closeChat Method
@@ -677,71 +685,68 @@ function userDashboard() {
 
         // 5. Updated fetchChatHistory Method
         async fetchChatHistory(friendId) {
-            const currentUserId = Number(window.CURRENT_USER_ID);
-            if (!currentUserId || !friendId) return;
+            if (!friendId) return;
 
             try {
-                const response = await fetch(`/user_backend/get_chat_history.php?friend_id=${friendId}`);
-                const data = await response.json();
+                const res = await fetch(`/user_backend/get_chat_history.php?friend_id=${friendId}`);
+                const rawText = await res.text();
 
-                if (data.status === 'success' || data.success) {
-                    const rawMessages = data.messages || data.data || [];
-                    const seenIds = new Set();
-                    
-                    this.chatMessages = rawMessages
-                        .filter(msg => msg && typeof msg === 'object') // Filter out null/undefined entries
-                        .map((msg, index) => {
-                            const msgId = msg.id ? String(msg.id) : `db-fallback-${index}-${Date.now()}`;
-                            return {
-                                id: msgId,
-                                sender: Number(msg.sender_id) === currentUserId ? 'me' : 'them',
-                                text: msg.message_text || msg.message || '',
-                                time: this.formatTime(msg.created_at || msg.time),
-                                is_read: msg.is_read
-                            };
-                        })
-                        .filter(msg => {
-                            // Deduplicate identical IDs
-                            if (seenIds.has(msg.id)) return false;
-                            seenIds.add(msg.id);
-                            return true;
-                        });
-
-                    this.$nextTick(() => this.scrollToBottom());
+                let data;
+                try {
+                    data = JSON.parse(rawText);
+                } catch (jsonErr) {
+                    console.error("Non-JSON output returned from server:", rawText);
+                    return;
                 }
-            } catch (err) {
-                console.error("Failed to load chat history:", err);
+
+                if (data.success) {
+                    this.chatMessages = data.messages.map(msg => ({
+                        id: msg.id || msg.message_id || 'db-' + Math.random(), // ADDED: ID mapping
+                        sender: Number(msg.sender_id) === Number(window.CURRENT_USER_ID) ? 'me' : 'them',
+                        text: msg.message_text,
+                        time: this.formatTime(msg.time),
+                        is_read: msg.is_read
+                    }));
+                    this.scrollToBottom();
+                } else {
+                    console.error("Backend error loading chats:", data.message);
+                }
+            } catch (e) {
+                console.error("Network error loading chat history:", e);
             }
         },
 
         // 6. Updated sendMessage Method
-       sendMessage() {
-            // Prevent TypeError if this.newMessageText is undefined or null
-            const textToSend = (this.newMessageText ?? '').trim();
-            if (!textToSend || !this.activeChatFriend) return;
+        async sendMessage() {
+            if (!this.chatInput.trim() || !this.activeChatFriend) return;
 
-            // Reset input field
-            this.newMessageText = '';
-
-            const tempId = `temp-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
-
-            this.chatMessages = [...this.chatMessages, {
-                id: tempId,
+            const messageText = this.chatInput.trim();
+            this.chatInput = '';
+            
+            const messageObj = {
+                id: 'local-' + Date.now(), 
                 sender: 'me',
-                text: textToSend,
-                time: this.formatTime(new Date())
-            }];
+                text: messageText,
+                time: this.formatTime(new Date()),
+                is_read: 0
+            };
 
+            // ADDED: A unique ID so Alpine.js renders it instantly
+            this.chatMessages = [...this.chatMessages, messageObj];
             this.scrollToBottom();
 
-            fetch('/user_backend/send_chat.php', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    receiver_id: Number(this.activeChatFriend.user_id || this.activeChatFriend.friend_id || this.activeChatFriend.id),
-                    message: textToSend
-                })
-            }).catch(err => console.error("Message delivery failed:", err));
+            try {
+                await fetch('/user_backend/send_chat.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        receiver_id: Number(this.activeChatFriend.user_id || this.activeChatFriend.friend_id || this.activeChatFriend.id),
+                        message: messageText
+                    })
+                });
+            } catch (e) {
+                console.error("Failed to send message:", e);
+            }
         },
 
         // Auto-scroll utility
@@ -1128,23 +1133,8 @@ function userDashboard() {
                 if (!this.selectedMovie || Number(this.getMovieId(this.selectedMovie)) !== Number(data.movie_id)) return;
 
                 const currentComments = this.selectedMovie.comments || [];
-                const commentExists = currentComments.some(c => Number(c.id) === Number(data.id));
-
-                if (!commentExists) {
-                    // 🔥 FIX: Overwrite the root object to force Alpine to re-render UI
-                    this.selectedMovie = {
-                        ...this.selectedMovie,
-                        comments: [
-                            {
-                                ...data,
-                                replies: data.replies || [],
-                                likes_count: data.likes_count || 0,
-                                is_liked: false
-                            },
-                            ...currentComments
-                        ]
-                    };
-                }
+                // Push onto the array
+                this.selectedMovie.comments = [data, ...currentComments];
             });
 
             // 3. Live Reply Update
@@ -1169,12 +1159,6 @@ function userDashboard() {
                     ...this.selectedMovie,
                     comments: updatedComments
                 };
-
-                // Sync with main movies list if needed
-                const movieIndex = this.movies.findIndex(m => Number(this.getMovieId(m)) === Number(data.movie_id));
-                if (movieIndex > -1) {
-                    this.movies[movieIndex] = this.selectedMovie;
-                }
             });
 
             // 4. Live Like Update
@@ -1182,23 +1166,23 @@ function userDashboard() {
                 if (!this.selectedMovie || Number(this.getMovieId(this.selectedMovie)) !== Number(data.movie_id)) return;
 
                 const findAndSetLikes = (list) => {
-                    for (let item of list) {
-                        if (Number(item.id) === Number(data.comment_id)) {
-                            item.likes_count = data.new_likes_count;
+                    if (!list) return false;
+                    for (let i = 0; i < list.length; i++) {
+                        if (Number(list[i].id) === Number(data.comment_id)) {
+                            list[i].likes = data.likes;
                             return true;
                         }
-                        if (Array.isArray(item.replies) && findAndSetLikes(item.replies)) {
+                        if (list[i].replies && findAndSetLikes(list[i].replies)) {
                             return true;
                         }
                     }
                     return false;
                 };
 
-                if (Array.isArray(this.selectedMovie.comments)) {
-                    findAndSetLikes(this.selectedMovie.comments);
-                    
-                    //Force Alpine to re-render the updated likes_count
-                    this.selectedMovie.comments = [...this.selectedMovie.comments];
+                // Create a shallow copy of comments to force reactivity
+                const newComments = [...(this.selectedMovie.comments || [])];
+                if (findAndSetLikes(newComments)) {
+                    this.selectedMovie.comments = newComments;
                 }
             });
         },
@@ -1213,12 +1197,23 @@ function userDashboard() {
         markNotificationsAsRead() {
             if (this.unreadNotifCount === 0) return;
 
-            fetch('user_backend/mark_notifications_read.php', { method: 'POST' })
+            fetch('/user_backend/mark_notifications_read.php', { method: 'POST' })
                 .then(res => res.json())
                 .then(data => {
                     if (data.success) {
                         this.unreadNotifCount = 0;
                         this.notifications.forEach(n => n.is_read = 1);
+                    }
+                });
+        },
+
+        clearAllNotifications() {
+            fetch('/user_backend/clear_notifications.php', { method: 'POST' })
+                .then(res => res.json())
+                .then(data => {
+                    if (data.success) {
+                        this.notifications = [];
+                        this.unreadNotifCount = 0;
                     }
                 });
         },
@@ -1251,9 +1246,6 @@ function userDashboard() {
                 if (action === 'removed') {
                     this.watchlist = this.watchlist.filter(w => Number(w.id) !== Number(movieId));
                 } else if (action === 'added') {
-                    // Because Pusher only sends the ID and action, the easiest way to get the 
-                    // full movie details (poster, title) into the watchlist UI without a complex
-                    // lookup is to just re-fetch the user's watchlist from the server.
                     this.fetchWatchlist();
                 }
             });
@@ -1332,13 +1324,14 @@ function userDashboard() {
             // 2. Initial Data Fetches
             await this.fetchMovies(); 
             await this.fetchWatchlist();
-            await this.fetchFriends();
+            this.fetchFriends();
             this.searchUsers();
             this.loadMissions();
             this.fetchNotifications();
 
             // 3. Real-Time Connections
             this.initPusher();
+            this.initAllChatSubscriptions();
             this.subscribeToLiveMovieEvents();
 
             // 4. Watchers & Interactions

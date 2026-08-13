@@ -1,9 +1,30 @@
 import express from "express";
 import fs from "fs";
 import path from "path";
+import { createServer } from "http";
+import { Server } from "socket.io";
 
 const app = express();
 const PORT = 3000;
+const httpServer = createServer(app);
+const io = new Server(httpServer, {
+  cors: { origin: "*" }
+});
+
+io.on("connection", (socket) => {
+  socket.on("join_chat", (room) => {
+    socket.join(room);
+  });
+  
+  socket.on("leave_chat", (room) => {
+    socket.leave(room);
+  });
+  
+  socket.on("send_message", (data) => {
+    // broadcast to everyone in the room
+    io.to(data.room).emit("new_message", data);
+  });
+});
 
 // Parse POST requests
 app.use(express.urlencoded({ extended: true }));
@@ -100,6 +121,40 @@ app.post("/user_backend/clear_notifications.php", (req, res) => {
   res.json({ success: true });
 });
 
+app.get("/user_backend/get_chat_history.php", (req, res) => {
+  const friendId = req.query.friend_id;
+  res.json({
+    success: true,
+    messages: [
+      { message_id: 1, sender_id: friendId, receiver_id: 1, message_text: "Hello from mock!", time: "10:00 AM", is_read: 1 }
+    ]
+  });
+});
+
+app.post("/user_backend/send_chat.php", (req, res) => {
+  res.json({ success: true, message_id: Date.now() });
+});
+
+app.post("/user_backend/mark_as_read.php", (req, res) => {
+  res.json({ success: true });
+});
+
+app.get("/backend/dashboard_stats_api.php", (req, res) => {
+  res.json({
+    success: true,
+    stats: {
+      total_users: 150,
+      premium_users: 25,
+      active_sessions: 10,
+      total_movies: 50
+    }
+  });
+});
+
+app.post("/user_backend/mark_notifications_read.php", (req, res) => {
+  res.json({ success: true });
+});
+
 app.get("/user_backend/get_notifications.php", (req, res) => {
   res.json({
     success: true,
@@ -184,6 +239,10 @@ app.post("/backend/update_profile.php", (req, res) => {
 
 app.post("/backend/delete_account.php", (req, res) => {
   res.json({ success: true });
+});
+
+app.post("/backend/resend_otp.php", (req, res) => {
+  res.json({ success: true, message: "OTP resent successfully (Mock)." });
 });
 
 function handlePhpRequest(req: express.Request, res: express.Response) {
@@ -289,6 +348,6 @@ function processPhpMockup(content: string, req: express.Request, currentDir: str
   return content;
 }
 
-app.listen(PORT, "0.0.0.0", () => {
+httpServer.listen(PORT, "0.0.0.0", () => {
   console.log(`Server running on port ${PORT}`);
 });
