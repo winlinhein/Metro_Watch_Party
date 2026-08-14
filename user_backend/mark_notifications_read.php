@@ -9,6 +9,7 @@ if (empty($_SESSION['user_id'])) {
 }
 
 require_once __DIR__ . '/../conn.php';
+require_once __DIR__ . '/../pusher_helper.php';
 
 $currentUserId = (int)$_SESSION['user_id'];
 session_write_close();
@@ -20,6 +21,8 @@ try {
         WHERE user_id = :userId AND is_read = 0
     ");
     $stmt->execute(['userId' => $currentUserId]);
+
+    triggerPusherEvent("user-{$currentUserId}", 'notifications_read', []);
 
     echo json_encode(['success' => true]);
 } catch (PDOException $e) {

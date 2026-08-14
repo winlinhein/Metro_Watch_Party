@@ -157,7 +157,7 @@ $userId = $_SESSION['user_id'] ?? 0;
         }
     </style>
 
-    <script src="/js/nexus_scripts.js?v=13"></script>
+    <script src="/js/nexus_scripts.js?v=14"></script>
 </head>
 <body class="h-screen w-screen flex flex-col relative selection:bg-red-500/30" data-barba="wrapper">
     <?php include __DIR__ . '/../frontend/components/page_loader.php'; ?>

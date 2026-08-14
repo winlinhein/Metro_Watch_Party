@@ -15,9 +15,7 @@ function userDashboard() {
         activeDropdown: null,
         dropdownX: 0,
         dropdownY: 0,
-        selectedProfileUser: null,
         reportReason: "",
-        showReportModal: false,
 
         showQuestsPanel: false,
         questActiveTab: 'daily',
@@ -55,6 +53,16 @@ function userDashboard() {
 
         // Add channel reference to Alpine state
         activeChatChannel: null,
+
+        // --- Shared State ---
+        selectedProfileUser: null, 
+        
+        // --- Report Modal State ---
+        showReportModal: false,
+        reportTab: 'select', 
+        availableReasons: [],
+        selectedReasonIds: [],
+        reportDescription: '',
 
        // Live filtered movies getter
         get filteredMovies() {
@@ -325,38 +333,70 @@ function userDashboard() {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ sender_id: targetUserId, action: action })
             })
-            .then(res => res.json())
+            .then(async res => {
+                // Fix 1: Read raw text first to prevent silent JSON syntax crashes 
+                // caused by backend warnings or extra whitespace
+                const rawText = await res.text();
+                try {
+                    return JSON.parse(rawText);
+                } catch (err) {
+                    console.error("respond_friend.php returned invalid JSON:", rawText);
+                    throw new Error("Invalid JSON response from server");
+                }
+            })
             .then(data => {
-                if (data.success) {
+                if (data && data.success) {
                     if (window.showToast) window.showToast(`Friend request ${action}ed!`, 'success');
 
-                    const acceptedUser = this.pendingRequests.find(req => Number(req.user_id) === targetUserId);
+                    // Fix 2: Find the user details regardless of which page/panel the accept was clicked from
+                    let acceptedUser = this.pendingRequests.find(req => Number(req.user_id) === targetUserId);
+                    
+                    // If not found in pending, check notifications
+                    if (!acceptedUser) {
+                        const notifUser = this.notifications.find(n => Number(n.sender_id) === targetUserId);
+                        if (notifUser) acceptedUser = { user_id: notifUser.sender_id, user_name: notifUser.sender_name };
+                    }
+                    
+                    // If still not found, check search results
+                    if (!acceptedUser) {
+                        const searchUser = this.searchResults.find(u => Number(u.user_id) === targetUserId);
+                        if (searchUser) acceptedUser = { user_id: searchUser.user_id, user_name: searchUser.user_name || searchUser.name };
+                    }
 
-                    // Synchronize state using numeric comparisons
+                    // Synchronize State Arrays (Immediately remove the requests/notifications)
                     this.pendingRequests = this.pendingRequests.filter(req => Number(req.user_id) !== targetUserId);
                     this.notifications = this.notifications.filter(notif => Number(notif.sender_id) !== targetUserId);
                     this.unreadNotifCount = this.notifications.filter(n => Number(n.is_read) === 0).length;
 
+                    // Update Search Results UI instantly
                     const userIndex = this.searchResults.findIndex(u => Number(u.user_id) === targetUserId);
                     if (userIndex !== -1) {
                         this.searchResults[userIndex].friend_status = action === 'accept' ? 'accepted' : null;
-                        this.searchResults = [...this.searchResults];
+                        this.searchResults = [...this.searchResults]; // Trigger Alpine reactivity
                     }
 
                     if (action === 'accept') {
-                        if (acceptedUser) {
+                        // Optimistically add to local friends list to update the dashboard counter and menus instantly
+                        if (acceptedUser && !this.friends.some(f => Number(f.user_id) === targetUserId)) {
                             this.friends = [...this.friends, {
                                 user_id: acceptedUser.user_id,
-                                user_name: acceptedUser.user_name
+                                user_name: acceptedUser.user_name || "New Friend",
+                                unread_count: 0
                             }];
+                            this.updateFriendsCount();
                         }
+                        
+                        // Fetch fresh data in the background to ensure perfect database sync
                         this.fetchFriends().then(() => {
                             this.initAllChatSubscriptions();
                         });
                     }
+                } else {
+                    console.error("Action failed:", data);
+                    if (window.showToast) window.showToast(data.message || 'Action failed', 'error');
                 }
             })
-            .catch(error => console.error("Error:", error));
+            .catch(error => console.error("Fetch/Network Error:", error));
         },
 
         sendFriendRequest(userId) {
@@ -617,6 +657,28 @@ function userDashboard() {
         // Add activeSubscriptions to your state object at the top:
         activeSubscriptions: new Set(),
 
+        clearFriendUnread(friendId) {
+            const id = Number(friendId);
+            this.friends = this.friends.map(f =>
+                Number(f.user_id || f.friend_id || f.id) === id
+                    ? { ...f, unread_count: 0 }
+                    : f
+            );
+        },
+
+        incrementFriendUnread(friendId) {
+            const id = Number(friendId);
+            let friendName = null;
+            this.friends = this.friends.map(f => {
+                if (Number(f.user_id || f.friend_id || f.id) === id) {
+                    friendName = f.user_name;
+                    return { ...f, unread_count: (Number(f.unread_count) || 0) + 1 };
+                }
+                return f;
+            });
+            return friendName;
+        },
+
         // Reusable Channel Subscription Helper
         subscribeToChatChannel(friendId) {
             const targetFriendId = Number(friendId);
@@ -649,7 +711,7 @@ function userDashboard() {
 
                 if (isCurrentActiveChat) {
                     this.chatMessages = [...this.chatMessages, {
-                        id: data.id || 'live-' + Date.now(), 
+                        id: data.message_id || data.id || 'live-' + Date.now(),
                         sender: 'them',
                         text: data.message_text,
                         time: this.formatTime(data.time)
@@ -662,19 +724,29 @@ function userDashboard() {
                         body: JSON.stringify({ sender_id: senderId })
                     });
                 } else {
-                    const friendItem = this.friends.find(f => Number(f.user_id || f.friend_id || f.id) === senderId);
-                    if (friendItem) {
-                        friendItem.unread_count = (Number(friendItem.unread_count) || 0) + 1;
+                    const friendName = this.incrementFriendUnread(senderId);
+                    if (friendName && typeof window.showToast === 'function') {
+                        window.showToast(`New message from ${friendName}`, 'info');
                     }
                 }
             });
 
             channel.bind('messages_read', (data) => {
+                const readerId = Number(data.reader_id);
+                const senderId = Number(data.sender_id);
+                const currentUserId = Number(window.CURRENT_USER_ID);
+
+                // Receiver opened chat on another tab — sync unread badge here
+                if (readerId === currentUserId && senderId) {
+                    this.clearFriendUnread(senderId);
+                }
+
+                // Sender sees read receipts in the active chat
                 const activeFriendId = Number(this.activeChatFriend?.user_id || this.activeChatFriend?.friend_id || this.activeChatFriend?.id);
-                if (Number(data.reader_id) === activeFriendId) {
-                    this.chatMessages.forEach(msg => {
-                        if (msg.sender === 'me') msg.is_read = 1;
-                    });
+                if (readerId === activeFriendId) {
+                    this.chatMessages = this.chatMessages.map(msg =>
+                        msg.sender === 'me' ? { ...msg, is_read: 1 } : msg
+                    );
                 }
             });
         },
@@ -690,10 +762,10 @@ function userDashboard() {
             const friendId = Number(friend.user_id || friend.friend_id || friend.id);
             if (!friendId) return;
 
-            this.activeChatFriend = { ...friend, user_id: friendId };
+            this.activeChatFriend = { ...friend, user_id: friendId, unread_count: 0 };
             this.chatMessages = [];
             this.showChatPanel = true;
-            friend.unread_count = 0;
+            this.clearFriendUnread(friendId);
 
             // Ensure live subscription is active for this friend immediately
             this.subscribeToChatChannel(friendId);
@@ -744,55 +816,139 @@ function userDashboard() {
                 }
             }, 200);
         },
-        openReportModal() {
-            this.showReportModal = true;
-            this.activeDropdown = null;
+        
+        //report and unfriend
+       // --- Fetch Predefined Reasons ---
+        fetchReasons() {
+            fetch('/user_backend/get_reasons.php')
+                .then(res => res.json())
+                .then(data => {
+                    if (data.success) {
+                        this.availableReasons = data.reasons;
+                    }
+                })
+                .catch(err => console.error("Failed to fetch reasons", err));
         },
+
+        // --- Report User Logic ---
+        openReportModal(user) {
+            // Fallback to the currently selected dropdown user
+            const targetUser = user || this.selectedProfileUser;
+            
+            if (!targetUser) return;
+            
+            this.selectedProfileUser = targetUser;
+            this.reportTab = 'select'; 
+            this.selectedReasonIds = []; 
+            this.reportDescription = ''; 
+            this.showReportModal = true;
+            this.activeDropdown = null; // Close option dropdown when modal opens
+        },
+
         closeReportModal() {
             this.showReportModal = false;
-            setTimeout(() => { this.reportReason = ""; this.selectedProfileUser = null; }, 300);
+            setTimeout(() => {
+                this.selectedProfileUser = null;
+                this.selectedReasonIds = [];
+                this.reportDescription = '';
+            }, 300);
         },
-        async unfriendUser() {
+
+        submitReport() {
             if (!this.selectedProfileUser) return;
-            const friendId = this.selectedProfileUser.user_id || this.selectedProfileUser.friend_id;
-            try {
-                const res = await fetch('/user_backend/remove_friend.php', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ friend_id: friendId })
-                });
-                const data = await res.json();
+            if (this.selectedReasonIds.length === 0 && !this.reportDescription.trim()) return;
+
+            const targetId = Number(
+                this.selectedProfileUser.user_id || 
+                this.selectedProfileUser.friend_id || 
+                this.selectedProfileUser.id
+            );
+
+            fetch('/user_backend/submit_report.php', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                    reported_id: targetId,
+                    type: 'user', 
+                    description: this.reportDescription, 
+                    reason_ids: this.selectedReasonIds 
+                })
+            })
+            .then(res => res.json())
+            .then(data => {
                 if (data.success) {
-                    window.showToast('Friend removed successfully', 'success');
-                    this.friends = this.friends.filter(f => Number(f.user_id) !== Number(friendId));
-                    this.closeDropdown();
+                    this.closeReportModal();
+                    if (window.showToast) window.showToast('Report submitted successfully.', 'success');
                 } else {
-                    window.showToast(data.message || 'Error removing friend', 'error');
+                    if (window.showToast) window.showToast(data.message || 'Report failed.', 'error');
                 }
-            } catch (err) {
-                window.showToast('Network error', 'error');
-            }
+            })
+            .catch(err => console.error("Report error:", err));
         },
-        async reportUser() {
-            if (!this.selectedProfileUser) return;
-            const friendId = this.selectedProfileUser.user_id || this.selectedProfileUser.friend_id;
-            const reason = this.reportReason || 'Inappropriate behavior';
-            try {
-                const res = await fetch('/user_backend/report_user.php', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ reported_id: friendId, reason })
-                });
-                const data = await res.json();
-                if (data.success) {
-                    window.showToast('Report submitted', 'success');
-                    this.closeDropdown();
-                } else {
-                    window.showToast(data.message || 'Error submitting report', 'error');
+
+        // --- Unfriend Logic ---
+        unfriendUser(user) {
+            // Fallback to the currently selected dropdown user
+            const targetUser = user || this.selectedProfileUser;
+            
+            if (!targetUser) return;
+            
+            const targetId = Number(targetUser.user_id || targetUser.friend_id || targetUser.id);
+            const userName = targetUser.user_name || targetUser.name || 'this user';
+
+            if (!confirm(`Are you sure you want to unfriend ${userName}?`)) return;
+
+            fetch('/user_backend/unfriend.php', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    friend_id: targetId
+                })
+            })
+            .then(async res => {
+                const rawText = await res.text();
+
+                console.log('UNFRIEND HTTP STATUS:', res.status);
+                console.log('UNFRIEND RAW RESPONSE:', rawText);
+
+                try {
+                    return JSON.parse(rawText);
+                } catch (e) {
+                    throw new Error(
+                        'unfriend.php returned invalid JSON:\n' + rawText
+                    );
                 }
-            } catch (err) {
-                window.showToast('Network error', 'error');
-            }
+            })
+            .then(data => {
+                if (data.success) {
+                    if (window.showToast) {
+                        window.showToast(
+                            'User removed from friends.',
+                            'success'
+                        );
+                    }
+
+                    this.friends = this.friends.filter(
+                        f => Number(f.user_id || f.friend_id || f.id) !== targetId
+                    );
+
+                    this.updateFriendsCount();
+                    this.closeDropdown();
+
+                } else {
+                    if (window.showToast) {
+                        window.showToast(
+                            data.message || 'Failed to unfriend user.',
+                            'error'
+                        );
+                    }
+                }
+            })
+            .catch(err => {
+                console.error('Unfriend error:', err);
+            });
         },
 
         // 4. Updated closeChat Method
@@ -1301,7 +1457,7 @@ function userDashboard() {
                     if (!list) return false;
                     for (let i = 0; i < list.length; i++) {
                         if (Number(list[i].id) === Number(data.comment_id)) {
-                            list[i].likes = data.likes;
+                            list[i].likes_count = Number(data.likes_count);
                             return true;
                         }
                         if (list[i].replies && findAndSetLikes(list[i].replies)) {
@@ -1354,27 +1510,61 @@ function userDashboard() {
         initPusher() {
             if (!window.CURRENT_USER_ID || typeof Pusher === 'undefined') return;
 
-                if (!this.pusherClient) {
-                    this.pusherClient = new Pusher('f4b5637ef4b8952b6eb8', {
-                        cluster: 'ap1',
-                        encrypted: true
-                    });
-                }   
+            if (!this.pusherClient) {
+                this.pusherClient = new Pusher('f4b5637ef4b8952b6eb8', {
+                    cluster: 'ap1',
+                    encrypted: true
+                });
+            }   
 
-                // Subscribing using the correctly injected PHP variable
-                const channel = this.pusherClient.subscribe(`user-${window.CURRENT_USER_ID}`);
+            const channel = this.pusherClient.subscribe(`user-${window.CURRENT_USER_ID}`);
 
-                channel.bind('watchlist-updated', (data) => {
-                    const movieId = data.movie_id;
-                    const action = data.action;
+            channel.bind('notifications_read', () => {
+                this.unreadNotifCount = 0;
+                this.notifications = this.notifications.map(n => ({ ...n, is_read: 1 }));
+            });
 
-                // 1. Update the main movies catalog state
+            channel.bind('notifications_cleared', () => {
+                this.notifications = [];
+                this.unreadNotifCount = 0;
+            });
+
+            // Real-time unfriend
+            channel.bind('friend-removed', (data) => {
+                const removedId = Number(data.friend_id);
+
+                this.friends = this.friends.filter(
+                    f => Number(f.user_id || f.friend_id || f.id) !== removedId
+                );
+
+                this.updateFriendsCount();
+
+                // Also update search results immediately
+                this.searchResults = this.searchResults.map(user => {
+                    if (Number(user.user_id) === removedId) {
+                        return {
+                            ...user,
+                            friend_status: null,
+                            requester_id: null
+                        };
+                    }
+                    return user;
+                });
+
+                if (window.showToast) {
+                    window.showToast('A friendship was removed.', 'info');
+                }
+            });
+
+            channel.bind('watchlist-updated', (data) => {
+                const movieId = data.movie_id;
+                const action = data.action;
+
                 const catalogItem = this.movies.find(m => Number(this.getMovieId(m)) === Number(movieId));
                 if (catalogItem) {
                     catalogItem.inWatchlist = (action === 'added');
                 }
 
-                // 2. Update the dedicated watchlist array
                 if (action === 'removed') {
                     this.watchlist = this.watchlist.filter(w => Number(w.id) !== Number(movieId));
                 } else if (action === 'added') {
@@ -1383,7 +1573,6 @@ function userDashboard() {
             });
 
             channel.bind('friend_event', (data) => {
-                //Reassign the array so Alpine triggers a UI update instantly
                 this.notifications = [
                     {
                         id: Date.now(),
@@ -1402,7 +1591,6 @@ function userDashboard() {
                 if (data.type === 'friend_request') {
                     const alreadyExists = this.pendingRequests.some(r => r.user_id == data.sender_id);
                     if (!alreadyExists) {
-                        //Reassign the array instead of using unshift()
                         this.pendingRequests = [
                             {
                                 user_id: data.sender_id,
@@ -1414,35 +1602,34 @@ function userDashboard() {
                 }
 
                 if (data.type === 'friend_accepted') {
-                    // Force Alpine to update the friends list instantly
-                    const friendExists = this.friends.some(f => f.user_id == data.acceptor_id);
-                    
+                    const acceptorId = Number(data.sender_id);
+                    const acceptorName = data.sender_name;
+
+                    const friendExists = this.friends.some(f => Number(f.user_id) === acceptorId);
                     if (!friendExists) {
                         this.friends = [
-                            ...this.friends, 
+                            ...this.friends,
                             {
-                                user_id: data.acceptor_id,
-                                user_name: data.acceptor_name
+                                user_id: acceptorId,
+                                user_name: acceptorName,
+                                unread_count: 0
                             }
                         ];
+                        this.subscribeToChatChannel(acceptorId);
                     }
 
-                    // Update search results status if they happen to be looking at them
-                    const userIndex = this.searchResults.findIndex(u => u.user_id == data.acceptor_id);
+                    const userIndex = this.searchResults.findIndex(u => Number(u.user_id) === acceptorId);
                     if (userIndex !== -1) {
                         this.searchResults[userIndex].friend_status = 'accepted';
                         this.searchResults = [...this.searchResults];
                     }
-                    
-                    if (window.showToast) window.showToast(`${data.acceptor_name} accepted your request!`, 'success');
-                }
 
-                if (typeof window.showToast === 'function') {
+                    if (window.showToast) window.showToast(`${acceptorName} accepted your request!`, 'success');
+                } else if (typeof window.showToast === 'function') {
                     const toastType = data.type === 'friend_rejected' ? 'error' : 'success';
                     window.showToast(`${data.sender_name} ${data.message}`, toastType);
                 }
 
-                // Background re-fetch to keep lists synced across tabs and clients
                 this.fetchFriends();
                 this.searchUsers();
                 this.fetchNotifications();
@@ -1454,6 +1641,7 @@ function userDashboard() {
             if (typeof gsap !== 'undefined') gsap.config({ nullTargetWarn: false });
 
             // 2. Initial Data Fetches
+            this.fetchReasons();
             await this.fetchMovies(); 
             await this.fetchWatchlist();
             this.fetchFriends();
@@ -1464,7 +1652,6 @@ function userDashboard() {
             // 3. Real-Time Connections
             this.initPusher();
             this.initAllChatSubscriptions();
-            this.subscribeToLiveMovieEvents();
 
             // 4. Watchers & Interactions
             this.$watch('friends', () => this.updateFriendsCount());

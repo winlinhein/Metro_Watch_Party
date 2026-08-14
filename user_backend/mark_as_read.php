@@ -40,6 +40,7 @@ $maxId = max($reader_id, $sender_id);
 $channelName = "chat-{$minId}-{$maxId}";
 
 triggerPusherEvent($channelName, 'messages_read', [
-    'reader_id' => $reader_id
+    'reader_id' => $reader_id,
+    'sender_id' => $sender_id
 ]);
 echo json_encode(['success' => true]);
