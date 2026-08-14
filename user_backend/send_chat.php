@@ -26,20 +26,21 @@ $stmt = $conn->prepare("INSERT INTO friends_message (sender_id, receiver_id, mes
 $stmt->execute([$senderId, $receiverId, $messageText]);
 $messageId = $conn->lastInsertId();
 
-// Backend logic inside send_chat.php
+$time = date('h:i A');
+
 $minId = min($senderId, $receiverId);
 $maxId = max($senderId, $receiverId);
 $channelName = "chat-{$minId}-{$maxId}";
 
-$data = [
-    'id'           => $messageId,
-    'sender_id'    => $senderId,
-    'receiver_id'  => $receiverId,
+$payload = [
+    'message_id' => $messageId,
+    'sender_id' => $senderId,
+    'receiver_id' => $receiverId,
     'message_text' => $messageText,
-    'time'         => date('Y-m-d H:i:s')
+    'time' => $time
 ];
 
-// Event name MUST match JS binding ('new_message')
-$pusher->trigger($channelName, 'new_message', $data);
+// Trigger Pusher event using the $pusher object initialized in pusher_helper.php
+triggerPusherEvent($channelName, "new_message", $payload);
 
 echo json_encode(['success' => true, 'data' => $payload]);

@@ -167,10 +167,17 @@
                                 </div>
 
                                 <div>
-                                    <label class="block text-[11px] font-extrabold text-white/40 uppercase tracking-widest mb-2">Trailer / Video Stream URL</label>
+                                    <label class="block text-[11px] font-extrabold text-white/40 uppercase tracking-widest mb-2">Trailer URL</label>
                                     <div class="flex items-center bg-white/[0.03] border border-white/10 rounded-2xl px-4 py-3 focus-within:border-red-500/60 focus-within:ring-2 focus-within:ring-red-500/20 transition-all">
+                                        <span class="material-symbols-outlined text-white/30 mr-2.5 text-[18px]">movie</span>
+                                        <input type="text" x-model="newMovie.trailer" placeholder="https://youtube.com/watch?v=..." class="w-full bg-transparent text-sm text-white focus:outline-none placeholder:text-white/20">
+                                    </div>
+                                </div>
+                                <div>
+                                    <label class="block text-[11px] font-extrabold text-white/40 uppercase tracking-widest mb-2">Actual Movie Video URL</label>
+                                    <div class="flex items-center bg-white/[0.03] border border-white/10 rounded-2xl px-4 py-3 focus-within:border-indigo-500/60 focus-within:ring-2 focus-within:ring-indigo-500/20 transition-all">
                                         <span class="material-symbols-outlined text-white/30 mr-2.5 text-[18px]">smart_display</span>
-                                        <input type="text" x-model="newMovie.video_url" placeholder="https://youtube.com/watch?v=..." class="w-full bg-transparent text-sm text-white focus:outline-none placeholder:text-white/20">
+                                        <input type="text" x-model="newMovie.actual_video_url" placeholder="https://mp4-server.com/movie.mp4" class="w-full bg-transparent text-sm text-white focus:outline-none placeholder:text-white/20">
                                     </div>
                                 </div>
                             </div>

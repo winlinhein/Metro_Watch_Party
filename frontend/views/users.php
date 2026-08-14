@@ -1,7 +1,7 @@
 <!-- Users View -->
 <div data-tab-panel="users" style="display: none;" class="absolute inset-0 p-10 w-full min-h-full">
 
-    <div class="flex items-center justify-between mb-10 stagger-item">
+    <div class="flex flex-col md:flex-row items-start md:items-center justify-between mb-6 gap-4 stagger-item">
         <div>
             <h2 class="text-3xl font-bold text-white tracking-tight mb-1">User Directory</h2>
         </div>
@@ -16,14 +16,20 @@
                 <option class="bg-[#030305] text-white" value="User">User / Standard</option>
                 <option class="bg-[#030305] text-white" value="Premium">Premium</option>
                 <option class="bg-[#030305] text-white" value="Admin">Admin</option>
+                <option class="bg-[#030305] text-white" value="Moderator">Moderator</option>
             </select>
         </div>
+    </div>
+    
+    <div class="flex gap-4 mb-6 border-b border-white/10 pb-3 stagger-item">
+        <button @click="userCategoryTab = 'Users'" class="px-4 py-2 text-sm font-bold transition-all rounded-lg" :class="userCategoryTab === 'Users' ? 'bg-indigo-500/20 text-indigo-400 border border-indigo-500/30' : 'text-white/50 hover:text-white'">Standard Users</button>
+        <button @click="userCategoryTab = 'Moderators'" class="px-4 py-2 text-sm font-bold transition-all rounded-lg" :class="userCategoryTab === 'Moderators' ? 'bg-indigo-500/20 text-indigo-400 border border-indigo-500/30' : 'text-white/50 hover:text-white'">Moderators & Admins</button>
     </div>
 
     <!-- Error Alert -->
     <div x-show="errorMessage" style="display: none;" class="mb-6 p-4 bg-red-500/10 border border-red-500/20 rounded-xl text-red-400 text-sm" x-text="errorMessage"></div>
 
-    <div class="glass-card rounded-2xl overflow-hidden stagger-item border-white/10 relative min-h-[400px]">
+    <div class="glass-card rounded-2xl stagger-item border-white/10 relative min-h-[400px]">
         
         <!-- Loading Overlay -->
         <div x-show="isLoading" class="absolute inset-0 bg-[#030305]/70 backdrop-blur-sm z-20 flex items-center justify-center">
@@ -33,7 +39,7 @@
             </div>
         </div>
 
-        <div class="overflow-x-auto">
+        <div class="w-full">
             <table class="w-full text-left border-collapse whitespace-nowrap">
                 <thead>
                     <tr class="border-b border-white/10 bg-white/5">
@@ -42,12 +48,12 @@
                         <th class="p-5 text-xs font-bold text-white/50 uppercase tracking-wider">Status</th>
                         <th class="p-5 text-xs font-bold text-white/50 uppercase tracking-wider">Clearance</th>
                         <th class="p-5 text-xs font-bold text-white/50 uppercase tracking-wider">Points</th>
-                        <th class="p-5 text-xs font-bold text-white/50 uppercase tracking-wider text-right">Directives</th>
+                        
                     </tr>
                 </thead>
                 <tbody>
                     <template x-for="(user, index) in filteredUsers" :key="user.id">
-                        <tr class="border-b border-white/5 hover:bg-white/[0.03] transition-colors group user-row" >
+                        <tr class="border-b border-white/5 hover:bg-white/[0.03] transition-colors group user-row cursor-pointer" x-data="{ dropdownOpen: false, mouseX: 0, mouseY: 0 }" @click="dropdownOpen = !dropdownOpen; mouseX = $event.clientX + 220 < window.innerWidth ? $event.clientX + 15 : $event.clientX - 205; mouseY = $event.clientY + 180 < window.innerHeight ? $event.clientY + 15 : $event.clientY - 165;" @click.away="dropdownOpen = false">
                             <td class="p-5 flex items-center gap-4">
                                 <div class="relative">
                                     <img :src="`https://ui-avatars.com/api/?name=${encodeURIComponent(user.name)}&background=random&color=fff&bold=true`" class="w-10 h-10 rounded-xl border border-white/10 group-hover:border-white/30 transition-colors">
@@ -77,23 +83,36 @@
                                     <span x-text="user.role"></span>
                                 </span>
                             </td>
-                            <td class="p-5 text-white/80 font-bold mono" x-text="user.points"></td>
-                            <td class="p-5 text-right">
-                                <button class="w-8 h-8 rounded-lg bg-white/5 hover:bg-white text-white/60 hover:text-black transition-all mr-2 inline-flex items-center justify-center border border-transparent hover:border-white hover:scale-110">
-                                    <span class="material-symbols-outlined text-[16px]">edit</span>
-                                </button>
-                                <button @click="openBanModal(user)" 
-                                        :disabled="user.status === 'Banned'"
-                                        class="w-8 h-8 rounded-lg transition-all inline-flex items-center justify-center border hover:scale-110"
-                                        :class="user.status === 'Banned' ? 'bg-red-500/20 text-red-500/50 border-red-500/20 cursor-not-allowed' : 'bg-white/5 hover:bg-red-500 text-white/60 hover:text-white border-transparent hover:border-red-400 hover:shadow-[0_0_15px_rgba(239,68,68,0.5)]'">
-                                    <span class="material-symbols-outlined text-[16px]">block</span>
-                                </button>
+                            <td class="p-5 text-white/80 font-bold mono relative">
+                                <span x-text="user.points"></span>
+                                <template x-teleport="body">
+                                    <div x-show="dropdownOpen" style="display: none;" @click.stop :style="`top: ${mouseY}px; left: ${mouseX}px;`" class="fixed w-48 bg-[#0a0a0f] border border-white/10 rounded-xl shadow-[0_0_30px_rgba(0,0,0,0.8)] z-[9999] overflow-hidden flex flex-col" x-transition.opacity>
+                                    
+                                    <!-- Options for Standard Users -->
+                                    <template x-if="user.role !== 'Moderator' && user.role !== 'Admin'">
+                                        <button @click="promoteModerator(user); dropdownOpen = false;" class="flex items-center gap-3 px-4 py-3 hover:bg-indigo-500/10 text-white hover:text-indigo-400 text-sm font-bold border-b border-white/5 transition-colors text-left w-full">
+                                            <span class="material-symbols-outlined text-[18px]">verified_user</span> Promote to Moderator
+                                        </button>
+                                    </template>
+
+                                    <!-- Options for Moderators -->
+                                    <template x-if="user.role === 'Moderator'">
+                                        <button @click="demoteModerator(user); dropdownOpen = false;" class="flex items-center gap-3 px-4 py-3 hover:bg-orange-500/10 text-white hover:text-orange-400 text-sm font-bold border-b border-white/5 transition-colors text-left w-full">
+                                            <span class="material-symbols-outlined text-[18px]">remove_moderator</span> Demote Moderator
+                                        </button>
+                                    </template>
+
+                                    <button @click="openBanModal(user); dropdownOpen = false;" :disabled="user.status === 'Banned'" class="flex items-center gap-3 px-4 py-3 hover:bg-red-500/10 text-white hover:text-red-400 text-sm font-bold transition-colors text-left w-full disabled:opacity-50 disabled:cursor-not-allowed">
+                                        <span class="material-symbols-outlined text-[18px]">block</span> Suspend User
+                                    </button>
+                                </div>
+                                </template>
                             </td>
                         </tr>
                     </template>
                     
                     <tr x-show="!isLoading && filteredUsers.length === 0" style="display: none;">
-                        <td colspan="6" class="p-10 text-center text-white/40">
+                        <td colspan="5" class="p-10 text-center text-white/40">
                             <div class="flex flex-col items-center justify-center">
                                 <span class="material-symbols-outlined text-4xl mb-2 opacity-50">search_off</span>
                                 <p>No users found matching your filters.</p>

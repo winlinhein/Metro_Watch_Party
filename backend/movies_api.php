@@ -34,6 +34,7 @@ if ($method === 'GET') {
                 m.description,
                 m.poster AS img,
                 m.video_url AS trailer,
+                m.actual_video_url,
                 m.duration,
                 m.view_count,
                 m.created_at,
@@ -85,6 +86,7 @@ if ($method === 'POST') {
     $description = trim($input['description'] ?? '');
     $poster      = trim($input['img'] ?? '');
     $videoUrl    = trim($input['trailer'] ?? '');
+    $actualVideoUrl = trim($input['actual_video_url'] ?? '');
     $duration    = !empty($input['duration']) ? (int)$input['duration'] : null;
     $genreIds    = $input['genre_ids'] ?? []; 
 
@@ -100,18 +102,15 @@ if ($method === 'POST') {
         if ($movieId) {
             // Update existing movie
             $stmt = $conn->prepare("
-                UPDATE movies 
-                SET title = ?, description = ?, poster = ?, video_url = ?, duration = ? 
-                WHERE movie_id = ?
+                UPDATE movies SET title = ?, description = ?, poster = ?, video_url = ?, actual_video_url = ?, duration = ? WHERE movie_id = ?
             ");
-            $stmt->execute([$title, $description, $poster, $videoUrl, $duration, $movieId]);
+            $stmt->execute([$title, $description, $poster, $videoUrl, $actualVideoUrl, $duration, $movieId]);
         } else {
             // Insert new movie
             $stmt = $conn->prepare("
-                INSERT INTO movies (title, description, poster, video_url, duration, view_count) 
-                VALUES (?, ?, ?, ?, ?, 0)
+                INSERT INTO movies (title, description, poster, video_url, actual_video_url, duration, view_count) VALUES (?, ?, ?, ?, ?, ?, 0)
             ");
-            $stmt->execute([$title, $description, $poster, $videoUrl, $duration]);
+            $stmt->execute([$title, $description, $poster, $videoUrl, $actualVideoUrl, $duration]);
             $movieId = $conn->lastInsertId();
         }
 

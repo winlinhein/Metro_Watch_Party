@@ -1,9 +1,30 @@
 import express from "express";
 import fs from "fs";
 import path from "path";
+import { createServer } from "http";
+import { Server } from "socket.io";
 
 const app = express();
 const PORT = 3000;
+const httpServer = createServer(app);
+const io = new Server(httpServer, {
+  cors: { origin: "*" }
+});
+
+io.on("connection", (socket) => {
+  socket.on("join_chat", (room) => {
+    socket.join(room);
+  });
+  
+  socket.on("leave_chat", (room) => {
+    socket.leave(room);
+  });
+  
+  socket.on("send_message", (data) => {
+    // broadcast to everyone in the room
+    io.to(data.room).emit("new_message", data);
+  });
+});
 
 // Parse POST requests
 app.use(express.urlencoded({ extended: true }));
@@ -100,6 +121,37 @@ app.post("/user_backend/clear_notifications.php", (req, res) => {
   res.json({ success: true });
 });
 
+app.get("/user_backend/get_chat_history.php", (req, res) => {
+  const friendId = req.query.friend_id;
+  res.json({
+    success: true,
+    messages: [
+      { message_id: 1, sender_id: friendId, receiver_id: 1, message_text: "Hello from mock!", time: "10:00 AM", is_read: 1 }
+    ]
+  });
+});
+
+app.post("/user_backend/send_chat.php", (req, res) => {
+  res.json({ success: true, message_id: Date.now() });
+});
+
+app.post("/user_backend/mark_as_read.php", (req, res) => {
+  res.json({ success: true });
+});
+
+
+app.get("/backend/dashboard_stats_api.php", (req, res) => {
+  res.json([
+      { label: 'Total Users', value: '150', change: '+12%', icon: 'group' },
+      { label: 'Active Sessions', value: '10', change: '+5%', icon: 'live_tv' },
+      { label: 'Revenue', value: '$2,500', change: '+15%', icon: 'payments' },
+      { label: 'Server Load', value: '35%', change: '-2%', icon: 'memory' }
+  ]);
+});
+app.post("/user_backend/mark_notifications_read.php", (req, res) => {
+  res.json({ success: true });
+});
+
 app.get("/user_backend/get_notifications.php", (req, res) => {
   res.json({
     success: true,
@@ -109,7 +161,21 @@ app.get("/user_backend/get_notifications.php", (req, res) => {
 
 app.get("/user_backend/movies_api.php", (req, res) => {
   res.json([
-    { id: 1, title: "Inception", genres: ["Sci-Fi", "Action"], year: 2010 }
+    { 
+      id: 1, 
+      title: "Inception", 
+      genres: ["Sci-Fi", "Action"], 
+      year: 2010,
+      description: "A thief who steals corporate secrets through the use of dream-sharing technology...",
+      img: "https://image.tmdb.org/t/p/w500/9gk7adHYeDvHkCSEqAvQNLV5Uge.jpg",
+      cover_image: "https://image.tmdb.org/t/p/w500/9gk7adHYeDvHkCSEqAvQNLV5Uge.jpg",
+      trailer: "https://www.youtube.com/watch?v=YoHD9XEInc0",
+      actual_video_url: "https://www.w3schools.com/html/mov_bbb.mp4",
+      duration: 148,
+      view_count: 5020,
+      rating: 4.8,
+      user_rating: 0
+    }
   ]);
 });
 
@@ -163,9 +229,19 @@ app.post("/user_backend/add_friend.php", (req, res) => {
 });
 
 app.get("/backend/users_api.php", (req, res) => {
-  res.json([]);
+  res.json([
+    { id: 1, name: "Alice", email: "alice@example.com", status: "Active", role: "Admin", points: 1250 },
+    { id: 2, name: "Bob", email: "bob@example.com", status: "Active", role: "Premium", points: 840 },
+    { id: 3, name: "Charlie", email: "charlie@example.com", status: "Banned", role: "Standard", points: 15 },
+    { id: 4, name: "Diana", email: "diana@example.com", status: "Pending", role: "Standard", points: 0 },
+    { id: 5, name: "Eve", email: "eve@example.com", status: "Active", role: "Standard", points: 300 },
+    { id: 6, name: "Frank", email: "frank@example.com", status: "Active", role: "Moderator", points: 400 }
+  ]);
 });
 
+app.post("/backend/users_api.php", (req, res) => {
+  res.json({ success: true, message: "Action executed (Mock)." });
+});
 app.get("/backend/movies_api.php", (req, res) => {
   res.json([]);
 });
@@ -184,6 +260,10 @@ app.post("/backend/update_profile.php", (req, res) => {
 
 app.post("/backend/delete_account.php", (req, res) => {
   res.json({ success: true });
+});
+
+app.post("/backend/resend_otp.php", (req, res) => {
+  res.json({ success: true, message: "OTP resent successfully (Mock)." });
 });
 
 function handlePhpRequest(req: express.Request, res: express.Response) {
@@ -289,6 +369,6 @@ function processPhpMockup(content: string, req: express.Request, currentDir: str
   return content;
 }
 
-app.listen(PORT, "0.0.0.0", () => {
+httpServer.listen(PORT, "0.0.0.0", () => {
   console.log(`Server running on port ${PORT}`);
 });
