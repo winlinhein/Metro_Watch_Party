@@ -24,16 +24,12 @@ function userDashboard() {
         friendsTab: 'connected',
         movieModalOpen: false,
         editingMovie: false,
-        banModalOpen: false,
         viewModalOpen: false,
         roomModalOpen: false,
         modalOpen: false,
         modalMode: 'add',
 
         // Form & Data Objects
-        userToBan: null,
-        banReason: '',
-        banNotes: '',
         selectedReport: null,
         selectedRoom: null,
         formData: { name: '', price: 0, rarity: 'Common', image: '' },
@@ -567,63 +563,6 @@ function userDashboard() {
             this.newMovie = { ...movie, comments: movie.comments || [] };
             this.movieModalOpen = true;
         },
-        openBanModal(user) {
-            this.userToBan = user;
-            this.banReason = '';
-            this.banNotes = '';
-            this.banModalOpen = true;
-        },
-        async confirmBan() {
-            if (this.userToBan && this.banReason) {
-                try {
-                    const res = await fetch('/backend/users_api.php', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ action: 'ban', id: this.userToBan.id, reason: this.banReason, notes: this.banNotes })
-                    });
-                    const data = await res.json();
-                    if(data.success) {
-                        this.userToBan.status = 'Banned';
-                        window.showToast(data.message || 'User suspended', 'success');
-                    } else {
-                        window.showToast(data.error || 'Failed to ban user', 'error');
-                    }
-                } catch(e) { console.error(e); window.showToast('Network error', 'error'); }
-                this.banModalOpen = false;
-            }
-        },
-        async promoteModerator(user) {
-            try {
-                const res = await fetch('/backend/users_api.php', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ action: 'promote_moderator', id: user.id })
-                });
-                const data = await res.json();
-                if(data.success) {
-                    user.role = 'Moderator';
-                    window.showToast(data.message || 'User promoted', 'success');
-                } else {
-                    window.showToast(data.error || 'Failed to promote user', 'error');
-                }
-            } catch(e) { console.error(e); window.showToast('Network error', 'error'); }
-        },
-        async demoteModerator(user) {
-            try {
-                const res = await fetch('/backend/users_api.php', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ action: 'demote_moderator', id: user.id })
-                });
-                const data = await res.json();
-                if(data.success) {
-                    user.role = 'Standard';
-                    window.showToast(data.message || 'User demoted', 'success');
-                } else {
-                    window.showToast(data.error || 'Failed to demote user', 'error');
-                }
-            } catch(e) { console.error(e); window.showToast('Network error', 'error'); }
-        },
         viewReport(report) {
             this.selectedReport = report;
             this.viewModalOpen = true;
@@ -874,7 +813,16 @@ function userDashboard() {
                     reason_ids: this.selectedReasonIds 
                 })
             })
-            .then(res => res.json())
+            .then(async res => {
+                const text = await res.text(); // Read the raw response first
+                try {
+                    return JSON.parse(text); // Try to parse it as JSON
+                } catch (e) {
+                    // If it fails, print the raw PHP error to the console!
+                    console.error("Backend returned HTML instead of JSON. Raw response:\n", text);
+                    throw new Error("Invalid JSON response");
+                }
+            })
             .then(data => {
                 if (data.success) {
                     this.closeReportModal();
@@ -2105,7 +2053,6 @@ setTimeout(() => {
         }
     }, 100);
 
-
 window.initAnimations = function(container = document) {
     const termsCheck = container.querySelector('#terms');
     const checkmark = container.querySelector('.success-checkmark');
@@ -2809,15 +2756,18 @@ window.handleLogout = async function() {
 function adminDashboard(userData = {}) {
     return {
         // Merged the duplicate init() logic here so both GSAP and fetchMovies() run properly
-        init() {
-            // Initial GSAP animations are now handled globally in admin_animations.js via Barba hooks
-            this.fetchMovies(); 
-        },
 
+        modalMode: 'add',         // Missing variable 1
+        formData: {               // Missing variable 2
+            name: '',
+            price: '',
+            rarity: '',
+            image: null
+        },
         currentTab: 'dashboard',
         isNavOpen: false,
         notificationsOpen: false,
-        unreadNotifications: 3,
+        unreadNotifications: 0,
         navItems: [
             { id: 'dashboard', label: 'Overview', icon: 'dashboard' },
             { id: 'users', label: 'Users', icon: 'group' },
@@ -2827,10 +2777,42 @@ function adminDashboard(userData = {}) {
             { id: 'reports', label: 'Reports', icon: 'flag' },
             { id: 'profile', label: 'Profile', icon: 'person' }
         ],
-        notifications: [
-            { id: 1, text: 'New user registered', time: '5m ago' },
-            { id: 2, text: 'Server CPU high', time: '1h ago' }
-        ],
+        notifications: [],
+        async fetchNotifications() {
+            try {
+                const response = await fetch('/user_backend/get_notifications.php');
+                if (!response.ok) return;
+
+                const rawText = await response.text(); // Read raw text first
+                
+                try {
+                    const data = JSON.parse(rawText);
+                    if (data.success && Array.isArray(data.notifications)) {
+                        this.notifications = data.notifications;
+                        this.unreadNotifCount = this.notifications.filter(n => Number(n.is_read) === 0).length;
+                    }
+                } catch (jsonErr) {
+                    console.error('Notification JSON Parse Error. Raw response:', rawText);
+                }
+            } catch (err) {
+                console.error('Notification network error:', err);
+            }
+        },
+        // Clear notification badge
+       markAllRead() {
+            if (this.unreadNotifCount === 0) return;
+
+            fetch('/user_backend/mark_notifications_read.php', { method: 'POST' })
+                .then(res => res.json())
+                .then(data => {
+                    if (data.success) {
+                        this.unreadNotifCount = 0;
+                        // Force Alpine to re-render by mapping to a completely new array
+                        this.notifications = this.notifications.map(n => ({ ...n, is_read: 1 }));
+                    }
+                })
+                .catch(err => console.error("Error marking read:", err));
+        },
         stats: [],
         statsLoading: false,
 
@@ -2985,10 +2967,89 @@ function adminDashboard(userData = {}) {
         // Reports
         viewModalOpen: false,
         selectedReport: null,
-        reportStats: { total: 10, pending: 2, read: 8 },
-        reportsList: [
-            { id: 101, user: 'Bob', type: 'Bug', status: 'Pending', excerpt: 'Video player stuttering', date: '2023-10-01' }
-        ],
+        reportsList: [],
+        reportStats: { total: 0, pending: 0, read: 0 },
+        filterStatus: 'all',
+
+        async fetchReports() {
+            try {
+                const response = await fetch('/backend/get_reports.php');
+                const data = await response.json();
+                
+                if (data.success) {
+                    this.reportsList = data.reports;
+                    this.updateReportStats();
+                }
+            } catch (error) {
+                console.error("Error fetching reports:", error);
+            }
+        },
+
+        updateReportStats() {
+            this.reportStats.total = this.reportsList.length;
+            this.reportStats.pending = this.reportsList.filter(r => r.status === 'Pending').length;
+            this.reportStats.read = this.reportsList.filter(r => r.status === 'Read').length;
+        },
+
+        // UPDATED: Opens the modal and marks the report as "Read" in the database
+        async viewReport(report) {
+            this.selectedReport = report;
+            this.viewModalOpen = true;
+
+            // If it's a new report, mark it as read when the admin opens it
+            if (report.status === 'Pending') {
+                try {
+                    const res = await fetch('/backend/update_report_status.php', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ report_id: report.id, status: 'Read' })
+                    });
+                    const data = await res.json();
+                    
+                    if (data.success) {
+                        report.status = 'Read';
+                        this.updateReportStats();
+                    }
+                } catch (e) {
+                    console.error("Failed to mark report as read:", e);
+                }
+            }
+        },
+
+        // UPDATED: Sends a request to the backend to mark the report as "Resolved"
+        async resolveReport() {
+            if (!this.selectedReport) return;
+
+            try {
+                const res = await fetch('/backend/update_report_status.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ report_id: this.selectedReport.id, status: 'Resolved' })
+                });
+                
+                const data = await res.json();
+                
+                if (data.success) {
+                    this.selectedReport.status = 'Resolved';
+                    this.viewModalOpen = false;
+                    this.updateReportStats();
+                    
+                    if (window.showToast) window.showToast('Report marked as resolved.', 'success');
+                } else {
+                    if (window.showToast) window.showToast(data.message || 'Failed to resolve report.', 'error');
+                }
+            } catch (e) {
+                console.error("Failed to resolve report:", e);
+                if (window.showToast) window.showToast('Network error while resolving report.', 'error');
+            }
+        },
+
+        get filteredReports() {
+            if (this.filterStatus === 'all') {
+                return this.reportsList;
+            }
+            return this.reportsList.filter(report => report.status.toLowerCase() === this.filterStatus);
+        },
 
         // Shop       
         modalOpen: false,
@@ -3219,65 +3280,206 @@ function adminDashboard(userData = {}) {
             this.banNotes = '';
             this.banModalOpen = true;
         },
-        async confirmBan() {
-            if (this.userToBan && this.banReason) {
+
+        // Use the deployed user_action.php location, with a safe fallback
+        // for installations where it lives under /backend.
+        async postUserAction(payload) {
+            const endpoints = [
+                '/user_backend/user_action.php',
+                '/backend/user_action.php'
+            ];
+
+            let lastError = null;
+
+            for (const endpoint of endpoints) {
                 try {
-                    const res = await fetch('/backend/users_api.php', {
+                    const res = await fetch(endpoint, {
                         method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ action: 'ban', id: this.userToBan.id, reason: this.banReason, notes: this.banNotes })
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify(payload)
                     });
-                    const data = await res.json();
-                    if(data.success) {
-                        this.userToBan.status = 'Banned';
-                        window.showToast(data.message || 'User suspended', 'success');
-                    } else {
-                        window.showToast(data.error || 'Failed to ban user', 'error');
+
+                    const raw = await res.text();
+
+                    if (res.status === 404) {
+                        console.warn(`User action endpoint not found: ${endpoint}`);
+                        continue;
                     }
-                } catch(e) { console.error(e); window.showToast('Network error', 'error'); }
+
+                    let data;
+
+                    try {
+                        data = JSON.parse(raw);
+                    } catch (parseError) {
+                        console.error(
+                            `Non-JSON response from ${endpoint}:`,
+                            raw
+                        );
+                        throw new Error('Invalid JSON response from server');
+                    }
+
+                    return data;
+
+                } catch (err) {
+                    lastError = err;
+
+                    if (
+                        err?.message ===
+                        'Invalid JSON response from server'
+                    ) {
+                        throw err;
+                    }
+                }
+            }
+
+            throw (
+                lastError ||
+                new Error('user_action.php endpoint was not found.')
+            );
+        },
+
+        async confirmBan() {
+            if (!this.userToBan || !this.banReason) return;
+
+            try {
+                const data = await this.postUserAction({
+                    action: 'ban',
+                    id: this.userToBan.id,
+                    reason: this.banReason,
+                    notes: this.banNotes
+                });
+
+                if (data.success) {
+                    this.userToBan.status = 'Banned';
+
+                    window.showToast(
+                        data.message || 'User suspended',
+                        'success'
+                    );
+                } else {
+                    window.showToast(
+                        data.error || 'Failed to ban user',
+                        'error'
+                    );
+                }
+
+            } catch (e) {
+                console.error('Ban error:', e);
+
+                window.showToast(
+                    e.message || 'Network error',
+                    'error'
+                );
+
+            } finally {
                 this.banModalOpen = false;
             }
         },
+
         async promoteModerator(user) {
             try {
-                const res = await fetch('/backend/users_api.php', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ action: 'promote_moderator', id: user.id })
+                const data = await this.postUserAction({
+                    action: 'promote_moderator',
+                    id: user.id
                 });
-                const data = await res.json();
-                if(data.success) {
+
+                if (data.success) {
                     user.role = 'Moderator';
-                    window.showToast(data.message || 'User promoted', 'success');
+                    user.role_id = 3;
+
+                    this.users = [...this.users];
+
+                    window.showToast(
+                        data.message || 'User promoted',
+                        'success'
+                    );
+
                 } else {
-                    window.showToast(data.error || 'Failed to promote user', 'error');
+                    window.showToast(
+                        data.error || 'Failed to promote user',
+                        'error'
+                    );
                 }
-            } catch(e) { console.error(e); window.showToast('Network error', 'error'); }
+
+            } catch (e) {
+                console.error('Promote error:', e);
+
+                window.showToast(
+                    e.message || 'Network error',
+                    'error'
+                );
+            }
         },
+
         async demoteModerator(user) {
             try {
-                const res = await fetch('/backend/users_api.php', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ action: 'demote_moderator', id: user.id })
+                const data = await this.postUserAction({
+                    action: 'demote_moderator',
+                    id: user.id
                 });
-                const data = await res.json();
-                if(data.success) {
-                    user.role = 'Standard';
-                    window.showToast(data.message || 'User demoted', 'success');
+
+                if (data.success) {
+                    user.role = 'User';
+                    user.role_id = 2;
+
+                    this.users = [...this.users];
+
+                    window.showToast(
+                        data.message || 'Moderator demoted',
+                        'success'
+                    );
+
                 } else {
-                    window.showToast(data.error || 'Failed to demote user', 'error');
+                    window.showToast(
+                        data.error || 'Failed to demote user',
+                        'error'
+                    );
                 }
-            } catch(e) { console.error(e); window.showToast('Network error', 'error'); }
+
+            } catch (e) {
+                console.error('Demote moderator error:', e);
+
+                window.showToast(
+                    e.message || 'Network error',
+                    'error'
+                );
+            }
         },
-        viewReport(report) {
-            this.selectedReport = report;
-            this.viewModalOpen = true;
-        },
-        resolveReport() {
-            if (this.selectedReport) {
-                this.selectedReport.status = 'Resolved';
-                this.viewModalOpen = false;
+
+        async demoteAdmin(user) {
+            try {
+                const data = await this.postUserAction({
+                    action: 'demote_admin',
+                    id: user.id
+                });
+
+                if (data.success) {
+                    user.role = 'Moderator';
+                    user.role_id = 3;
+
+                    this.users = [...this.users];
+
+                    window.showToast(
+                        data.message || 'Admin demoted to Moderator',
+                        'success'
+                    );
+
+                } else {
+                    window.showToast(
+                        data.error || 'Failed to demote admin',
+                        'error'
+                    );
+                }
+
+            } catch (e) {
+                console.error('Demote admin error:', e);
+
+                window.showToast(
+                    e.message || 'Network error',
+                    'error'
+                );
             }
         },
         // Open modal for adding
@@ -3390,10 +3592,34 @@ function adminDashboard(userData = {}) {
         ],
 
          initDashboard() {
+            this.fetchReports();
             this.fetchStats();
             this.fetchMovies();
             this.fetchGenres();
             this.fetchUsers();
+            this.fetchNotifications();
+            this.initPusher();
+        },
+
+        initPusher() {
+            if (!window.CURRENT_USER_ID || typeof Pusher === 'undefined') return;
+
+            if (!this.pusherClient) {
+                this.pusherClient = new Pusher('f4b5637ef4b8952b6eb8', {
+                    cluster: 'ap1',
+                    encrypted: true
+                });
+            }   
+
+            const channel = this.pusherClient.subscribe(`user-${window.CURRENT_USER_ID}`);
+
+            channel.bind('force_logout', (data) => {
+                // Optional: Show an alert so they know why they are being kicked
+                alert(data.message || 'Your account has been banned.');
+                
+                // Redirect them to your logout script to destroy the local PHP session
+                window.location.href = '/backend/logout.php'; 
+            });
         }
     };
 }

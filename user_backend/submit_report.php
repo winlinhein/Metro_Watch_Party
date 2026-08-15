@@ -25,42 +25,66 @@ if (!$reported_id || (empty($description) && empty($reason_ids))) {
 }
 
 try {
-    $conn->begin_transaction();
+    $conn->beginTransaction();
 
-    // 1. Insert the main report using MySQLi prepared statements
+    // 1. Insert main report
     $stmt = $conn->prepare("INSERT INTO reports (reporter_id, reported_user_id, type, description) VALUES (?, ?, ?, ?)");
-    $stmt->bind_param("iiss", $reporter_id, $reported_id, $type, $description);
-    $stmt->execute();
-    
-    $report_id = $conn->insert_id;
+    $stmt->execute([$reporter_id, $reported_id, $type, $description]);
+    $report_id = $conn->lastInsertId();
 
-    // 2. Insert predefined reasons into the junction table
+    // 2. Insert predefined reasons
     if (!empty($reason_ids)) {
         $stmt_reasons = $conn->prepare("INSERT INTO report_and_reasons (report_id, reason_id) VALUES (?, ?)");
         foreach ($reason_ids as $r_id) {
-            $stmt_reasons->bind_param("ii", $report_id, $r_id);
-            $stmt_reasons->execute();
+            $stmt_reasons->execute([$report_id, $r_id]);
         }
     }
 
+    // 3. Insert notification for all Admins into the shared 'noti' table
+    $noti_message = "New " . ucfirst($type) . " report submitted (Report #" . $report_id . ")";
+    $stmt_noti = $conn->prepare("
+        INSERT INTO notifications (user_id, sender_id, type, message, is_read, created_at)
+        SELECT user_id, ?, 'report_alert', ?, 0, NOW()
+        FROM users 
+        WHERE role_id = 1 OR role_id = 3 
+    ");
+    $stmt_noti->execute([$reporter_id, $noti_message]);
+
     $conn->commit();
 
-    // 3. Trigger Real-Time notification via Pusher to admins
+    // 4. Trigger Pusher Event to update Admin UI instantly (Notifications & Reports Table)
     if (function_exists('get_pusher_instance')) {
         $pusher = get_pusher_instance();
-        $pusher->trigger('private-admin-moderation', 'new-report', [
-            'report_id' => $report_id,
-            'reporter_id' => $reporter_id,
-            'reported_id' => $reported_id,
-            'type' => $type,
-            'timestamp' => date('Y-m-d H:i:s')
-        ]);
+        
+        $payload = [
+            'notification' => [
+                'id' => time(), // Temp ID for real-time push
+                'type' => 'report_alert',
+                'message' => $noti_message,
+                'is_read' => 0,
+                'created_at' => date('Y-m-d H:i:s')
+            ],
+            'report' => [
+                'id' => $report_id,
+                'reporter_id' => $reporter_id,
+                'reported_user_id' => $reported_id,
+                'type' => $type,
+                'description' => $description,
+                'status' => 'Pending',
+                'created_at' => date('Y-m-d H:i:s')
+            ]
+        ];
+
+        // Broadcast to admin channel
+        $pusher->trigger('admin-moderation-channel', 'new-report-event', $payload);
     }
 
     echo json_encode(['success' => true, 'message' => 'Report submitted successfully']);
 
 } catch (Exception $e) {
-    $conn->rollback();
-    echo json_encode(['success' => false, 'message' => 'Failed to submit report. Please try again.']);
+    if ($conn->inTransaction()) {
+        $conn->rollback();
+    }
+    echo json_encode(['success' => false, 'message' => 'Failed to submit report.']);
 }
 ?>
