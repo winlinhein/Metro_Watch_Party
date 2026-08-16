@@ -9,6 +9,7 @@ function userDashboard() {
         // Navigation & Tab State
         currentTab: 'dashboard',
         isNavOpen: false,
+        returnToWatchlistAfterClose: false,
         
         // Chat State
         showChatPanel: false,
@@ -199,16 +200,14 @@ function userDashboard() {
         },
 
         // Modal triggers
-        async toggleWatchlist(movie) {
+       async toggleWatchlist(movie) {
             if (!movie) return;
 
-            // Toggle local state immediately for responsive UI
             movie.inWatchlist = !movie.inWatchlist;
-
             const movieId = movie.id || movie.movie_id;
             if (!movieId) return;
 
-            // Optimistic local update (for instant UI feedback)
+            // Optimistic local update
             if (movie.inWatchlist) {
                 if (!this.watchlist.find(w => (w.id || w.movie_id) === movieId)) {
                     this.watchlist = [{
@@ -226,27 +225,21 @@ function userDashboard() {
                 if (window.showToast) window.showToast('Removed from watchlist', 'info');
             }
 
-            // Send request to backend (no action field – backend toggles automatically)
+            // Persist to backend
             try {
                 const response = await fetch('/user_backend/toggle_watchlist.php', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        movie_id: movieId
-                    })
+                    body: JSON.stringify({ movie_id: movieId })
                 });
-
                 const data = await response.json();
                 if (!data.success && window.showToast) {
                     window.showToast(data.message || 'Failed to update watchlist', 'error');
-                    // Revert local change if backend failed
-                    movie.inWatchlist = !movie.inWatchlist;
-                    // Optionally re-sync from server
+                    movie.inWatchlist = !movie.inWatchlist;  // revert
                     await this.fetchWatchlist();
                 }
             } catch (e) {
                 console.error('Watchlist save error:', e);
-                // Revert on network error
                 movie.inWatchlist = !movie.inWatchlist;
                 await this.fetchWatchlist();
             }
@@ -269,22 +262,26 @@ function userDashboard() {
             }
         },
 
-        closeMovieDetail() {
-        if (this.selectedMovie) {
-            const movieId = this.getMovieId(this.selectedMovie);
-            if (movieId) {
-                // Unsubscribe from live events when the modal closes
-                this.unsubscribeFromLiveMovieEvents(movieId);
+       closeMovieDetail() {
+            if (this.selectedMovie) {
+                const movieId = this.getMovieId(this.selectedMovie);
+                if (movieId) {
+                    this.unsubscribeFromLiveMovieEvents(movieId);
+                }
             }
-        }
-        
-        this.showMovieDetailModal = false;
-        
-        // Add a slight delay before clearing the movie to allow the closing animation to finish smoothly
-        setTimeout(() => {
-            this.selectedMovie = null;
-        }, 300);
-    },
+
+            this.showMovieDetailModal = false;
+
+            // If opened from watchlist, switch back to watchlist tab
+            if (this.returnToWatchlistAfterClose) {
+                this.switchTab('watchlist');
+                this.returnToWatchlistAfterClose = false;
+            }
+
+            setTimeout(() => {
+                this.selectedMovie = null;
+            }, 300);
+        },
 
         // Quests Data
        quests: {
@@ -1426,10 +1423,21 @@ function userDashboard() {
         async fetchWatchlist() {
             try {
                 const response = await fetch("/user_backend/get_watchlist.php");
-                const data = await response.json();
+                let raw = await response.text();
+                console.log("Raw watchlist response:", raw);
+                
+                // Remove leading backslash if present
+                if (raw.startsWith('\\')) {
+                    raw = raw.substring(1);
+                }
+                
+                const data = JSON.parse(raw);
                 if (data.success) {
                     this.watchlist = data.watchlist || [];
+                    this.watchlist = [...this.watchlist];
                     this.syncWatchlistState();
+                } else {
+                    console.error("Watchlist fetch failed:", data.message);
                 }
             } catch (e) {
                 console.error("Failed to fetch watchlist:", e);
@@ -1445,55 +1453,19 @@ function userDashboard() {
                 movie.inWatchlist = watchlistIds.has(id);
             });
         },
+        openWatchlistMovie(item) {
+            // Set the flag so we return to watchlist after closing the modal
+            this.returnToWatchlistAfterClose = true;
 
-       // 1. REPLACE your existing toggleWatchlist with this updated version:
-    toggleWatchlist(movie) {
-        if(movie.inWatchlist === undefined) movie.inWatchlist = false;
-        movie.inWatchlist = !movie.inWatchlist;
-        
-        if(movie.inWatchlist) {
-            const movieId = movie.id || movie.movie_id;
-            // Check if already in watchlist to prevent duplicates
-            if (!this.watchlist.find(w => (w.id || w.movie_id) === movieId)) {
-                // FIX: Spread the full ...movie object so all data (video_url, etc.) is retained
-                // FIX: Reassign the array to force Alpine.js to update the UI instantly
-                this.watchlist = [{
-                    ...movie, 
-                    year: movie.created_at ? new Date(movie.created_at).getFullYear() : "2024",
-                    genre: movie.genres && movie.genres.length > 0 ? movie.genres[0] : "Movie",
-                    rating: movie.rating ? movie.rating + " / 5" : "N/A",
-                    status: "Next Up",
-                    img: movie.img || movie.cover_image || "https://via.placeholder.com/300x450/0d0d12/ffffff?text=No+Poster"
-                }, ...this.watchlist];
-            }
-            if (window.showToast) window.showToast('Added to watchlist', 'success');
-            
-            // NOTE: Add your fetch() call here if you need to push this save to your backend database
+            this.switchTab('movies');
 
-        } else {
-            const movieId = movie.id || movie.movie_id;
-            // FIX: Reassign the array to trigger UI reactivity on removal
-            this.watchlist = this.watchlist.filter(w => (w.id || w.movie_id) !== movieId);
-            if (window.showToast) window.showToast('Removed from watchlist', 'info');
-            
-            // NOTE: Add your fetch() call here if you need to delete this save from your backend
-        }
-    },
+            const movieId = item.id || item.movie_id;
+            const fullMovie = this.movies.find(m => (m.id || m.movie_id) === movieId) || item;
 
-    // 2. ADD this entirely new function right beneath toggleWatchlist:
-    openWatchlistMovie(item) {
-        // Switch the active tab to 'movies' (FIXED)
-        this.switchTab('movies');
-        
-        // Find the original, complete movie data to pass into the modal
-        const movieId = item.id || item.movie_id;
-        const fullMovie = this.movies.find(m => (m.id || m.movie_id) === movieId) || item;
-        
-        // Use a tiny delay to allow Alpine to render the 'movies' tab before showing the modal overlay
-        setTimeout(() => {
-            this.openMovieDetail(fullMovie);
-        }, 100);
-    },
+            setTimeout(() => {
+                this.openMovieDetail(fullMovie);
+            }, 100);
+        },
          // Real-Time Listener with Alpine Reactivity Fixes
         subscribeToLiveMovieEvents(movieId) {
             if (typeof Pusher === 'undefined') return;
@@ -1918,7 +1890,6 @@ function userDashboard() {
         }
     };
 }
-
 
 function watchParty() {
     return {
@@ -2948,6 +2919,119 @@ function adminDashboard(userData = {}) {
             rarity: '',
             image: null
         },
+        //comments
+        comments: [],
+        commentsLoading: false,
+        commentError: '',
+        commentFilter: '',
+        movieComments: [],
+        loadingMovieComments: false,
+        buildCommentTree(flatComments) {
+            if (!flatComments || !flatComments.length) return [];
+            
+            const map = {};
+            const roots = [];
+            
+            // First pass: create a map of all comments by ID
+            flatComments.forEach(comment => {
+                map[comment.id] = { ...comment, replies: [] };
+            });
+            
+            // Second pass: assign children to parents or roots
+            flatComments.forEach(comment => {
+                const parentId = comment.parent_id;
+                if (parentId && map[parentId]) {
+                    map[parentId].replies.push(map[comment.id]);
+                } else {
+                    roots.push(map[comment.id]);
+                }
+            });
+            
+            // Optional: sort roots by newest first (already sorted by backend)
+            return roots;
+        },
+        get filteredComments() {
+            if (!this.commentFilter.trim()) return this.nestedComments;
+            const q = this.commentFilter.toLowerCase();
+            const filterTree = (nodes) => {
+                return nodes.filter(node => {
+                    const nodeMatch = 
+                        (node.user_name && node.user_name.toLowerCase().includes(q)) ||
+                        (node.movie_title && node.movie_title.toLowerCase().includes(q)) ||
+                        (node.comment_text && node.comment_text.toLowerCase().includes(q));
+                    const childMatch = node.replies && node.replies.length > 0 ? filterTree(node.replies).length > 0 : false;
+                    if (nodeMatch || childMatch) {
+                        node.replies = node.replies ? filterTree(node.replies) : [];
+                        return true;
+                    }
+                    return false;
+                });
+            };
+            return filterTree(this.nestedComments);
+        },
+        get nestedComments() {
+            return this.buildCommentTree(this.comments);
+        },
+
+        get nestedMovieComments() {
+            return this.buildCommentTree(this.movieComments);
+        },
+        async fetchComments() {
+            this.commentsLoading = true;
+            this.commentError = '';
+            try {
+                const res = await fetch('/backend/comments_api.php');
+                const data = await res.json();
+                if (data.success) {
+                    this.comments = data.comments;
+                } else {
+                    this.commentError = data.error || 'Failed to load comments';
+                }
+            } catch (e) {
+                console.error(e);
+                this.commentError = 'Network error loading comments';
+            } finally {
+                this.commentsLoading = false;
+            }
+        },
+        async fetchMovieCommentsForAdmin(movieId) {
+            this.loadingMovieComments = true;
+            try {
+                const res = await fetch(`/backend/comments_api.php?movie_id=${movieId}`);
+                const data = await res.json();
+                if (data.success) {
+                    this.movieComments = data.comments;
+                }
+            } catch (e) {
+                console.error('Failed to load movie comments:', e);
+            } finally {
+                this.loadingMovieComments = false;
+            }
+        },
+
+       async deleteComment(commentId) {
+            if (!confirm('Delete this comment and its replies?')) return;
+            try {
+                const res = await fetch('/backend/comments_api.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'delete', comment_id: commentId })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    // Remove from both arrays (modal + global list)
+                    this.movieComments = this.movieComments.filter(c => c.id !== commentId && c.parent_id !== commentId);
+                    this.comments = this.comments.filter(c => c.id !== commentId && c.parent_id !== commentId);
+                    this.showToast('Comment deleted', 'success');
+                } else {
+                    this.showToast(data.error || 'Delete failed', 'error');
+                }
+            } catch (e) {
+                console.error(e);
+                this.showToast('Network error', 'error');
+            }
+        },
+
         currentTab: 'dashboard',
         isNavOpen: false,
         notificationsOpen: false,
@@ -2959,7 +3043,8 @@ function adminDashboard(userData = {}) {
             { id: 'sessions', label: 'Watch Parties', icon: 'live_tv' },
             { id: 'shop', label: 'Avatar Shop', icon: 'storefront' },
             { id: 'reports', label: 'Reports', icon: 'flag' },
-            { id: 'profile', label: 'Profile', icon: 'person' }
+            { id: 'profile', label: 'Profile', icon: 'person' },
+            { id: 'comments', label: 'Comments', icon: 'comment' }
         ],
         notifications: [],
         async fetchNotifications() {
@@ -3609,7 +3694,10 @@ function adminDashboard(userData = {}) {
             this.newMovie.img = movie.img || movie.poster_url || movie.poster || movie.image || '';
             this.posterPreview = this.newMovie.img; // optional, if you still use posterPreview elsewhere
 
-            this.movieModalOpen = true;
+             this.movieModalOpen = true;
+
+            // Fetch comments for this movie
+            this.fetchMovieCommentsForAdmin(this.newMovie.id);
         },
         openBanModal(user) {
             this.userToBan = user;
@@ -3951,6 +4039,7 @@ function adminDashboard(userData = {}) {
             this.fetchUsers();
             this.fetchNotifications();
             this.initPusher();
+            this.fetchComments();
         },
 
         initPusher() {
@@ -3971,6 +4060,32 @@ function adminDashboard(userData = {}) {
                 
                 // Redirect them to your logout script to destroy the local PHP session
                 window.location.href = '/backend/logout.php'; 
+            });
+
+            const adminCommentsChannel = this.pusherClient.subscribe('admin-comments');
+
+            adminCommentsChannel.bind('new_comment', (data) => {
+                // Add new comment to the top of the list
+                this.comments.unshift({
+                    id: data.id,
+                    movie_id: data.movie_id,
+                    user_name: data.user_name,
+                    movie_title: data.movie_title,
+                    comment_text: data.comment_text,
+                    created_at: data.created_at,
+                    likes_count: data.likes_count || 0,
+                    parent_id: null
+                });
+            });
+
+            adminCommentsChannel.bind('new_reply', () => {
+                // Simplest: refresh the entire list to include the reply
+                this.fetchComments();
+            });
+
+            adminCommentsChannel.bind('comment_liked', (data) => {
+                const comment = this.comments.find(c => c.id == data.comment_id);
+                if (comment) comment.likes_count = data.likes_count;
             });
         }
     };

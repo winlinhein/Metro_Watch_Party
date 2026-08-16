@@ -112,27 +112,36 @@
                 <div class="flex flex-col h-full overflow-y-auto custom-scrollbar">
                     
                     <div class="relative aspect-video w-full bg-black">
-                        <template x-if="isYouTubeUrl(selectedMovie?.video_url || selectedMovie?.trailer)">
+                        <template x-if="selectedMovie?.actual_video_url && isYouTubeUrl(selectedMovie.actual_video_url)">
                             <div x-data="{ player: null }"
-                                 x-init="$nextTick(() => { player = new Plyr($refs.playerContainer, { autoplay: true, controls: ['play-large', 'play', 'progress', 'current-time', 'mute', 'volume', 'fullscreen'], youtube: { noCookie: false, rel: 0, showinfo: 0, iv_load_policy: 3, modestbranding: 1 } }) })"
-                                 class="w-full h-full">
+                                x-init="$nextTick(() => { player = new Plyr($refs.playerContainer, { autoplay: true, controls: ['play-large', 'play', 'progress', 'current-time', 'mute', 'volume', 'fullscreen'], youtube: { noCookie: false, rel: 0, showinfo: 0, iv_load_policy: 3, modestbranding: 1 } }) })"
+                                class="w-full h-full">
                                 <div class="plyr__video-embed w-full h-full" x-ref="playerContainer">
                                     <iframe
-                                         :src="getYouTubeEmbedUrl(selectedMovie?.video_url || selectedMovie?.trailer, false)"
-                                         class="w-full h-full"
-                                         frameborder="0"
-                                         allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                                         allowfullscreen>
+                                        :src="getYouTubeEmbedUrl(selectedMovie.actual_video_url, false)"
+                                        class="w-full h-full"
+                                        frameborder="0"
+                                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                                        allowfullscreen>
                                     </iframe>
                                 </div>
                             </div>
                         </template>
 
-                        <template x-if="!isYouTubeUrl(selectedMovie?.video_url || selectedMovie?.trailer)">
+                        <template x-if="selectedMovie?.actual_video_url && !isYouTubeUrl(selectedMovie.actual_video_url)">
                             <div x-data="{ player: null }"
-                                 x-init="$nextTick(() => { player = new Plyr($refs.html5Video, { autoplay: true, controls: ['play-large', 'play', 'progress', 'current-time', 'mute', 'volume', 'fullscreen'] }) })"
-                                 class="w-full h-full">
-                                <video x-ref="html5Video" :src="selectedMovie?.video_url || selectedMovie?.trailer" playsinline controls class="w-full h-full object-contain"></video>
+                                x-init="$nextTick(() => { player = new Plyr($refs.html5Video, { autoplay: true, controls: ['play-large', 'play', 'progress', 'current-time', 'mute', 'volume', 'fullscreen'] }) })"
+                                class="w-full h-full">
+                                <video x-ref="html5Video" :src="selectedMovie.actual_video_url" playsinline controls class="w-full h-full object-contain"></video>
+                            </div>
+                        </template>
+
+                        <template x-if="!selectedMovie?.actual_video_url">
+                            <div class="absolute inset-0 flex items-center justify-center text-white/50 bg-black">
+                                <div class="text-center">
+                                    <span class="material-symbols-outlined text-5xl mb-3">videocam_off</span>
+                                    <p class="text-sm">Full movie not available for this title</p>
+                                </div>
                             </div>
                         </template>
 

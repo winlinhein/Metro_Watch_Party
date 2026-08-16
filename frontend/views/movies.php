@@ -215,26 +215,88 @@
 
                     <!-- Comments Tab Content -->
                     <div x-show="movieTab === 'comments'" class="space-y-4" style="display: none;">
-                        <template x-if="newMovie.comments && newMovie.comments.length > 0">
-                            <div class="space-y-3">
-                                <template x-for="comment in newMovie.comments" :key="comment.id">
-                                    <div class="bg-white/[0.03] border border-white/10 rounded-2xl p-4 flex gap-3.5">
-                                        <div class="w-9 h-9 rounded-xl bg-gradient-to-tr from-red-500 to-indigo-600 flex-shrink-0 flex items-center justify-center font-bold text-xs text-white uppercase" x-text="comment.user ? comment.user.charAt(0) : 'U'"></div>
-                                        <div class="flex-1">
-                                            <div class="flex justify-between items-center mb-1">
-                                                <h5 class="font-bold text-xs text-white" x-text="comment.user"></h5>
-                                                <span class="text-[10px] text-white/30 font-mono" x-text="comment.date"></span>
+                        <!-- Loading -->
+                        <div x-show="loadingMovieComments" class="text-white/50 text-sm">Loading comments...</div>
+
+                        <!-- Nested Comments List -->
+                        <template x-if="!loadingMovieComments && nestedMovieComments.length > 0">
+                            <div class="space-y-4">
+                                <template x-for="comment in nestedMovieComments" :key="comment.id">
+                                    <!-- Parent Comment -->
+                                    <div class="bg-white/[0.03] border border-white/10 rounded-2xl p-4">
+                                        <!-- Header -->
+                                        <div class="flex justify-between items-start mb-2">
+                                            <div class="flex items-center gap-2">
+                                                <div class="w-8 h-8 rounded-full bg-gradient-to-tr from-red-500 to-indigo-600 flex items-center justify-center font-bold text-xs text-white uppercase"
+                                                    x-text="comment.user_name ? comment.user_name.charAt(0) : 'U'"></div>
+                                                <div>
+                                                    <p class="font-bold text-xs text-white" x-text="comment.user_name"></p>
+                                                    <p class="text-[10px] text-white/40 font-mono" x-text="new Date(comment.created_at).toLocaleString()"></p>
+                                                </div>
                                             </div>
-                                            <p class="text-xs text-white/70 leading-relaxed" x-text="comment.text"></p>
+                                            <button @click="deleteComment(comment.id)"
+                                                    class="text-red-400 hover:text-red-300 text-xs font-bold">Delete</button>
+                                        </div>
+                                        
+                                        <!-- Comment Text -->
+                                        <p class="text-xs text-white/80 leading-relaxed" x-text="comment.comment_text"></p>
+                                        
+                                        <!-- Likes & Reply Toggle -->
+                                        <div class="flex items-center gap-3 mt-2 text-[11px] text-white/50">
+                                            <span class="flex items-center gap-1">
+                                                <span class="material-symbols-outlined text-[14px]">favorite</span>
+                                                <span x-text="comment.likes_count || 0"></span>
+                                            </span>
+                                            
+                                            <!-- Replies Toggle -->
+                                            <template x-if="comment.replies && comment.replies.length > 0">
+                                                <button @click="comment.show_replies = comment.show_replies === undefined ? false : !comment.show_replies"
+                                                        class="flex items-center gap-1 text-indigo-400 hover:text-indigo-300">
+                                                    <span class="material-symbols-outlined text-[14px]"
+                                                        :class="comment.show_replies !== false ? 'rotate-180' : ''">keyboard_arrow_down</span>
+                                                    <span x-text="comment.show_replies !== false ? 'Hide replies' : 'Show replies (' + comment.replies.length + ')'"></span>
+                                                </button>
+                                            </template>
+                                        </div>
+                                        
+                                        <!-- Nested Replies -->
+                                        <div x-show="comment.show_replies !== false && comment.replies && comment.replies.length > 0"
+                                            x-transition:enter="transition-all ease-out duration-300"
+                                            x-transition:enter-start="opacity-0 -translate-y-2"
+                                            x-transition:enter-end="opacity-100 translate-y-0"
+                                            class="pl-4 mt-3 border-l-2 border-indigo-500/30 space-y-2">
+                                            <template x-for="reply in comment.replies" :key="reply.id">
+                                                <div class="bg-black/30 rounded-lg border border-white/5 p-3">
+                                                    <div class="flex justify-between items-start mb-1">
+                                                        <div class="flex items-center gap-2">
+                                                            <div class="w-6 h-6 rounded-full bg-gradient-to-tr from-red-500 to-indigo-600 flex items-center justify-center font-bold text-[10px] text-white uppercase"
+                                                                x-text="reply.user_name ? reply.user_name.charAt(0) : 'U'"></div>
+                                                            <span class="text-[11px] font-bold text-white/90" x-text="reply.user_name"></span>
+                                                        </div>
+                                                        <button @click="deleteComment(reply.id)"
+                                                                class="text-red-400 hover:text-red-300 text-[10px] font-bold">Delete</button>
+                                                    </div>
+                                                    <p class="text-[11px] text-white/70" x-text="reply.comment_text"></p>
+                                                    <div class="flex items-center gap-2 mt-1 text-[10px] text-white/40">
+                                                        <span class="flex items-center gap-1">
+                                                            <span class="material-symbols-outlined text-[12px]">favorite</span>
+                                                            <span x-text="reply.likes_count || 0"></span>
+                                                        </span>
+                                                        <span x-text="new Date(reply.created_at).toLocaleString()"></span>
+                                                    </div>
+                                                </div>
+                                            </template>
                                         </div>
                                     </div>
                                 </template>
                             </div>
                         </template>
-                        <template x-if="!newMovie.comments || newMovie.comments.length === 0">
+
+                        <!-- Empty State -->
+                        <template x-if="!loadingMovieComments && nestedMovieComments.length === 0">
                             <div class="text-center py-12">
                                 <span class="material-symbols-outlined text-4xl text-white/15 mb-2">forum</span>
-                                <p class="text-xs text-white/40">No audience comments recorded for this movie.</p>
+                                <p class="text-xs text-white/40">No comments for this movie yet.</p>
                             </div>
                         </template>
                     </div>

@@ -51,6 +51,11 @@ try {
             'avg_rating' => $avgRating,
             'rating_count' => $ratingCount
         ]);
+        triggerPusherEvent('admin-comments', 'rating_updated', [
+            'movie_id' => $movieId,
+            'avg_rating' => $avgRating,
+            'rating_count' => $ratingCount
+        ]);
     } else {
         // Log that Pusher is missing but still consider it a success (or fail?)
         error_log("triggerPusherEvent function not defined");
