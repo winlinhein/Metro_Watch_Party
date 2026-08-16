@@ -1,5 +1,5 @@
 <!-- Watchlist Tab -->
-<div class="flex-1 overflow-y-auto p-10 tab-content relative scroll-smooth" 
+<div class="absolute inset-0 w-full h-full overflow-y-auto p-10 tab-content scroll-smooth custom-scrollbar" 
      x-show="currentTab === 'watchlist'"
      x-transition:enter="transition-all duration-500 delay-300 cubic-bezier(0.34, 1.56, 0.64, 1)"
      x-transition:enter-start="opacity-0 translate-y-8"

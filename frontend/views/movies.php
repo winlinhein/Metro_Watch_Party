@@ -34,12 +34,19 @@
                         
                         <!-- 2. INSERT THE TRAILER IFRAME HERE -->
                         <template x-if="isHovered && movie.trailer && isYouTubeUrl(movie.trailer)">
-                            <iframe 
-                                class="absolute top-0 left-0 w-full h-full pointer-events-none z-0 object-cover" 
-                                :src="getYouTubeEmbedUrl(movie.trailer, true)" 
-                                frameborder="0" 
-                                allow="autoplay; muted; encrypted-media">
-                            </iframe>
+                            <div x-data="{ hoverPlayer: null }"
+                                 x-init="$nextTick(() => { hoverPlayer = new Plyr($refs.hoverContainer, { autoplay: true, muted: true, controls: [], clickToPlay: false, youtube: { noCookie: false, rel: 0, showinfo: 0, iv_load_policy: 3, modestbranding: 1, disablekb: 1 } }) })"
+                                 class="absolute top-0 left-0 w-full h-[140%] -mt-[20%] scale-150 pointer-events-none z-0">
+                                <div class="plyr__video-embed w-full h-full" x-ref="hoverContainer">
+                                    <iframe
+                                         :src="getYouTubeEmbedUrl(movie.trailer, true)"
+                                         class="w-full h-full pointer-events-none"
+                                         frameborder="0"
+                                         allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                                         allowfullscreen>
+                                    </iframe>
+                                </div>
+                            </div>
                         </template>
 
                         <div class="absolute inset-0 bg-gradient-to-t from-[#08080c] via-[#08080c]/40 to-transparent opacity-90 group-hover:opacity-75 transition-opacity duration-300 z-10"></div>

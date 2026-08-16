@@ -155,8 +155,14 @@ $userId = $_SESSION['user_id'] ?? 0;
             50% { background-position: 100% 100%; }
             100% { background-position: 0% 0%; }
         }
+        
+        :root {
+            --plyr-color-main: #ef4444; /* Nexus Red */
+        }
     </style>
 
+    <link rel="stylesheet" href="https://cdn.plyr.io/3.7.8/plyr.css" />
+    <script src="https://cdn.plyr.io/3.7.8/plyr.polyfilled.js"></script>
     <script src="/js/nexus_scripts.js?v=14"></script>
 </head>
 <body class="h-screen w-screen flex flex-col relative selection:bg-red-500/30" data-barba="wrapper">
@@ -526,7 +532,12 @@ $userId = $_SESSION['user_id'] ?? 0;
                 <!-- Profile Menu -->
                 <div class="relative z-[60]" x-data="{ showProfileMenu: false }" @click.outside="showProfileMenu = false">
                     <div @click="showProfileMenu = !showProfileMenu" class="flex items-center gap-3 p-2 bg-[#050508]/40 border border-white/5 rounded-xl cursor-pointer hover:bg-white/[0.05]">
-                        <img src="https://ui-avatars.com/api/?name=<?= urlencode($userName) ?>&background=ef4444&color=fff&bold=true" class="w-10 h-10 rounded-full border-2 border-red-500/50">
+                        <div class="relative w-10 h-10 flex items-center justify-center">
+                            <img src="https://ui-avatars.com/api/?name=<?= urlencode($userName) ?>&background=ef4444&color=fff&bold=true" class="w-10 h-10 rounded-full border-2 border-red-500/50 absolute z-0">
+                            <template x-if="activeBorderId !== 1">
+                                <img :src="availableBorders.find(b => b.id === activeBorderId)?.preview" class="absolute inset-0 w-14 h-14 max-w-none -ml-2 -mt-2 pointer-events-none object-contain z-10">
+                            </template>
+                        </div>
                         <div class="hidden sm:block min-w-0 pr-1">
                             <p class="text-sm font-bold text-white truncate"><?php echo htmlspecialchars($userName); ?></p>
                             <p class="text-[9px] text-red-400 uppercase tracking-widest mono font-bold bg-red-500/10 px-2 py-0.5 rounded border border-red-500/20 inline-block mt-0.5"><?php echo htmlspecialchars($userRole); ?></p>
@@ -534,7 +545,7 @@ $userId = $_SESSION['user_id'] ?? 0;
                     </div>
                     
                     <div class="absolute right-0 top-full mt-2 w-48 bg-[#050508] border border-white/10 rounded-xl shadow-2xl p-2 z-50" x-show="showProfileMenu" style="display: none;">
-                        <button class="w-full text-left p-2 hover:bg-white/10 rounded-lg text-xs font-semibold text-white/70 hover:text-white flex items-center gap-2">
+                        <button @click="currentTab = 'account'; showProfileMenu = false" class="w-full text-left p-2 hover:bg-white/10 rounded-lg text-xs font-semibold text-white/70 hover:text-white flex items-center gap-2">
                             <span class="material-symbols-outlined text-[16px]">manage_accounts</span> Account
                         </button>
                     </div>
@@ -542,8 +553,11 @@ $userId = $_SESSION['user_id'] ?? 0;
             </div>
         </header>
 
-        <div class="flex-1 overflow-y-auto p-10 relative scroll-smooth" x-show="currentTab === 'dashboard'">
-            <div class="max-w-[1400px] mx-auto space-y-8">
+        <!-- Tabs Container (Relative wrapper for Absolute children) -->
+        <div class="relative flex-1 overflow-hidden h-full">
+            <!-- Content -->
+            <div class="absolute inset-0 w-full h-full overflow-y-auto p-10 scroll-smooth custom-scrollbar" x-show="currentTab === 'dashboard'">
+                <div class="max-w-[1400px] mx-auto space-y-8">
                 
                 <!-- Demo Stats Grid -->
                 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -706,6 +720,8 @@ $userId = $_SESSION['user_id'] ?? 0;
         <?php include "watchlist.php"; ?>
         <?php include "user_movies.php"; ?>
         <?php include "user_shop.php"; ?>
+        <?php include "account.php"; ?>
+        </div>
     </main>
 
     <?php include __DIR__ . '/../frontend/components/host_party_fab.php'; ?>
@@ -713,6 +729,7 @@ $userId = $_SESSION['user_id'] ?? 0;
     <?php include "user_chat.php"; ?>
     <?php include "profile_dropdown.php"; ?>
     <?php include "report_user_modal.php"; ?>
+    <?php include "report_item_modal.php"; ?>
 
 </div>
 

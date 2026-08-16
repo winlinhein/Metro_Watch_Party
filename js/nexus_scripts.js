@@ -1,5 +1,11 @@
 function userDashboard() {
     return {
+        init() {
+            const savedBorder = localStorage.getItem('activeBorder');
+            if (savedBorder) {
+                this.activeBorderId = parseInt(savedBorder, 10);
+            }
+        },
         // Navigation & Tab State
         currentTab: 'dashboard',
         isNavOpen: false,
@@ -60,6 +66,26 @@ function userDashboard() {
         selectedReasonIds: [],
         reportDescription: '',
 
+        // --- Account State ---
+        accountForm: { username: 'CurrentUser', email: 'user@example.com' },
+        passwordForm: { current: '', new: '', confirm: '' },
+        activeBorderId: 1,
+        availableBorders: [
+            { id: 1, name: 'None', preview: 'https://via.placeholder.com/150/000000/FFFFFF/?text=None', owned: true },
+            { id: 2, name: 'Encom Grid', preview: '/frontend/assets/borders/Encom%20grid.gif', owned: true },
+            { id: 3, name: 'Glitch', preview: '/frontend/assets/borders/Glitch.gif', owned: false },
+            { id: 4, name: 'Hallucination', preview: '/frontend/assets/borders/Hallunication.gif', owned: false },
+            { id: 5, name: 'Spray Doodle', preview: '/frontend/assets/borders/Spray%20doodle.gif', owned: false },
+            { id: 6, name: 'Sukuna Slashes', preview: '/frontend/assets/borders/Sukuna\'s%20slashes.gif', owned: true }
+        ],
+
+        // --- Report Item Modal State ---
+        showReportItemModal: false,
+        selectedItemIdToReport: null,
+        reportItemType: 'reply', // 'reply' or 'comment'
+        reportItemDescription: '',
+        selectedItemReasonIds: [],
+
        // Live filtered movies getter
         get filteredMovies() {
             if (!this.movieSearchQuery.trim()) return this.movies;
@@ -92,6 +118,54 @@ function userDashboard() {
             return url.includes('youtube.com') || url.includes('youtu.be');
         },
 
+        // --- Account Methods ---
+        async updateAccountInfo() {
+            if (!this.accountForm.username || !this.accountForm.email) return;
+            try {
+                // Mock API call
+                if (window.showToast) window.showToast('Profile updated successfully!', 'success');
+            } catch (e) {
+                console.error(e);
+                if (window.showToast) window.showToast('Failed to update profile.', 'error');
+            }
+        },
+
+        async updatePassword() {
+            if (!this.passwordForm.current || !this.passwordForm.new || !this.passwordForm.confirm) {
+                if (window.showToast) window.showToast('Please fill all password fields.', 'error');
+                return;
+            }
+            if (this.passwordForm.new !== this.passwordForm.confirm) {
+                if (window.showToast) window.showToast('Passwords do not match.', 'error');
+                return;
+            }
+            try {
+                // Mock API call
+                this.passwordForm = { current: '', new: '', confirm: '' };
+                if (window.showToast) window.showToast('Password updated securely!', 'success');
+            } catch (e) {
+                console.error(e);
+                if (window.showToast) window.showToast('Failed to update password.', 'error');
+            }
+        },
+
+        setActiveBorder(borderId) {
+            const border = this.availableBorders.find(b => b.id === borderId);
+            if (!border) return;
+            
+            if (!border.owned) {
+                if (window.showToast) window.showToast('You do not own this border. Purchase it in the shop!', 'error');
+                return;
+            }
+
+            this.activeBorderId = borderId;
+            if (window.showToast) {
+                window.showToast(`${border.name} border applied!`, 'success');
+            }
+            // Save to local storage or backend
+            localStorage.setItem('activeBorder', borderId);
+        },
+
         // Convert any standard YouTube link into a clean Embed URL
         getYouTubeEmbedUrl(url, isHover = false) {
             if (!url) return '';
@@ -105,13 +179,17 @@ function userDashboard() {
                 
                 // Query parameters for YouTube Embed
                 const params = new URLSearchParams({
-                    autoplay: isHover ? '1' : '1',
+                    autoplay: '1',
                     mute: isHover ? '1' : '0',            // Browser policy requires mute for auto-play on hover
-                    controls: isHover ? '0' : '1',        // Hide controls during hover
+                    controls: '0',                        // Always hide controls
                     loop: '1',
                     playlist: videoId,                    // Required for looping
                     modestbranding: '1',
-                    rel: '0'
+                    rel: '0',
+                    showinfo: '0',
+                    iv_load_policy: '3',
+                    enablejsapi: '1',
+                    disablekb: '1'
                 });
 
                 return `https://www.youtube.com/embed/${videoId}?${params.toString()}`;
@@ -236,7 +314,7 @@ function userDashboard() {
             { id: 'watchlist', label: 'Watchlist', icon: 'bookmark', module: 'MODULE_2' },
             { id: 'movies', label: 'Movies', icon: 'movie', module: 'MODULE_3' },
             { id: 'shop', label: 'Point Shop', icon: 'storefront', module: 'MODULE_4' },
-            { id: 'settings', label: 'System Preferences', icon: 'settings', module: 'MODULE_5' }
+            { id: 'account', label: 'Account', icon: 'person', module: 'MODULE_5' }
         ],
 
         // Command Center Metrics
@@ -819,6 +897,92 @@ function userDashboard() {
                 this.selectedReasonIds = [];
                 this.reportDescription = '';
             }, 300);
+        },
+
+        openReportItemModal(id, type) {
+            this.selectedItemIdToReport = id;
+            this.reportItemType = type;
+            this.reportItemDescription = '';
+            this.selectedItemReasonIds = [];
+            this.showReportItemModal = true;
+            if (this.availableReasons.length === 0) {
+                this.fetchReasons();
+            }
+        },
+
+        closeReportItemModal() {
+            this.showReportItemModal = false;
+            setTimeout(() => {
+                this.selectedItemIdToReport = null;
+                this.reportItemDescription = '';
+                this.selectedItemReasonIds = [];
+                
+                // Reset modal animations
+                const modalEl = document.getElementById('report-item-modal-content');
+                if (modalEl && window.gsap) gsap.set(modalEl, { clearProps: "all" });
+            }, 300);
+        },
+
+        async submitItemReport() {
+            if (!this.selectedItemIdToReport) return;
+            const id = this.selectedItemIdToReport;
+            const type = this.reportItemType;
+            const targetEl = document.getElementById(type + '-' + id);
+            
+            // Trigger insane GSAP animation FIRST
+            if (targetEl && window.gsap) {
+                const tl = gsap.timeline();
+                
+                // Shake & Flash Red
+                tl.to(targetEl, { x: -15, rotate: -3, borderColor: 'red', backgroundColor: 'rgba(255,0,0,0.5)', duration: 0.04, yoyo: true, repeat: 7 })
+                  .to(targetEl, { x: 15, rotate: 3, duration: 0.04, yoyo: true, repeat: 7 }, "-=0.28")
+                  // Glitch effect text
+                  .to(targetEl, { skewX: 30, scaleY: 0.7, filter: 'blur(3px) contrast(200%) hue-rotate(90deg)', duration: 0.1 })
+                  .to(targetEl, { skewX: -30, scaleY: 1.3, filter: 'blur(0px) contrast(150%) hue-rotate(-90deg)', duration: 0.1 })
+                  .to(targetEl, { skewX: 0, scaleY: 1, filter: 'none', duration: 0.1 })
+                  // Implode and vanish
+                  .to(targetEl, {
+                      scale: 0.01,
+                      opacity: 0,
+                      rotate: 360,
+                      duration: 0.6,
+                      ease: "power4.in",
+                      onComplete: () => {
+                          targetEl.style.display = 'none';
+                      }
+                  });
+            }
+            
+            // Animate the modal itself before closing
+            const modalEl = document.getElementById('report-item-modal-content');
+            const glitchEl = document.getElementById('item-modal-glitch');
+            if (modalEl && window.gsap) {
+                if (glitchEl) {
+                    gsap.to(glitchEl, { opacity: 1, duration: 0.05, yoyo: true, repeat: 5 });
+                }
+                gsap.to(modalEl, { scale: 0.8, opacity: 0, duration: 0.3, ease: "back.in(1.5)", delay: 0.1 });
+            }
+
+            try {
+                await fetch('/user_backend/submit_report.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        reported_item_id: id,
+                        item_type: type,
+                        reason_ids: this.selectedItemReasonIds,
+                        description: this.reportItemDescription
+                    })
+                });
+                
+                setTimeout(() => {
+                    this.closeReportItemModal();
+                    if (window.showToast) window.showToast(`${type.charAt(0).toUpperCase() + type.slice(1)} Obliterated.`, 'success');
+                }, 500);
+            } catch (e) {
+                console.error("Report item failed:", e);
+                this.closeReportItemModal();
+            }
         },
 
         submitReport() {
@@ -3762,11 +3926,15 @@ function adminDashboard(userData = {}) {
                 const params = new URLSearchParams({
                     autoplay: isHover ? '1' : '0', // Autoplay must be 1 for hover
                     mute: isHover ? '1' : '0',     // Browser policy requires mute for auto-play on hover
-                    controls: isHover ? '0' : '1', // Hide controls during hover
+                    controls: '0',                 // Always hide controls
                     loop: '1',
                     playlist: videoId,             // Required for looping
                     modestbranding: '1',
-                    rel: '0'
+                    rel: '0',
+                    showinfo: '0',
+                    iv_load_policy: '3',
+                    enablejsapi: '1',
+                    disablekb: '1'
                 });
 
                 return `https://www.youtube.com/embed/${videoId}?${params.toString()}`;

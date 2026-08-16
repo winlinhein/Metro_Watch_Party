@@ -67,7 +67,7 @@
             
             
 
-            <form action="../backend/otp-forgot_backend.php?action=verify_otp_forgot" method="POST" class="space-y-6" id="otpForm" onsubmit="window.showPageLoader && window.showPageLoader();">
+            <form action="../backend/otp-forgot_backend.php" method="POST" class="space-y-6" id="otpForm" onsubmit="window.showPageLoader && window.showPageLoader();">
                 
                 <!-- OTP Inputs -->
                 <input type="hidden" name="otp" x-model="otpCode">

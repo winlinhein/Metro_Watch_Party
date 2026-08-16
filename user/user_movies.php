@@ -1,5 +1,5 @@
 <!-- User Movies View Container -->
-<div x-show="currentTab === 'movies'" style="display: none;" class="relative w-full min-h-full p-8 lg:p-12 pb-24 overflow-y-auto">
+<div x-show="currentTab === 'movies'" style="display: none;" class="absolute inset-0 w-full h-full p-8 lg:p-12 pb-24 overflow-y-auto custom-scrollbar">
     
     <!-- Section Header -->
     <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-10 stagger-item">
@@ -32,13 +32,19 @@
                         
                         <div class="absolute inset-0 z-0 transition-opacity duration-500 overflow-hidden pointer-events-none" :class="hovered ? 'opacity-100' : 'opacity-0'">
                             <template x-if="hovered && (movie.trailer || movie.video_url)">
-                                <iframe 
-                                    :src="getYouTubeEmbedUrl(movie.trailer || movie.video_url, true)" 
-                                    class="w-full h-[140%] -mt-[20%] scale-150 pointer-events-none" 
-                                    frameborder="0" 
-                                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
-                                    allowfullscreen>
-                                </iframe>
+                                <div x-data="{ hoverPlayer: null }"
+                                     x-init="$nextTick(() => { hoverPlayer = new Plyr($refs.hoverContainer, { autoplay: true, muted: true, controls: [], clickToPlay: false, youtube: { noCookie: false, rel: 0, showinfo: 0, iv_load_policy: 3, modestbranding: 1, disablekb: 1 } }) })"
+                                     class="w-full h-[140%] -mt-[20%] scale-150 pointer-events-none">
+                                    <div class="plyr__video-embed w-full h-full" x-ref="hoverContainer">
+                                        <iframe
+                                             :src="getYouTubeEmbedUrl(movie.trailer || movie.video_url, true)"
+                                             class="w-full h-full pointer-events-none"
+                                             frameborder="0"
+                                             allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                                             allowfullscreen>
+                                        </iframe>
+                                    </div>
+                                </div>
                             </template>
                         </div>
 
@@ -60,7 +66,11 @@
                                   x-text="movie.inWatchlist ? 'bookmark_added' : 'bookmark_add'"></span>
                         </button>
 
-                        <div class="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-300 z-30 scale-90 group-hover:scale-100 pointer-events-none">
+                        <div x-show="!(hovered && (movie.trailer || movie.video_url))"
+                             x-transition:leave="transition ease-in duration-300"
+                             x-transition:leave-start="opacity-100 scale-100"
+                             x-transition:leave-end="opacity-0 scale-110"
+                             class="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-300 z-30 scale-90 group-hover:scale-100 pointer-events-none">
                             <div class="w-16 h-16 rounded-full bg-indigo-500/90 backdrop-blur-sm flex items-center justify-center text-white shadow-[0_0_30px_rgba(99,102,241,0.8)]">
                                 <span class="material-symbols-outlined text-[32px] ml-1">play_arrow</span>
                             </div>
@@ -103,17 +113,27 @@
                     
                     <div class="relative aspect-video w-full bg-black">
                         <template x-if="isYouTubeUrl(selectedMovie?.video_url || selectedMovie?.trailer)">
-                            <iframe 
-                                :src="getYouTubeEmbedUrl(selectedMovie?.video_url || selectedMovie?.trailer, false)" 
-                                class="w-full h-full" 
-                                frameborder="0" 
-                                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
-                                allowfullscreen>
-                            </iframe>
+                            <div x-data="{ player: null }"
+                                 x-init="$nextTick(() => { player = new Plyr($refs.playerContainer, { autoplay: true, controls: ['play-large', 'play', 'progress', 'current-time', 'mute', 'volume', 'fullscreen'], youtube: { noCookie: false, rel: 0, showinfo: 0, iv_load_policy: 3, modestbranding: 1 } }) })"
+                                 class="w-full h-full">
+                                <div class="plyr__video-embed w-full h-full" x-ref="playerContainer">
+                                    <iframe
+                                         :src="getYouTubeEmbedUrl(selectedMovie?.video_url || selectedMovie?.trailer, false)"
+                                         class="w-full h-full"
+                                         frameborder="0"
+                                         allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                                         allowfullscreen>
+                                    </iframe>
+                                </div>
+                            </div>
                         </template>
 
                         <template x-if="!isYouTubeUrl(selectedMovie?.video_url || selectedMovie?.trailer)">
-                            <video :src="selectedMovie?.video_url || selectedMovie?.trailer" controls class="w-full h-full object-contain"></video>
+                            <div x-data="{ player: null }"
+                                 x-init="$nextTick(() => { player = new Plyr($refs.html5Video, { autoplay: true, controls: ['play-large', 'play', 'progress', 'current-time', 'mute', 'volume', 'fullscreen'] }) })"
+                                 class="w-full h-full">
+                                <video x-ref="html5Video" :src="selectedMovie?.video_url || selectedMovie?.trailer" playsinline controls class="w-full h-full object-contain"></video>
+                            </div>
                         </template>
 
                         <button @click="closeMovieDetail()" class="absolute top-4 right-4 w-10 h-10 rounded-full bg-black/60 border border-white/20 text-white flex items-center justify-center hover:bg-white/20 transition-all z-20">
@@ -244,18 +264,32 @@
                                 <!-- Comments List -->
                                 <div class="space-y-4 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar relative">
                                     <template x-for="comment in (selectedMovie.comments || [])" :key="String(comment.id || comment.comment_id)">
-                                        <div class="p-4 bg-white/5 rounded-xl border border-white/5 mb-3 transition-all duration-300">
-                                            <div class="flex justify-between items-center mb-1">
-                                                <div class="flex items-center gap-2">
-                                                    <span class="text-xs font-bold text-white" x-text="comment.user_name || 'User'"></span>
-                                                    <template x-if="comment.rating">
-                                                        <div class="flex items-center gap-0.5 bg-black/40 px-2 py-0.5 rounded border border-white/5">
-                                                            <span class="font-bold text-yellow-400 text-[10px]" x-text="comment.rating"></span>
-                                                            <span class="material-symbols-outlined text-[12px] text-yellow-400" style="font-variation-settings: 'FILL' 1;">star</span>
-                                                        </div>
-                                                    </template>
+                                        <div :id="'comment-' + (comment.id || comment.comment_id)" class="p-4 bg-white/5 rounded-xl border border-white/5 mb-3 transition-all duration-300 group">
+                                            <div class="flex justify-between items-start mb-1">
+                                                <div class="flex items-center gap-2.5">
+                                                    <!-- Comment Profile Avatar & Border -->
+                                                    <div class="relative w-8 h-8 flex items-center justify-center shrink-0">
+                                                        <img :src="'https://ui-avatars.com/api/?name=' + encodeURIComponent(comment.user_name || 'User') + '&background=ef4444&color=fff&bold=true'" class="w-8 h-8 rounded-full border border-red-500/50 absolute z-0">
+                                                        <template x-if="comment.border_preview || (comment.user_name === '<?php echo htmlspecialchars($userName); ?>' && activeBorderId !== 1)">
+                                                            <img :src="comment.border_preview || availableBorders.find(b => b.id === activeBorderId)?.preview" class="absolute inset-0 w-11 h-11 max-w-none -ml-1.5 -mt-1.5 pointer-events-none object-contain z-10">
+                                                        </template>
+                                                    </div>
+                                                    <div>
+                                                        <span class="text-xs font-bold text-white block leading-none" x-text="comment.user_name || 'User'"></span>
+                                                        <template x-if="comment.rating">
+                                                            <div class="inline-flex items-center gap-0.5 bg-black/40 px-1.5 py-0.5 rounded border border-white/5 mt-1">
+                                                                <span class="font-bold text-yellow-400 text-[9px]" x-text="comment.rating"></span>
+                                                                <span class="material-symbols-outlined text-[10px] text-yellow-400" style="font-variation-settings: 'FILL' 1;">star</span>
+                                                            </div>
+                                                        </template>
+                                                    </div>
                                                 </div>
-                                                <span class="text-[10px] text-white/40" x-text="comment.created_at || ''"></span>
+                                                <div class="flex items-center gap-2">
+                                                    <span class="text-[10px] text-white/40" x-text="comment.created_at || ''"></span>
+                                                    <button @click="openReportItemModal(comment.id || comment.comment_id, 'comment')" class="opacity-0 group-hover:opacity-100 text-white/30 hover:text-red-500 transition-all focus:opacity-100" title="Report Comment">
+                                                        <span class="material-symbols-outlined text-[16px]">flag</span>
+                                                    </button>
+                                                </div>
                                             </div>
                                             
                                             <p class="text-xs text-white/80 my-2" x-text="comment.comment || comment.content || ''"></p>
@@ -311,10 +345,24 @@
                                                  x-transition:leave-end="opacity-0 -translate-y-2 scale-95 blur-sm"
                                                  class="pl-4 mt-3 border-l-2 border-indigo-500/30 space-y-2 relative origin-top">
                                                 <template x-for="reply in comment.replies" :key="reply.id || reply.comment_id">
-                                                    <div class="p-2.5 bg-black/30 rounded-lg border border-white/5">
-                                                        <div class="flex justify-between items-center mb-1">
-                                                            <span class="text-[11px] font-bold text-white/90" x-text="reply.user_name || 'User'"></span>
-                                                            <span class="text-[9px] text-white/30" x-text="reply.created_at || ''"></span>
+                                                    <div :id="'reply-' + (reply.id || reply.comment_id)" class="p-2.5 bg-black/30 rounded-lg border border-white/5 relative group">
+                                                        <div class="flex justify-between items-start mb-1">
+                                                            <div class="flex items-center gap-2">
+                                                                <!-- Reply Profile Avatar & Border -->
+                                                                <div class="relative w-6 h-6 flex items-center justify-center shrink-0">
+                                                                    <img :src="'https://ui-avatars.com/api/?name=' + encodeURIComponent(reply.user_name || 'User') + '&background=ef4444&color=fff&bold=true'" class="w-6 h-6 rounded-full border border-red-500/50 absolute z-0">
+                                                                    <template x-if="reply.border_preview || (reply.user_name === '<?php echo htmlspecialchars($userName); ?>' && activeBorderId !== 1)">
+                                                                        <img :src="reply.border_preview || availableBorders.find(b => b.id === activeBorderId)?.preview" class="absolute inset-0 w-8 h-8 max-w-none -ml-1 -mt-1 pointer-events-none object-contain z-10">
+                                                                    </template>
+                                                                </div>
+                                                                <span class="text-[11px] font-bold text-white/90" x-text="reply.user_name || 'User'"></span>
+                                                            </div>
+                                                            <div class="flex items-center gap-2">
+                                                                <span class="text-[9px] text-white/30" x-text="reply.created_at || ''"></span>
+                                                                <button @click="openReportItemModal(reply.id || reply.comment_id, 'reply')" class="opacity-0 group-hover:opacity-100 text-white/30 hover:text-red-500 transition-all focus:opacity-100" title="Report Reply">
+                                                                    <span class="material-symbols-outlined text-[14px]">flag</span>
+                                                                </button>
+                                                            </div>
                                                         </div>
                                                         <p class="text-[11px] text-white/70" x-text="reply.comment || reply.content || ''"></p>
                                                     </div>
