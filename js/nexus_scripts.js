@@ -73,13 +73,16 @@ function userDashboard() {
         // API Fetching
         async fetchMovies() { 
             try { 
-                const response = await fetch("/user_backend/movies_api.php");
+                const response = await fetch(`/user_backend/movies_api.php?t=${Date.now()}`);
                 if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
                 
                 const data = await response.json(); 
+                console.log("Fetched movies:", data)
                 this.movies = data;
             } catch(e) {
                 console.error("Failed to load movies from database:", e);
+                // Optional: Set an error message visible in the UI
+                this.movieError = "Failed to load movies. Please try again.";
             } 
         },
 
@@ -118,26 +121,56 @@ function userDashboard() {
         },
 
         // Modal triggers
-        toggleWatchlist(movie) {
-            if(movie.inWatchlist === undefined) movie.inWatchlist = false;
+        async toggleWatchlist(movie) {
+            if (!movie) return;
+
+            // Toggle local state immediately for responsive UI
             movie.inWatchlist = !movie.inWatchlist;
-            
-            if(movie.inWatchlist) {
-                // Check if already in watchlist to prevent duplicates
-                if (!this.watchlist.find(w => w.title === movie.title)) {
-                    this.watchlist.unshift({
-                        title: movie.title,
+
+            const movieId = movie.id || movie.movie_id;
+            if (!movieId) return;
+
+            // Optimistic local update (for instant UI feedback)
+            if (movie.inWatchlist) {
+                if (!this.watchlist.find(w => (w.id || w.movie_id) === movieId)) {
+                    this.watchlist = [{
+                        ...movie,
                         year: movie.created_at ? new Date(movie.created_at).getFullYear() : "2024",
-                        genre: movie.genres && movie.genres.length > 0 ? movie.genres[0] : "Movie",
+                        genre: movie.genres && movie.genres.length > 0 ? movie.genres[0] : (movie.genre || "Movie"),
                         rating: movie.rating ? movie.rating + " / 5" : "N/A",
                         status: "Next Up",
                         img: movie.img || movie.cover_image || "https://via.placeholder.com/300x450/0d0d12/ffffff?text=No+Poster"
-                    });
+                    }, ...this.watchlist];
                 }
                 if (window.showToast) window.showToast('Added to watchlist', 'success');
             } else {
-                this.watchlist = this.watchlist.filter(w => w.title !== movie.title);
+                this.watchlist = this.watchlist.filter(w => (w.id || w.movie_id) !== movieId);
                 if (window.showToast) window.showToast('Removed from watchlist', 'info');
+            }
+
+            // Send request to backend (no action field – backend toggles automatically)
+            try {
+                const response = await fetch('/user_backend/toggle_watchlist.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        movie_id: movieId
+                    })
+                });
+
+                const data = await response.json();
+                if (!data.success && window.showToast) {
+                    window.showToast(data.message || 'Failed to update watchlist', 'error');
+                    // Revert local change if backend failed
+                    movie.inWatchlist = !movie.inWatchlist;
+                    // Optionally re-sync from server
+                    await this.fetchWatchlist();
+                }
+            } catch (e) {
+                console.error('Watchlist save error:', e);
+                // Revert on network error
+                movie.inWatchlist = !movie.inWatchlist;
+                await this.fetchWatchlist();
             }
         },
 
@@ -557,12 +590,7 @@ function userDashboard() {
             tl.to('#nav-overlay', { opacity: 0, duration: 0.3, ease: "power2.in" }, 0.2);
         },
 
-        // Modal and Shared Helper Methods
-        openEditMovieModal(movie) {
-            this.editingMovie = true;
-            this.newMovie = { ...movie, comments: movie.comments || [] };
-            this.movieModalOpen = true;
-        },
+        
         viewReport(report) {
             this.selectedReport = report;
             this.viewModalOpen = true;
@@ -1000,9 +1028,6 @@ function userDashboard() {
             this.newMovie = { title: '', genre: '', year: '', rating: '', description: '', trailer: '', img: '', comments: [] };
             this.movieModalOpen = true;
         },
-        saveMovie() {
-            this.movieModalOpen = false;
-        },
         viewRoom(room) {
             this.selectedRoom = room;
             this.roomModalOpen = true;
@@ -1018,26 +1043,7 @@ function userDashboard() {
         closeModal() {
             this.modalOpen = false;
         },
-        deleteItem(id) {
-            this.shopItems = this.shopItems.filter(i => i.id !== id);
-        },
-        saveItem() {
-            this.modalOpen = false;
-        },
-        handleFileUpload(event, callback) {
-            const file = event.target.files ? event.target.files[0] : null;
-            if (file) {
-                const reader = new FileReader();
-                reader.onload = (e) => {
-                    if (callback && typeof callback === 'function') {
-                        callback(e.target.result);
-                    } else if (this.formData) {
-                        this.formData.image = e.target.result;
-                    }
-                };
-                reader.readAsDataURL(file);
-            }
-        },
+
 
         //movie
         getMovieId(movie) {
@@ -1581,6 +1587,20 @@ function userDashboard() {
                 this.fetchFriends();
                 this.searchUsers();
                 this.fetchNotifications();
+            });
+
+            // Subscribe to movie update events
+            const movieChannel = this.pusherClient.subscribe('movie-updates');
+
+            movieChannel.bind('movie_changed', (data) => {
+                // Refresh the movie list when any change occurs
+                if (data.action === 'delete') {
+                    const movieId = Number(data.movie_id);
+                    this.movies = this.movies.filter(m => Number(m.id || m.movie_id) !== movieId);
+                } else {
+                    // For create/update, simply re-fetch the full list
+                    this.fetchMovies();
+                }
             });
         },
 
@@ -2900,55 +2920,196 @@ function adminDashboard(userData = {}) {
         movieModalOpen: false,
         editingMovie: false,
         movieTab: 'details',
+        posterPreview: null,
         newMovie: {
             id: null,
             title: '',
             description: '',
-            img: '',       // Maps to `poster`
-            trailer: '',   // Maps to `video_url`
-            duration: '',  // Maps to `duration` in minutes
-            genre_ids: []  // Array of genre_id integers
+            img_file: null, // Holds the actual file object for backend upload
+            trailer: '',   
+            duration: '',  
+            genre_ids: []  
         },
-        async fetchMovies() {
+
+        // --- Initialization ---
+        async init() {
+            await this.fetchMovies();
+            await this.fetchGenres();
+        },
+
+        switchTab(tab) {
+            this.currentTab = tab;
+            this.isNavOpen = false;
+        },
+
+        // --- Fetch API Methods ---
+       async fetchMovies() {
+            this.isLoading = true;
             try {
-                const response = await fetch('/backend/movies_api.php');
-                const text = await response.text(); // Read as raw text first
-                
-                try {
-                    const data = JSON.parse(text); // Try parsing as JSON
-                    if (response.ok) {
-                        this.movies = data;
-                    } else {
-                        console.error('Movies API Error:', data.error);
-                    }
-                } catch (jsonErr) {
-                    console.error('PHP returned raw non-JSON text:', text);
+                const response = await fetch(`/backend/movies_api.php?t=${Date.now()}`);
+                const text = await response.text();
+                const data = JSON.parse(text);
+                if (response.ok) {
+                    this.movies = data;
                 }
             } catch (err) {
                 console.error('Network error fetching movies:', err);
+            } finally {
+                this.isLoading = false;
             }
         },
 
         async fetchGenres() {
             try {
                 const response = await fetch('/backend/genres_api.php');
-                const text = await response.text(); // Read as raw text first
+                const text = await response.text();
                 
                 try {
-                    const data = JSON.parse(text); // Try parsing as JSON
+                    const data = JSON.parse(text);
                     if (response.ok) {
                         this.availableGenres = data;
                     } else {
-                        console.error('Genres API Error:', data.error);
+                        console.error("Failed to load genres:", data.error);
                     }
-                } catch (jsonErr) {
-                    console.error('PHP returned raw non-JSON text:', text);
+                } catch(e) {
+                    console.error("Invalid JSON response for genres:", text);
                 }
             } catch (err) {
-                console.error('Network error fetching genres:', err);
+                console.error("Network error fetching genres:", err);
             }
         },
 
+        // --- Movie Management & Upload Logic ---
+
+        // Safely preview an image without saving a bad blob: link to the DB
+        handlePosterSelect(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            
+            this.newMovie.img_file = file;
+            
+            // Clean up previous blob to prevent memory leaks
+            if (this.posterPreview && this.posterPreview.startsWith('blob:')) {
+                URL.revokeObjectURL(this.posterPreview);
+            }
+            // Generate a local preview for the admin
+            this.posterPreview = URL.createObjectURL(file);
+        },
+
+        openAddMovieModal() {
+            this.editingMovie = false;
+            this.errorMessage = '';
+            this.posterPreview = null;
+            this.newMovie = { 
+                id: null, 
+                title: '', 
+                description: '', 
+                img_file: null, 
+                trailer: '', 
+                duration: '', 
+                genre_ids: [] 
+            };
+            this.movieModalOpen = true;
+        },
+        async saveMovie() {
+            this.isLoading = true;
+            this.errorMessage = '';
+            
+            try {
+                const formData = new FormData();
+                formData.append('title', this.newMovie.title);
+                formData.append('description', this.newMovie.description);
+                formData.append('trailer', this.newMovie.trailer);
+                formData.append('actual_video_url', this.newMovie.actual_video_url || '');
+                formData.append('duration', this.newMovie.duration || '');
+                formData.append('genre_ids', JSON.stringify(this.newMovie.genre_ids || []));
+                
+                if (this.editingMovie) {
+                    formData.append('id', this.newMovie.id);
+                    formData.append('action', 'update');
+                } else {
+                    formData.append('action', 'create');
+                }
+
+                // Use the file property that handleFileUpload sets
+                if (this.newMovie.posterFile) {
+                    formData.append('poster_image', this.newMovie.posterFile);
+                } else if (this.newMovie.img_file) {
+                    formData.append('poster_image', this.newMovie.img_file);
+                }
+
+                const response = await fetch('/backend/movies_api.php', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const data = await response.json();
+                
+                if (data.success) {
+                    // If the server returns the updated movie object, use it
+                    if (data.movie) {
+                        if (this.editingMovie) {
+                            const index = this.movies.findIndex(m => (m.id || m.movie_id) === (data.movie.id || data.movie.movie_id));
+                            if (index !== -1) {
+                                this.movies.splice(index, 1, data.movie);
+                            } else {
+                                this.movies.push(data.movie);
+                            }
+                        } else {
+                            this.movies.push(data.movie);
+                        }
+                        // Force reactivity
+                        this.movies = [...this.movies];
+                    } else {
+                        // Fallback: fetchMovies with cache-busting
+                        await this.fetchMovies();
+                    }
+                    
+                    this.movieModalOpen = false;
+                    this.showToast(this.editingMovie ? 'Movie updated successfully!' : 'Movie added successfully!', 'success');
+                } else {
+                    this.errorMessage = data.error || 'Failed to save movie.';
+                }
+            } catch (err) {
+                console.error("Error saving movie:", err);
+                this.errorMessage = 'Network error occurred while saving.';
+            } finally {
+                this.isLoading = false;
+            }
+        },
+
+        async deleteMovie(id) {
+            if (!confirm("Are you sure you want to delete this movie? This cannot be undone.")) return;
+            
+            try {
+                const formData = new FormData();
+                formData.append('action', 'delete');
+                formData.append('id', id);
+
+                const response = await fetch('/backend/movies_api.php', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const data = await response.json();
+                if (data.success) {
+                    await this.fetchMovies();
+                    this.showToast('Movie deleted successfully.', 'success');
+                } else {
+                    alert(data.error || 'Failed to delete movie.');
+                }
+            } catch (err) {
+                console.error("Error deleting movie:", err);
+            }
+        },
+
+        showToast(msg, type = 'info') {
+            if (window.showToast) {
+                window.showToast(msg, type);
+            } else {
+                alert(msg);
+            }
+        },
         // Sessions
         roomModalOpen: false,
         selectedRoom: null,
@@ -3234,44 +3395,56 @@ function adminDashboard(userData = {}) {
                 newPanel.style.display = 'block';
             }
         },
-        // Toggle genre string or object ID in newMovie.genres
+        // Toggle genre ID in newMovie.genre_ids
         toggleGenre(genre) {
-            if (!Array.isArray(this.newMovie.genres)) {
-                this.newMovie.genres = [];
+            // Ensure genre_ids array exists
+            if (!Array.isArray(this.newMovie.genre_ids)) {
+                this.newMovie.genre_ids = [];
             }
-            
-            const val = typeof genre === 'object' ? (genre.name || genre.id) : genre;
-            const index = this.newMovie.genres.indexOf(val);
-            
+
+            // Extract the ID if genre is an object, otherwise treat the input as the ID
+            const val = typeof genre === 'object' ? genre.id : genre;
+
+            const index = this.newMovie.genre_ids.indexOf(val);
+
             if (index > -1) {
-                this.newMovie.genres.splice(index, 1);
+                this.newMovie.genre_ids.splice(index, 1);
             } else {
-                this.newMovie.genres.push(val);
+                this.newMovie.genre_ids.push(val);
             }
-            
-            // Automatically update single string field for list card display
-            this.newMovie.genre = this.newMovie.genres.join(', ');
+
+            // Optional: update a display string if needed, but not required for saving
+            // this.newMovie.genre = this.newMovie.genre_ids.join(', ');
         },
-        // Helper to check selection status
+
+        // Helper to check selection status by ID
         isGenreSelected(genre) {
-            if (!this.newMovie || !Array.isArray(this.newMovie.genres)) return false;
-            const val = typeof genre === 'object' ? (genre.name || genre.id) : genre;
-            return this.newMovie.genres.includes(val);
+            if (!this.newMovie || !Array.isArray(this.newMovie.genre_ids)) return false;
+            const val = typeof genre === 'object' ? genre.id : genre;
+            return this.newMovie.genre_ids.includes(val);
         },
-              
         openEditMovieModal(movie) {
             this.editingMovie = true;
             this.movieTab = 'details';
             this.newMovie = JSON.parse(JSON.stringify(movie));
-            
-            // Convert string like "Action, Sci-Fi" into array ['Action', 'Sci-Fi'] if needed
-            if (!Array.isArray(this.newMovie.genres)) {
-                if (typeof this.newMovie.genre === 'string' && this.newMovie.genre.trim() !== '') {
-                    this.newMovie.genres = this.newMovie.genre.split(',').map(g => g.trim());
+
+            // Convert string genre to array if needed
+            if (!Array.isArray(this.newMovie.genre_ids)) {
+                if (typeof this.newMovie.genre_ids === 'string' && this.newMovie.genre_ids.trim() !== '') {
+                    // Convert "1,2,3" → [1,2,3]
+                    this.newMovie.genre_ids = this.newMovie.genre_ids
+                        .split(',')
+                        .map(id => parseInt(id.trim(), 10))
+                        .filter(id => !isNaN(id));
                 } else {
-                    this.newMovie.genres = [];
+                    this.newMovie.genre_ids = [];
                 }
             }
+
+            // ✅ Set the poster preview URL to whatever field the backend uses
+            this.newMovie.img = movie.img || movie.poster_url || movie.poster || movie.image || '';
+            this.posterPreview = this.newMovie.img; // optional, if you still use posterPreview elsewhere
+
             this.movieModalOpen = true;
         },
         openBanModal(user) {
@@ -3482,63 +3655,7 @@ function adminDashboard(userData = {}) {
                 );
             }
         },
-        // Open modal for adding
-        openAddMovieModal() {
-            this.editingMovie = false;
-            this.movieTab = 'details';
-            this.newMovie = {
-                title: '', year: '', rating: 0, genres: [], genre: '', description: '', trailer: '', actual_video_url: '', img: ''
-            };
-            this.movieModalOpen = true;
-        },
-        // Preferred FormData approach
-        async saveMovie() {
-            // Check required fields
-            if (!this.newMovie.title || !this.newMovie.img) {
-                window.showToast('Title and Poster are required', 'error');
-                return;
-            }
-
-            // Map genres back to IDs if necessary
-            let genreIds = [];
-            if (this.newMovie.genres && this.availableGenres) {
-                 this.newMovie.genres.forEach(g => {
-                     let found = this.availableGenres.find(ag => ag.name === g || ag.id == g);
-                     if (found) genreIds.push(found.id);
-                 });
-            }
-
-            const payload = {
-                id: this.newMovie.id || null,
-                title: this.newMovie.title,
-                description: this.newMovie.description,
-                img: this.newMovie.img,
-                trailer: this.newMovie.trailer || '',
-                actual_video_url: this.newMovie.actual_video_url || '',
-                duration: this.newMovie.year || this.newMovie.duration || null,
-                genre_ids: genreIds
-            };
-
-            try {
-                const res = await fetch('/backend/movies_api.php', { 
-                    method: 'POST', 
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload) 
-                });
-                const data = await res.json();
-                if (data.success) {
-                    window.showToast('Movie saved successfully', 'success');
-                    this.movieModalOpen = false;
-                    // refresh movies if necessary
-                } else {
-                    window.showToast(data.error || 'Failed to save movie', 'error');
-                }
-            } catch (err) {
-                console.error(err);
-                window.showToast('Network error while saving', 'error');
-            }
-        },
-
+    
         viewRoom(room) {
             this.selectedRoom = room;
             this.roomModalOpen = true;
@@ -3560,20 +3677,54 @@ function adminDashboard(userData = {}) {
         saveItem() {
             this.modalOpen = false;
         },
-        handleFileUpload(event, callback) {
-            const file = event.target.files ? event.target.files[0] : null;
-            if (file) {
+        async compressImage(file, maxWidth = 800, quality = 0.8) {
+            return new Promise((resolve, reject) => {
                 const reader = new FileReader();
                 reader.onload = (e) => {
-                    if (callback && typeof callback === 'function') {
-                        callback(e.target.result);
-                    } else if (this.formData) {
-                        this.formData.image = e.target.result;
-                    }
+                    const img = new Image();
+                    img.onload = () => {
+                        const canvas = document.createElement('canvas');
+                        let width = img.width;
+                        let height = img.height;
+                        if (width > maxWidth) {
+                            height = height * (maxWidth / width);
+                            width = maxWidth;
+                        }
+                        canvas.width = width;
+                        canvas.height = height;
+                        const ctx = canvas.getContext('2d');
+                        ctx.drawImage(img, 0, 0, width, height);
+                        canvas.toBlob((blob) => {
+                            resolve(new File([blob], file.name.replace(/\.[^/.]+$/, '.jpg'), { type: 'image/jpeg' }));
+                        }, 'image/jpeg', quality);
+                    };
+                    img.onerror = reject;
+                    img.src = e.target.result;
                 };
+                reader.onerror = reject;
+                reader.readAsDataURL(file);
+            });
+        },
+
+        async handleFileUpload(event, callback) {
+            const file = event.target.files[0];
+            if (!file) return;
+            try {
+                const compressedFile = await this.compressImage(file);
+                this.newMovie.posterFile = compressedFile;   // store for upload
+                const reader = new FileReader();
+                reader.onload = (e) => callback(e.target.result); // set newMovie.img for preview
+                reader.readAsDataURL(compressedFile);
+            } catch (err) {
+                // fallback to original
+                this.newMovie.posterFile = file;
+                const reader = new FileReader();
+                reader.onload = (e) => callback(e.target.result);
                 reader.readAsDataURL(file);
             }
         },
+
+       
         networkTraffic: [
             { day: 'Mon', reqs: 1250, height: 40 },
             { day: 'Tue', reqs: 3400, height: 75 },
@@ -3590,6 +3741,39 @@ function adminDashboard(userData = {}) {
             { day: 'Sat', reqs: 5100, height: 95 },
             { day: 'Sun', reqs: 4600, height: 88 }
         ],
+
+        // Detect if URL is from YouTube
+        isYouTubeUrl(url) {
+            if (!url) return false;
+            return url.includes('youtube.com') || url.includes('youtu.be');
+        },
+        // Convert any standard YouTube link into a clean Embed URL
+        getYouTubeEmbedUrl(url, isHover = false) {
+            if (!url) return '';
+            
+            // Extract Video ID
+            const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
+            const match = url.match(regExp);
+            
+            if (match && match[2].length === 11) {
+                const videoId = match[2];
+                
+                // Query parameters for YouTube Embed
+                const params = new URLSearchParams({
+                    autoplay: isHover ? '1' : '0', // Autoplay must be 1 for hover
+                    mute: isHover ? '1' : '0',     // Browser policy requires mute for auto-play on hover
+                    controls: isHover ? '0' : '1', // Hide controls during hover
+                    loop: '1',
+                    playlist: videoId,             // Required for looping
+                    modestbranding: '1',
+                    rel: '0'
+                });
+
+                return `https://www.youtube.com/embed/${videoId}?${params.toString()}`;
+            }
+            
+            return url;
+        },
 
          initDashboard() {
             this.fetchReports();

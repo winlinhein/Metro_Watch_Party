@@ -35,8 +35,6 @@
 
 <script>
     window.showToast = function(toastMessage, toastType) {
-        
-        
         if (toastMessage) {
             const container = document.getElementById('nexus-toast-container');
             const toast = document.getElementById('nexus-toast');
@@ -48,32 +46,41 @@
             const divider = document.getElementById('toast-divider');
             const msg = document.getElementById('toast-msg');
             const progressBar = document.getElementById('nexus-toast-progress');
-            
+
+            // Check that essential elements exist before manipulating classList
+            if (!container || !toast) return;
+
             container.classList.remove('hidden');
-            msg.textContent = toastMessage;
-            
+            if (msg) msg.textContent = toastMessage;
+
+            // Reset existing dynamic classes safely
+            toast.className = "pointer-events-auto relative bg-[#050505]/95 backdrop-blur-2xl border border-white/10 rounded-2xl shadow-[0_30px_60px_rgba(0,0,0,0.9)] overflow-hidden flex flex-col p-0 opacity-0 transform translate-y-[150px] rotate-x-[-30deg] rotate-y-[15deg] scale-90";
+
             if (toastType === 'error') {
                 toast.classList.add('shadow-[0_15px_50px_rgba(239,68,68,0.2)]');
-                bgGlow.classList.add('from-red-600/40', 'via-red-900/5');
-                iconWrapper.classList.add('bg-red-500/10', 'border-red-500/40', 'shadow-[0_0_20px_rgba(239,68,68,0.5)]');
-                iconBg.classList.add('bg-red-500/20');
-                icon.classList.add('text-red-500', 'drop-shadow-[0_0_12px_rgba(239,68,68,1)]');
-                icon.textContent = 'error';
-                title.textContent = 'System Error';
-                divider.classList.add('from-red-500/50');
-                progressBar.classList.add('bg-red-500', 'shadow-[0_0_15px_rgba(239,68,68,1)]');
+                if (bgGlow) bgGlow.classList.add('from-red-600/40', 'via-red-900/5');
+                if (iconWrapper) iconWrapper.classList.add('bg-red-500/10', 'border-red-500/40', 'shadow-[0_0_20px_rgba(239,68,68,0.5)]');
+                if (iconBg) iconBg.classList.add('bg-red-500/20');
+                if (icon) {
+                    icon.classList.add('text-red-500', 'drop-shadow-[0_0_12px_rgba(239,68,68,1)]');
+                    icon.textContent = 'error';
+                }
+                if (title) title.textContent = 'System Error';
+                if (divider) divider.classList.add('from-red-500/50');
+                if (progressBar) progressBar.classList.add('bg-red-500', 'shadow-[0_0_15px_rgba(239,68,68,1)]');
             } else {
                 toast.classList.add('shadow-[0_15px_50px_rgba(34,197,94,0.2)]');
-                bgGlow.classList.add('from-green-500/40', 'via-green-900/5');
-                iconWrapper.classList.add('bg-green-500/10', 'border-green-500/40', 'shadow-[0_0_20px_rgba(34,197,94,0.5)]');
-                iconBg.classList.add('bg-green-500/20');
-                icon.classList.add('text-green-500', 'drop-shadow-[0_0_12px_rgba(34,197,94,1)]');
-                icon.textContent = 'check_circle';
-                title.textContent = 'Success';
-                divider.classList.add('from-green-500/50');
-                progressBar.classList.add('bg-green-500', 'shadow-[0_0_15px_rgba(34,197,94,1)]');
+                if (bgGlow) bgGlow.classList.add('from-green-500/40', 'via-green-900/5');
+                if (iconWrapper) iconWrapper.classList.add('bg-green-500/10', 'border-green-500/40', 'shadow-[0_0_20px_rgba(34,197,94,0.5)]');
+                if (iconBg) iconBg.classList.add('bg-green-500/20');
+                if (icon) {
+                    icon.classList.add('text-green-500', 'drop-shadow-[0_0_12px_rgba(34,197,94,1)]');
+                    icon.textContent = 'check_circle';
+                }
+                if (title) title.textContent = 'Success';
+                if (divider) divider.classList.add('from-green-500/50');
+                if (progressBar) progressBar.classList.add('bg-green-500', 'shadow-[0_0_15px_rgba(34,197,94,1)]');
             }
-
             if (typeof gsap !== 'undefined') {
                 const tl = gsap.timeline();
                 

@@ -22,42 +22,58 @@
     <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6 pb-12">
         <template x-for="movie in movies" :key="movie.id">
             <div class="movie-card-container stagger-item">
-                <div class="group relative rounded-2xl bg-[#08080c] border border-white/[0.08] hover:border-red-500/40 transition-all duration-300 hover:-translate-y-1.5 shadow-xl hover:shadow-[0_12px_30px_rgba(239,68,68,0.15)] overflow-hidden">
-                     
-                     <div class="aspect-[2/3] w-full relative overflow-hidden bg-white/5">
-                         <img :src="movie.img || 'https://via.placeholder.com/300x450/0d0d12/ffffff?text=No+Poster'" alt="Poster" class="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110">
-                         <div class="absolute inset-0 bg-gradient-to-t from-[#08080c] via-[#08080c]/40 to-transparent opacity-90 group-hover:opacity-75 transition-opacity duration-300"></div>
-                         
-                         <!-- Rating Badge on Poster -->
-                         <div class="absolute top-3 left-3 px-2.5 py-1 rounded-xl bg-black/60 backdrop-blur-md border border-white/10 flex items-center gap-1.5 text-xs font-bold text-yellow-400">
-                             <span class="material-symbols-outlined text-[14px]">star</span>
-                             <span x-text="movie.rating ? movie.rating : '0.0'"></span>
-                         </div>
-
-                         <!-- Hover Actions -->
-                         <div class="absolute top-3 right-3 flex gap-1.5 opacity-0 group-hover:opacity-100 transition-all duration-300 translate-y-[-8px] group-hover:translate-y-0 z-20">
-                             <button @click.stop="openEditMovieModal(movie)" class="w-8 h-8 rounded-xl bg-black/70 border border-white/20 backdrop-blur-md flex items-center justify-center text-white hover:bg-white hover:text-black transition-colors" title="Edit">
-                                 <span class="material-symbols-outlined text-[15px]">edit</span>
-                             </button>
-                             <button @click.stop="deleteMovie(movie.id)" class="w-8 h-8 rounded-xl bg-black/70 border border-white/20 backdrop-blur-md flex items-center justify-center text-white hover:bg-red-600 transition-colors" title="Delete">
-                                 <span class="material-symbols-outlined text-[15px]">delete</span>
-                             </button>
-                         </div>
-                     </div>
+                
+                <!-- 1. ADD x-data, @mouseenter, and @mouseleave HERE -->
+                <div x-data="{ isHovered: false }" 
+                    @mouseenter="isHovered = true" 
+                    @mouseleave="isHovered = false"
+                    class="group relative rounded-2xl bg-[#08080c] border border-white/[0.08] hover:border-red-500/40 transition-all duration-300 hover:-translate-y-1.5 shadow-xl hover:shadow-[0_12px_30px_rgba(239,68,68,0.15)] overflow-hidden">
                     
-                     <!-- Card Details -->
-                     <div class="p-4 space-y-2">
-                         <h4 class="font-bold text-base text-white group-hover:text-red-400 transition-colors truncate" x-text="movie.title"></h4>
-                         <div class="flex items-center gap-2 flex-wrap">
-                             <span class="px-2 py-0.5 rounded-md text-[10px] font-bold bg-white/[0.06] text-white/70 border border-white/5 font-mono" x-text="movie.year || movie.duration || 'N/A'"></span>
-                             <span class="px-2 py-0.5 rounded-md text-[10px] font-bold bg-indigo-500/10 text-indigo-300 border border-indigo-500/20 truncate max-w-[100px]" x-text="movie.genre || 'N/A'"></span>
-                         </div>
-                     </div>
+                    <div class="aspect-[2/3] w-full relative overflow-hidden bg-white/5">
+                        <img :src="movie.img || movie.cover_image || 'https://via.placeholder.com/300x450/0d0d12/ffffff?text=No+Poster'" alt="Poster" class="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110">
+                        
+                        <!-- 2. INSERT THE TRAILER IFRAME HERE -->
+                        <template x-if="isHovered && movie.trailer && isYouTubeUrl(movie.trailer)">
+                            <iframe 
+                                class="absolute top-0 left-0 w-full h-full pointer-events-none z-0 object-cover" 
+                                :src="getYouTubeEmbedUrl(movie.trailer, true)" 
+                                frameborder="0" 
+                                allow="autoplay; muted; encrypted-media">
+                            </iframe>
+                        </template>
+
+                        <div class="absolute inset-0 bg-gradient-to-t from-[#08080c] via-[#08080c]/40 to-transparent opacity-90 group-hover:opacity-75 transition-opacity duration-300 z-10"></div>
+                        
+                        <!-- Rating Badge on Poster -->
+                        <div class="absolute top-3 left-3 px-2.5 py-1 rounded-xl bg-black/60 backdrop-blur-md border border-white/10 flex items-center gap-1.5 text-xs font-bold text-yellow-400 z-20">
+                            <span class="material-symbols-outlined text-[14px]">star</span>
+                            <span x-text="movie.rating ? movie.rating : '0.0'"></span>
+                        </div>
+
+                        <!-- Hover Actions -->
+                        <div class="absolute top-3 right-3 flex gap-1.5 opacity-0 group-hover:opacity-100 transition-all duration-300 translate-y-[-8px] group-hover:translate-y-0 z-20">
+                            <button @click.stop="openEditMovieModal(movie)" class="w-8 h-8 rounded-xl bg-black/70 border border-white/20 backdrop-blur-md flex items-center justify-center text-white hover:bg-white hover:text-black transition-colors" title="Edit">
+                                <span class="material-symbols-outlined text-[15px]">edit</span>
+                            </button>
+                            <button @click.stop="deleteMovie(movie.id)" class="w-8 h-8 rounded-xl bg-black/70 border border-white/20 backdrop-blur-md flex items-center justify-center text-white hover:bg-red-600 transition-colors" title="Delete">
+                                <span class="material-symbols-outlined text-[15px]">delete</span>
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- Card Details -->
+                    <div class="p-4 space-y-2 relative z-20">
+                        <h4 class="font-bold text-base text-white group-hover:text-red-400 transition-colors truncate" x-text="movie.title"></h4>
+                        <div class="flex items-center gap-2 flex-wrap">
+                            <span class="px-2 py-0.5 rounded-md text-[10px] font-bold bg-white/[0.06] text-white/70 border border-white/5 font-mono" x-text="movie.year || movie.duration || 'N/A'"></span>
+                            <span class="px-2 py-0.5 rounded-md text-[10px] font-bold bg-indigo-500/10 text-indigo-300 border border-indigo-500/20 truncate max-w-[100px]" x-text="movie.genre || 'N/A'"></span>
+                        </div>
+                    </div>
                 </div>
             </div>
         </template>
     </div>
-
+    
     <!-- Redesigned Modal (Teleported to body) -->
     <template x-teleport="body">
         <div x-show="movieModalOpen" class="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 bg-black/85 backdrop-blur-md" style="display: none;" x-transition.opacity>
@@ -126,8 +142,8 @@
 
                                 <div class="grid grid-cols-2 gap-4">
                                     <div>
-                                        <label class="block text-[11px] font-extrabold text-white/40 uppercase tracking-widest mb-2">Year / Duration</label>
-                                        <input type="text" x-model="newMovie.year" placeholder="2024 or 120m" class="w-full bg-white/[0.03] border border-white/10 rounded-2xl px-4 py-3 text-sm text-white focus:outline-none focus:border-red-500/60 focus:ring-2 focus:ring-red-500/20 transition-all placeholder:text-white/20">
+                                        <label class="block text-[11px] font-extrabold text-white/40 uppercase tracking-widest mb-2">Duration (minutes)</label>
+                                        <input type="number" x-model="newMovie.duration" placeholder="e.g. 120" class="w-full bg-white/[0.03] border border-white/10 rounded-2xl px-4 py-3 text-sm text-white focus:outline-none focus:border-red-500/60 focus:ring-2 focus:ring-red-500/20 transition-all placeholder:text-white/20">
                                     </div>
 
                                     <!-- Locked Rating Badge -->
