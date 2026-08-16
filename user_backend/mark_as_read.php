@@ -33,13 +33,14 @@ $stmt->execute([
 ]);
 
 // Notify the sender that their messages were read
-$reader_id = $_POST['reader_id'];
-$sender_id = $_POST['sender_id']; 
+$reader_id = $currentUserId;
+$sender_id = $senderId; 
 $minId = min($reader_id, $sender_id);
 $maxId = max($reader_id, $sender_id);
 $channelName = "chat-{$minId}-{$maxId}";
 
-$pusher->trigger($channelName, 'messages_read', [
-    'reader_id' => $reader_id
+triggerPusherEvent($channelName, 'messages_read', [
+    'reader_id' => $reader_id,
+    'sender_id' => $sender_id
 ]);
 echo json_encode(['success' => true]);

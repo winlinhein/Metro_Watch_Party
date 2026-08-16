@@ -20,7 +20,8 @@ try {
             m.poster AS cover_image,
             m.poster AS img,             
             m.video_url,
-            m.video_url AS trailer,       
+            m.video_url AS trailer,
+            m.actual_video_url,       
             m.duration,
             m.view_count,
             m.created_at,
@@ -54,6 +55,14 @@ try {
         
         // Comments are loaded dynamically when the modal opens via get_comments.php
         $movie['comments'] = [];
+
+        // Convert raw BLOB poster to base64 data URI
+        if (!empty($movie['img'])) {
+            $movie['img'] = 'data:image/jpeg;base64,' . base64_encode($movie['img']);
+        }
+        if (!empty($movie['cover_image'])) {
+            $movie['cover_image'] = 'data:image/jpeg;base64,' . base64_encode($movie['cover_image']);
+        }
     }
 
     echo json_encode($movies);

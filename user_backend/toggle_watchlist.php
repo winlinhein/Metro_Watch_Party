@@ -43,7 +43,7 @@ try {
         $action = 'added';
     }
 
-    $pusher->trigger('user-' . $currentUserId, 'watchlist-updated', [
+    triggerPusherEvent('user-' . $currentUserId, 'watchlist-updated', [
         'movie_id' => $movieId,
         'action' => $action
     ]);

@@ -42,22 +42,25 @@ try {
     $watchlist = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
     // Format the data so it seamlessly plugs into your Alpine.js UI expectations
-    foreach ($watchlist as &$item) {
+   foreach ($watchlist as &$item) {
         // Extract just the year from the timestamp
         $item['year'] = !empty($item['created_at']) ? date('Y', strtotime($item['created_at'])) : "N/A";
         
-        // I noticed a movie_rating tab in your screenshots, but since it wasn't in the query, 
-        // I am defaulting it to N/A for the UI. You can join that table later if needed!
-        $item['rating'] = "N/A"; 
+        // Default rating if not in query
+        $item['rating'] = "N/A";
         
-        // If a movie has no genres assigned, give it a fallback
+        // Ensure genre is not null
         $item['genre'] = !empty($item['genre']) ? $item['genre'] : "Movie";
-
-        // Add the static status string expected by the frontend UI
+        
+        // Add static status
         $item['status'] = "Saved";
         
-        // Ensure image has a fallback if null in the database
-        if (empty($item['img'])) {
+        // Handle image: if raw BLOB, convert to base64; otherwise use placeholder
+        if (!empty($item['img'])) {
+            // It's a BLOB from DB, convert to data URI
+            $item['img'] = 'data:image/jpeg;base64,' . base64_encode($item['img']);
+        } else {
+            // No image, use placeholder URL (do NOT encode)
             $item['img'] = "https://via.placeholder.com/300x450/0d0d12/ffffff?text=No+Poster";
         }
     }
