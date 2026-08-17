@@ -117,6 +117,25 @@ app.get("/user_backend/mission.php", (req, res) => {
   });
 });
 
+app.get("/user_backend/get_reasons.php", (req, res) => {
+  res.json({
+    success: true,
+    reasons: [
+      { reason_id: 1, reason_title: "Spam", reason_description: "Unwanted or repetitive content." },
+      { reason_id: 2, reason_title: "Harassment", reason_description: "Abusive or threatening behavior." },
+      { reason_id: 3, reason_title: "Inappropriate Content", reason_description: "Contains offensive material." }
+    ]
+  });
+});
+
+app.post("/user_backend/submit_report.php", (req, res) => {
+  res.json({ success: true, message: "Report submitted successfully." });
+});
+
+app.post("/user_backend/unfriend.php", (req, res) => {
+  res.json({ success: true, message: "Friend removed." });
+});
+
 app.post("/user_backend/clear_notifications.php", (req, res) => {
   res.json({ success: true });
 });
@@ -201,7 +220,47 @@ app.post("/user_backend/toggle_watchlist.php", (req, res) => {
 });
 
 app.get("/user_backend/get_comments.php", (req, res) => {
-  res.json({ success: true, comments: [] });
+  res.json({ 
+    success: true, 
+    comments: [
+      {
+        id: 101,
+        user_name: "MovieCritic99",
+        created_at: "2 hours ago",
+        content: "This movie was absolutely mind-blowing! The visual effects were insane.",
+        likes_count: 42,
+        replies: [
+          {
+            id: 201,
+            user_name: "SciFiFanatic",
+            created_at: "1 hour ago",
+            content: "I completely agree! The ending left me speechless."
+          },
+          {
+            id: 202,
+            user_name: "TrollMaster",
+            created_at: "45 minutes ago",
+            content: "Honestly, it was trash. Overhyped garbage."
+          }
+        ]
+      },
+      {
+        id: 102,
+        user_name: "CasualViewer",
+        created_at: "5 hours ago",
+        content: "A bit slow in the middle, but overall a solid watch.",
+        likes_count: 15,
+        replies: [
+          {
+            id: 203,
+            user_name: "ActionJunkie",
+            created_at: "3 hours ago",
+            content: "Agreed, pacing was a bit off during the second act."
+          }
+        ]
+      }
+    ] 
+  });
 });
 
 app.post("/user_backend/like_comment.php", (req, res) => {
@@ -260,6 +319,14 @@ app.post("/backend/update_profile.php", (req, res) => {
 
 app.post("/backend/delete_account.php", (req, res) => {
   res.json({ success: true });
+});
+
+app.get("/backend/get_reports.php", (req, res) => {
+  res.json({ success: true, reports: [] });
+});
+
+app.post("/backend/update_report_status.php", (req, res) => {
+  res.json({ success: true, message: "Report status updated." });
 });
 
 app.post("/backend/resend_otp.php", (req, res) => {

@@ -44,6 +44,12 @@ if ($movieId) {
         'comment_id'  => $commentId,
         'likes_count' => (int)$newLikesCount
     ]);
+
+    // NEW: Broadcast to global admin channel
+    triggerPusherEvent('admin-comments', 'comment_liked', [
+        'comment_id'  => $commentId,
+        'likes_count' => (int)$newLikesCount
+    ]);
 }
 
 echo json_encode(['success' => true]);

@@ -130,10 +130,16 @@ if (
             pointer-events: none;
             z-index: -1;
         }
+
+        :root {
+            --plyr-color-main: #ef4444; /* Nexus Red */
+        }
     </style>
 
 
 
+    <link rel="stylesheet" href="https://cdn.plyr.io/3.7.8/plyr.css" />
+    <script src="https://cdn.plyr.io/3.7.8/plyr.polyfilled.js"></script>
     <script src="/js/nexus_scripts.js?v=17"></script>
     <script src="https://unpkg.com/htmx.org@1.9.10/dist/htmx.min.js" crossorigin="anonymous"></script>
 </head>

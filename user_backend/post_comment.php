@@ -1,13 +1,13 @@
 <?php
 session_start();
 require_once __DIR__ . '/../pusher_helper.php';
-require_once __DIR__ . '/../conn.php'; 
+require_once __DIR__ . '/../conn.php';
 
 $input = json_decode(file_get_contents('php://input'), true);
 $movieId = intval($input['movie_id'] ?? 0);
 $commentText = trim($input['comment'] ?? '');
 $userId = $_SESSION['user_id'] ?? 0;
-$userName = $_SESSION['user_name'] ?? 'Anonymous'; 
+$userName = $_SESSION['user_name'] ?? 'Anonymous';
 
 if (!$userId || !$movieId || empty($commentText)) {
     echo json_encode(['success' => false]);
@@ -27,18 +27,30 @@ $stmt->execute([
 
 $commentId = $conn->lastInsertId();
 
-// 2. Prepare payload for Pusher
+// 2. Fetch movie title for admin event
+$movieTitle = '';
+$titleStmt = $conn->prepare("SELECT title FROM movies WHERE movie_id = ?");
+$titleStmt->execute([$movieId]);
+if ($row = $titleStmt->fetch()) {
+    $movieTitle = $row['title'];
+}
+
+// 3. Prepare payload
 $commentData = [
     'id' => $commentId,
     'movie_id' => $movieId,
     'user_name' => $userName,
-    'comment' => $commentText,
+    'comment_text' => $commentText,  // Note: admin UI expects 'comment_text'
     'created_at' => date('Y-m-d H:i:s'),
     'likes_count' => 0,
-    'replies' => []
+    'parent_id' => null,
+    'movie_title' => $movieTitle
 ];
 
-// 3. Broadcast
+// 4. Broadcast to movie-specific channel
 triggerPusherEvent("movie-{$movieId}", 'new_comment', $commentData);
+
+// 5. Broadcast to global admin channel
+triggerPusherEvent('admin-comments', 'new_comment', $commentData);
 
 echo json_encode(['success' => true, 'comment' => $commentData]);

@@ -120,7 +120,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
             exit();
         }
     } else {
-        $firstErr = $nameErr ?: ($emailErr ?: ($user_passErr ?: $termsErr));
+        $firstErr = $emailErr;
         header("Location: ../frontend/forgot-password.php?error=" . urlencode($firstErr));
         exit();
     }
