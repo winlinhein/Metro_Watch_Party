@@ -717,6 +717,30 @@ $userId = $_SESSION['user_id'] ?? 0;
 <script src="/js/barba_setup.js?v=4"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
 <script src="/js/nexus_scripts.js?v=6"></script>
+<!-- Include Socket.io globally -->
+<script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+
+<script>
+    // Initialize a global socket connection
+    const globalSocket = io('http://localhost:3000'); 
+    
+    // NOTE: This needs to be the actual logged-in user's ID
+    const currentUserId = '123'; 
+
+    globalSocket.on('connect', () => {
+        // Register the user to receive invites across the whole site
+        globalSocket.emit('register-user', currentUserId);
+    });
+
+    globalSocket.on('receive-invite', (data) => {
+        // Instead of an alert, we dispatch a custom browser event
+        // This allows our UI components (like Alpine.js) to catch it
+        window.dispatchEvent(new CustomEvent('incoming-party-invite', { detail: data }));
+        
+        // Optional: Play a notification sound
+        // new Audio('/sounds/invite-ping.mp3').play();
+    });
+</script>
 </body>
 </html>
 
