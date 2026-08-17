@@ -29,7 +29,7 @@ a, button, input, textarea, select, .cursor-pointer, .top-nav-item, [x-ref="prog
     background-color: #ef4444;
     border-radius: 50%;
     pointer-events: none;
-    z-index: 9999;
+    z-index: 999999;
     box-sizing: border-box;
     transform: translate(-50%, -50%);
     transition: width 0.2s, height 0.2s, background-color 0.2s;

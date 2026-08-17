@@ -82,7 +82,35 @@ if ($method === 'POST') {
     $input = json_decode(file_get_contents('php://input'), true);
 
     if (!$input || empty($input['action'])) {
-        http_response_code(400);
+        // Process Promote to Moderator
+    if ($action === 'promote_moderator') {
+        try {
+            $stmt = $conn->prepare("UPDATE users SET role_id = 3 WHERE user_id = ? AND role_id != 1");
+            $stmt->execute([$userId]);
+            echo json_encode(['success' => true, 'message' => "User ID {$userId} has been promoted to Moderator."]);
+            exit();
+        } catch (Exception $e) {
+            http_response_code(500);
+            echo json_encode(['error' => 'Failed to promote user: ' . $e->getMessage()]);
+            exit();
+        }
+    }
+
+    // Process Demote from Moderator
+    if ($action === 'demote_moderator') {
+        try {
+            $stmt = $conn->prepare("UPDATE users SET role_id = 2 WHERE user_id = ? AND role_id = 3");
+            $stmt->execute([$userId]);
+            echo json_encode(['success' => true, 'message' => "User ID {$userId} has been demoted."]);
+            exit();
+        } catch (Exception $e) {
+            http_response_code(500);
+            echo json_encode(['error' => 'Failed to demote user: ' . $e->getMessage()]);
+            exit();
+        }
+    }
+
+    http_response_code(400);
         echo json_encode(['error' => 'Invalid data payload or missing action']);
         exit();
     }

@@ -40,8 +40,15 @@ $movieId = $stmt->fetchColumn();
 if ($movieId) {
     // 4. Broadcast updated like count to everyone looking at this movie
     triggerPusherEvent("movie-{$movieId}", 'comment_liked', [
-        'comment_id' => $commentId,
-        'likes_count' => $newLikesCount
+        'movie_id'    => (int)$movieId,
+        'comment_id'  => $commentId,
+        'likes_count' => (int)$newLikesCount
+    ]);
+
+    // NEW: Broadcast to global admin channel
+    triggerPusherEvent('admin-comments', 'comment_liked', [
+        'comment_id'  => $commentId,
+        'likes_count' => (int)$newLikesCount
     ]);
 }
 

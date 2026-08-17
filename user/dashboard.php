@@ -59,6 +59,7 @@ $userId = $_SESSION['user_id'] ?? 0;
     <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js" crossorigin="anonymous"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/ScrollTrigger.min.js" crossorigin="anonymous"></script>
     <script>if(window.gsap) gsap.config({nullTargetWarn: false});</script>
+    <script defer src="https://cdn.jsdelivr.net/npm/@alpinejs/collapse@3.14.1/dist/cdn.min.js"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.1/dist/cdn.min.js" crossorigin="anonymous"></script>
     
     <style>
@@ -154,16 +155,22 @@ $userId = $_SESSION['user_id'] ?? 0;
             50% { background-position: 100% 100%; }
             100% { background-position: 0% 0%; }
         }
+        
+        :root {
+            --plyr-color-main: #ef4444; /* Nexus Red */
+        }
     </style>
 
-    <script src="/js/nexus_scripts.js?v=6"></script>
+    <link rel="stylesheet" href="https://cdn.plyr.io/3.7.8/plyr.css" />
+    <script src="https://cdn.plyr.io/3.7.8/plyr.polyfilled.js"></script>
+    <script src="/js/nexus_scripts.js?v=14"></script>
 </head>
 <body class="h-screen w-screen flex flex-col relative selection:bg-red-500/30" data-barba="wrapper">
     <?php include __DIR__ . '/../frontend/components/page_loader.php'; ?>
     <?php include __DIR__ . '/../frontend/components/cursor.php'; ?>
     <?php include __DIR__ . '/../frontend/components/toast.php'; ?>
 
-<div id="barba-container" class="flex w-full h-full" data-barba="container" data-barba-namespace="dashboard" x-data="userDashboard()" x-init="initDashboard()">
+<div id="barba-container" class="flex w-full h-full" data-barba="container" data-barba-namespace="dashboard" x-data="userDashboard()" x-init="init()">
 
     <div class="bg-mesh"></div>
     <div class="noise"></div>
@@ -324,8 +331,8 @@ $userId = $_SESSION['user_id'] ?? 0;
             <template x-for="friend in filteredFriends" :key="friend.user_id">
                 <div class="group relative bg-gradient-to-br from-white/[0.04] to-white/[0.01] hover:from-white/[0.07] hover:to-emerald-500/[0.04] border border-white/10 hover:border-emerald-500/30 rounded-xl p-3 transition-all duration-300">
                     <div class="flex items-center justify-between gap-2.5">
-                        <div class="flex items-center gap-2.5 min-w-0 flex-1">
-                            <div class="relative shrink-0">
+                        <div class="flex items-center gap-2.5 min-w-0 flex-1 cursor-pointer hover:opacity-80" @click.stop="toggleDropdown(friend, $event)">
+                            <div class="relative shrink-0 cursor-pointer hover:scale-105 transition-transform" @click.stop="toggleDropdown(friend, $event)">
                                 <img :src="`https://ui-avatars.com/api/?name=${encodeURIComponent(friend.user_name)}&background=10b981&color=fff`" 
                                     class="w-9 h-9 rounded-full border border-emerald-500/30 shadow-md object-cover">
                                 <span class="absolute -bottom-0.5 -right-0.5 flex h-2.5 w-2.5">
@@ -333,7 +340,7 @@ $userId = $_SESSION['user_id'] ?? 0;
                                     <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500 border-2 border-[#07070b]"></span>
                                 </span>
                             </div>
-                            <div class="min-w-0 flex-1">
+                            <div class="min-w-0 flex-1 cursor-pointer" @click.stop="toggleDropdown(friend, $event)">
                                 <h4 class="text-xs font-semibold text-white/90 truncate" x-text="friend.user_name"></h4>
                             </div>
                         </div>
@@ -368,10 +375,10 @@ $userId = $_SESSION['user_id'] ?? 0;
             <template x-for="req in pendingRequests" :key="req.user_id">
                 <div class="bg-gradient-to-br from-white/[0.04] to-white/[0.01] border border-yellow-500/30 rounded-xl p-3 transition-all">
                     <div class="flex items-center justify-between gap-2 mb-2">
-                        <div class="flex items-center gap-2.5 min-w-0 flex-1">
+                        <div class="flex items-center gap-2.5 min-w-0 flex-1 cursor-pointer hover:opacity-80" @click.stop="toggleDropdown(req, $event)">
                             <img :src="`https://ui-avatars.com/api/?name=${encodeURIComponent(req.user_name)}&background=f59e0b&color=fff`" 
                                 class="w-8 h-8 rounded-full border border-yellow-500/30 object-cover shrink-0">
-                            <div class="min-w-0 flex-1">
+                            <div class="min-w-0 flex-1 cursor-pointer" @click.stop="toggleDropdown(req, $event)">
                                 <h4 class="text-xs font-semibold text-white truncate" x-text="req.user_name"></h4>
                                 <p class="text-[9px] text-yellow-400 uppercase font-mono tracking-wider">Added you</p>
                             </div>
@@ -441,10 +448,10 @@ $userId = $_SESSION['user_id'] ?? 0;
                     <div class="flex items-center justify-between p-3 rounded-xl bg-white/[0.03] border border-white/10 hover:border-emerald-500/30 transition-all">
                         
                         <!-- User Info -->
-                        <div class="flex items-center gap-3 min-w-0 flex-1">
+                        <div class="flex items-center gap-3 min-w-0 flex-1 cursor-pointer hover:opacity-80" @click.stop="toggleDropdown(user, $event)">
                             <img :src="`https://ui-avatars.com/api/?name=${encodeURIComponent(user.user_name)}&background=10b981&color=fff`" 
                                 class="w-9 h-9 rounded-full border border-emerald-500/30 object-cover shrink-0">
-                            <div class="min-w-0 flex-1">
+                            <div class="min-w-0 flex-1 cursor-pointer" @click.stop="toggleDropdown(user, $event)">
                                 <h4 class="text-xs font-bold text-white truncate" x-text="user.user_name"></h4>
                                 <p class="text-[10px] text-white/40 truncate" x-text="user.email"></p>
                             </div>
@@ -525,7 +532,12 @@ $userId = $_SESSION['user_id'] ?? 0;
                 <!-- Profile Menu -->
                 <div class="relative z-[60]" x-data="{ showProfileMenu: false }" @click.outside="showProfileMenu = false">
                     <div @click="showProfileMenu = !showProfileMenu" class="flex items-center gap-3 p-2 bg-[#050508]/40 border border-white/5 rounded-xl cursor-pointer hover:bg-white/[0.05]">
-                        <img src="https://ui-avatars.com/api/?name=<?= urlencode($userName) ?>&background=ef4444&color=fff&bold=true" class="w-10 h-10 rounded-full border-2 border-red-500/50">
+                        <div class="relative w-10 h-10 flex items-center justify-center">
+                            <img src="https://ui-avatars.com/api/?name=<?= urlencode($userName) ?>&background=ef4444&color=fff&bold=true" class="w-10 h-10 rounded-full border-2 border-red-500/50 absolute z-0">
+                            <template x-if="activeBorderId !== 1">
+                                <img :src="availableBorders.find(b => b.id === activeBorderId)?.preview" class="absolute inset-0 w-14 h-14 max-w-none -ml-2 -mt-2 pointer-events-none object-contain z-10">
+                            </template>
+                        </div>
                         <div class="hidden sm:block min-w-0 pr-1">
                             <p class="text-sm font-bold text-white truncate"><?php echo htmlspecialchars($userName); ?></p>
                             <p class="text-[9px] text-red-400 uppercase tracking-widest mono font-bold bg-red-500/10 px-2 py-0.5 rounded border border-red-500/20 inline-block mt-0.5"><?php echo htmlspecialchars($userRole); ?></p>
@@ -533,7 +545,7 @@ $userId = $_SESSION['user_id'] ?? 0;
                     </div>
                     
                     <div class="absolute right-0 top-full mt-2 w-48 bg-[#050508] border border-white/10 rounded-xl shadow-2xl p-2 z-50" x-show="showProfileMenu" style="display: none;">
-                        <button class="w-full text-left p-2 hover:bg-white/10 rounded-lg text-xs font-semibold text-white/70 hover:text-white flex items-center gap-2">
+                        <button @click="currentTab = 'account'; showProfileMenu = false" class="w-full text-left p-2 hover:bg-white/10 rounded-lg text-xs font-semibold text-white/70 hover:text-white flex items-center gap-2">
                             <span class="material-symbols-outlined text-[16px]">manage_accounts</span> Account
                         </button>
                     </div>
@@ -541,8 +553,11 @@ $userId = $_SESSION['user_id'] ?? 0;
             </div>
         </header>
 
-        <div class="flex-1 overflow-y-auto p-10 relative scroll-smooth" x-show="currentTab === 'dashboard'">
-            <div class="max-w-[1400px] mx-auto space-y-8">
+        <!-- Tabs Container (Relative wrapper for Absolute children) -->
+        <div class="relative flex-1 overflow-hidden h-full">
+            <!-- Content -->
+            <div class="absolute inset-0 w-full h-full overflow-y-auto p-10 scroll-smooth custom-scrollbar" x-show="currentTab === 'dashboard'">
+                <div class="max-w-[1400px] mx-auto space-y-8">
                 
                 <!-- Demo Stats Grid -->
                 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -705,11 +720,16 @@ $userId = $_SESSION['user_id'] ?? 0;
         <?php include "watchlist.php"; ?>
         <?php include "user_movies.php"; ?>
         <?php include "user_shop.php"; ?>
+        <?php include "account.php"; ?>
+        </div>
     </main>
 
     <?php include __DIR__ . '/../frontend/components/host_party_fab.php'; ?>
 
     <?php include "user_chat.php"; ?>
+    <?php include "profile_dropdown.php"; ?>
+    <?php include "report_user_modal.php"; ?>
+    <?php include "report_item_modal.php"; ?>
 
 </div>
 

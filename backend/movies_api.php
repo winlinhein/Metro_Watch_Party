@@ -34,6 +34,7 @@ if ($method === 'GET') {
                 m.description,
                 m.poster AS img,
                 m.video_url AS trailer,
+                m.actual_video_url,
                 m.duration,
                 m.view_count,
                 m.created_at,
@@ -51,11 +52,16 @@ if ($method === 'GET') {
         $stmt = $conn->query($sql);
         $movies = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-        // Format genre_ids as array of numbers
+        // Format genre_ids and convert BLOB poster to Base64
         foreach ($movies as &$movie) {
             $movie['genre_ids'] = $movie['genre_ids'] ? array_map('intval', explode(',', $movie['genre_ids'])) : [];
             $movie['duration'] = (int) $movie['duration'];
             $movie['view_count'] = (int) $movie['view_count'];
+
+            // Convert raw BLOB bytes to base64 string
+            if (!empty($movie['img'])) {
+                $movie['img'] = 'data:image/jpeg;base64,' . base64_encode($movie['img']);
+            }
         }
 
         echo json_encode($movies);
@@ -72,49 +78,95 @@ if ($method === 'GET') {
 // POST: Create or Update a movie + assign genres
 // -------------------------------------------------------------
 if ($method === 'POST') {
-    $input = json_decode(file_get_contents('php://input'), true);
-
-    if (!$input) {
-        http_response_code(400);
-        echo json_encode(['error' => 'Invalid data payload']);
+    // Handle delete action first
+    if (($_POST['action'] ?? '') === 'delete') {
+        $movieId = intval($_POST['id'] ?? 0);
+        if (!$movieId) {
+            http_response_code(400);
+            echo json_encode(['error' => 'Movie ID required']);
+            exit();
+        }
+        try {
+            $conn->beginTransaction();
+            
+            $stmt = $conn->prepare("DELETE FROM movies WHERE movie_id = ?");
+            $stmt->execute([$movieId]);
+            $stmtDel = $conn->prepare("DELETE FROM movie_and_genres WHERE movie_id = ?");
+            $stmtDel->execute([$movieId]);
+            
+            $conn->commit();
+            
+            // Trigger Pusher event
+            require_once __DIR__ . '/../pusher_helper.php';
+            triggerPusherEvent('movie-updates', 'movie_changed', [
+                'action' => 'delete',
+                'movie_id' => $movieId
+            ]);
+            
+            echo json_encode(['success' => true]);
+        } catch (Exception $e) {
+            $conn->rollBack();
+            http_response_code(500);
+            echo json_encode(['error' => 'Delete failed: ' . $e->getMessage()]);
+        }
         exit();
     }
 
-    $movieId     = $input['id'] ?? null;
-    $title       = trim($input['title'] ?? '');
-    $description = trim($input['description'] ?? '');
-    $poster      = trim($input['img'] ?? '');
-    $videoUrl    = trim($input['trailer'] ?? '');
-    $duration    = !empty($input['duration']) ? (int)$input['duration'] : null;
-    $genreIds    = $input['genre_ids'] ?? []; 
+    // Create / Update handling
+    $movieId        = $_POST['id'] ?? null;
+    $isUpdate       = !empty($movieId);          // remember original state
+    $title          = trim($_POST['title'] ?? '');
+    $description    = trim($_POST['description'] ?? '');
+    $videoUrl       = trim($_POST['trailer'] ?? '');
+    $actualVideoUrl = trim($_POST['actual_video_url'] ?? '');
+    $duration       = isset($_POST['duration']) ? (int)$_POST['duration'] : null;
 
-    if (empty($title) || empty($description) || empty($poster)) {
+    // Parse genre_ids if sent as JSON string or array
+    $genreIds = [];
+    if (!empty($_POST['genre_ids'])) {
+        $genreIds = is_array($_POST['genre_ids']) ? $_POST['genre_ids'] : json_decode($_POST['genre_ids'], true);
+    }
+
+    // Read poster file bytes if uploaded – accept both possible field names
+    $posterBytes = null;
+    if (isset($_FILES['poster_image']) && $_FILES['poster_image']['error'] === UPLOAD_ERR_OK) {
+        $posterBytes = file_get_contents($_FILES['poster_image']['tmp_name']);
+    } elseif (isset($_FILES['poster']) && $_FILES['poster']['error'] === UPLOAD_ERR_OK) {
+        $posterBytes = file_get_contents($_FILES['poster']['tmp_name']);
+    }
+
+    // Validation: Poster is required for new entries
+    if (empty($title) || empty($description) || (!$isUpdate && !$posterBytes)) {
         http_response_code(400);
-        echo json_encode(['error' => 'Title, description, and poster URL are required fields.']);
+        echo json_encode(['error' => 'Title, description, and poster file are required.']);
         exit();
     }
 
     try {
         $conn->beginTransaction();
 
-        if ($movieId) {
-            // Update existing movie
-            $stmt = $conn->prepare("
-                UPDATE movies 
-                SET title = ?, description = ?, poster = ?, video_url = ?, duration = ? 
-                WHERE movie_id = ?
-            ");
-            $stmt->execute([$title, $description, $poster, $videoUrl, $duration, $movieId]);
+        if ($isUpdate) {
+            // Update existing movie (only update poster BLOB if a new file was uploaded)
+            if ($posterBytes !== null) {
+                $stmt = $conn->prepare("
+                    UPDATE movies SET title = ?, description = ?, poster = ?, video_url = ?, actual_video_url = ?, duration = ? WHERE movie_id = ?
+                ");
+                $stmt->execute([$title, $description, $posterBytes, $videoUrl, $actualVideoUrl, $duration, $movieId]);
+            } else {
+                $stmt = $conn->prepare("
+                    UPDATE movies SET title = ?, description = ?, video_url = ?, actual_video_url = ?, duration = ? WHERE movie_id = ?
+                ");
+                $stmt->execute([$title, $description, $videoUrl, $actualVideoUrl, $duration, $movieId]);
+            }
         } else {
-            // Insert new movie
+            // Insert new movie with uploaded poster bytes
             $stmt = $conn->prepare("
-                INSERT INTO movies (title, description, poster, video_url, duration, view_count) 
-                VALUES (?, ?, ?, ?, ?, 0)
+                INSERT INTO movies (title, description, poster, video_url, actual_video_url, duration, view_count) VALUES (?, ?, ?, ?, ?, ?, 0)
             ");
-            $stmt->execute([$title, $description, $poster, $videoUrl, $duration]);
+            $stmt->execute([$title, $description, $posterBytes, $videoUrl, $actualVideoUrl, $duration]);
             $movieId = $conn->lastInsertId();
         }
-
+        
         // Sync genres in movie_and_genres pivot table
         $stmtDelete = $conn->prepare("DELETE FROM movie_and_genres WHERE movie_id = ?");
         $stmtDelete->execute([$movieId]);
@@ -122,19 +174,60 @@ if ($method === 'POST') {
         if (!empty($genreIds) && is_array($genreIds)) {
             $stmtGenre = $conn->prepare("INSERT INTO movie_and_genres (movie_id, genre_id) VALUES (?, ?)");
             foreach ($genreIds as $gId) {
-                $stmtGenre->execute([$movieId, $gId]);
+                $stmtGenre->execute([$movieId, (int)$gId]);
             }
         }
 
         $conn->commit();
-        echo json_encode(['success' => true, 'movie_id' => $movieId]);
-        exit();
+
+        // Fetch the updated/inserted movie with all computed fields
+        $stmt = $conn->prepare("
+            SELECT 
+                m.movie_id AS id,
+                m.title,
+                m.description,
+                m.poster AS img,
+                m.video_url AS trailer,
+                m.actual_video_url,
+                m.duration,
+                m.view_count,
+                m.created_at,
+                COALESCE(ROUND(AVG(r.rating), 1), 0) AS rating,
+                COALESCE(GROUP_CONCAT(DISTINCT g.genre_name SEPARATOR ', '), '') AS genre,
+                COALESCE(GROUP_CONCAT(DISTINCT g.genre_id), '') AS genre_ids
+            FROM movies m
+            LEFT JOIN movie_and_genres mg ON m.movie_id = mg.movie_id
+            LEFT JOIN genres g ON mg.genre_id = g.genre_id
+            LEFT JOIN movie_rating r ON m.movie_id = r.movie_id
+            WHERE m.movie_id = ?
+            GROUP BY m.movie_id
+        ");
+        $stmt->execute([$movieId]);
+        $movie = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        if ($movie) {
+            $movie['genre_ids'] = $movie['genre_ids'] ? array_map('intval', explode(',', $movie['genre_ids'])) : [];
+            $movie['duration'] = (int)$movie['duration'];
+            $movie['view_count'] = (int)$movie['view_count'];
+            if (!empty($movie['img'])) {
+                $movie['img'] = 'data:image/jpeg;base64,' . base64_encode($movie['img']);
+            }
+        }
+
+        // Trigger Pusher event AFTER we have all data, using correct action
+        require_once __DIR__ . '/../pusher_helper.php';
+        triggerPusherEvent('movie-updates', 'movie_changed', [
+            'action' => $isUpdate ? 'update' : 'create',
+            'movie_id' => $movieId
+        ]);
+
+        // Single JSON response
+        echo json_encode(['success' => true, 'movie' => $movie]);
 
     } catch (Exception $e) {
         $conn->rollBack();
         http_response_code(500);
         echo json_encode(['error' => 'Failed to save movie: ' . $e->getMessage()]);
-        exit();
     }
+    exit();
 }
-?>

@@ -54,7 +54,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
         // 4. Expiration Check
         if ($current_time > $stored_expires) {
-            $conn->prepare("DELETE FROM otp_verification WHERE email = :email AND otp_type = 'login'")
+            $conn->prepare("DELETE FROM otp_verification WHERE email = :email AND otp_type = 'forgot'")
                  ->execute([':email' => $email]);
 
             header("Location: ../frontend/otp-forgot.php?error=" . urlencode("Your activation code has expired. Please register or request a new code."));
@@ -80,7 +80,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
         if ($conn->inTransaction()) {
             $conn->rollBack();
         }
-        header("Location: ../frontend/otp-login.php?error=" . urlencode("Database error during account activation."));
+        header("Location: ../frontend/otp-forgot.php?error=" . urlencode("Database error during account activation."));
         exit();
     }
 }

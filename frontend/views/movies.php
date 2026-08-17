@@ -22,42 +22,65 @@
     <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6 pb-12">
         <template x-for="movie in movies" :key="movie.id">
             <div class="movie-card-container stagger-item">
-                <div class="group relative rounded-2xl bg-[#08080c] border border-white/[0.08] hover:border-red-500/40 transition-all duration-300 hover:-translate-y-1.5 shadow-xl hover:shadow-[0_12px_30px_rgba(239,68,68,0.15)] overflow-hidden">
-                     
-                     <div class="aspect-[2/3] w-full relative overflow-hidden bg-white/5">
-                         <img :src="movie.img || 'https://via.placeholder.com/300x450/0d0d12/ffffff?text=No+Poster'" alt="Poster" class="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110">
-                         <div class="absolute inset-0 bg-gradient-to-t from-[#08080c] via-[#08080c]/40 to-transparent opacity-90 group-hover:opacity-75 transition-opacity duration-300"></div>
-                         
-                         <!-- Rating Badge on Poster -->
-                         <div class="absolute top-3 left-3 px-2.5 py-1 rounded-xl bg-black/60 backdrop-blur-md border border-white/10 flex items-center gap-1.5 text-xs font-bold text-yellow-400">
-                             <span class="material-symbols-outlined text-[14px]">star</span>
-                             <span x-text="movie.rating ? movie.rating : '0.0'"></span>
-                         </div>
-
-                         <!-- Hover Actions -->
-                         <div class="absolute top-3 right-3 flex gap-1.5 opacity-0 group-hover:opacity-100 transition-all duration-300 translate-y-[-8px] group-hover:translate-y-0 z-20">
-                             <button @click.stop="openEditMovieModal(movie)" class="w-8 h-8 rounded-xl bg-black/70 border border-white/20 backdrop-blur-md flex items-center justify-center text-white hover:bg-white hover:text-black transition-colors" title="Edit">
-                                 <span class="material-symbols-outlined text-[15px]">edit</span>
-                             </button>
-                             <button @click.stop="deleteMovie(movie.id)" class="w-8 h-8 rounded-xl bg-black/70 border border-white/20 backdrop-blur-md flex items-center justify-center text-white hover:bg-red-600 transition-colors" title="Delete">
-                                 <span class="material-symbols-outlined text-[15px]">delete</span>
-                             </button>
-                         </div>
-                     </div>
+                
+                <!-- 1. ADD x-data, @mouseenter, and @mouseleave HERE -->
+                <div x-data="{ isHovered: false }" 
+                    @mouseenter="isHovered = true" 
+                    @mouseleave="isHovered = false"
+                    class="group relative rounded-2xl bg-[#08080c] border border-white/[0.08] hover:border-red-500/40 transition-all duration-300 hover:-translate-y-1.5 shadow-xl hover:shadow-[0_12px_30px_rgba(239,68,68,0.15)] overflow-hidden">
                     
-                     <!-- Card Details -->
-                     <div class="p-4 space-y-2">
-                         <h4 class="font-bold text-base text-white group-hover:text-red-400 transition-colors truncate" x-text="movie.title"></h4>
-                         <div class="flex items-center gap-2 flex-wrap">
-                             <span class="px-2 py-0.5 rounded-md text-[10px] font-bold bg-white/[0.06] text-white/70 border border-white/5 font-mono" x-text="movie.year || movie.duration || 'N/A'"></span>
-                             <span class="px-2 py-0.5 rounded-md text-[10px] font-bold bg-indigo-500/10 text-indigo-300 border border-indigo-500/20 truncate max-w-[100px]" x-text="movie.genre || 'N/A'"></span>
-                         </div>
-                     </div>
+                    <div class="aspect-[2/3] w-full relative overflow-hidden bg-white/5">
+                        <img :src="movie.img || movie.cover_image || 'https://via.placeholder.com/300x450/0d0d12/ffffff?text=No+Poster'" alt="Poster" class="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110">
+                        
+                        <!-- 2. INSERT THE TRAILER IFRAME HERE -->
+                        <template x-if="isHovered && movie.trailer && isYouTubeUrl(movie.trailer)">
+                            <div x-data="{ hoverPlayer: null }"
+                                 x-init="$nextTick(() => { hoverPlayer = new Plyr($refs.hoverContainer, { autoplay: true, muted: true, controls: [], clickToPlay: false, youtube: { noCookie: false, rel: 0, showinfo: 0, iv_load_policy: 3, modestbranding: 1, disablekb: 1 } }) })"
+                                 class="absolute top-0 left-0 w-full h-[140%] -mt-[20%] scale-150 pointer-events-none z-0">
+                                <div class="plyr__video-embed w-full h-full" x-ref="hoverContainer">
+                                    <iframe
+                                         :src="getYouTubeEmbedUrl(movie.trailer, true)"
+                                         class="w-full h-full pointer-events-none"
+                                         frameborder="0"
+                                         allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                                         allowfullscreen>
+                                    </iframe>
+                                </div>
+                            </div>
+                        </template>
+
+                        <div class="absolute inset-0 bg-gradient-to-t from-[#08080c] via-[#08080c]/40 to-transparent opacity-90 group-hover:opacity-75 transition-opacity duration-300 z-10"></div>
+                        
+                        <!-- Rating Badge on Poster -->
+                        <div class="absolute top-3 left-3 px-2.5 py-1 rounded-xl bg-black/60 backdrop-blur-md border border-white/10 flex items-center gap-1.5 text-xs font-bold text-yellow-400 z-20">
+                            <span class="material-symbols-outlined text-[14px]">star</span>
+                            <span x-text="movie.rating ? movie.rating : '0.0'"></span>
+                        </div>
+
+                        <!-- Hover Actions -->
+                        <div class="absolute top-3 right-3 flex gap-1.5 opacity-0 group-hover:opacity-100 transition-all duration-300 translate-y-[-8px] group-hover:translate-y-0 z-20">
+                            <button @click.stop="openEditMovieModal(movie)" class="w-8 h-8 rounded-xl bg-black/70 border border-white/20 backdrop-blur-md flex items-center justify-center text-white hover:bg-white hover:text-black transition-colors" title="Edit">
+                                <span class="material-symbols-outlined text-[15px]">edit</span>
+                            </button>
+                            <button @click.stop="deleteMovie(movie.id)" class="w-8 h-8 rounded-xl bg-black/70 border border-white/20 backdrop-blur-md flex items-center justify-center text-white hover:bg-red-600 transition-colors" title="Delete">
+                                <span class="material-symbols-outlined text-[15px]">delete</span>
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- Card Details -->
+                    <div class="p-4 space-y-2 relative z-20">
+                        <h4 class="font-bold text-base text-white group-hover:text-red-400 transition-colors truncate" x-text="movie.title"></h4>
+                        <div class="flex items-center gap-2 flex-wrap">
+                            <span class="px-2 py-0.5 rounded-md text-[10px] font-bold bg-white/[0.06] text-white/70 border border-white/5 font-mono" x-text="movie.year || movie.duration || 'N/A'"></span>
+                            <span class="px-2 py-0.5 rounded-md text-[10px] font-bold bg-indigo-500/10 text-indigo-300 border border-indigo-500/20 truncate max-w-[100px]" x-text="movie.genre || 'N/A'"></span>
+                        </div>
+                    </div>
                 </div>
             </div>
         </template>
     </div>
-
+    
     <!-- Redesigned Modal (Teleported to body) -->
     <template x-teleport="body">
         <div x-show="movieModalOpen" class="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 bg-black/85 backdrop-blur-md" style="display: none;" x-transition.opacity>
@@ -126,8 +149,8 @@
 
                                 <div class="grid grid-cols-2 gap-4">
                                     <div>
-                                        <label class="block text-[11px] font-extrabold text-white/40 uppercase tracking-widest mb-2">Year / Duration</label>
-                                        <input type="text" x-model="newMovie.year" placeholder="2024 or 120m" class="w-full bg-white/[0.03] border border-white/10 rounded-2xl px-4 py-3 text-sm text-white focus:outline-none focus:border-red-500/60 focus:ring-2 focus:ring-red-500/20 transition-all placeholder:text-white/20">
+                                        <label class="block text-[11px] font-extrabold text-white/40 uppercase tracking-widest mb-2">Duration (minutes)</label>
+                                        <input type="number" x-model="newMovie.duration" placeholder="e.g. 120" class="w-full bg-white/[0.03] border border-white/10 rounded-2xl px-4 py-3 text-sm text-white focus:outline-none focus:border-red-500/60 focus:ring-2 focus:ring-red-500/20 transition-all placeholder:text-white/20">
                                     </div>
 
                                     <!-- Locked Rating Badge -->
@@ -167,10 +190,17 @@
                                 </div>
 
                                 <div>
-                                    <label class="block text-[11px] font-extrabold text-white/40 uppercase tracking-widest mb-2">Trailer / Video Stream URL</label>
+                                    <label class="block text-[11px] font-extrabold text-white/40 uppercase tracking-widest mb-2">Trailer URL</label>
                                     <div class="flex items-center bg-white/[0.03] border border-white/10 rounded-2xl px-4 py-3 focus-within:border-red-500/60 focus-within:ring-2 focus-within:ring-red-500/20 transition-all">
+                                        <span class="material-symbols-outlined text-white/30 mr-2.5 text-[18px]">movie</span>
+                                        <input type="text" x-model="newMovie.trailer" placeholder="https://youtube.com/watch?v=..." class="w-full bg-transparent text-sm text-white focus:outline-none placeholder:text-white/20">
+                                    </div>
+                                </div>
+                                <div>
+                                    <label class="block text-[11px] font-extrabold text-white/40 uppercase tracking-widest mb-2">Actual Movie Video URL</label>
+                                    <div class="flex items-center bg-white/[0.03] border border-white/10 rounded-2xl px-4 py-3 focus-within:border-indigo-500/60 focus-within:ring-2 focus-within:ring-indigo-500/20 transition-all">
                                         <span class="material-symbols-outlined text-white/30 mr-2.5 text-[18px]">smart_display</span>
-                                        <input type="text" x-model="newMovie.video_url" placeholder="https://youtube.com/watch?v=..." class="w-full bg-transparent text-sm text-white focus:outline-none placeholder:text-white/20">
+                                        <input type="text" x-model="newMovie.actual_video_url" placeholder="https://mp4-server.com/movie.mp4" class="w-full bg-transparent text-sm text-white focus:outline-none placeholder:text-white/20">
                                     </div>
                                 </div>
                             </div>
@@ -185,26 +215,88 @@
 
                     <!-- Comments Tab Content -->
                     <div x-show="movieTab === 'comments'" class="space-y-4" style="display: none;">
-                        <template x-if="newMovie.comments && newMovie.comments.length > 0">
-                            <div class="space-y-3">
-                                <template x-for="comment in newMovie.comments" :key="comment.id">
-                                    <div class="bg-white/[0.03] border border-white/10 rounded-2xl p-4 flex gap-3.5">
-                                        <div class="w-9 h-9 rounded-xl bg-gradient-to-tr from-red-500 to-indigo-600 flex-shrink-0 flex items-center justify-center font-bold text-xs text-white uppercase" x-text="comment.user ? comment.user.charAt(0) : 'U'"></div>
-                                        <div class="flex-1">
-                                            <div class="flex justify-between items-center mb-1">
-                                                <h5 class="font-bold text-xs text-white" x-text="comment.user"></h5>
-                                                <span class="text-[10px] text-white/30 font-mono" x-text="comment.date"></span>
+                        <!-- Loading -->
+                        <div x-show="loadingMovieComments" class="text-white/50 text-sm">Loading comments...</div>
+
+                        <!-- Nested Comments List -->
+                        <template x-if="!loadingMovieComments && nestedMovieComments.length > 0">
+                            <div class="space-y-4">
+                                <template x-for="comment in nestedMovieComments" :key="comment.id">
+                                    <!-- Parent Comment -->
+                                    <div class="bg-white/[0.03] border border-white/10 rounded-2xl p-4">
+                                        <!-- Header -->
+                                        <div class="flex justify-between items-start mb-2">
+                                            <div class="flex items-center gap-2">
+                                                <div class="w-8 h-8 rounded-full bg-gradient-to-tr from-red-500 to-indigo-600 flex items-center justify-center font-bold text-xs text-white uppercase"
+                                                    x-text="comment.user_name ? comment.user_name.charAt(0) : 'U'"></div>
+                                                <div>
+                                                    <p class="font-bold text-xs text-white" x-text="comment.user_name"></p>
+                                                    <p class="text-[10px] text-white/40 font-mono" x-text="new Date(comment.created_at).toLocaleString()"></p>
+                                                </div>
                                             </div>
-                                            <p class="text-xs text-white/70 leading-relaxed" x-text="comment.text"></p>
+                                            <button @click="deleteComment(comment.id)"
+                                                    class="text-red-400 hover:text-red-300 text-xs font-bold">Delete</button>
+                                        </div>
+                                        
+                                        <!-- Comment Text -->
+                                        <p class="text-xs text-white/80 leading-relaxed" x-text="comment.comment_text"></p>
+                                        
+                                        <!-- Likes & Reply Toggle -->
+                                        <div class="flex items-center gap-3 mt-2 text-[11px] text-white/50">
+                                            <span class="flex items-center gap-1">
+                                                <span class="material-symbols-outlined text-[14px]">favorite</span>
+                                                <span x-text="comment.likes_count || 0"></span>
+                                            </span>
+                                            
+                                            <!-- Replies Toggle -->
+                                            <template x-if="comment.replies && comment.replies.length > 0">
+                                                <button @click="comment.show_replies = comment.show_replies === undefined ? false : !comment.show_replies"
+                                                        class="flex items-center gap-1 text-indigo-400 hover:text-indigo-300">
+                                                    <span class="material-symbols-outlined text-[14px]"
+                                                        :class="comment.show_replies !== false ? 'rotate-180' : ''">keyboard_arrow_down</span>
+                                                    <span x-text="comment.show_replies !== false ? 'Hide replies' : 'Show replies (' + comment.replies.length + ')'"></span>
+                                                </button>
+                                            </template>
+                                        </div>
+                                        
+                                        <!-- Nested Replies -->
+                                        <div x-show="comment.show_replies !== false && comment.replies && comment.replies.length > 0"
+                                            x-transition:enter="transition-all ease-out duration-300"
+                                            x-transition:enter-start="opacity-0 -translate-y-2"
+                                            x-transition:enter-end="opacity-100 translate-y-0"
+                                            class="pl-4 mt-3 border-l-2 border-indigo-500/30 space-y-2">
+                                            <template x-for="reply in comment.replies" :key="reply.id">
+                                                <div class="bg-black/30 rounded-lg border border-white/5 p-3">
+                                                    <div class="flex justify-between items-start mb-1">
+                                                        <div class="flex items-center gap-2">
+                                                            <div class="w-6 h-6 rounded-full bg-gradient-to-tr from-red-500 to-indigo-600 flex items-center justify-center font-bold text-[10px] text-white uppercase"
+                                                                x-text="reply.user_name ? reply.user_name.charAt(0) : 'U'"></div>
+                                                            <span class="text-[11px] font-bold text-white/90" x-text="reply.user_name"></span>
+                                                        </div>
+                                                        <button @click="deleteComment(reply.id)"
+                                                                class="text-red-400 hover:text-red-300 text-[10px] font-bold">Delete</button>
+                                                    </div>
+                                                    <p class="text-[11px] text-white/70" x-text="reply.comment_text"></p>
+                                                    <div class="flex items-center gap-2 mt-1 text-[10px] text-white/40">
+                                                        <span class="flex items-center gap-1">
+                                                            <span class="material-symbols-outlined text-[12px]">favorite</span>
+                                                            <span x-text="reply.likes_count || 0"></span>
+                                                        </span>
+                                                        <span x-text="new Date(reply.created_at).toLocaleString()"></span>
+                                                    </div>
+                                                </div>
+                                            </template>
                                         </div>
                                     </div>
                                 </template>
                             </div>
                         </template>
-                        <template x-if="!newMovie.comments || newMovie.comments.length === 0">
+
+                        <!-- Empty State -->
+                        <template x-if="!loadingMovieComments && nestedMovieComments.length === 0">
                             <div class="text-center py-12">
                                 <span class="material-symbols-outlined text-4xl text-white/15 mb-2">forum</span>
-                                <p class="text-xs text-white/40">No audience comments recorded for this movie.</p>
+                                <p class="text-xs text-white/40">No comments for this movie yet.</p>
                             </div>
                         </template>
                     </div>

@@ -41,8 +41,6 @@ $payload = [
 ];
 
 // Trigger Pusher event using the $pusher object initialized in pusher_helper.php
-if (isset($pusher)) {
-    $pusher->trigger($channelName, 'new_message', $payload);
-}
+triggerPusherEvent($channelName, "new_message", $payload);
 
 echo json_encode(['success' => true, 'data' => $payload]);
