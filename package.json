@@ -40,5 +40,13 @@
   "main": "index.js",
   "keywords": [],
   "author": "",
-  "license": "ISC"
+  "license": "ISC",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/winlinhein/Metro_Watch_Party.git"
+  },
+  "bugs": {
+    "url": "https://github.com/winlinhein/Metro_Watch_Party/issues"
+  },
+  "homepage": "https://github.com/winlinhein/Metro_Watch_Party#readme"
 }

@@ -1,295 +1,215 @@
 function watchParty() {
     return {
-        isMuted: false,
-        isVideoOn: true,
-        newMessage: '',
+        // --- 1. UI State ---
         showChat: true,
         showParticipants: true,
-        
-        // Video Player State
+        showControls: false,
+        controlsTimeout: null,
+        isLoading: false,
+
+        // --- 2. Video Player State ---
         isPlaying: false,
-        isLoading: true,
-        showControls: true,
-        progressPercent: 0,
-        bufferPercent: 0,
+        volume: 1,
         currentTime: 0,
         duration: 0,
-        volume: 1,
-        controlsTimeout: null,
+        progressPercent: 0,
+        bufferPercent: 0,
         isFullscreen: false,
 
-        participants: [
-            { name: 'Alex M.', cam: 'https://ui-avatars.com/api/?name=Alex+M&background=3b82f6&color=fff', muted: false, speaking: true },
-            { name: 'Sarah C.', cam: 'https://ui-avatars.com/api/?name=Sarah+C&background=ec4899&color=fff', muted: true, speaking: false },
-            { name: 'John D.', cam: 'https://ui-avatars.com/api/?name=John+D&background=10b981&color=fff', muted: false, speaking: false },
-            { name: 'Jane S.', cam: 'https://ui-avatars.com/api/?name=Jane+S&background=f59e0b&color=fff', muted: true, speaking: false },
-        ],
-        messages: [
-            { name: 'System', text: 'Welcome to the watch party! 🎉', time: '20:00', avatar: 'https://ui-avatars.com/api/?name=S&background=ef4444&color=fff', isSelf: false },
-            { name: 'Sarah C.', text: 'This movie is so good! 🍿', time: '20:02', avatar: 'https://ui-avatars.com/api/?name=Sarah+C&background=ec4899&color=fff', isSelf: false },
-        ],
-        init() {
+        // --- 3. WebRTC & Media State ---
+        isMuted: false,
+        isVideoOn: true,
+        localStream: null,
+        participants: [], // Holds everyone's streams
+        messages: [],
+        newMessage: '',
+        
+        // --- Dynamic Room State ---
+        roomId: new URLSearchParams(window.location.search).get('room_id'),
+        roomName: 'Loading Room...',
+        videoUrl: '',
+
+        friends: [],
+        showInviteMenu: false,
+
+        async init() {
+            // Fetch friends right when the room loads
+            await this.fetchRoomDetails();
+            await this.fetchFriends();
+            
+            this.$refs.videoPlayer.onloadedmetadata = () => {
+                this.duration = this.$refs.videoPlayer.duration;
+            };
+            await this.startLocalMedia();
+            this.connectSignaling();
+        },
+
+        async fetchRoomDetails() {
+            // We will add the PHP fetch logic here in the next step!
+            console.log("Fetching data for room:", this.roomId);
+        },
+
+        async fetchFriends() {
             try {
-                console.log("WATCH PARTY INIT CALLED");
-                if (typeof gsap === 'undefined') return;
-                gsap.config({ nullTargetWarn: false });
-
-                this.$nextTick(() => {
-                    try {
-                        const tl = gsap.timeline({ onComplete: () => console.log('GSAP TIMELINE COMPLETED!') });
-                        
-                        // 1. Stage and Video Container entrance
-                        const stage = this.$el.querySelector('.gs-stage');
-                        if (stage) {
-                            tl.fromTo(stage, 
-                                { opacity: 0, scale: 0.95 },
-                                { opacity: 1, scale: 1, duration: 1, ease: 'power3.out' }
-                            );
-                        }
-                        
-                        const video = this.$el.querySelector('.video-container');
-                        if (video) {
-                            tl.fromTo(video, 
-                                { opacity: 0, scale: 0.7, rotationX: 20, rotationY: 15, z: -500 },
-                                { opacity: 1, scale: 1, rotationX: 0, rotationY: 0, z: 0, duration: 1.5, ease: 'elastic.out(1, 0.75)', transformPerspective: 1000 },
-                                "-=0.5"
-                            );
-                        }
-
-                        // 2. Participants Grid staggered entrance
-                        const participants = this.$el.querySelectorAll('.participant-card');
-                        if (participants.length > 0) {
-                            tl.fromTo(participants, 
-                                { opacity: 0, y: 50, scale: 0.8 },
-                                { opacity: 1, y: 0, scale: 1, duration: 0.8, stagger: 0.15, ease: 'back.out(1.7)' },
-                                "-=1.0"
-                            );
-                        }
-
-                        // 3. Chat Panel sliding in with 3D flip
-                        const chat = this.$el.querySelector('.gs-chat');
-                        if (chat) {
-                            tl.fromTo(chat, 
-                                { opacity: 0, x: 100, rotationY: 45 },
-                                { opacity: 1, x: 0, rotationY: 0, duration: 1.2, ease: 'power4.out', transformPerspective: 1000 },
-                                "-=1.2"
-                            );
-                        }
-
-                        // 4. Bottom Controls rising up
-                        const controls = this.$el.querySelector('.gs-controls');
-                        if (controls) {
-                            tl.fromTo(controls, 
-                                { opacity: 0, y: 50 },
-                                { opacity: 1, y: 0, duration: 1, ease: 'power3.out' },
-                                "-=1"
-                            );
-                        }
-
-                        if (video) {
-                            // Ambient breathing effect for the video container
-                            gsap.to(video, {
-                                boxShadow: '0 30px 60px rgba(239,68,68,0.3)',
-                                duration: 2,
-                                repeat: -1,
-                                yoyo: true,
-                                ease: 'sine.inOut'
-                            });
-                        }
-
-                        this.scrollToBottom();
-                    } catch (e) {
-                        console.error("GSAP timeline error in watchParty:", e);
-                        // Fallback to visible
-                        const elements = this.$el.querySelectorAll('.gs-stage, .video-container, .gs-chat, .gs-controls, .participant-card');
-                        elements.forEach(el => { el.style.opacity = '1'; el.style.transform = 'none'; });
-                    }
-                });
-
-                // Video player setup
-                this.$nextTick(() => {
-                const video = this.$refs.videoPlayer;
-                if (video) {
-                    const handleLoaded = () => {
-                        this.isLoading = false;
-                        this.duration = video.duration;
-                        this.togglePlay(); // auto play
-                    };
-
-                    if (video.readyState >= 2) {
-                        handleLoaded();
-                    } else {
-                        video.addEventListener('loadeddata', handleLoaded);
-                    }
-                    
-                    video.addEventListener('progress', () => {
-                        if (video.buffered.length > 0) {
-                            this.bufferPercent = (video.buffered.end(video.buffered.length - 1) / video.duration) * 100;
-                        }
-                    });
-
-                    video.addEventListener('waiting', () => {
-                        this.isLoading = true;
-                    });
-
-                    video.addEventListener('playing', () => {
-                        this.isLoading = false;
-                    });
-
-                    video.addEventListener('error', () => {
-                        this.isLoading = false;
-                        console.error("Video failed to load.");
-                    });
+                // Call your existing backend endpoint
+                const res = await fetch('user_backend/get_friends.php');
+                const data = await res.json();
+                if (data.friends) {
+                    this.friends = data.friends;
                 }
-                
-                document.addEventListener('fullscreenchange', () => {
-                    this.isFullscreen = !!document.fullscreenElement;
-                });
+            } catch (e) {
+                console.error("Error fetching friends:", e);
+            }
+        },
+
+        inviteFriend(friendId) {
+            // Extract room ID from the URL
+            const urlParams = new URLSearchParams(window.location.search);
+            const roomId = urlParams.get('room_id');
+            
+            // Use dynamic user name from PHP
+            this.socket.emit('send-lobby-invite', {
+                targetUserId: friendId,
+                hostName: window.CURRENT_USER_NAME, 
+                roomId: roomId
             });
-            } catch(e) { console.error("Init Error", e); }
+            
+            this.showInviteMenu = false;
+            
+            // Optional: Trigger your custom toast here instead of an alert!
+            alert("Invite sent!"); 
         },
-        togglePlay() {
-            const video = this.$refs.videoPlayer;
-            if (video.paused) {
-                const playPromise = video.play();
-                if (playPromise !== undefined) {
-                    playPromise.then(() => {
-                        this.isPlaying = true;
-                        this.controlsTimeout = setTimeout(() => { this.showControls = false; }, 2500);
-                        
-                        // Fun animation on play
-                        gsap.fromTo(this.$el.querySelector('.video-container'), 
-                            { scale: 0.98 }, 
-                            { scale: 1, duration: 0.5, ease: 'elastic.out(1, 0.5)' }
-                        );
-                    }).catch(error => {
-                        console.log("Autoplay prevented:", error);
-                        this.isPlaying = false;
-                        this.showControls = true;
-                    });
-                } else {
-                    this.isPlaying = true;
-                    this.controlsTimeout = setTimeout(() => { this.showControls = false; }, 2500);
-                }
-            } else {
-                video.pause();
-                this.isPlaying = false;
-                this.showControls = true;
+
+        // ==========================================
+        // WEBRTC & LOCAL MEDIA
+        // ==========================================
+        async startLocalMedia() {
+            try {
+                // Request camera and mic access
+                this.localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
                 
-                // Fun animation on pause
-                gsap.to(this.$el.querySelector('.video-container'), { scale: 0.98, duration: 0.3, ease: 'power2.out' });
+                // Add yourself to the participants sidebar
+                this.participants.push({
+                    id: 'local',
+                    name: 'You',
+                    stream: this.localStream,
+                    muted: false,
+                    speaking: false,
+                    isSelf: true // Mutes your own video element so you don't hear an echo
+                });
+            } catch (e) {
+                console.error("Camera/Mic access denied or unavailable.", e);
             }
         },
+
+       connectSignaling() {
+            this.socket = io('http://localhost:3000'); 
+
+            this.socket.on('connect', () => {
+                console.log("Connected to signaling server with ID:", this.socket.id);
+                
+                // Use the dynamic ID passed from PHP
+                const myUserId = window.CURRENT_USER_ID; 
+                
+                if (myUserId) {
+                    this.socket.emit('register-user', myUserId);
+                }
+            });
+
+            this.socket.on('receive-invite', (data) => {
+                // If they happen to receive an invite while ALREADY in a room
+                window.dispatchEvent(new CustomEvent('incoming-party-invite', { detail: data }));
+            });
+        },
+
+        // ==========================================
+        // VIDEO PLAYER CONTROLS
+        // ==========================================
+        togglePlay() {
+            this.isPlaying = !this.isPlaying;
+            if (this.isPlaying) {
+                this.$refs.videoPlayer.play();
+                // TODO: Send WebSocket message to peers: { action: "play", time: this.currentTime }
+            } else {
+                this.$refs.videoPlayer.pause();
+                // TODO: Send WebSocket message to peers: { action: "pause", time: this.currentTime }
+            }
+        },
+
         updateProgress() {
-            const video = this.$refs.videoPlayer;
-            this.currentTime = video.currentTime;
-            if (this.duration > 0) {
-                this.progressPercent = (this.currentTime / this.duration) * 100;
+            this.currentTime = this.$refs.videoPlayer.currentTime;
+            this.progressPercent = (this.currentTime / this.duration) * 100;
+            
+            if (this.$refs.videoPlayer.buffered.length > 0) {
+                this.bufferPercent = (this.$refs.videoPlayer.buffered.end(0) / this.duration) * 100;
             }
         },
+
         seek(e) {
             const rect = this.$refs.progressBar.getBoundingClientRect();
             const pos = (e.clientX - rect.left) / rect.width;
-            const video = this.$refs.videoPlayer;
-            video.currentTime = pos * this.duration;
-            this.updateProgress();
-            
-            // Interaction feedback
-            gsap.fromTo(this.$refs.progressBar, 
-                { scaleY: 1.5 }, 
-                { scaleY: 1, duration: 0.3, ease: 'bounce.out' }
-            );
+            this.$refs.videoPlayer.currentTime = pos * this.duration;
+            // TODO: Send WebSocket message to peers: { action: "seek", time: this.$refs.videoPlayer.currentTime }
         },
+
+        updateVolume() {
+            this.$refs.videoPlayer.volume = this.volume;
+        },
+
         toggleMute() {
-            const video = this.$refs.videoPlayer;
-            video.muted = !video.muted;
-            if (video.muted) {
-                this.volume = 0;
-            } else {
-                this.volume = 1;
-            }
+            this.volume = this.volume === 0 ? 1 : 0;
+            this.updateVolume();
         },
-        updateVolume(e) {
-            const video = this.$refs.videoPlayer;
-            video.volume = this.volume;
-            video.muted = this.volume === 0;
-        },
-        formatTime(seconds) {
-            if (isNaN(seconds)) return "00:00";
-            const h = Math.floor(seconds / 3600);
-            const m = Math.floor((seconds % 3600) / 60);
-            const s = Math.floor(seconds % 60);
-            if (h > 0) {
-                return `${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
-            }
-            return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
-        },
+
         toggleFullscreen() {
-            const container = document.getElementById('content-area');
+            const contentArea = document.getElementById('content-area');
             if (!document.fullscreenElement) {
-                container.requestFullscreen().catch(err => {
-                    console.log(`Error attempting to enable fullscreen: ${err.message}`);
-                });
+                contentArea.requestFullscreen().catch(err => console.log(err));
+                this.isFullscreen = true;
             } else {
                 document.exitFullscreen();
+                this.isFullscreen = false;
             }
         },
-        toggleMic(event) {
-            this.isMuted = !this.isMuted;
-            this.participants[0].muted = this.isMuted;
-            
-            // Animation for toggle
-            if (event && event.currentTarget) {
-                const btn = event.currentTarget;
-                gsap.fromTo(btn, { scale: 0.8 }, { scale: 1, duration: 0.4, ease: 'back.out(2)' });
-            }
+
+        formatTime(seconds) {
+            if(isNaN(seconds)) return "00:00";
+            const m = Math.floor(seconds / 60).toString().padStart(2, '0');
+            const s = Math.floor(seconds % 60).toString().padStart(2, '0');
+            return `${m}:${s}`;
         },
-        toggleVideo(event) {
-            this.isVideoOn = !this.isVideoOn;
-            
-            if (event && event.currentTarget) {
-                const btn = event.currentTarget;
-                gsap.fromTo(btn, { scale: 0.8 }, { scale: 1, duration: 0.4, ease: 'back.out(2)' });
-            }
-        },
+
+        // ==========================================
+        // CHAT & BOTTOM TOGGLES
+        // ==========================================
         sendMessage() {
             if (this.newMessage.trim() === '') return;
             
-            const now = new Date();
-            const time = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
-            
-            this.messages.push({
-                name: 'Alex M. (You)',
-                text: this.newMessage,
-                time: time,
-                avatar: 'https://ui-avatars.com/api/?name=Alex+M&background=3b82f6&color=fff',
-                isSelf: true
-            });
+            // Temporarily log the message until we connect the backend socket.
+            console.log("Preparing to send:", this.newMessage);
             
             this.newMessage = '';
             
             this.$nextTick(() => {
-                this.scrollToBottom();
-                
-                // Animate newest message
-                const msgs = this.$el.querySelectorAll('.chat-msg-item');
-                const lastMsg = msgs[msgs.length - 1];
-                if (lastMsg) {
-                    gsap.fromTo(lastMsg, 
-                        { opacity: 0, x: 20, scale: 0.9 }, 
-                        { opacity: 1, x: 0, scale: 1, duration: 0.4, ease: 'back.out(1.5)' }
-                    );
-                }
+                const container = document.getElementById('chat-container');
+                container.scrollTop = container.scrollHeight;
             });
         },
-        scrollToBottom() {
-            const container = this.$el.querySelector('#chat-container');
-            if (container) {
-                gsap.to(container, {
-                    scrollTop: container.scrollHeight,
-                    duration: 0.3,
-                    ease: 'power2.out'
-                });
+
+        toggleMic() {
+            this.isMuted = !this.isMuted;
+            if(this.localStream) {
+                // Disable/Enable the actual audio track
+                this.localStream.getAudioTracks()[0].enabled = !this.isMuted;
+            }
+        },
+
+        toggleVideo() {
+            this.isVideoOn = !this.isVideoOn;
+            if(this.localStream) {
+                // Disable/Enable the actual video track
+                this.localStream.getVideoTracks()[0].enabled = this.isVideoOn;
             }
         }
-    }}
+    }
+}
