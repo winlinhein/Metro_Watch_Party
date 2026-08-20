@@ -1,6 +1,12 @@
 <?php
-// otp-login_backend.php - Dedicated 2FA Verification Endpoint with Integer Lockout Support
+// otp-login_backend.php - Dedicated 2FA Verification Endpoint with Lockout Support
+ob_start();
 session_start();
+
+ini_set('display_errors', 0);
+ini_set('log_errors', 1);
+error_reporting(E_ALL);
+
 require_once __DIR__ . '/../conn.php';
 
 function test_input($data) {
@@ -33,7 +39,12 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
     }
 
     try {
-        $stmt_user = $conn->prepare("SELECT * FROM users WHERE email = :email");
+        // Retrieve user including user_name, email, and lockout fields
+        $stmt_user = $conn->prepare("
+            SELECT user_id, user_name, email, failed_login_attempts, lock_out_until, last_failed_login
+            FROM users 
+            WHERE email = :email
+        ");
         $stmt_user->execute([':email' => $email]);
         $user_record = $stmt_user->fetch(PDO::FETCH_ASSOC);
 
@@ -53,7 +64,28 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                 $remaining_minutes = (int)ceil($remaining_seconds / 60);
                 header("Location: ../frontend/login.php?error=" . urlencode("Account is locked. Please try again in {$remaining_minutes} minute(s)."));
                 exit();
+            } else {
+                // Lockout expired: reset attempts and lockout fields in DB
+                $resetLock = $conn->prepare("
+                    UPDATE users SET failed_login_attempts = 0, lock_out_until = NULL, last_failed_login = NULL 
+                    WHERE user_id = :userID
+                ");
+                $resetLock->execute([':userID' => $userID]);
+                $user_record['failed_login_attempts'] = 0;
             }
+        }
+
+        // Fetch role from session if available, otherwise query database
+        if (empty($role)) {
+            $stmt_role = $conn->prepare("
+                SELECT r.role
+                FROM roles r
+                INNER JOIN users u ON u.role_id = r.role_id
+                WHERE u.user_id = :userID
+            ");
+            $stmt_role->execute([':userID' => $userID]);
+            $roleData = $stmt_role->fetch(PDO::FETCH_ASSOC);
+            $role = $roleData['role'] ?? 'user';
         }
 
         $stmt_otp = $conn->prepare("
@@ -89,15 +121,19 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                 $lock_until = $current_time + 180; // 3 minutes lockout
                 $update_lock = $conn->prepare("
                     UPDATE users 
-                    SET failed_login_attempts = :attempts, lock_out_until = :lock_until 
+                    SET failed_login_attempts = :attempts, 
+                        lock_out_until = :lock_until, 
+                        last_failed_login = :now 
                     WHERE user_id = :userID
                 ");
                 $update_lock->execute([
                     ':attempts'   => $new_attempts,
                     ':lock_until' => $lock_until,
+                    ':now'        => $current_time,
                     ':userID'     => $userID
                 ]);
 
+                // Delete OTP to prevent reuse
                 $conn->prepare("DELETE FROM otp_verification WHERE email = :email AND otp_type = 'login'")
                      ->execute([':email' => $email]);
 
@@ -105,10 +141,12 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                 exit();
             } else {
                 $update_attempts = $conn->prepare("
-                    UPDATE users SET failed_login_attempts = :attempts WHERE user_id = :userID
+                    UPDATE users SET failed_login_attempts = :attempts, last_failed_login = :now 
+                    WHERE user_id = :userID
                 ");
                 $update_attempts->execute([
                     ':attempts' => $new_attempts,
+                    ':now'      => $current_time,
                     ':userID'   => $userID
                 ]);
 
@@ -142,7 +180,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
         ");
         $insert_loginSuccess->execute([':userID' => $userID]);
 
-        // Upon successful login or OTP verification:
+        // Reset lockout fields
         $reset_lockout = $conn->prepare("
             UPDATE users 
             SET failed_login_attempts = 0, 
@@ -154,28 +192,42 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
         $conn->commit();
 
-        /// Clear temporary verification state
+        // Clear temporary verification state
         unset($_SESSION['verify_email']);
 
         // Store permanent session details
         $_SESSION['authenticated'] = true;
         $_SESSION['user_id']       = $user_record['user_id'];
-        $_SESSION['user_name']     = $user_record['user_name']; 
-        $_SESSION['user_email']    = $user_record['email'];
+        $_SESSION['user_name']     = $user_record['user_name'] ?? 'Agent';
+        $_SESSION['user_email']    = $user_record['email'] ?? $email;
         $_SESSION['user_role']     = $role;
 
+        // Role-based redirect
+        // OPTION 1: Standard header redirect (works, but may be affected by Barba.js)
+        
         if ($role === 'admin') {
             header("Location: ../frontend/admin_dashboard.php?success=" . urlencode("Welcome to Admin Dashboard"));
-            exit();
         } else {
             header("Location: ../user/dashboard.php?success=" . urlencode("Successfully logged in"));
-            exit();
         }
+        exit();
+        
+
+        // OPTION 2 (Uncomment if you want to force full page reload to avoid Barba issues):
+        /*
+        if ($role === 'admin') {
+            echo "<script>window.location.replace('../frontend/admin_dashboard.php?success=" . urlencode("Welcome to Admin Dashboard") . "');</script>";
+        } else {
+            echo "<script>window.location.replace('../user/dashboard.php?success=" . urlencode("Successfully logged in") . "');</script>";
+        }
+        exit();
+        */
 
     } catch (PDOException $e) {
         if ($conn->inTransaction()) {
             $conn->rollBack();
         }
+        error_log("OTP Login error: " . $e->getMessage());
         header("Location: ../frontend/otp-login.php?error=" . urlencode("Database error during verification."));
         exit();
     }

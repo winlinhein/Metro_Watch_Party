@@ -1,13 +1,14 @@
 <?php
 session_start();
 
-// Block access if not authenticated OR if the user is not an admin
+// Allow only standard 'user' role to access this page
 if (
     empty($_SESSION['authenticated']) || 
     $_SESSION['authenticated'] !== true || 
-    empty($_SESSION['user_role']) 
+    empty($_SESSION['user_role']) || 
+    $_SESSION['user_role'] !== 'user'
 ) {
-    header("Location: ../frontend/login.php?error=" . urlencode("Access denied. Please log in to view your dashboard."));
+    header("Location: ../frontend/login.php?error=" . urlencode("Access denied. User privileges required."));
     exit();
 }
 
@@ -209,7 +210,7 @@ $userId = $_SESSION['user_id'] ?? 0;
                 </template>
             </nav>
             <div class="mt-auto pt-6 pointer-events-auto">
-                <button @click="window.handleLogout()" class="w-full flex items-center gap-3 p-3 rounded-xl border border-white/5 bg-white/[0.02] hover:bg-red-500/10 hover:border-red-500/30 text-white/50 hover:text-red-400 transition-all duration-300 group">
+                <button onclick="handleLogout()" class="w-full flex items-center gap-3 p-3 rounded-xl border border-white/5 bg-white/[0.02] hover:bg-red-500/10 hover:border-red-500/30 text-white/50 hover:text-red-400 transition-all duration-300 group">
                     <div class="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center group-hover:bg-red-500/20 transition-colors shrink-0">
                         <span class="material-symbols-outlined text-[18px]">logout</span>
                     </div>
@@ -735,8 +736,6 @@ $userId = $_SESSION['user_id'] ?? 0;
 
 <script src="https://unpkg.com/@barba/core@2.9.7/dist/barba.umd.js" crossorigin="anonymous"></script>
 <script src="/js/barba_setup.js?v=4"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
-<script src="/js/nexus_scripts.js?v=13"></script>
 </body>
 </html>
 

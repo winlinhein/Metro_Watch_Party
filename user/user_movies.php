@@ -295,7 +295,9 @@
                                                 </div>
                                                 <div class="flex items-center gap-2">
                                                     <span class="text-[10px] text-white/40" x-text="comment.created_at || ''"></span>
-                                                    <button @click="openReportItemModal(comment.id || comment.comment_id, 'comment')" class="opacity-0 group-hover:opacity-100 text-white/30 hover:text-red-500 transition-all focus:opacity-100" title="Report Comment">
+                                                    <button @click="openReportItemModal(comment.id || comment.comment_id, 'comment', comment.comment || comment.content || '')" 
+                                                            class="opacity-0 group-hover:opacity-100 text-white/30 hover:text-red-500 transition-all focus:opacity-100" 
+                                                            title="Report Comment">
                                                         <span class="material-symbols-outlined text-[16px]">flag</span>
                                                     </button>
                                                 </div>
@@ -368,7 +370,9 @@
                                                             </div>
                                                             <div class="flex items-center gap-2">
                                                                 <span class="text-[9px] text-white/30" x-text="reply.created_at || ''"></span>
-                                                                <button @click="openReportItemModal(reply.id || reply.comment_id, 'reply')" class="opacity-0 group-hover:opacity-100 text-white/30 hover:text-red-500 transition-all focus:opacity-100" title="Report Reply">
+                                                                <button @click="openReportItemModal(reply.id || reply.comment_id, 'reply', reply.comment || reply.content || '')" 
+                                                                        class="opacity-0 group-hover:opacity-100 text-white/30 hover:text-red-500 transition-all focus:opacity-100" 
+                                                                        title="Report Reply">
                                                                     <span class="material-symbols-outlined text-[14px]">flag</span>
                                                                 </button>
                                                             </div>

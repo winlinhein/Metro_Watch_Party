@@ -1,11 +1,5 @@
 function userDashboard() {
     return {
-        init() {
-            const savedBorder = localStorage.getItem('activeBorder');
-            if (savedBorder) {
-                this.activeBorderId = parseInt(savedBorder, 10);
-            }
-        },
         // Navigation & Tab State
         currentTab: 'dashboard',
         isNavOpen: false,
@@ -66,6 +60,7 @@ function userDashboard() {
         availableReasons: [],
         selectedReasonIds: [],
         reportDescription: '',
+        reportItemPreview: '',
 
         // --- Account State ---
         accountForm: { username: 'CurrentUser', email: 'user@example.com' },
@@ -389,7 +384,6 @@ function userDashboard() {
                     this.friends = data.friends || [];
                     this.pendingRequests = data.pending_requests || [];
                     this.updateFriendsCount();
-                    this.initAllChatSubscriptions();
                 }
             } catch (err) {
                 console.error('Fetch friends error:', err);
@@ -874,33 +868,40 @@ function userDashboard() {
 
         // --- Report User Logic ---
         openReportModal(user) {
-            // Fallback to the currently selected dropdown user
-            const targetUser = user || this.selectedProfileUser;
-            
-            if (!targetUser) return;
-            
-            this.selectedProfileUser = targetUser;
-            this.reportTab = 'select'; 
-            this.selectedReasonIds = []; 
-            this.reportDescription = ''; 
+            if (!user) return;
+            this.selectedProfileUser = user;
             this.showReportModal = true;
-            this.activeDropdown = null; // Close option dropdown when modal opens
+            this.selectedReasonIds = [];
+            this.reportDescription = '';
+
+            // Ensure reasons are loaded
+            if (this.availableReasons.length === 0) {
+                this.fetchReasons();
+            }
+
+            // Prevent dropdown timeout from clearing selectedProfileUser
+            this.activeDropdown = null;
         },
 
         closeReportModal() {
             this.showReportModal = false;
+            this.selectedReasonIds = [];
+            this.reportDescription = '';
+
+            // Clear selected user after modal is fully hidden
             setTimeout(() => {
-                this.selectedProfileUser = null;
-                this.selectedReasonIds = [];
-                this.reportDescription = '';
-            }, 300);
+                if (!this.showReportModal) {
+                    this.selectedProfileUser = null;
+                }
+            }, 200);
         },
 
-        openReportItemModal(id, type) {
+        openReportItemModal(id, type, previewText = '') {
             this.selectedItemIdToReport = id;
             this.reportItemType = type;
             this.reportItemDescription = '';
             this.selectedItemReasonIds = [];
+            this.reportItemPreview = previewText;
             this.showReportItemModal = true;
             if (this.availableReasons.length === 0) {
                 this.fetchReasons();
@@ -913,8 +914,7 @@ function userDashboard() {
                 this.selectedItemIdToReport = null;
                 this.reportItemDescription = '';
                 this.selectedItemReasonIds = [];
-                
-                // Reset modal animations
+                this.reportItemPreview = '';
                 const modalEl = document.getElementById('report-item-modal-content');
                 if (modalEl && window.gsap) gsap.set(modalEl, { clearProps: "all" });
             }, 300);
@@ -924,33 +924,8 @@ function userDashboard() {
             if (!this.selectedItemIdToReport) return;
             const id = this.selectedItemIdToReport;
             const type = this.reportItemType;
-            const targetEl = document.getElementById(type + '-' + id);
-            
-            // Trigger insane GSAP animation FIRST
-            if (targetEl && window.gsap) {
-                const tl = gsap.timeline();
-                
-                // Shake & Flash Red
-                tl.to(targetEl, { x: -15, rotate: -3, borderColor: 'red', backgroundColor: 'rgba(255,0,0,0.5)', duration: 0.04, yoyo: true, repeat: 7 })
-                  .to(targetEl, { x: 15, rotate: 3, duration: 0.04, yoyo: true, repeat: 7 }, "-=0.28")
-                  // Glitch effect text
-                  .to(targetEl, { skewX: 30, scaleY: 0.7, filter: 'blur(3px) contrast(200%) hue-rotate(90deg)', duration: 0.1 })
-                  .to(targetEl, { skewX: -30, scaleY: 1.3, filter: 'blur(0px) contrast(150%) hue-rotate(-90deg)', duration: 0.1 })
-                  .to(targetEl, { skewX: 0, scaleY: 1, filter: 'none', duration: 0.1 })
-                  // Implode and vanish
-                  .to(targetEl, {
-                      scale: 0.01,
-                      opacity: 0,
-                      rotate: 360,
-                      duration: 0.6,
-                      ease: "power4.in",
-                      onComplete: () => {
-                          targetEl.style.display = 'none';
-                      }
-                  });
-            }
-            
-            // Animate the modal itself before closing
+
+            // Animate the modal itself before closing (keep this)
             const modalEl = document.getElementById('report-item-modal-content');
             const glitchEl = document.getElementById('item-modal-glitch');
             if (modalEl && window.gsap) {
@@ -961,24 +936,42 @@ function userDashboard() {
             }
 
             try {
-                await fetch('/user_backend/submit_report.php', {
+                const res = await fetch('/user_backend/submit_report.php', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         reported_item_id: id,
                         item_type: type,
-                        reason_ids: this.selectedItemReasonIds,
-                        description: this.reportItemDescription
+                        reason_ids: this.selectedItemReasonIds.map(rid => Number(rid)),
+                        description: this.reportItemDescription,
+                        preview: this.reportItemPreview
                     })
                 });
-                
-                setTimeout(() => {
-                    this.closeReportItemModal();
-                    if (window.showToast) window.showToast(`${type.charAt(0).toUpperCase() + type.slice(1)} Obliterated.`, 'success');
-                }, 500);
+
+                // Parse the JSON response
+                const rawText = await res.text();
+                let data;
+                try {
+                    data = JSON.parse(rawText);
+                } catch (e) {
+                    console.error("Server returned non-JSON response:", rawText);
+                    throw new Error("Invalid response from server");
+                }
+
+                if (data.success) {
+                    setTimeout(() => {
+                        this.closeReportItemModal();
+                        if (window.showToast) window.showToast('Report submitted. Our moderators will review it.', 'success');
+                    }, 500);
+                } else {
+                    // Show error message and do not close the modal yet
+                    if (window.showToast) window.showToast(data.message || 'Failed to submit report.', 'error');
+                    // Optionally keep modal open so user can correct the report
+                }
             } catch (e) {
                 console.error("Report item failed:", e);
-                this.closeReportItemModal();
+                // Only close modal if there was a network error? Better to keep it open.
+                if (window.showToast) window.showToast('Failed to submit report. Please try again.', 'error');
             }
         },
 
@@ -1598,6 +1591,10 @@ function userDashboard() {
 
         // Initialize Pusher Connection
         initPusher() {
+             if (typeof Pusher === 'undefined') {
+                console.error('Pusher library not loaded');
+                return;
+            }
             if (!window.CURRENT_USER_ID || typeof Pusher === 'undefined') return;
 
             if (!this.pusherClient) {
@@ -1741,6 +1738,39 @@ function userDashboard() {
         },
 
         async init() { 
+            // Restore saved border
+            const savedBorder = localStorage.getItem('activeBorder');
+            if (savedBorder) {
+                this.activeBorderId = parseInt(savedBorder, 10);
+            }
+
+            // --- Ensure CURRENT_USER_ID is set (critical for real-time) ---
+            if (!window.CURRENT_USER_ID) {
+                try {
+                    const res = await fetch('/user_backend/get_current_user.php');
+                    const data = await res.json();
+                    if (data.user_id) {
+                        window.CURRENT_USER_ID = data.user_id;
+                    } else {
+                        console.warn('No user ID returned from endpoint.');
+                    }
+                } catch (e) {
+                    console.error('Failed to fetch current user ID', e);
+                }
+            }
+
+            // --- Dynamically load Pusher if not already present ---
+            if (typeof Pusher === 'undefined') {
+                await new Promise((resolve, reject) => {
+                    const script = document.createElement('script');
+                    script.src = 'https://js.pusher.com/8.2.0/pusher.min.js';
+                    script.onload = resolve;
+                    script.onerror = () => reject(new Error('Failed to load Pusher'));
+                    document.head.appendChild(script);
+                }).catch(err => {
+                    console.error(err);
+                });
+            }
             // 1. Core Config
             if (typeof gsap !== 'undefined') gsap.config({ nullTargetWarn: false });
 
@@ -1753,9 +1783,13 @@ function userDashboard() {
             this.loadMissions();
             this.fetchNotifications();
 
-            // 3. Real-Time Connections
-            this.initPusher();
-            this.initAllChatSubscriptions();
+            // 3. Real-Time Connections – only start if we have a valid user ID and Pusher is loaded
+            if (window.CURRENT_USER_ID && typeof Pusher !== 'undefined') {
+                this.initPusher();
+                this.initAllChatSubscriptions();
+            } else {
+                console.warn('Real-time features disabled: missing user ID or Pusher');
+            }
 
             // 4. Watchers & Interactions
             this.$watch('friends', () => this.updateFriendsCount());

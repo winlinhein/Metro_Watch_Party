@@ -1,16 +1,14 @@
-<!-- Report Reply Modal -->
+<!-- Report Item Modal (Comments & Replies) -->
 <div x-show="showReportItemModal" 
      class="fixed inset-0 z-[1010] flex items-center justify-center p-4"
      style="display: none;"
      id="report-item-modal-wrapper">
      
-    <!-- Backdrop -->
     <div class="absolute inset-0 bg-black/80 backdrop-blur-sm" 
          x-show="showReportItemModal"
          x-transition.opacity
          @click="closeReportItemModal()"></div>
 
-    <!-- Modal Content -->
     <div class="relative w-full max-w-sm bg-[#0a0a0f] border border-red-500/30 rounded-2xl shadow-2xl p-6"
          id="report-item-modal-content"
          x-show="showReportItemModal"
@@ -21,16 +19,24 @@
          x-transition:leave-start="opacity-100 translate-y-0 scale-100"
          x-transition:leave-end="opacity-0 translate-y-4 scale-95"
          @click.stop>
-         
-        <!-- Glitch Overlay for Animation -->
+
         <div id="item-modal-glitch" class="absolute inset-0 bg-red-600/20 mix-blend-overlay rounded-2xl opacity-0 pointer-events-none"></div>
 
         <h3 class="text-lg font-bold text-red-500 mb-2 flex items-center gap-2">
-            <span class="material-symbols-outlined text-[20px]">warning</span> <span x-text="reportItemType === 'comment' ? 'Report Comment' : 'Report Reply'"></span>
+            <span class="material-symbols-outlined text-[20px]">warning</span> 
+            <span x-text="reportItemType === 'comment' ? 'Report Comment' : 'Report Reply'"></span>
         </h3>
         <p class="text-xs text-white/50 mb-4">You are reporting a <span x-text="reportItemType"></span>. Please specify why.</p>
          
-        <!-- Predefined Reasons (Tags) -->
+        <!-- Preview of Reported Content -->
+        <div class="mb-4">
+            <p class="text-sm text-gray-400 mb-2">Reported content:</p>
+            <div class="bg-black/40 border border-white/10 rounded-lg p-3 text-xs text-white/70 max-h-24 overflow-y-auto">
+                <span x-text="reportItemPreview || 'No preview available'"></span>
+            </div>
+        </div>
+
+        <!-- Predefined Reasons -->
         <div class="space-y-3 mb-5">
             <p class="text-sm text-gray-400">Select reasons:</p>
             <div class="flex flex-wrap gap-2">
@@ -53,7 +59,7 @@
             </div>
         </div>
 
-        <!-- Custom Textarea -->
+        <!-- Custom Description -->
         <div class="mb-4">
             <p class="text-sm text-gray-400 mb-2">Or write a custom description:</p>
             <textarea x-model="reportItemDescription" placeholder="Describe the violation..." rows="3"

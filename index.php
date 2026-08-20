@@ -200,7 +200,7 @@
 
             <!-- Auth Buttons -->
             <div class="hidden md:flex items-center gap-4">
-                <a href="user/dashboard.php" class="text-sm font-bold text-white/70 hover:text-white px-5 py-2.5 rounded-xl bg-transparent hover:bg-white/5 border border-transparent hover:border-white/10 transition-all duration-300 cursor-pointer flex items-center gap-2 group"><span class="material-symbols-outlined text-[18px] group-hover:text-blue-400 transition-colors">login</span>Sign In</a>
+                <a href="/frontend/login.php" class="text-sm font-bold text-white/70 hover:text-white px-5 py-2.5 rounded-xl bg-transparent hover:bg-white/5 border border-transparent hover:border-white/10 transition-all duration-300 cursor-pointer flex items-center gap-2 group"><span class="material-symbols-outlined text-[18px] group-hover:text-blue-400 transition-colors">login</span>Sign In</a>
                 <a href="user/dashboard.php" class="animated-border px-6 py-2.5 text-sm font-bold text-white flex items-center gap-2 cursor-pointer">
                     Get Started <span class="material-symbols-outlined text-[18px]">arrow_forward</span>
                 </a>

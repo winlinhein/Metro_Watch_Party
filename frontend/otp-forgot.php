@@ -24,18 +24,27 @@
         .ultimate-reveal { opacity: 0; }
     </style>
 
-
-
     <script src="/js/nexus_scripts.js?v=5"></script>
 </head>
 <body class="bg-[#050505] text-white flex items-center justify-center font-sans antialiased relative overflow-hidden min-h-screen" data-barba="wrapper">
     <?php include __DIR__ . '/components/page_loader.php'; ?>
     <?php include __DIR__ . '/components/cursor.php'; ?>
     <?php include __DIR__ . '/components/toast.php'; ?>
+
+    <!-- Trigger toast if backend error exists -->
+    <?php if (isset($_GET['error'])): ?>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            if (typeof showToast === 'function') {
+                showToast(<?php echo json_encode($_GET['error']); ?>, 'error');
+            }
+        });
+    </script>
+    <?php endif; ?>
+
 <div id="barba-container" data-barba="container" data-barba-namespace="otp-forgot" x-data="otpForm()">
 
-
-<!-- Ambient background animation elements -->
+    <!-- Ambient background animation elements -->
     <div class="absolute inset-0 z-0 overflow-hidden pointer-events-none" id="particles-container">
         <div id="blob1" class="absolute top-[30%] left-[-20%] w-[500px] h-[500px] bg-yellow-600 rounded-full blur-[140px] opacity-20"></div>
         <div id="blob2" class="absolute top-[-10%] right-[-10%] w-[400px] h-[400px] bg-red-600 rounded-full blur-[160px] opacity-20"></div>
@@ -65,9 +74,8 @@
         <!-- Card -->
         <div class="glass-card rounded-2xl p-8 ultimate-reveal border-red-500/20 shadow-[0_0_50px_rgba(239,68,68,0.1)]" id="glass-card">
             
-            
-
-            <form action="../backend/otp-forgot_backend.php" method="POST" class="space-y-6" id="otpForm" onsubmit="window.showPageLoader && window.showPageLoader();">
+            <!-- Note: Form action points to otp-register_backend.php (the provided forgot OTP backend) -->
+            <form action="../backend/otp-register_backend.php" method="POST" class="space-y-6" id="otpForm" onsubmit="window.showPageLoader && window.showPageLoader();">
                 
                 <!-- OTP Inputs -->
                 <input type="hidden" name="otp" x-model="otpCode">
@@ -140,22 +148,10 @@
         </div>
     </main>
 
-    
-    
+</div>
 
-
-
-
-    
-
-
-    </div>
-
-
-
-    <script src="https://unpkg.com/@barba/core@2.9.7/dist/barba.umd.js" crossorigin="anonymous"></script>
-    
-    <script src="/js/barba_setup.js?v=4"></script>
+<script src="https://unpkg.com/@barba/core@2.9.7/dist/barba.umd.js" crossorigin="anonymous"></script>
+<script src="/js/barba_setup.js?v=4"></script>
 
 </body>
 </html>

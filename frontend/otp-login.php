@@ -26,18 +26,27 @@
         .otp-input:focus { border-color: #dc2626; outline: none; }
     </style>
 
-
-
     <script src="/js/nexus_scripts.js?v=5"></script>
 </head>
 <body class="bg-[#050505] text-white flex items-center justify-center font-sans antialiased relative overflow-hidden min-h-screen" data-barba="wrapper">
     <?php include __DIR__ . '/components/page_loader.php'; ?>
     <?php include __DIR__ . '/components/cursor.php'; ?>
     <?php include __DIR__ . '/components/toast.php'; ?>
+
+    <!-- Trigger toast if backend error exists -->
+    <?php if (isset($_GET['error'])): ?>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            if (typeof showToast === 'function') {
+                showToast(<?php echo json_encode($_GET['error']); ?>, 'error');
+            }
+        });
+    </script>
+    <?php endif; ?>
+
 <div id="barba-container" data-barba="container" data-barba-namespace="otp-login" x-data="otpForm()">
 
-
-<!-- Ambient background animation elements -->
+    <!-- Ambient background animation elements -->
     <div class="absolute inset-0 z-0 overflow-hidden pointer-events-none" id="particles-container">
         <div id="blob1" class="absolute top-[20%] left-[-10%] w-[500px] h-[500px] bg-red-600 rounded-full blur-[140px] opacity-20"></div>
         <div id="blob2" class="absolute bottom-[-20%] right-[-10%] w-[600px] h-[600px] bg-indigo-600 rounded-full blur-[160px] opacity-20"></div>
@@ -67,8 +76,6 @@
         <!-- Card -->
         <div class="glass-card rounded-2xl p-8 ultimate-reveal border-red-500/20 shadow-[0_0_50px_rgba(220,38,38,0.1)]" id="glass-card">
             
-            
-
             <form action="../backend/otp-login_backend.php" method="POST" class="space-y-6" id="otpForm" onsubmit="window.showPageLoader && window.showPageLoader();">
                 
                 <!-- OTP Inputs (Hidden actual input, visible separate inputs) -->
@@ -102,7 +109,7 @@
 
             <div class="text-center gs-stagger mt-8 flex flex-col gap-4">
                 
-                <!-- Insane Visual Timer -->
+                <!-- Visual Timer -->
                 <div class="relative w-full max-w-[200px] mx-auto h-1.5 bg-white/5 rounded-full overflow-hidden shadow-[inset_0_1px_3px_rgba(0,0,0,0.5)]">
                     <div class="absolute top-0 left-0 h-full bg-gradient-to-r from-red-500 to-indigo-500 rounded-full transition-all duration-1000 ease-linear shadow-[0_0_10px_rgba(220,38,38,0.5)]"
                          :style="`width: ${(timeLeft / 180) * 100}%`"></div>
@@ -142,22 +149,10 @@
         </div>
     </main>
 
-    
-    
+</div>
 
-
-
-
-    
-
-
-    </div>
-
-
-
-    <script src="https://unpkg.com/@barba/core@2.9.7/dist/barba.umd.js" crossorigin="anonymous"></script>
-    
-    <script src="/js/barba_setup.js?v=4"></script>
+<script src="https://unpkg.com/@barba/core@2.9.7/dist/barba.umd.js" crossorigin="anonymous"></script>
+<script src="/js/barba_setup.js?v=4"></script>
 
 </body>
 </html>
