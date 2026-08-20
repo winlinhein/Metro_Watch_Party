@@ -102,7 +102,20 @@
                     </button>
                 </div>
 
-                <div x-data="{ movieTab: 'details' }" class="p-8 overflow-y-auto flex-1 space-y-6">
+                <div x-data="{ movieTab: 'details' }"
+                    @admin-show-comment.window="
+                        const id = $event.detail.commentId;
+                        if (id) {
+                            movieTab = 'comments';
+                            $nextTick(() => {
+                                const el = document.getElementById('admin-comment-' + id) || document.getElementById('admin-reply-' + id);
+                                if (el) {
+                                    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                }
+                            });
+                        }
+                    "
+                    class="p-8 overflow-y-auto flex-1 space-y-6">
                     
                     <!-- Segmented Tab Controls -->
                     <div class="grid grid-cols-2 p-1.5 bg-black/40 border border-white/10 rounded-2xl max-w-xs">
@@ -223,7 +236,7 @@
                             <div class="space-y-4">
                                 <template x-for="comment in nestedMovieComments" :key="comment.id">
                                     <!-- Parent Comment -->
-                                    <div class="bg-white/[0.03] border border-white/10 rounded-2xl p-4">
+                                    <div :id="'admin-comment-' + comment.id" class="bg-white/[0.03] border border-white/10 rounded-2xl p-4">
                                         <!-- Header -->
                                         <div class="flex justify-between items-start mb-2">
                                             <div class="flex items-center gap-2">
@@ -266,7 +279,7 @@
                                             x-transition:enter-end="opacity-100 translate-y-0"
                                             class="pl-4 mt-3 border-l-2 border-indigo-500/30 space-y-2">
                                             <template x-for="reply in comment.replies" :key="reply.id">
-                                                <div class="bg-black/30 rounded-lg border border-white/5 p-3">
+                                                <div :id="'admin-reply-' + reply.id" class="bg-black/30 rounded-lg border border-white/5 p-3">
                                                     <div class="flex justify-between items-start mb-1">
                                                         <div class="flex items-center gap-2">
                                                             <div class="w-6 h-6 rounded-full bg-gradient-to-tr from-red-500 to-indigo-600 flex items-center justify-center font-bold text-[10px] text-white uppercase"

@@ -925,15 +925,9 @@ function userDashboard() {
             const id = this.selectedItemIdToReport;
             const type = this.reportItemType;
 
-            // Animate the modal itself before closing (keep this)
-            const modalEl = document.getElementById('report-item-modal-content');
-            const glitchEl = document.getElementById('item-modal-glitch');
-            if (modalEl && window.gsap) {
-                if (glitchEl) {
-                    gsap.to(glitchEl, { opacity: 1, duration: 0.05, yoyo: true, repeat: 5 });
-                }
-                gsap.to(modalEl, { scale: 0.8, opacity: 0, duration: 0.3, ease: "back.in(1.5)", delay: 0.1 });
-            }
+            // Prevent double submission
+            if (this.isSubmittingReport) return;
+            this.isSubmittingReport = true;
 
             try {
                 const res = await fetch('/user_backend/submit_report.php', {
@@ -948,7 +942,6 @@ function userDashboard() {
                     })
                 });
 
-                // Parse the JSON response
                 const rawText = await res.text();
                 let data;
                 try {
@@ -959,19 +952,35 @@ function userDashboard() {
                 }
 
                 if (data.success) {
-                    setTimeout(() => {
+                    // Only now animate and close
+                    const modalEl = document.getElementById('report-item-modal-content');
+                    const glitchEl = document.getElementById('item-modal-glitch');
+                    if (modalEl && window.gsap) {
+                        if (glitchEl) {
+                            gsap.to(glitchEl, { opacity: 1, duration: 0.05, yoyo: true, repeat: 5 });
+                        }
+                        gsap.to(modalEl, { 
+                            scale: 0.8, 
+                            opacity: 0, 
+                            duration: 0.3, 
+                            ease: "back.in(1.5)",
+                            onComplete: () => {
+                                this.closeReportItemModal();
+                                if (window.showToast) window.showToast('Report submitted. Our moderators will review it.', 'success');
+                            }
+                        });
+                    } else {
                         this.closeReportItemModal();
                         if (window.showToast) window.showToast('Report submitted. Our moderators will review it.', 'success');
-                    }, 500);
+                    }
                 } else {
-                    // Show error message and do not close the modal yet
                     if (window.showToast) window.showToast(data.message || 'Failed to submit report.', 'error');
-                    // Optionally keep modal open so user can correct the report
                 }
             } catch (e) {
                 console.error("Report item failed:", e);
-                // Only close modal if there was a network error? Better to keep it open.
                 if (window.showToast) window.showToast('Failed to submit report. Please try again.', 'error');
+            } finally {
+                this.isSubmittingReport = false;
             }
         },
 
@@ -3220,11 +3229,6 @@ function adminDashboard(userData = {}) {
             await this.fetchGenres();
         },
 
-        switchTab(tab) {
-            this.currentTab = tab;
-            this.isNavOpen = false;
-        },
-
         // --- Fetch API Methods ---
        async fetchMovies() {
             this.isLoading = true;
@@ -3414,6 +3418,8 @@ function adminDashboard(userData = {}) {
         reportsList: [],
         reportStats: { total: 0, pending: 0, read: 0 },
         filterStatus: 'all',
+        highlightCommentId: null,
+        returnToReportsAfterMovieModal: false,
 
         async fetchReports() {
             try {
@@ -3495,6 +3501,34 @@ function adminDashboard(userData = {}) {
             return this.reportsList.filter(report => report.status.toLowerCase() === this.filterStatus);
         },
 
+       async handleViewComment(detail) {
+            const movieId = detail.movie_id;
+            const commentId = detail.comment_id;
+            if (!movieId) return;
+
+            // Remember that we came from Reports
+            this.returnToReportsAfterMovieModal = true;
+
+            this.switchTab('movies');
+
+            if (!this.movies.length) {
+                await this.fetchMovies();
+            }
+
+            const movie = this.movies.find(m => (m.id || m.movie_id) == movieId);
+            if (!movie) {
+                if (window.showToast) window.showToast('Movie not found.', 'error');
+                this.returnToReportsAfterMovieModal = false; // reset if failed
+                return;
+            }
+
+            this.openEditMovieModal(movie);
+            await this.fetchMovieCommentsForAdmin(movieId);
+
+            window.dispatchEvent(new CustomEvent('admin-show-comment', {
+                detail: { commentId: commentId }
+            }));
+        },
         // Shop       
         modalOpen: false,
         modalMode: 'add',
@@ -4065,7 +4099,7 @@ function adminDashboard(userData = {}) {
             return url;
         },
 
-         initDashboard() {
+        initDashboard() {
             this.fetchReports();
             this.fetchStats();
             this.fetchMovies();
@@ -4074,6 +4108,12 @@ function adminDashboard(userData = {}) {
             this.fetchNotifications();
             this.initPusher();
             this.fetchComments();
+            this.$watch('movieModalOpen', (isOpen) => {
+                if (!isOpen && this.returnToReportsAfterMovieModal) {
+                    this.switchTab('reports');
+                    this.returnToReportsAfterMovieModal = false;
+                }
+            });
         },
 
         initPusher() {
@@ -4084,22 +4124,18 @@ function adminDashboard(userData = {}) {
                     cluster: 'ap1',
                     encrypted: true
                 });
-            }   
+            }
 
-            const channel = this.pusherClient.subscribe(`user-${window.CURRENT_USER_ID}`);
-
-            channel.bind('force_logout', (data) => {
-                // Optional: Show an alert so they know why they are being kicked
+            // Existing user-specific channel (for force logout, etc.)
+            const userChannel = this.pusherClient.subscribe(`user-${window.CURRENT_USER_ID}`);
+            userChannel.bind('force_logout', (data) => {
                 alert(data.message || 'Your account has been banned.');
-                
-                // Redirect them to your logout script to destroy the local PHP session
-                window.location.href = '/backend/logout.php'; 
+                window.location.href = '/backend/logout.php';
             });
 
+            // Admin comments channel
             const adminCommentsChannel = this.pusherClient.subscribe('admin-comments');
-
             adminCommentsChannel.bind('new_comment', (data) => {
-                // Add new comment to the top of the list
                 this.comments.unshift({
                     id: data.id,
                     movie_id: data.movie_id,
@@ -4111,15 +4147,29 @@ function adminDashboard(userData = {}) {
                     parent_id: null
                 });
             });
-
             adminCommentsChannel.bind('new_reply', () => {
-                // Simplest: refresh the entire list to include the reply
                 this.fetchComments();
             });
-
             adminCommentsChannel.bind('comment_liked', (data) => {
                 const comment = this.comments.find(c => c.id == data.comment_id);
                 if (comment) comment.likes_count = data.likes_count;
+            });
+
+            // ✅ NEW: Admin moderation channel for reports
+            const adminModerationChannel = this.pusherClient.subscribe('admin-moderation-channel');
+            adminModerationChannel.bind('new-report-event', (data) => {
+                if (data && data.report) {
+                    this.reportsList.unshift(data.report);
+                    this.updateReportStats();
+                }
+
+                // Also add to notifications array if it exists
+                if (data.notification) {
+                    this.notifications.unshift(data.notification);
+                    this.unreadNotifications = (this.unreadNotifications || 0) + 1;
+                }
+
+                if (window.showToast) window.showToast('New report submitted!', 'info');
             });
         }
     };

@@ -158,6 +158,7 @@ $userRole  = $_SESSION['user_role']  ?? 'user';
          user_name: '<?= htmlspecialchars($userName, ENT_QUOTES) ?>', 
          email: '<?= htmlspecialchars($userEmail, ENT_QUOTES) ?>' 
      })" 
+     @view-comment="handleViewComment($event.detail)"
      x-init="initDashboard()">
 
 

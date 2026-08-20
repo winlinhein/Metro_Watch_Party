@@ -29,10 +29,7 @@ if (!is_array($data)) {
 // ---------------------------------------------------------------------
 // 3. Determine Report Type
 // ---------------------------------------------------------------------
-// Item report: for comments or replies
 $is_item_report = isset($data['reported_item_id']) && isset($data['item_type']);
-
-// User report: direct user report
 $is_user_report = isset($data['reported_id']) && ($data['type'] ?? '') === 'user';
 
 if (!$is_item_report && !$is_user_report) {
@@ -43,7 +40,7 @@ if (!$is_item_report && !$is_user_report) {
 $reason_ids  = $data['reason_ids'] ?? [];
 $description = $data['description'] ?? null;
 
-// Normalize reason_ids to an array of integers
+// Normalize reason_ids to an array of positive integers
 if (!is_array($reason_ids)) {
     $reason_ids = [];
 } else {
@@ -57,48 +54,54 @@ if (empty($reason_ids) && empty(trim($description))) {
 }
 
 // ---------------------------------------------------------------------
-// 4. Prepare Data Depending on Report Type
+// 4. Prepare Data Depending on Report Type (outside try for early exits)
 // ---------------------------------------------------------------------
-try {
-    if ($is_item_report) {
-        $type = $data['item_type'];
+if ($is_item_report) {
+    $type = $data['item_type'];
 
-        // Allowed item types
-        $allowed_item_types = ['comment', 'reply'];
-        if (!in_array($type, $allowed_item_types, true)) {
-            echo json_encode(['success' => false, 'message' => 'Invalid item type']);
-            exit;
-        }
-
-        $comment_id = (int)$data['reported_item_id'];
-
-        // Fetch the author's user_id from movie_comments
-        $stmt_user = $conn->prepare("SELECT user_id FROM movie_comments WHERE comment_id = ?");
-        $stmt_user->execute([$comment_id]);
-        $comment_author = $stmt_user->fetch(PDO::FETCH_ASSOC);
-
-        if (!$comment_author) {
-            echo json_encode(['success' => false, 'message' => 'Comment not found']);
-            exit;
-        }
-
-        $reported_user_id = (int)$comment_author['user_id'];
-    } else {
-        // Direct user report
-        $comment_id = null;
-        $reported_user_id = (int)$data['reported_id'];
-        $type = 'user';
-
-        // Prevent reporting yourself (optional but recommended)
-        if ($reported_user_id === $reporter_id) {
-            echo json_encode(['success' => false, 'message' => 'You cannot report yourself']);
-            exit;
-        }
+    // Allowed item types
+    $allowed_item_types = ['comment', 'reply'];
+    if (!in_array($type, $allowed_item_types, true)) {
+        echo json_encode(['success' => false, 'message' => 'Invalid item type']);
+        exit;
     }
 
-    // -----------------------------------------------------------------
-    // 5. Database Transaction
-    // -----------------------------------------------------------------
+    $comment_id = (int)$data['reported_item_id'];
+
+    // Fetch the author's user_id from movie_comments
+    $stmt_user = $conn->prepare("SELECT user_id FROM movie_comments WHERE comment_id = ?");
+    $stmt_user->execute([$comment_id]);
+    $comment_author = $stmt_user->fetch(PDO::FETCH_ASSOC);
+
+    if (!$comment_author) {
+        echo json_encode(['success' => false, 'message' => 'Comment not found']);
+        exit;
+    }
+
+    $reported_user_id = (int)$comment_author['user_id'];
+
+    // Prevent reporting yourself (optional)
+    if ($reported_user_id === $reporter_id) {
+        echo json_encode(['success' => false, 'message' => 'You cannot report your own comment']);
+        exit;
+    }
+} else {
+    // Direct user report
+    $comment_id = null;
+    $reported_user_id = (int)$data['reported_id'];
+    $type = 'user';
+
+    // Prevent reporting yourself
+    if ($reported_user_id === $reporter_id) {
+        echo json_encode(['success' => false, 'message' => 'You cannot report yourself']);
+        exit;
+    }
+}
+
+// ---------------------------------------------------------------------
+// 5. Database Transaction (only for critical DB operations)
+// ---------------------------------------------------------------------
+try {
     $conn->beginTransaction();
 
     // 5a. Insert the main report
@@ -139,7 +142,7 @@ try {
     $conn->commit();
 
     // -----------------------------------------------------------------
-    // 6. Send Real-time Notification via Pusher (non-critical)
+    // 6. Send Real-time Notification via Pusher (non-critical, isolated)
     // -----------------------------------------------------------------
     if (function_exists('get_pusher_instance')) {
         try {
