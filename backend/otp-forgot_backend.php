@@ -1,19 +1,25 @@
 <?php
-// otp-register_backend.php - Dedicated Account Activation Endpoint
+// otp-register_backend.php - Forgot Password OTP Verification Endpoint
+ob_start(); // Prevent "headers already sent" errors
 session_start();
+
+ini_set('display_errors', 0);
+ini_set('log_errors', 1);
+error_reporting(E_ALL);
+
 require_once __DIR__ . '/../conn.php';
 
 function test_input($data) {
     return htmlspecialchars(trim(stripslashes($data)), ENT_QUOTES, 'UTF-8');
 }
 
-// 1. Retrieve email set during registration
+// 1. Retrieve email set during forgot password request
 $email = $_SESSION['verify_email'] ?? '';
 $otpErr = "";
 
-// Force redirect if no active registration session exists
+// Force redirect if no active forgot password session exists
 if (empty($email)) {
-    header("Location: ../frontend/forgot-password.php?error=" . urlencode("Session expired. Please register again."));
+    header("Location: ../frontend/forgot-password.php?error=" . urlencode("Session expired. Please request a new code."));
     exit();
 }
 
@@ -22,9 +28,9 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
     // 2. Input Validation
     if (empty($_POST['otp'])) {
-        $otpErr = "Activation code is required.";
+        $otpErr = "Verification code is required.";
     } elseif (!preg_match("/^[0-9]{6}$/", $_POST['otp'])) {
-        $otpErr = "Activation code must be a 6-digit number.";
+        $otpErr = "Verification code must be a 6-digit number.";
     } else {
         $otp = test_input($_POST['otp']);
     }
@@ -35,7 +41,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
     }
 
     try {
-        // 3. Query `otp_verification` for registration OTP
+        // 3. Query `otp_verification` for forgot password OTP
         $stmt = $conn->prepare("
             SELECT * FROM otp_verification 
             WHERE email = :email AND otp_type = 'forgot' 
@@ -45,7 +51,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
         $otp_record = $stmt->fetch(PDO::FETCH_ASSOC);
 
         if (!$otp_record) {
-            header("Location: ../frontend/otp-forgot.php?error=" . urlencode("No pending activation code found. Please request a new one."));
+            header("Location: ../frontend/otp-forgot.php?error=" . urlencode("No pending verification code found. Please request a new one."));
             exit();
         }
 
@@ -54,10 +60,11 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
         // 4. Expiration Check
         if ($current_time > $stored_expires) {
+            // Delete expired OTP
             $conn->prepare("DELETE FROM otp_verification WHERE email = :email AND otp_type = 'forgot'")
                  ->execute([':email' => $email]);
 
-            header("Location: ../frontend/otp-forgot.php?error=" . urlencode("Your activation code has expired. Please register or request a new code."));
+            header("Location: ../frontend/otp-forgot.php?error=" . urlencode("Your verification code has expired. Please request a new one."));
             exit();
         }
 
@@ -67,20 +74,22 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
             exit();
         }
 
-        // 6. Execute Account Activation Transaction
-        $conn->beginTransaction();
-        // Step C: Clear verification session variable
+        // 6. Successful Verification – Clear OTP and session
+        $conn->prepare("DELETE FROM otp_verification WHERE email = :email AND otp_type = 'forgot'")
+             ->execute([':email' => $email]);
+
+        // Clear temporary verification state
         unset($_SESSION['verify_email']);
 
-        // Step D: Redirect to login view with success notification
-        header("Location: ../frontend/login.php?success=" . urlencode("You are now changed"));
+        // Redirect to password reset page (or login with success)
+        // You may want to set a session variable to allow password reset
+        $_SESSION['reset_email'] = $email; // optional, for the reset form
+        header("Location: ../frontend/reset-password.php?success=" . urlencode("Verification successful. You can now reset your password."));
         exit();
 
     } catch (PDOException $e) {
-        if ($conn->inTransaction()) {
-            $conn->rollBack();
-        }
-        header("Location: ../frontend/otp-forgot.php?error=" . urlencode("Database error during account activation."));
+        error_log("OTP Forgot Error: " . $e->getMessage());
+        header("Location: ../frontend/otp-forgot.php?error=" . urlencode("Database error during verification. Please try again."));
         exit();
     }
 }

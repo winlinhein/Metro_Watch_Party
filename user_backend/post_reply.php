@@ -47,4 +47,20 @@ triggerPusherEvent("movie-{$movieId}", 'new_reply', $replyData);
 // 4. Broadcast to global admin channel
 triggerPusherEvent('admin-comments', 'new_reply', $replyData);
 
+// Get parent comment owner
+$stmt = $conn->prepare("SELECT user_id FROM movie_comments WHERE comment_id = ?");
+$stmt->execute([$parentId]);
+$ownerId = $stmt->fetchColumn();
+
+// If owner exists and is not the current user, send a notification
+if ($ownerId && (int)$ownerId !== $userId) {
+    triggerPusherEvent("user-{$ownerId}", 'comment_replied', [
+        'sender_name' => $userName,
+        'comment_id' => $parentId,
+        'reply_text' => $replyText,
+        'movie_id' => $movieId,
+        'created_at' => date('Y-m-d H:i:s')
+    ]);
+}
+
 echo json_encode(['success' => true, 'reply' => $replyData]);

@@ -36,20 +36,44 @@ $newLikesCount = $stmt->fetchColumn();
 $stmt = $conn->prepare("SELECT movie_id FROM movie_comments WHERE comment_id = :comment_id");
 $stmt->execute(['comment_id' => $commentId]);
 $movieId = $stmt->fetchColumn();
+$newIsLiked = !$hasLiked;
 
 if ($movieId) {
     // 4. Broadcast updated like count to everyone looking at this movie
     triggerPusherEvent("movie-{$movieId}", 'comment_liked', [
         'movie_id'    => (int)$movieId,
         'comment_id'  => $commentId,
-        'likes_count' => (int)$newLikesCount
+        'likes_count' => (int)$newLikesCount,
+        'user_id'     => (int)$userId,         
+        'is_liked'    => $newIsLiked           
     ]);
 
     // NEW: Broadcast to global admin channel
     triggerPusherEvent('admin-comments', 'comment_liked', [
         'comment_id'  => $commentId,
-        'likes_count' => (int)$newLikesCount
+        'likes_count' => (int)$newLikesCount,
+        'is_liked'    => $newIsLiked   
     ]);
 }
 
-echo json_encode(['success' => true]);
+if ($newIsLiked) {  // only notify on like, not unlike
+    // Get comment owner
+    $stmt = $conn->prepare("SELECT user_id FROM movie_comments WHERE comment_id = ?");
+    $stmt->execute([$commentId]);
+    $ownerId = $stmt->fetchColumn();
+
+    if ($ownerId && (int)$ownerId !== $userId) {
+        triggerPusherEvent("user-{$ownerId}", 'comment_liked_notification', [
+            'sender_name' => $_SESSION['user_name'] ?? 'Someone',
+            'comment_id' => $commentId,
+            'movie_id' => $movieId,
+            'created_at' => date('Y-m-d H:i:s')
+        ]);
+    }
+}
+
+echo json_encode([
+    'success' => true,
+    'is_liked' => $newIsLiked,
+    'likes_count' => (int)$newLikesCount
+]);

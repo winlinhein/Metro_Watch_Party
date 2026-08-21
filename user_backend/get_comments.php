@@ -5,6 +5,7 @@ header('Content-Type: application/json');
 require_once __DIR__ . '/../conn.php';
 
 $movieId = intval($_GET['movie_id'] ?? 0);
+$currentUserId = $_SESSION['user_id'] ?? 0;
 session_write_close();
 
 if (!$movieId) {
@@ -21,18 +22,19 @@ $stmt = $conn->prepare("
         c.comment_text AS comment,
         c.created_at,
         u.user_name,
-        COUNT(l.comment_id) AS likes_count
+        COUNT(l.comment_id) AS likes_count,
+        MAX(CASE WHEN l.user_id = :current_user_id THEN 1 ELSE 0 END) AS is_liked
     FROM movie_comments c
     INNER JOIN users u ON c.user_id = u.user_id
     LEFT JOIN comment_likes l ON c.comment_id = l.comment_id
-    WHERE c.movie_id = ?
+    WHERE c.movie_id = :movie_id
     GROUP BY c.comment_id
     ORDER BY c.created_at ASC
 ");
-$stmt->execute([$movieId]);
+$stmt->execute(['movie_id' => $movieId, 'current_user_id' => $currentUserId]);
 $flatComments = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-// Helper function to build a nested tree from flat DB rows
+// Build nested tree (same as before)
 function buildCommentTree(array &$elements, $parentId = null) {
     $branch = [];
     foreach ($elements as $element) {

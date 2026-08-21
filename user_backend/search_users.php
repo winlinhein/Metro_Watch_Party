@@ -29,6 +29,8 @@ try {
                    ON (f.user_id_1 = ? AND f.user_id_2 = u.user_id)
                    OR (f.user_id_2 = ? AND f.user_id_1 = u.user_id)
             WHERE u.user_id != ?
+              AND u.role_id NOT IN (1, 3)
+              AND u.status NOT IN ('pending', 'banned')
             ORDER BY u.user_id DESC 
             LIMIT 10
         ");
@@ -49,6 +51,8 @@ try {
                    OR (f.user_id_2 = ? AND f.user_id_1 = u.user_id)
             WHERE u.user_id != ? 
               AND (u.user_name LIKE ? OR u.email LIKE ?) 
+              AND u.role_id NOT IN (1, 3)
+              AND u.status NOT IN ('pending', 'banned')
             LIMIT 20
         ");
         $stmt->execute([

@@ -1,20 +1,23 @@
 <?php
 session_start();
 
-// Block access if not authenticated OR if the user is not an admin
+// Allowed roles that can access this page
+$allowed_roles = ['admin', 'moderator'];
+
+// Block access if not authenticated or role is not in allowed list
 if (
     empty($_SESSION['authenticated']) || 
     $_SESSION['authenticated'] !== true || 
     empty($_SESSION['user_role']) || 
-    $_SESSION['user_role'] !== 'admin'
+    !in_array($_SESSION['user_role'], $allowed_roles, true)
 ) {
-    header("Location: login.php?error=" . urlencode("Access denied. Admin privileges required."));
+    header("Location: login.php?error=" . urlencode("Access denied. Admin or Moderator privileges required."));
     exit();
 }
 
-    $userName  = $_SESSION['user_name']  ?? 'Agent';
-    $userEmail = $_SESSION['user_email'] ?? '';
-    $userRole  = $_SESSION['user_role']  ?? 'user';
+$userName  = $_SESSION['user_name']  ?? 'Agent';
+$userEmail = $_SESSION['user_email'] ?? '';
+$userRole  = $_SESSION['user_role']  ?? 'user';
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -155,6 +158,7 @@ if (
          user_name: '<?= htmlspecialchars($userName, ENT_QUOTES) ?>', 
          email: '<?= htmlspecialchars($userEmail, ENT_QUOTES) ?>' 
      })" 
+     @view-comment="handleViewComment($event.detail)"
      x-init="initDashboard()">
 
 
