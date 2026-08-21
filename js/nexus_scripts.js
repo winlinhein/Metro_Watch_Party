@@ -63,7 +63,12 @@ function userDashboard() {
         reportItemPreview: '',
 
         // --- Account State ---
-        accountForm: { username: 'CurrentUser', email: 'user@example.com' },
+        displayName: window.USER_NAME || 'CurrentUser',
+        displayEmail: window.USER_EMAIL || 'user@example.com',
+        accountForm: { 
+            username: window.USER_NAME || 'CurrentUser', 
+            email: window.USER_EMAIL || 'user@example.com' 
+        },
         passwordForm: { current: '', new: '', confirm: '' },
         activeBorderId: 1,
         availableBorders: [
@@ -115,14 +120,43 @@ function userDashboard() {
         },
 
         // --- Account Methods ---
-        async updateAccountInfo() {
-            if (!this.accountForm.username || !this.accountForm.email) return;
+        deleteAccountModalOpen: false,
+        deleteAccountPassword: '',
+        deleteAccountError: '',
+
+       async updateAccountInfo() {
+            if (!this.accountForm.username.trim() || !this.accountForm.email.trim()) {
+                if (window.showToast) window.showToast('Username and email are required.', 'error');
+                return;
+            }
+
             try {
-                // Mock API call
-                if (window.showToast) window.showToast('Profile updated successfully!', 'success');
+                const res = await fetch('/user_backend/update_account.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        username: this.accountForm.username.trim(),
+                        email: this.accountForm.email.trim()
+                        // No active_border_id here
+                    })
+                });
+
+                const rawText = await res.text();
+                let data;
+                try { data = JSON.parse(rawText); } catch (e) { throw new Error('Invalid server response'); }
+
+                if (data.success) {
+                    this.displayName = this.accountForm.username;
+                    this.displayEmail = this.accountForm.email;
+                    window.USER_NAME = this.accountForm.username;
+                    window.USER_EMAIL = this.accountForm.email;
+                    if (window.showToast) window.showToast('Profile updated successfully!', 'success');
+                } else {
+                    if (window.showToast) window.showToast(data.message || 'Failed to update profile.', 'error');
+                }
             } catch (e) {
                 console.error(e);
-                if (window.showToast) window.showToast('Failed to update profile.', 'error');
+                if (window.showToast) window.showToast('Network error updating profile.', 'error');
             }
         },
 
@@ -132,34 +166,75 @@ function userDashboard() {
                 return;
             }
             if (this.passwordForm.new !== this.passwordForm.confirm) {
-                if (window.showToast) window.showToast('Passwords do not match.', 'error');
+                if (window.showToast) window.showToast('New passwords do not match.', 'error');
                 return;
             }
+
             try {
-                // Mock API call
-                this.passwordForm = { current: '', new: '', confirm: '' };
-                if (window.showToast) window.showToast('Password updated securely!', 'success');
+                const res = await fetch('/user_backend/update_password.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        current_password: this.passwordForm.current,
+                        new_password: this.passwordForm.new
+                    })
+                });
+
+                const rawText = await res.text();
+                let data;
+                try { data = JSON.parse(rawText); } catch (e) { throw new Error('Invalid server response'); }
+
+                if (data.success) {
+                    this.passwordForm = { current: '', new: '', confirm: '' };
+                    if (window.showToast) window.showToast('Password updated successfully!', 'success');
+                } else {
+                    if (window.showToast) window.showToast(data.message || 'Failed to update password.', 'error');
+                }
             } catch (e) {
                 console.error(e);
-                if (window.showToast) window.showToast('Failed to update password.', 'error');
+                if (window.showToast) window.showToast('Network error updating password.', 'error');
+            }
+        },
+
+        async confirmDeleteAccount() {
+            this.deleteAccountError = '';
+            if (!this.deleteAccountPassword.trim()) {
+                this.deleteAccountError = 'Please enter your password to confirm account deletion.';
+                return;
+            }
+
+            try {
+                const res = await fetch('/user_backend/delete_account.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ password: this.deleteAccountPassword })
+                });
+
+                const rawText = await res.text();
+                let data;
+                try { data = JSON.parse(rawText); } catch (e) { throw new Error('Invalid server response'); }
+
+                if (data.success) {
+                    window.location.href = '/frontend/login.php?account_deleted=1';
+                } else {
+                    this.deleteAccountError = data.message || 'Failed to delete account.';
+                }
+            } catch (e) {
+                console.error(e);
+                this.deleteAccountError = 'Network error processing account deletion.';
             }
         },
 
         setActiveBorder(borderId) {
             const border = this.availableBorders.find(b => b.id === borderId);
             if (!border) return;
-            
             if (!border.owned) {
-                if (window.showToast) window.showToast('You do not own this border. Purchase it in the shop!', 'error');
+                if (window.showToast) window.showToast('You do not own this border.', 'error');
                 return;
             }
-
             this.activeBorderId = borderId;
-            if (window.showToast) {
-                window.showToast(`${border.name} border applied!`, 'success');
-            }
-            // Save to local storage or backend
             localStorage.setItem('activeBorder', borderId);
+            if (window.showToast) window.showToast(`${border.name} border applied!`, 'success');
         },
 
         // Convert any standard YouTube link into a clean Embed URL
@@ -1214,48 +1289,29 @@ function userDashboard() {
             return movie.id || movie.movie_id;
         },
 
+        //comments
+        likingComments: new Set(),
+
         // Fetch existing comments
         async fetchMovieComments(movieId) {
             try {
                 const res = await fetch(`/user_backend/get_comments.php?movie_id=${movieId}`);
                 const data = await res.json();
                 if (data.success) {
-                    this.selectedMovie.comments = data.comments;
+                    const normaliseComment = (c) => ({
+                        ...c,
+                        is_liked: Boolean(Number(c.is_liked)),
+                        likes_count: Number(c.likes_count) || 0,
+                        replies: c.replies ? c.replies.map(normaliseComment) : []
+                    });
+
+                    this.selectedMovie.comments = data.comments.map(normaliseComment);
                 }
-            } catch (e) { 
-                console.error("Failed to load comments:", e); 
-            }
-        },
-
-        async toggleLike(commentId) {
-            if (!this.selectedMovie) return;
-
-            // 1. Find the comment in the local Alpine array
-            const comment = this.selectedMovie.comments.find(c => Number(c.id) === Number(commentId));
-            if (!comment) return;
-
-            // 2. Instantly update UI for the user (Optimistic UI)
-            comment.is_liked = !comment.is_liked;
-            comment.likes_count += comment.is_liked ? 1 : -1;
-            
-            // Force Alpine to re-render
-            this.selectedMovie.comments = [...this.selectedMovie.comments];
-
-            // 3. Send the like to your backend
-            try {
-                await fetch('/user_backend/like_comment.php', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ comment_id: commentId })
-                });
             } catch (e) {
-                console.error("Failed to like comment:", e);
-                // If the database fails, revert the like button visually
-                comment.is_liked = !comment.is_liked;
-                comment.likes_count += comment.is_liked ? 1 : -1;
-                this.selectedMovie.comments = [...this.selectedMovie.comments];
+                console.error("Failed to load comments:", e);
             }
         },
+
 
         // Unified Process Live Review
         async processLiveReview(rating, commentText) {
@@ -1363,38 +1419,6 @@ function userDashboard() {
             }
         },
 
-        // Like/Unlike Comment Method
-        async likeComment(commentId) {
-            // Optimistic UI update
-            const findComment = (list) => {
-                for (let c of list) {
-                    if (Number(c.id) === Number(commentId)) return c;
-                    if (c.replies) {
-                        const found = findComment(c.replies);
-                        if (found) return found;
-                    }
-                }
-                return null;
-            };
-
-            const targetComment = findComment(this.selectedMovie.comments || []);
-            if (targetComment) {
-                targetComment.is_liked = !targetComment.is_liked;
-                targetComment.likes_count += targetComment.is_liked ? 1 : -1;
-                this.selectedMovie.comments = [...this.selectedMovie.comments];
-            }
-
-            try {
-                await fetch('/user_backend/like_comment.php', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ comment_id: commentId })
-                });
-            } catch (e) {
-                console.error("Like error:", e);
-            }
-        },
-
         async submitReply(parentId, replyText) {
             if (!replyText || !replyText.trim() || !this.selectedMovie) return false;
             const movieId = this.getMovieId(this.selectedMovie);
@@ -1420,6 +1444,74 @@ function userDashboard() {
 
         async submitReview(rating, commentText) {
             return await this.processLiveReview(rating, commentText);
+        },
+
+        async toggleLike(commentId) {
+            if (!this.selectedMovie) return; // Guard for null at start
+            const commentIdNum = Number(commentId);
+            if (this.likingComments.has(commentIdNum)) return; // Already in progress
+
+            // Recursive find (works for top-level and replies)
+            const findComment = (list) => {
+                for (let c of list) {
+                    if (Number(c.id) === commentIdNum) return c;
+                    if (c.replies) {
+                        const found = findComment(c.replies);
+                        if (found) return found;
+                    }
+                }
+                return null;
+            };
+
+            const comment = findComment(this.selectedMovie.comments || []);
+            if (!comment) return;
+
+            this.likingComments.add(commentIdNum);
+            const action = comment.is_liked ? 'unlike' : 'like';
+
+            // Optimistic UI update
+            comment.is_liked = !comment.is_liked;
+            comment.likes_count = (Number(comment.likes_count) || 0) + (comment.is_liked ? 1 : -1);
+            this.selectedMovie.comments = [...this.selectedMovie.comments];
+
+            try {
+                const res = await fetch('/user_backend/like_comment.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ comment_id: commentIdNum, action })
+                });
+
+                const data = await res.json();
+
+                // Re-check after await (modal may have been closed)
+                if (!this.selectedMovie) return;
+                const currentComment = findComment(this.selectedMovie.comments || []);
+                if (!currentComment) return;
+
+                if (!data.success) {
+                    // Revert on server error
+                    currentComment.is_liked = !currentComment.is_liked;
+                    currentComment.likes_count = (Number(currentComment.likes_count) || 0) + (currentComment.is_liked ? 1 : -1);
+                } else {
+                    // Overwrite with server values
+                    if (data.likes_count !== undefined) currentComment.likes_count = Number(data.likes_count);
+                    if (data.is_liked !== undefined) currentComment.is_liked = Boolean(data.is_liked);
+                }
+                this.selectedMovie.comments = [...this.selectedMovie.comments];
+            } catch (e) {
+                console.error("Like failed:", e);
+                // Revert if still possible
+                if (this.selectedMovie) {
+                    const currentComment = findComment(this.selectedMovie.comments || []);
+                    if (currentComment) {
+                        currentComment.is_liked = !currentComment.is_liked;
+                        currentComment.likes_count = (Number(currentComment.likes_count) || 0) + (currentComment.is_liked ? 1 : -1);
+                        this.selectedMovie.comments = [...this.selectedMovie.comments];
+                    }
+                }
+            } finally {
+                this.likingComments.delete(commentIdNum);
+            }
         },
 
         async fetchWatchlist() {
@@ -1542,7 +1634,7 @@ function userDashboard() {
             });
 
             // 4. Live Like Update
-            channel.bind('comment_liked', (data) => {
+           channel.bind('comment_liked', (data) => {
                 if (!this.selectedMovie || Number(this.getMovieId(this.selectedMovie)) !== Number(data.movie_id)) return;
 
                 const findAndSetLikes = (list) => {
@@ -1550,6 +1642,9 @@ function userDashboard() {
                     for (let i = 0; i < list.length; i++) {
                         if (Number(list[i].id) === Number(data.comment_id)) {
                             list[i].likes_count = Number(data.likes_count);
+                            if (data.user_id !== undefined && Number(data.user_id) === Number(window.CURRENT_USER_ID)) {
+                                list[i].is_liked = Boolean(data.is_liked);
+                            }
                             return true;
                         }
                         if (list[i].replies && findAndSetLikes(list[i].replies)) {
@@ -1559,7 +1654,6 @@ function userDashboard() {
                     return false;
                 };
 
-                // Create a shallow copy of comments to force reactivity
                 const newComments = [...(this.selectedMovie.comments || [])];
                 if (findAndSetLikes(newComments)) {
                     this.selectedMovie.comments = newComments;
@@ -2953,34 +3047,23 @@ window.handleLogout = async function() {
 
 function adminDashboard(userData = {}) {
     return {
-        // Merged the duplicate init() logic here so both GSAP and fetchMovies() run properly
-
-        modalMode: 'add',         // Missing variable 1
-        formData: {               // Missing variable 2
-            name: '',
-            price: '',
-            rarity: '',
-            image: null
-        },
-        //comments
+        currentMovieId: null,
+        modalMode: 'add',
+        formData: { name: '', price: '', rarity: '', image: null },
         comments: [],
         commentsLoading: false,
         commentError: '',
         commentFilter: '',
         movieComments: [],
         loadingMovieComments: false,
+
         buildCommentTree(flatComments) {
             if (!flatComments || !flatComments.length) return [];
-            
             const map = {};
             const roots = [];
-            
-            // First pass: create a map of all comments by ID
             flatComments.forEach(comment => {
                 map[comment.id] = { ...comment, replies: [] };
             });
-            
-            // Second pass: assign children to parents or roots
             flatComments.forEach(comment => {
                 const parentId = comment.parent_id;
                 if (parentId && map[parentId]) {
@@ -2989,10 +3072,9 @@ function adminDashboard(userData = {}) {
                     roots.push(map[comment.id]);
                 }
             });
-            
-            // Optional: sort roots by newest first (already sorted by backend)
             return roots;
         },
+
         get filteredComments() {
             if (!this.commentFilter.trim()) return this.nestedComments;
             const q = this.commentFilter.toLowerCase();
@@ -3012,6 +3094,7 @@ function adminDashboard(userData = {}) {
             };
             return filterTree(this.nestedComments);
         },
+
         get nestedComments() {
             return this.buildCommentTree(this.comments);
         },
@@ -3019,6 +3102,7 @@ function adminDashboard(userData = {}) {
         get nestedMovieComments() {
             return this.buildCommentTree(this.movieComments);
         },
+
         async fetchComments() {
             this.commentsLoading = true;
             this.commentError = '';
@@ -3037,6 +3121,7 @@ function adminDashboard(userData = {}) {
                 this.commentsLoading = false;
             }
         },
+
         async fetchMovieCommentsForAdmin(movieId) {
             this.loadingMovieComments = true;
             try {
@@ -3052,7 +3137,7 @@ function adminDashboard(userData = {}) {
             }
         },
 
-       async deleteComment(commentId) {
+        async deleteComment(commentId) {
             if (!confirm('Delete this comment and its replies?')) return;
             try {
                 const res = await fetch('/backend/comments_api.php', {
@@ -3062,9 +3147,11 @@ function adminDashboard(userData = {}) {
                 });
                 const data = await res.json();
                 if (data.success) {
-                    // Remove from both arrays (modal + global list)
-                    this.movieComments = this.movieComments.filter(c => c.id !== commentId && c.parent_id !== commentId);
-                    this.comments = this.comments.filter(c => c.id !== commentId && c.parent_id !== commentId);
+                    // Simpler: refetch both lists to ensure nested replies are removed
+                    await this.fetchComments();
+                    if (this.currentMovieId) {
+                        await this.fetchMovieCommentsForAdmin(this.currentMovieId);
+                    }
                     this.showToast('Comment deleted', 'success');
                 } else {
                     this.showToast(data.error || 'Delete failed', 'error');
@@ -3090,13 +3177,12 @@ function adminDashboard(userData = {}) {
             { id: 'comments', label: 'Comments', icon: 'comment' }
         ],
         notifications: [],
+
         async fetchNotifications() {
             try {
                 const response = await fetch('/user_backend/get_notifications.php');
                 if (!response.ok) return;
-
-                const rawText = await response.text(); // Read raw text first
-                
+                const rawText = await response.text();
                 try {
                     const data = JSON.parse(rawText);
                     if (data.success && Array.isArray(data.notifications)) {
@@ -3110,40 +3196,34 @@ function adminDashboard(userData = {}) {
                 console.error('Notification network error:', err);
             }
         },
-        // Clear notification badge
-       markAllRead() {
-            if (this.unreadNotifCount === 0) return;
 
+        markAllRead() {
+            if (this.unreadNotifCount === 0) return;
             fetch('/user_backend/mark_notifications_read.php', { method: 'POST' })
                 .then(res => res.json())
                 .then(data => {
                     if (data.success) {
                         this.unreadNotifCount = 0;
-                        // Force Alpine to re-render by mapping to a completely new array
                         this.notifications = this.notifications.map(n => ({ ...n, is_read: 1 }));
                     }
                 })
                 .catch(err => console.error("Error marking read:", err));
         },
+
         stats: [],
         statsLoading: false,
-
-       // Add Loading & Error states
         isLoading: false,
         errorMessage: '',
-
-        // Users
         searchQuery: '',
         roleFilter: 'All',
         banModalOpen: false,
         userToBan: null,
         banReason: '',
         banNotes: '',
-        
-        // CHANGED: Renamed from usersList to users to match filteredUsers getter
         users: [],
         userCategoryTab: 'Users',
-        get filteredUsers() { 
+
+        get filteredUsers() {
             return (this.users || []).filter(u => {
                 const searchMatch = u.name.toLowerCase().includes(this.searchQuery.toLowerCase()) || 
                                     u.email.toLowerCase().includes(this.searchQuery.toLowerCase());
@@ -3152,7 +3232,7 @@ function adminDashboard(userData = {}) {
                                   ? (u.role === 'Moderator' || u.role === 'Admin') 
                                   : (u.role !== 'Moderator' && u.role !== 'Admin');
                 return searchMatch && roleMatch && tabMatch;
-            }); 
+            });
         },
 
         async fetchStats() {
@@ -3160,7 +3240,6 @@ function adminDashboard(userData = {}) {
             try {
                 const response = await fetch('/backend/dashboard_stats_api.php');
                 const text = await response.text();
-
                 try {
                     const data = JSON.parse(text);
                     if (response.ok && Array.isArray(data)) {
@@ -3178,15 +3257,12 @@ function adminDashboard(userData = {}) {
             }
         },
 
-        // ADDED: Fetch users from the PHP backend API
         async fetchUsers() {
             this.isLoading = true;
             this.errorMessage = '';
             try {
-                // Assuming standard routing to match movies_api.php
                 const response = await fetch('/backend/users_api.php');
                 const text = await response.text();
-                
                 try {
                     const data = JSON.parse(text);
                     if (response.ok) {
@@ -3194,7 +3270,7 @@ function adminDashboard(userData = {}) {
                     } else {
                         this.errorMessage = data.error || 'Failed to load user directory.';
                     }
-                } catch(e) {
+                } catch (e) {
                     this.errorMessage = 'Invalid JSON response from server.';
                     console.error('Raw response:', text);
                 }
@@ -3206,9 +3282,8 @@ function adminDashboard(userData = {}) {
             }
         },
 
-        // Movies
         movies: [],
-        availableGenres: [], // Holds list from genres table
+        availableGenres: [],
         movieModalOpen: false,
         editingMovie: false,
         movieTab: 'details',
@@ -3217,20 +3292,18 @@ function adminDashboard(userData = {}) {
             id: null,
             title: '',
             description: '',
-            img_file: null, // Holds the actual file object for backend upload
-            trailer: '',   
-            duration: '',  
-            genre_ids: []  
+            img_file: null,
+            trailer: '',
+            duration: '',
+            genre_ids: []
         },
 
-        // --- Initialization ---
         async init() {
             await this.fetchMovies();
             await this.fetchGenres();
         },
 
-        // --- Fetch API Methods ---
-       async fetchMovies() {
+        async fetchMovies() {
             this.isLoading = true;
             try {
                 const response = await fetch(`/backend/movies_api.php?t=${Date.now()}`);
@@ -3250,7 +3323,6 @@ function adminDashboard(userData = {}) {
             try {
                 const response = await fetch('/backend/genres_api.php');
                 const text = await response.text();
-                
                 try {
                     const data = JSON.parse(text);
                     if (response.ok) {
@@ -3258,7 +3330,7 @@ function adminDashboard(userData = {}) {
                     } else {
                         console.error("Failed to load genres:", data.error);
                     }
-                } catch(e) {
+                } catch (e) {
                     console.error("Invalid JSON response for genres:", text);
                 }
             } catch (err) {
@@ -3266,20 +3338,13 @@ function adminDashboard(userData = {}) {
             }
         },
 
-        // --- Movie Management & Upload Logic ---
-
-        // Safely preview an image without saving a bad blob: link to the DB
         handlePosterSelect(event) {
             const file = event.target.files[0];
             if (!file) return;
-            
             this.newMovie.img_file = file;
-            
-            // Clean up previous blob to prevent memory leaks
             if (this.posterPreview && this.posterPreview.startsWith('blob:')) {
                 URL.revokeObjectURL(this.posterPreview);
             }
-            // Generate a local preview for the admin
             this.posterPreview = URL.createObjectURL(file);
         },
 
@@ -3287,21 +3352,13 @@ function adminDashboard(userData = {}) {
             this.editingMovie = false;
             this.errorMessage = '';
             this.posterPreview = null;
-            this.newMovie = { 
-                id: null, 
-                title: '', 
-                description: '', 
-                img_file: null, 
-                trailer: '', 
-                duration: '', 
-                genre_ids: [] 
-            };
+            this.newMovie = { id: null, title: '', description: '', img_file: null, trailer: '', duration: '', genre_ids: [] };
             this.movieModalOpen = true;
         },
+
         async saveMovie() {
             this.isLoading = true;
             this.errorMessage = '';
-            
             try {
                 const formData = new FormData();
                 formData.append('title', this.newMovie.title);
@@ -3310,30 +3367,20 @@ function adminDashboard(userData = {}) {
                 formData.append('actual_video_url', this.newMovie.actual_video_url || '');
                 formData.append('duration', this.newMovie.duration || '');
                 formData.append('genre_ids', JSON.stringify(this.newMovie.genre_ids || []));
-                
                 if (this.editingMovie) {
                     formData.append('id', this.newMovie.id);
                     formData.append('action', 'update');
                 } else {
                     formData.append('action', 'create');
                 }
-
-                // Use the file property that handleFileUpload sets
                 if (this.newMovie.posterFile) {
                     formData.append('poster_image', this.newMovie.posterFile);
                 } else if (this.newMovie.img_file) {
                     formData.append('poster_image', this.newMovie.img_file);
                 }
-
-                const response = await fetch('/backend/movies_api.php', {
-                    method: 'POST',
-                    body: formData
-                });
-
+                const response = await fetch('/backend/movies_api.php', { method: 'POST', body: formData });
                 const data = await response.json();
-                
                 if (data.success) {
-                    // If the server returns the updated movie object, use it
                     if (data.movie) {
                         if (this.editingMovie) {
                             const index = this.movies.findIndex(m => (m.id || m.movie_id) === (data.movie.id || data.movie.movie_id));
@@ -3345,13 +3392,10 @@ function adminDashboard(userData = {}) {
                         } else {
                             this.movies.push(data.movie);
                         }
-                        // Force reactivity
                         this.movies = [...this.movies];
                     } else {
-                        // Fallback: fetchMovies with cache-busting
                         await this.fetchMovies();
                     }
-                    
                     this.movieModalOpen = false;
                     this.showToast(this.editingMovie ? 'Movie updated successfully!' : 'Movie added successfully!', 'success');
                 } else {
@@ -3367,17 +3411,11 @@ function adminDashboard(userData = {}) {
 
         async deleteMovie(id) {
             if (!confirm("Are you sure you want to delete this movie? This cannot be undone.")) return;
-            
             try {
                 const formData = new FormData();
                 formData.append('action', 'delete');
                 formData.append('id', id);
-
-                const response = await fetch('/backend/movies_api.php', {
-                    method: 'POST',
-                    body: formData
-                });
-                
+                const response = await fetch('/backend/movies_api.php', { method: 'POST', body: formData });
                 const data = await response.json();
                 if (data.success) {
                     await this.fetchMovies();
@@ -3397,7 +3435,7 @@ function adminDashboard(userData = {}) {
                 alert(msg);
             }
         },
-        // Sessions
+
         roomModalOpen: false,
         selectedRoom: null,
         rooms: [
@@ -3407,12 +3445,9 @@ function adminDashboard(userData = {}) {
             { id: 4, name: 'Classic Movies', host: 'Diana', users: 3 },
             { id: 5, name: 'Comedy Hour', host: 'Eve', users: 15 }
         ],
-        mockRoomUsers: [{ id: 1, name: 'Alice', isHost: true, avatar: '' }, { id: 2, name: 'Charlie', isHost: false, avatar: '' } ], mockRoomUsers2: [
-            { name: 'Alice', isHost: true },
-            { name: 'Charlie', isHost: false }
-        ],
+        mockRoomUsers: [{ id: 1, name: 'Alice', isHost: true, avatar: '' }, { id: 2, name: 'Charlie', isHost: false, avatar: '' }],
+        mockRoomUsers2: [{ name: 'Alice', isHost: true }, { name: 'Charlie', isHost: false }],
 
-        // Reports
         viewModalOpen: false,
         selectedReport: null,
         reportsList: [],
@@ -3425,7 +3460,6 @@ function adminDashboard(userData = {}) {
             try {
                 const response = await fetch('/backend/get_reports.php');
                 const data = await response.json();
-                
                 if (data.success) {
                     this.reportsList = data.reports;
                     this.updateReportStats();
@@ -3441,12 +3475,9 @@ function adminDashboard(userData = {}) {
             this.reportStats.read = this.reportsList.filter(r => r.status === 'Read').length;
         },
 
-        // UPDATED: Opens the modal and marks the report as "Read" in the database
         async viewReport(report) {
             this.selectedReport = report;
             this.viewModalOpen = true;
-
-            // If it's a new report, mark it as read when the admin opens it
             if (report.status === 'Pending') {
                 try {
                     const res = await fetch('/backend/update_report_status.php', {
@@ -3455,7 +3486,6 @@ function adminDashboard(userData = {}) {
                         body: JSON.stringify({ report_id: report.id, status: 'Read' })
                     });
                     const data = await res.json();
-                    
                     if (data.success) {
                         report.status = 'Read';
                         this.updateReportStats();
@@ -3466,24 +3496,19 @@ function adminDashboard(userData = {}) {
             }
         },
 
-        // UPDATED: Sends a request to the backend to mark the report as "Resolved"
         async resolveReport() {
             if (!this.selectedReport) return;
-
             try {
                 const res = await fetch('/backend/update_report_status.php', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ report_id: this.selectedReport.id, status: 'Resolved' })
                 });
-                
                 const data = await res.json();
-                
                 if (data.success) {
                     this.selectedReport.status = 'Resolved';
                     this.viewModalOpen = false;
                     this.updateReportStats();
-                    
                     if (window.showToast) window.showToast('Report marked as resolved.', 'success');
                 } else {
                     if (window.showToast) window.showToast(data.message || 'Failed to resolve report.', 'error');
@@ -3495,68 +3520,45 @@ function adminDashboard(userData = {}) {
         },
 
         get filteredReports() {
-            if (this.filterStatus === 'all') {
-                return this.reportsList;
-            }
+            if (this.filterStatus === 'all') return this.reportsList;
             return this.reportsList.filter(report => report.status.toLowerCase() === this.filterStatus);
         },
 
-       async handleViewComment(detail) {
+        async handleViewComment(detail) {
             const movieId = detail.movie_id;
             const commentId = detail.comment_id;
             if (!movieId) return;
-
-            // Remember that we came from Reports
             this.returnToReportsAfterMovieModal = true;
-
             this.switchTab('movies');
-
             if (!this.movies.length) {
                 await this.fetchMovies();
             }
-
             const movie = this.movies.find(m => (m.id || m.movie_id) == movieId);
             if (!movie) {
                 if (window.showToast) window.showToast('Movie not found.', 'error');
-                this.returnToReportsAfterMovieModal = false; // reset if failed
+                this.returnToReportsAfterMovieModal = false;
+                this.currentMovieId = null;
                 return;
             }
-
             this.openEditMovieModal(movie);
             await this.fetchMovieCommentsForAdmin(movieId);
-
             window.dispatchEvent(new CustomEvent('admin-show-comment', {
                 detail: { commentId: commentId }
             }));
         },
-        // Shop       
+
         modalOpen: false,
-        modalMode: 'add',
         formData: { name: '', price: 0, rarity: 'Common', image: '' },
-        shopItems: [
-            { id: 1, name: 'Gold Border', price: 500, rarity: 'Legendary' }
-        ],
+        shopItems: [{ id: 1, name: 'Gold Border', price: 500, rarity: 'Legendary' }],
         selectedAvatar: null,
         selectedBorder: null,
         avatarModalOpen: false,
         borders: [],
-
-        // Profile
-        currentTab: 'dashboard',
-        avatarModalOpen: false,
-        selectedBorder: null,
         deleteAccountModalOpen: false,
         deleteAccountPassword: '',
         deleteAccountError: '',
-        
-        // Generates dynamic avatar based on user's name
         selectedAvatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(userData.user_name || 'Admin')}&background=ef4444&color=fff&bold=true`,
-
-        notification: {
-            show: false,
-            type: 'error',
-            message: ''
-        },
+        notification: { show: false, type: 'error', message: '' },
 
         showNotification(message, type = 'error') {
             this.notification.message = message;
@@ -3565,11 +3567,8 @@ function adminDashboard(userData = {}) {
             window.scrollTo({ top: 0, behavior: 'smooth' });
         },
 
-        // 1. DISPLAY STATE (Used by UI headers, sidebars, and avatar badges)
         displayName: userData.user_name || 'Admin',
         displayEmail: userData.email || '',
-
-        // 2. FORM STATE (Bound to form input fields via x-model)
         profile: {
             user_name: userData.user_name || '',
             email: userData.email || '',
@@ -3580,17 +3579,11 @@ function adminDashboard(userData = {}) {
 
         async saveProfile() {
             this.notification.show = false;
-
-            // Run validation
-            const errors = typeof window.validateProfileForm === 'function' 
-                ? window.validateProfileForm(this.profile) 
-                : [];
-
+            const errors = typeof window.validateProfileForm === 'function' ? window.validateProfileForm(this.profile) : [];
             if (errors.length > 0) {
                 this.showNotification(errors, 'error');
                 return;
             }
-
             try {
                 const response = await fetch('/backend/update_profile.php', {
                     method: 'POST',
@@ -3598,17 +3591,12 @@ function adminDashboard(userData = {}) {
                     body: JSON.stringify(this.profile)
                 });
                 const data = await response.json();
-
                 if (data.success) {
-                    // COMMIT FORM STATE TO DISPLAY STATE ONLY ON SUCCESS
                     this.displayName = this.profile.user_name;
                     this.displayEmail = this.profile.email;
-
-                    // Clear password fields
                     this.profile.current_password = '';
                     this.profile.new_password = '';
                     this.profile.confirm_password = '';
-
                     this.showNotification('Profile updated successfully!', 'success');
                 } else {
                     this.showNotification(data.error || 'Failed to update profile.', 'error');
@@ -3617,35 +3605,29 @@ function adminDashboard(userData = {}) {
                 this.showNotification('Network error updating profile.', 'error');
             }
         },
+
         async confirmDeleteAccount() {
-            // Reset previous errors
             this.deleteAccountError = '';
             this.notification.show = false;
-
-            // 1. Client-side check: No password entered
             if (!this.deleteAccountPassword.trim()) {
                 const msg = 'Please enter your password to confirm account deletion.';
                 this.deleteAccountError = msg;
                 this.showNotification(msg, 'error');
                 return;
             }
-
             try {
                 const response = await fetch('/backend/delete_account.php', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ password: this.deleteAccountPassword })
                 });
-
                 const data = await response.json();
-
                 if (data.success) {
                     window.location.href = '/login.php?account_deleted=1';
                 } else {
-                    // 2. Server-side check: Incorrect password / session error
                     const errorMsg = data.message || data.error || 'Failed to delete account.';
-                    this.deleteAccountError = errorMsg; // Displays inside modal
-                    this.showNotification(errorMsg, 'error'); // Displays in top page banner
+                    this.deleteAccountError = errorMsg;
+                    this.showNotification(errorMsg, 'error');
                 }
             } catch (err) {
                 const networkError = 'Network error processing account deletion.';
@@ -3653,16 +3635,14 @@ function adminDashboard(userData = {}) {
                 this.showNotification(networkError, 'error');
             }
         },
-    
+
         switchTab(tabId) {
             if (this.currentTab === tabId) return;
             const oldTab = this.currentTab;
             this.currentTab = tabId;
             const oldPanel = document.querySelector(`[data-tab-panel="${oldTab}"]`);
             const newPanel = document.querySelector(`[data-tab-panel="${tabId}"]`);
-            
             if (oldPanel && newPanel && typeof window.gsap !== 'undefined') {
-                // Outro animation for old panel
                 window.gsap.to(oldPanel, {
                     opacity: 0,
                     y: -30,
@@ -3673,22 +3653,8 @@ function adminDashboard(userData = {}) {
                     onComplete: () => {
                         oldPanel.style.display = 'none';
                         newPanel.style.display = 'block';
-                        
-                        // Set initial state for new panel to avoid flicker
                         window.gsap.set(newPanel, { opacity: 0, y: 50, scale: 0.95, rotationX: 15, filter: "blur(15px)", transformPerspective: 1000 });
-                        
-                        // Intro animation for new panel
-                        window.gsap.to(newPanel, {
-                            opacity: 1, 
-                            y: 0, 
-                            scale: 1, 
-                            rotationX: 0, 
-                            filter: "blur(0px)", 
-                            duration: 0.8, 
-                            ease: "expo.out"
-                        });
-                        
-                        // Re-trigger internal staggered items (like charts, stats, tables, forms, etc)
+                        window.gsap.to(newPanel, { opacity: 1, y: 0, scale: 1, rotationX: 0, filter: "blur(0px)", duration: 0.8, ease: "expo.out" });
                         const staggers = newPanel.querySelectorAll('.gs-stat-card, .gs-table-row, .stagger-item, tbody tr, .card, .glass-card, .movie-card-container');
                         if (staggers.length > 0) {
                             window.gsap.fromTo(staggers,
@@ -3696,8 +3662,6 @@ function adminDashboard(userData = {}) {
                                 { opacity: 1, y: 0, scale: 1, rotationX: 0, duration: 0.8, stagger: 0.05, ease: "back.out(1.5)", delay: 0.1 }
                             );
                         }
-                        
-                        // Re-trigger chart bars specifically
                         const chartBars = newPanel.querySelectorAll('.chart-bar');
                         if (chartBars.length > 0) {
                             window.gsap.fromTo(chartBars,
@@ -3712,43 +3676,34 @@ function adminDashboard(userData = {}) {
                 newPanel.style.display = 'block';
             }
         },
-        // Toggle genre ID in newMovie.genre_ids
+
         toggleGenre(genre) {
-            // Ensure genre_ids array exists
             if (!Array.isArray(this.newMovie.genre_ids)) {
                 this.newMovie.genre_ids = [];
             }
-
-            // Extract the ID if genre is an object, otherwise treat the input as the ID
             const val = typeof genre === 'object' ? genre.id : genre;
-
             const index = this.newMovie.genre_ids.indexOf(val);
-
             if (index > -1) {
                 this.newMovie.genre_ids.splice(index, 1);
             } else {
                 this.newMovie.genre_ids.push(val);
             }
-
-            // Optional: update a display string if needed, but not required for saving
-            // this.newMovie.genre = this.newMovie.genre_ids.join(', ');
         },
 
-        // Helper to check selection status by ID
         isGenreSelected(genre) {
             if (!this.newMovie || !Array.isArray(this.newMovie.genre_ids)) return false;
             const val = typeof genre === 'object' ? genre.id : genre;
             return this.newMovie.genre_ids.includes(val);
         },
+
         openEditMovieModal(movie) {
             this.editingMovie = true;
             this.movieTab = 'details';
             this.newMovie = JSON.parse(JSON.stringify(movie));
+            this.currentMovieId = movie.id || movie.movie_id;
 
-            // Convert string genre to array if needed
             if (!Array.isArray(this.newMovie.genre_ids)) {
                 if (typeof this.newMovie.genre_ids === 'string' && this.newMovie.genre_ids.trim() !== '') {
-                    // Convert "1,2,3" → [1,2,3]
                     this.newMovie.genre_ids = this.newMovie.genre_ids
                         .split(',')
                         .map(id => parseInt(id.trim(), 10))
@@ -3757,16 +3712,12 @@ function adminDashboard(userData = {}) {
                     this.newMovie.genre_ids = [];
                 }
             }
-
-            // ✅ Set the poster preview URL to whatever field the backend uses
             this.newMovie.img = movie.img || movie.poster_url || movie.poster || movie.image || '';
-            this.posterPreview = this.newMovie.img; // optional, if you still use posterPreview elsewhere
-
-             this.movieModalOpen = true;
-
-            // Fetch comments for this movie
+            this.posterPreview = this.newMovie.img;
+            this.movieModalOpen = true;
             this.fetchMovieCommentsForAdmin(this.newMovie.id);
         },
+
         openBanModal(user) {
             this.userToBan = user;
             this.banReason = '';
@@ -3774,68 +3725,41 @@ function adminDashboard(userData = {}) {
             this.banModalOpen = true;
         },
 
-        // Use the deployed user_action.php location, with a safe fallback
-        // for installations where it lives under /backend.
         async postUserAction(payload) {
-            const endpoints = [
-                '/user_backend/user_action.php',
-                '/backend/user_action.php'
-            ];
-
+            const endpoints = ['/user_backend/user_action.php', '/backend/user_action.php'];
             let lastError = null;
-
             for (const endpoint of endpoints) {
                 try {
                     const res = await fetch(endpoint, {
                         method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json'
-                        },
+                        headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify(payload)
                     });
-
                     const raw = await res.text();
-
                     if (res.status === 404) {
                         console.warn(`User action endpoint not found: ${endpoint}`);
                         continue;
                     }
-
                     let data;
-
                     try {
                         data = JSON.parse(raw);
                     } catch (parseError) {
-                        console.error(
-                            `Non-JSON response from ${endpoint}:`,
-                            raw
-                        );
+                        console.error(`Non-JSON response from ${endpoint}:`, raw);
                         throw new Error('Invalid JSON response from server');
                     }
-
                     return data;
-
                 } catch (err) {
                     lastError = err;
-
-                    if (
-                        err?.message ===
-                        'Invalid JSON response from server'
-                    ) {
+                    if (err?.message === 'Invalid JSON response from server') {
                         throw err;
                     }
                 }
             }
-
-            throw (
-                lastError ||
-                new Error('user_action.php endpoint was not found.')
-            );
+            throw (lastError || new Error('user_action.php endpoint was not found.'));
         },
 
         async confirmBan() {
             if (!this.userToBan || !this.banReason) return;
-
             try {
                 const data = await this.postUserAction({
                     action: 'ban',
@@ -3843,29 +3767,15 @@ function adminDashboard(userData = {}) {
                     reason: this.banReason,
                     notes: this.banNotes
                 });
-
                 if (data.success) {
                     this.userToBan.status = 'Banned';
-
-                    window.showToast(
-                        data.message || 'User suspended',
-                        'success'
-                    );
+                    window.showToast(data.message || 'User suspended', 'success');
                 } else {
-                    window.showToast(
-                        data.error || 'Failed to ban user',
-                        'error'
-                    );
+                    window.showToast(data.error || 'Failed to ban user', 'error');
                 }
-
             } catch (e) {
                 console.error('Ban error:', e);
-
-                window.showToast(
-                    e.message || 'Network error',
-                    'error'
-                );
-
+                window.showToast(e.message || 'Network error', 'error');
             } finally {
                 this.banModalOpen = false;
             }
@@ -3873,130 +3783,82 @@ function adminDashboard(userData = {}) {
 
         async promoteModerator(user) {
             try {
-                const data = await this.postUserAction({
-                    action: 'promote_moderator',
-                    id: user.id
-                });
-
+                const data = await this.postUserAction({ action: 'promote_moderator', id: user.id });
                 if (data.success) {
                     user.role = 'Moderator';
                     user.role_id = 3;
-
                     this.users = [...this.users];
-
-                    window.showToast(
-                        data.message || 'User promoted',
-                        'success'
-                    );
-
+                    window.showToast(data.message || 'User promoted', 'success');
                 } else {
-                    window.showToast(
-                        data.error || 'Failed to promote user',
-                        'error'
-                    );
+                    window.showToast(data.error || 'Failed to promote user', 'error');
                 }
-
             } catch (e) {
                 console.error('Promote error:', e);
-
-                window.showToast(
-                    e.message || 'Network error',
-                    'error'
-                );
+                window.showToast(e.message || 'Network error', 'error');
             }
         },
 
         async demoteModerator(user) {
             try {
-                const data = await this.postUserAction({
-                    action: 'demote_moderator',
-                    id: user.id
-                });
-
+                const data = await this.postUserAction({ action: 'demote_moderator', id: user.id });
                 if (data.success) {
                     user.role = 'User';
                     user.role_id = 2;
-
                     this.users = [...this.users];
-
-                    window.showToast(
-                        data.message || 'Moderator demoted',
-                        'success'
-                    );
-
+                    window.showToast(data.message || 'Moderator demoted', 'success');
                 } else {
-                    window.showToast(
-                        data.error || 'Failed to demote user',
-                        'error'
-                    );
+                    window.showToast(data.error || 'Failed to demote user', 'error');
                 }
-
             } catch (e) {
                 console.error('Demote moderator error:', e);
-
-                window.showToast(
-                    e.message || 'Network error',
-                    'error'
-                );
+                window.showToast(e.message || 'Network error', 'error');
             }
         },
 
         async demoteAdmin(user) {
             try {
-                const data = await this.postUserAction({
-                    action: 'demote_admin',
-                    id: user.id
-                });
-
+                const data = await this.postUserAction({ action: 'demote_admin', id: user.id });
                 if (data.success) {
                     user.role = 'Moderator';
                     user.role_id = 3;
-
                     this.users = [...this.users];
-
-                    window.showToast(
-                        data.message || 'Admin demoted to Moderator',
-                        'success'
-                    );
-
+                    window.showToast(data.message || 'Admin demoted to Moderator', 'success');
                 } else {
-                    window.showToast(
-                        data.error || 'Failed to demote admin',
-                        'error'
-                    );
+                    window.showToast(data.error || 'Failed to demote admin', 'error');
                 }
-
             } catch (e) {
                 console.error('Demote admin error:', e);
-
-                window.showToast(
-                    e.message || 'Network error',
-                    'error'
-                );
+                window.showToast(e.message || 'Network error', 'error');
             }
         },
-    
+
         viewRoom(room) {
             this.selectedRoom = room;
             this.roomModalOpen = true;
         },
+
         disbandRoom(roomId) {
             this.roomModalOpen = false;
         },
+
         openModal(mode, item = null) {
             this.modalMode = mode;
             this.formData = item ? { ...item } : { name: '', price: 0, rarity: 'Common', image: '' };
             this.modalOpen = true;
         },
+
         closeModal() {
             this.modalOpen = false;
         },
+
         deleteItem(id) {
             this.shopItems = this.shopItems.filter(i => i.id !== id);
         },
+
         saveItem() {
             this.modalOpen = false;
         },
+
         async compressImage(file, maxWidth = 800, quality = 0.8) {
             return new Promise((resolve, reject) => {
                 const reader = new FileReader();
@@ -4031,12 +3893,11 @@ function adminDashboard(userData = {}) {
             if (!file) return;
             try {
                 const compressedFile = await this.compressImage(file);
-                this.newMovie.posterFile = compressedFile;   // store for upload
+                this.newMovie.posterFile = compressedFile;
                 const reader = new FileReader();
-                reader.onload = (e) => callback(e.target.result); // set newMovie.img for preview
+                reader.onload = (e) => callback(e.target.result);
                 reader.readAsDataURL(compressedFile);
             } catch (err) {
-                // fallback to original
                 this.newMovie.posterFile = file;
                 const reader = new FileReader();
                 reader.onload = (e) => callback(e.target.result);
@@ -4044,7 +3905,6 @@ function adminDashboard(userData = {}) {
             }
         },
 
-       
         networkTraffic: [
             { day: 'Mon', reqs: 1250, height: 40 },
             { day: 'Tue', reqs: 3400, height: 75 },
@@ -4062,29 +3922,23 @@ function adminDashboard(userData = {}) {
             { day: 'Sun', reqs: 4600, height: 88 }
         ],
 
-        // Detect if URL is from YouTube
         isYouTubeUrl(url) {
             if (!url) return false;
             return url.includes('youtube.com') || url.includes('youtu.be');
         },
-        // Convert any standard YouTube link into a clean Embed URL
+
         getYouTubeEmbedUrl(url, isHover = false) {
             if (!url) return '';
-            
-            // Extract Video ID
             const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
             const match = url.match(regExp);
-            
             if (match && match[2].length === 11) {
                 const videoId = match[2];
-                
-                // Query parameters for YouTube Embed
                 const params = new URLSearchParams({
-                    autoplay: isHover ? '1' : '0', // Autoplay must be 1 for hover
-                    mute: isHover ? '1' : '0',     // Browser policy requires mute for auto-play on hover
-                    controls: '0',                 // Always hide controls
+                    autoplay: isHover ? '1' : '0',
+                    mute: isHover ? '1' : '0',
+                    controls: '0',
                     loop: '1',
-                    playlist: videoId,             // Required for looping
+                    playlist: videoId,
                     modestbranding: '1',
                     rel: '0',
                     showinfo: '0',
@@ -4092,10 +3946,8 @@ function adminDashboard(userData = {}) {
                     enablejsapi: '1',
                     disablekb: '1'
                 });
-
                 return `https://www.youtube.com/embed/${videoId}?${params.toString()}`;
             }
-            
             return url;
         },
 
@@ -4109,9 +3961,12 @@ function adminDashboard(userData = {}) {
             this.initPusher();
             this.fetchComments();
             this.$watch('movieModalOpen', (isOpen) => {
-                if (!isOpen && this.returnToReportsAfterMovieModal) {
-                    this.switchTab('reports');
-                    this.returnToReportsAfterMovieModal = false;
+                if (!isOpen) {
+                    this.currentMovieId = null;
+                    if (this.returnToReportsAfterMovieModal) {
+                        this.switchTab('reports');
+                        this.returnToReportsAfterMovieModal = false;
+                    }
                 }
             });
         },
@@ -4126,7 +3981,7 @@ function adminDashboard(userData = {}) {
                 });
             }
 
-            // Existing user-specific channel (for force logout, etc.)
+            // User-specific channel
             const userChannel = this.pusherClient.subscribe(`user-${window.CURRENT_USER_ID}`);
             userChannel.bind('force_logout', (data) => {
                 alert(data.message || 'Your account has been banned.');
@@ -4135,8 +3990,21 @@ function adminDashboard(userData = {}) {
 
             // Admin comments channel
             const adminCommentsChannel = this.pusherClient.subscribe('admin-comments');
+
+            // Helper to update likes in a flat array
+            const updateLikeInArray = (arr, commentId, likesCount, isLiked) => {
+                const comment = arr.find(c => Number(c.id) === Number(commentId));
+                if (comment) {
+                    comment.likes_count = likesCount;
+                    comment.is_liked = isLiked;
+                    return true;
+                }
+                return false;
+            };
+
+            // 1. New comment
             adminCommentsChannel.bind('new_comment', (data) => {
-                this.comments.unshift({
+                const newComment = {
                     id: data.id,
                     movie_id: data.movie_id,
                     user_name: data.user_name,
@@ -4144,31 +4012,73 @@ function adminDashboard(userData = {}) {
                     comment_text: data.comment_text,
                     created_at: data.created_at,
                     likes_count: data.likes_count || 0,
-                    parent_id: null
-                });
-            });
-            adminCommentsChannel.bind('new_reply', () => {
-                this.fetchComments();
-            });
-            adminCommentsChannel.bind('comment_liked', (data) => {
-                const comment = this.comments.find(c => c.id == data.comment_id);
-                if (comment) comment.likes_count = data.likes_count;
+                    is_liked: false,
+                    parent_id: null,
+                    replies: []
+                };
+
+                // Add to global flat list
+                this.comments.unshift(newComment);
+                this.comments = [...this.comments];
+
+                // If the comment belongs to currently open movie, add to movieComments
+                if (this.currentMovieId && Number(data.movie_id) === Number(this.currentMovieId)) {
+                    this.movieComments.unshift(newComment);
+                    this.movieComments = [...this.movieComments];
+                }
             });
 
-            // ✅ NEW: Admin moderation channel for reports
+            // 2. New reply
+            adminCommentsChannel.bind('new_reply', (data) => {
+                const newReply = {
+                    id: data.id,
+                    movie_id: data.movie_id,
+                    parent_id: data.parent_id,
+                    user_name: data.user_name,
+                    comment_text: data.comment_text,
+                    created_at: data.created_at,
+                    likes_count: data.likes_count || 0,
+                    is_liked: false,
+                    replies: []
+                };
+
+                // Add to global flat list
+                this.comments.unshift(newReply);
+                this.comments = [...this.comments];
+
+                // Add to movie-specific list if matching
+                if (this.currentMovieId && Number(data.movie_id) === Number(this.currentMovieId)) {
+                    this.movieComments.unshift(newReply);
+                    this.movieComments = [...this.movieComments];
+                }
+            });
+
+            // 3. Comment liked/unliked
+            adminCommentsChannel.bind('comment_liked', (data) => {
+                const { comment_id, likes_count, is_liked } = data;
+
+                // Update global flat list
+                updateLikeInArray(this.comments, comment_id, likes_count, is_liked);
+                this.comments = [...this.comments];
+
+                // Update movie-specific flat list if movie open
+                if (this.currentMovieId) {
+                    updateLikeInArray(this.movieComments, comment_id, likes_count, is_liked);
+                    this.movieComments = [...this.movieComments];
+                }
+            });
+
+            // Admin moderation channel
             const adminModerationChannel = this.pusherClient.subscribe('admin-moderation-channel');
             adminModerationChannel.bind('new-report-event', (data) => {
                 if (data && data.report) {
                     this.reportsList.unshift(data.report);
                     this.updateReportStats();
                 }
-
-                // Also add to notifications array if it exists
                 if (data.notification) {
                     this.notifications.unshift(data.notification);
                     this.unreadNotifications = (this.unreadNotifications || 0) + 1;
                 }
-
                 if (window.showToast) window.showToast('New report submitted!', 'info');
             });
         }

@@ -1,6 +1,5 @@
 <div class="absolute inset-0 w-full h-full overflow-y-auto p-10 pb-32 tab-content scroll-smooth custom-scrollbar" 
      x-show="currentTab === 'account'" style="display: none;">
-    <!-- Account Settings Logic -->
     <div class="max-w-[1400px] mx-auto space-y-8 pb-24">
         
         <!-- Header -->
@@ -60,7 +59,7 @@
             </div>
         </div>
 
-        <!-- Appearance (Borders, etc.) -->
+        <!-- Appearance (Borders, etc.) - CLIENT SIDE ONLY, NO DB -->
         <div class="bg-[#0a0a0f] border border-white/10 rounded-2xl p-6 relative overflow-hidden">
             <div class="absolute top-0 right-0 w-32 h-32 bg-emerald-500/5 blur-3xl rounded-full translate-x-1/2 -translate-y-1/2 pointer-events-none"></div>
             <h2 class="text-xl font-bold text-white mb-6 flex items-center gap-2">
@@ -94,5 +93,75 @@
                 </template>
             </div>
         </div>
+
+        <!-- Danger Zone -->
+        <div class="mt-12 pt-8 border-t border-white/10">
+            <h4 class="text-xs font-extrabold text-red-400 uppercase tracking-widest mb-3">Danger Zone</h4>
+            <div class="p-6 rounded-2xl bg-red-500/[0.04] border border-red-500/20 backdrop-blur-md flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div class="space-y-1">
+                    <h5 class="text-sm font-bold text-white">Delete Account</h5>
+                    <p class="text-xs text-white/40">Permanently remove your account, profile details, and watchlist history. This action cannot be undone.</p>
+                </div>
+                <button @click="deleteAccountModalOpen = true; deleteAccountPassword = ''" 
+                        class="px-5 py-2.5 rounded-xl bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 text-xs font-bold text-red-400 transition-all hover:scale-105 active:scale-95 flex-shrink-0 flex items-center gap-2">
+                    <span class="material-symbols-outlined text-[16px]">delete_forever</span>
+                    <span>Delete Account</span>
+                </button>
+            </div>
+        </div>
     </div>
+
+    <!-- Delete Account Confirmation Modal (Teleported) -->
+    <template x-teleport="body">
+        <div x-show="deleteAccountModalOpen" 
+             class="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/85 backdrop-blur-md" 
+             style="display: none;" 
+             x-transition.opacity>
+            
+            <div class="w-full max-w-md bg-[#0c0c12] border border-red-500/30 rounded-3xl shadow-2xl overflow-hidden p-6 space-y-5 relative"
+                 @click.away="deleteAccountModalOpen = false">
+                
+                <div class="flex items-center gap-3.5">
+                    <div class="w-11 h-11 rounded-2xl bg-red-500/10 border border-red-500/20 flex items-center justify-center text-red-400 flex-shrink-0">
+                        <span class="material-symbols-outlined text-[22px]">warning</span>
+                    </div>
+                    <div>
+                        <h3 class="text-base font-bold text-white leading-tight">Delete Account?</h3>
+                        <p class="text-xs text-white/40 mt-0.5">Please confirm your current password to proceed.</p>
+                    </div>
+                </div>
+
+                <div x-show="deleteAccountError"
+                     x-transition:enter="transition ease-out duration-200"
+                     x-transition:enter-start="opacity-0 -translate-y-2"
+                     x-transition:enter-end="opacity-100 translate-y-0"
+                     class="p-3.5 rounded-2xl bg-red-500/10 border border-red-500/30 text-red-400 text-xs font-semibold flex items-center gap-2.5"
+                     style="display: none;">
+                    <span class="material-symbols-outlined text-[18px]">error</span>
+                    <span x-text="deleteAccountError"></span>
+                </div>
+
+                <div class="space-y-2">
+                    <label class="block text-[11px] font-extrabold text-white/40 uppercase tracking-widest">Confirm Password</label>
+                    <input type="password" 
+                           x-model="deleteAccountPassword" 
+                           @input="deleteAccountError = ''"
+                           placeholder="Enter your password" 
+                           @keydown.enter="confirmDeleteAccount()"
+                           class="w-full bg-white/[0.03] border border-white/10 rounded-2xl px-4 py-3 text-sm text-white focus:outline-none focus:border-red-500/60 focus:ring-2 focus:ring-red-500/20 transition-all placeholder:text-white/20">
+                </div>
+
+                <div class="flex items-center justify-end gap-3 pt-2 border-t border-white/5">
+                    <button @click="deleteAccountModalOpen = false; deleteAccountError = '';" 
+                            class="px-5 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-xs font-bold text-white transition-colors">
+                        Cancel
+                    </button>
+                    <button @click="confirmDeleteAccount()" 
+                            class="px-6 py-2.5 rounded-xl bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 text-xs font-bold text-white shadow-lg shadow-red-600/30 transition-all hover:scale-105 active:scale-95">
+                        Permanently Delete
+                    </button>
+                </div>
+            </div>
+        </div>
+    </template>
 </div>

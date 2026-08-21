@@ -19,8 +19,9 @@ $userId = $_SESSION['user_id'] ?? 0;
 ?>
 <script src="https://js.pusher.com/8.2.0/pusher.min.js"></script>
 <script>
-    // This safely passes the logged-in user's ID from your backend session to JS
     window.CURRENT_USER_ID = <?php echo json_encode($_SESSION['user_id'] ?? null); ?>;
+    window.USER_NAME = <?php echo json_encode($userName); ?>;
+    window.USER_EMAIL = <?php echo json_encode($userEmail); ?>;
 </script>
 
 <!DOCTYPE html>
@@ -518,7 +519,7 @@ $userId = $_SESSION['user_id'] ?? 0;
                 <div class="h-8 w-[1px] bg-white/10 hidden md:block"></div>
                 
                 <div class="hidden md:block">
-                    <h1 class="text-2xl font-bold tracking-tight">Welcome back, <?php echo htmlspecialchars($userName); ?></h1>
+                    <h1 class="text-2xl font-bold tracking-tight">Welcome back, <span x-text="displayName"></span></h1>
                     <p class="text-xs text-white/40 mono mt-1">NEXUS PROTOCOL ACTIVE</p>
                 </div>
             </div>
@@ -534,13 +535,13 @@ $userId = $_SESSION['user_id'] ?? 0;
                 <div class="relative z-[60]" x-data="{ showProfileMenu: false }" @click.outside="showProfileMenu = false">
                     <div @click="showProfileMenu = !showProfileMenu" class="flex items-center gap-3 p-2 bg-[#050508]/40 border border-white/5 rounded-xl cursor-pointer hover:bg-white/[0.05]">
                         <div class="relative w-10 h-10 flex items-center justify-center">
-                            <img src="https://ui-avatars.com/api/?name=<?= urlencode($userName) ?>&background=ef4444&color=fff&bold=true" class="w-10 h-10 rounded-full border-2 border-red-500/50 absolute z-0">
+                           <img :src="'https://ui-avatars.com/api/?name=' + encodeURIComponent(displayName) + '&background=ef4444&color=fff&bold=true'" class="w-10 h-10 rounded-full border-2 border-red-500/50 absolute z-0">
                             <template x-if="activeBorderId !== 1">
                                 <img :src="availableBorders.find(b => b.id === activeBorderId)?.preview" class="absolute inset-0 w-14 h-14 max-w-none -ml-2 -mt-2 pointer-events-none object-contain z-10">
                             </template>
                         </div>
                         <div class="hidden sm:block min-w-0 pr-1">
-                            <p class="text-sm font-bold text-white truncate"><?php echo htmlspecialchars($userName); ?></p>
+                            <p class="text-sm font-bold text-white truncate" x-text="displayName"></p>
                             <p class="text-[9px] text-red-400 uppercase tracking-widest mono font-bold bg-red-500/10 px-2 py-0.5 rounded border border-red-500/20 inline-block mt-0.5"><?php echo htmlspecialchars($userRole); ?></p>
                         </div>
                     </div>
