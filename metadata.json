@@ -1,0 +1,11 @@
+{
+  "name": "Metro Watch Party",
+  "description": "Watch movies with friends",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
