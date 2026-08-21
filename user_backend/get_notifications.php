@@ -1,5 +1,4 @@
 <?php
-// user_backend/get_notifications.php
 session_start();
 header('Content-Type: application/json');
 
@@ -23,9 +22,9 @@ try {
             n.message,
             n.is_read,
             n.created_at,
-            u.user_name AS sender_name
+            COALESCE(u.user_name, 'System') AS sender_name
         FROM notifications n
-        JOIN users u ON u.user_id = n.sender_id
+        LEFT JOIN users u ON u.user_id = n.sender_id
         WHERE n.user_id = :userId
         ORDER BY n.created_at DESC
         LIMIT 20

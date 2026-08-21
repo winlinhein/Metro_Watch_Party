@@ -56,6 +56,22 @@ if ($movieId) {
     ]);
 }
 
+if ($newIsLiked) {  // only notify on like, not unlike
+    // Get comment owner
+    $stmt = $conn->prepare("SELECT user_id FROM movie_comments WHERE comment_id = ?");
+    $stmt->execute([$commentId]);
+    $ownerId = $stmt->fetchColumn();
+
+    if ($ownerId && (int)$ownerId !== $userId) {
+        triggerPusherEvent("user-{$ownerId}", 'comment_liked_notification', [
+            'sender_name' => $_SESSION['user_name'] ?? 'Someone',
+            'comment_id' => $commentId,
+            'movie_id' => $movieId,
+            'created_at' => date('Y-m-d H:i:s')
+        ]);
+    }
+}
+
 echo json_encode([
     'success' => true,
     'is_liked' => $newIsLiked,

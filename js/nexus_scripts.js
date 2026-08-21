@@ -360,6 +360,24 @@ function userDashboard() {
             monthly: []
         },
 
+        //noti
+        async deleteNotification(notificationId) {
+            try {
+                const res = await fetch('/user_backend/delete_notification.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ notification_id: notificationId })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    this.notifications = this.notifications.filter(n => n.id !== notificationId);
+                    this.unreadNotifCount = this.notifications.filter(n => Number(n.is_read) === 0).length;
+                }
+            } catch (e) {
+                console.error('Failed to delete notification:', e);
+            }
+        },
+
         // Friends & User Search State
         
 
@@ -535,7 +553,19 @@ function userDashboard() {
                         const searchUser = this.searchResults.find(u => Number(u.user_id) === targetUserId);
                         if (searchUser) acceptedUser = { user_id: searchUser.user_id, user_name: searchUser.user_name || searchUser.name };
                     }
+                    
+                    // Delete friend request notifications for this user (accept/decline)
+                    const notifIdsToDelete = this.notifications
+                        .filter(n => n.type === 'friend_request' && Number(n.sender_id) === targetUserId)
+                        .map(n => n.id);
 
+                    notifIdsToDelete.forEach(id => {
+                        fetch('/user_backend/delete_notification.php', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ notification_id: id })
+                        });
+                    });
                     // Synchronize State Arrays (Immediately remove the requests/notifications)
                     this.pendingRequests = this.pendingRequests.filter(req => Number(req.user_id) !== targetUserId);
                     this.notifications = this.notifications.filter(notif => Number(notif.sender_id) !== targetUserId);
@@ -1601,32 +1631,64 @@ function userDashboard() {
             });
 
             // 2. Live Comment Update
-            channel.bind('new_comment', (data) => {
+           channel.bind('new_comment', (data) => {
                 if (!this.selectedMovie || Number(this.getMovieId(this.selectedMovie)) !== Number(data.movie_id)) return;
 
-                const currentComments = this.selectedMovie.comments || [];
-                // Push onto the array
-                this.selectedMovie.comments = [data, ...currentComments];
+                const normaliseComment = (c) => ({
+                    id: c.id || c.comment_id || 'live-' + Date.now(),
+                    user_name: c.user_name || 'Anonymous',
+                    comment_text: c.comment_text || c.content || '',
+                    // Add this line – the template uses `comment.comment`
+                    comment: c.comment_text || c.content || c.comment || '',
+                    created_at: c.created_at || new Date().toISOString(),
+                    likes_count: Number(c.likes_count) || 0,
+                    is_liked: Boolean(Number(c.is_liked)),
+                    rating: c.rating || null,
+                    replies: c.replies || [],
+                    parent_id: c.parent_id || null,
+                    border_preview: c.border_preview || null
+                });
+
+                const newComment = normaliseComment(data);
+
+                const existing = (this.selectedMovie.comments || []).some(c => Number(c.id) === Number(newComment.id));
+                if (existing) return;
+
+                this.selectedMovie.comments = [newComment, ...(this.selectedMovie.comments || [])];
+                this.selectedMovie = { ...this.selectedMovie };
             });
 
             // 3. Live Reply Update
-           channel.bind('new_reply', (data) => {
+          channel.bind('new_reply', (data) => {
                 if (!this.selectedMovie || Number(this.getMovieId(this.selectedMovie)) !== Number(data.movie_id)) return;
 
-                // Build the new comments array
+                const normaliseReply = (r) => ({
+                    id: r.id || r.comment_id || 'live-' + Date.now(),
+                    user_name: r.user_name || 'Anonymous',
+                    comment_text: r.comment_text || r.content || '',
+                    // Add this line
+                    comment: r.comment_text || r.content || r.comment || '',
+                    created_at: r.created_at || new Date().toISOString(),
+                    likes_count: Number(r.likes_count) || 0,
+                    is_liked: Boolean(Number(r.is_liked)),
+                    replies: [],
+                    parent_id: r.parent_id || null,
+                    border_preview: r.border_preview || null
+                });
+
+                const newReply = normaliseReply(data);
+
                 const updatedComments = this.selectedMovie.comments.map(comment => {
                     if (Number(comment.id) === Number(data.parent_id)) {
                         const currentReplies = comment.replies || [];
-                        const replyExists = currentReplies.some(r => Number(r.id) === Number(data.id));
-
+                        const replyExists = currentReplies.some(r => Number(r.id) === Number(newReply.id));
                         if (!replyExists) {
-                            return { ...comment, replies: [...currentReplies, data] };
+                            return { ...comment, replies: [...currentReplies, newReply] };
                         }
                     }
                     return comment;
                 });
 
-                // OVERWRITE the root object
                 this.selectedMovie = {
                     ...this.selectedMovie,
                     comments: updatedComments
@@ -1837,6 +1899,41 @@ function userDashboard() {
                     // For create/update, simply re-fetch the full list
                     this.fetchMovies();
                 }
+            });
+
+            // Notify when someone replies to my comment
+            channel.bind('comment_replied', (data) => {
+                if (window.showToast) {
+                    window.showToast(`${data.sender_name} replied to your comment: "${data.reply_text}"`, 'info');
+                }
+                // Optionally also add to notifications array
+                this.notifications.unshift({
+                    id: Date.now(),
+                    type: 'comment_reply',
+                    sender_id: null,
+                    sender_name: data.sender_name,
+                    message: `replied to your comment`,
+                    created_at: data.created_at,
+                    is_read: 0
+                });
+                this.unreadNotifCount++;
+            });
+
+            // Notify when someone likes my comment
+            channel.bind('comment_liked_notification', (data) => {
+                if (window.showToast) {
+                    window.showToast(`${data.sender_name} liked your comment`, 'info');
+                }
+                this.notifications.unshift({
+                    id: Date.now(),
+                    type: 'comment_like',
+                    sender_id: null,
+                    sender_name: data.sender_name,
+                    message: `liked your comment`,
+                    created_at: data.created_at,
+                    is_read: 0
+                });
+                this.unreadNotifCount++;
             });
         },
 
