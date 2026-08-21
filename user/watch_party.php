@@ -1,4 +1,7 @@
-
+<?php
+session_start();
+// Ensure user is logged in, redirect if not...
+?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -63,23 +66,15 @@
         .video-container:hover .video-controls-overlay {
             opacity: 1;
         }
-
-        
-        
-        
-        
-        
-
-        
-        
-        
-        
     </style>
 
 
+   <!-- 1. Third-Party Libraries First -->
+<script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+<script src="https://unpkg.com/htmx.org@1.9.10/dist/htmx.min.js" crossorigin="anonymous"></script>
 
-    <script src="/js/nexus_scripts.js?v=5"></script>
-    <script src="https://unpkg.com/htmx.org@1.9.10/dist/htmx.min.js" crossorigin="anonymous"></script>
+<!-- 2. Your Custom Scripts Last -->
+<script src="/js/nexus_scripts.js?v=5"></script>
 </head>
 <body class="h-screen w-screen flex relative selection:bg-red-500/30" data-barba="wrapper">
     <?php include __DIR__ . '/../frontend/components/page_loader.php'; ?>
@@ -120,7 +115,7 @@
             <div class="flex items-center gap-4">
                 <span class="material-symbols-outlined text-red-500 text-[28px]">movie</span>
                 <div>
-                    <h1 class="font-bold text-lg leading-tight">Dune: Part Two Watch Party</h1>
+                    <h1 class="font-bold text-lg leading-tight" x-text="roomName"></h1>
                     <p class="text-xs text-white/50 mono flex items-center gap-2">
                         <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
                         <span x-text="participants.length + ' online'"></span>
@@ -128,7 +123,34 @@
                 </div>
             </div>
             <div class="flex items-center gap-3">
-                <!-- Invite Button removed -->
+               <div class="relative">
+    <button @click="showInviteMenu = !showInviteMenu" class="px-4 py-2 bg-white/10 hover:bg-white/20 rounded-xl text-sm font-bold flex items-center gap-2 transition-colors">
+        <span class="material-symbols-outlined text-[18px]">person_add</span>
+        Invite
+    </button>
+
+    <!-- Dropdown Menu -->
+    <div x-show="showInviteMenu" @click.away="showInviteMenu = false" class="absolute right-0 top-full mt-2 w-64 bg-[#050508]/95 backdrop-blur-xl border border-white/10 rounded-xl shadow-2xl overflow-hidden z-50 p-2" x-transition>
+        <div class="text-xs font-bold text-white/50 px-2 pb-2 mb-2 border-b border-white/5 uppercase tracking-wider">Your Friends</div>
+        
+        <div class="max-h-60 overflow-y-auto custom-scrollbar flex flex-col gap-1">
+            <template x-for="friend in friends" :key="friend.user_id">
+                <div class="flex items-center justify-between p-2 rounded-lg hover:bg-white/5 transition-colors group">
+                    <div class="flex items-center gap-2">
+                        <div class="w-8 h-8 rounded-full bg-gradient-to-tr from-indigo-500 to-red-600 flex items-center justify-center text-xs font-bold" x-text="friend.user_name.charAt(0)"></div>
+                        <span class="text-sm font-medium" x-text="friend.user_name"></span>
+                    </div>
+                    <button @click="inviteFriend(friend.user_id)" class="text-emerald-400 hover:text-white hover:bg-emerald-500 p-1.5 rounded-lg transition-all opacity-0 group-hover:opacity-100">
+                        <span class="material-symbols-outlined text-[16px]">send</span>
+                    </button>
+                </div>
+            </template>
+            <div x-show="friends.length === 0" class="text-sm text-white/40 text-center py-4">
+                No friends found.
+            </div>
+        </div>
+    </div>
+</div>
             </div>
         </header>
 
@@ -227,7 +249,7 @@
                     <div class="flex flex-col gap-3 origin-top pointer-events-auto overflow-y-auto custom-scrollbar pr-1 pb-4" x-show="showParticipants" x-transition:enter="transition ease-out duration-300" x-transition:enter-start="opacity-0 scale-y-90" x-transition:enter-end="opacity-100 scale-y-100" x-transition:leave="transition ease-in duration-200" x-transition:leave-start="opacity-100 scale-y-100" x-transition:leave-end="opacity-0 scale-y-90">
                         <template x-for="(user, index) in participants" :key="index">
                             <div class="participant-card w-full aspect-video hover:scale-105 transition-transform duration-300 bg-white/5 rounded-xl border border-white/10 overflow-hidden relative group shadow-lg shrink-0">
-                                <img :src="user.cam" alt="User Cam" class="w-full h-full object-cover">
+                                <video x-init="$el.srcObject = user.stream" autoplay playsinline class="w-full h-full object-cover" :muted="user.isSelf"></video>
                                 <div class="absolute bottom-1 left-1 bg-black/60 backdrop-blur px-1.5 py-0.5 rounded text-[9px] font-bold text-white flex items-center gap-1 border border-white/10">
                                     <span class="truncate max-w-[60px]" x-text="user.name"></span>
                                     <span class="material-symbols-outlined text-[10px] text-red-500" x-show="user.muted">mic_off</span>
@@ -348,6 +370,9 @@
 
 
     <script src="https://unpkg.com/@barba/core@2.9.7/dist/barba.umd.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.socket.io/4.7.4/socket.io.min.js"></script>
+<!-- Your external script file loaded at the bottom of the body -->
+<script src="watch_party.js?v=3"></script>
     
     <script src="/js/barba_setup.js?v=4"></script>
 
