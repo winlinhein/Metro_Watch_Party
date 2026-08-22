@@ -93,6 +93,17 @@ if (typeof barba !== 'undefined') {
                             document.head.appendChild(link);
                         }
                     });
+
+                    // Swap external scripts dynamically
+                    const currentScripts = Array.from(document.querySelectorAll('script')).map(s => s.src).filter(Boolean);
+                    htmlDoc.querySelectorAll('script').forEach(newScript => {
+                        if (newScript.src && !currentScripts.includes(newScript.src)) {
+                            const script = document.createElement('script');
+                            script.src = newScript.src;
+                            script.type = newScript.type || 'text/javascript';
+                            document.body.appendChild(script);
+                        }
+                    });
                 }
 
                 // Re-bind HTMX strictly as requested

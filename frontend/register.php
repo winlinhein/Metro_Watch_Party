@@ -21,7 +21,7 @@
     <script>if(window.gsap) gsap.config({nullTargetWarn: false});</script>
     <script>if(window.gsap) gsap.config({nullTargetWarn: false});</script>
 
-    <link rel="stylesheet" href="/frontend/style.css">
+    <link rel="stylesheet" href="style.css">
     
     <style>
         [x-cloak] { display: none !important; }
@@ -31,7 +31,7 @@
 
 
 
-    <script src="/js/nexus_scripts.js?v=5"></script>
+    <script src="../js/nexus_scripts.js?v=1787387210"></script>
 </head>
 
 <body class="bg-[#050505] text-white flex items-center justify-center font-sans antialiased relative overflow-hidden min-h-screen" data-barba="wrapper">
@@ -207,7 +207,7 @@
 
     <script src="https://unpkg.com/@barba/core@2.9.7/dist/barba.umd.js" crossorigin="anonymous"></script>
     
-    <script src="/js/barba_setup.js?v=4"></script>
+    <script src="../js/barba_setup.js?v=4"></script>
 
 </body>
 </html>

@@ -169,7 +169,7 @@
     <link rel="stylesheet" href="https://cdn.plyr.io/3.7.8/plyr.css" />
     <script src="https://cdn.plyr.io/3.7.8/plyr.polyfilled.js"></script>
     <script src="https://unpkg.com/htmx.org@1.9.10/dist/htmx.min.js" crossorigin="anonymous"></script>
-    <script src="/js/nexus_scripts.js?v=5"></script>
+    <script src="/js/nexus_scripts.js?v=1787387210"></script>
 </head>
 <body data-barba="wrapper">
     <?php include __DIR__ . '/frontend/components/page_loader.php'; ?>
@@ -200,8 +200,8 @@
 
             <!-- Auth Buttons -->
             <div class="hidden md:flex items-center gap-4">
-                <a href="/frontend/login.php" class="text-sm font-bold text-white/70 hover:text-white px-5 py-2.5 rounded-xl bg-transparent hover:bg-white/5 border border-transparent hover:border-white/10 transition-all duration-300 cursor-pointer flex items-center gap-2 group"><span class="material-symbols-outlined text-[18px] group-hover:text-blue-400 transition-colors">login</span>Sign In</a>
-                <a href="user/dashboard.php" class="animated-border px-6 py-2.5 text-sm font-bold text-white flex items-center gap-2 cursor-pointer">
+                <a href="frontend/login.php" class="text-sm font-bold text-white/70 hover:text-white px-5 py-2.5 rounded-xl bg-transparent hover:bg-white/5 border border-transparent hover:border-white/10 transition-all duration-300 cursor-pointer flex items-center gap-2 group"><span class="material-symbols-outlined text-[18px] group-hover:text-blue-400 transition-colors">login</span>Sign In</a>
+                <a href="frontend/register.php" class="animated-border px-6 py-2.5 text-sm font-bold text-white flex items-center gap-2 cursor-pointer">
                     Get Started <span class="material-symbols-outlined text-[18px]">arrow_forward</span>
                 </a>
             </div>
@@ -226,8 +226,8 @@
                 <a href="#movies" class="text-sm font-bold text-white/70 hover:text-white px-5 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/20 transition-all duration-300 cursor-pointer shadow-[0_0_15px_rgba(0,0,0,0.2)] hover:shadow-[0_0_20px_rgba(255,255,255,0.05)] flex items-center gap-2 group"><span class="material-symbols-outlined text-[18px] group-hover:text-indigo-400 transition-colors">theaters</span>Movies</a>
                 <a href="learning.php" class="text-sm font-bold text-white/70 hover:text-white px-5 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/20 transition-all duration-300 cursor-pointer shadow-[0_0_15px_rgba(0,0,0,0.2)] hover:shadow-[0_0_20px_rgba(255,255,255,0.05)] flex items-center gap-2 group"><span class="material-symbols-outlined text-[18px] group-hover:text-emerald-400 transition-colors">integration_instructions</span>How it works</a>
                 <div class="h-px w-full bg-white/10 my-2"></div>
-                <a href="user/dashboard.php" class="text-lg font-medium text-white/80 hover:text-red-400 transition-colors cursor-pointer">Sign In</a>
-                <a href="user/dashboard.php" class="text-lg font-bold text-red-500 hover:text-red-400 transition-colors cursor-pointer">Get Started</a>
+                <a href="frontend/login.php" class="text-lg font-medium text-white/80 hover:text-red-400 transition-colors cursor-pointer">Sign In</a>
+                <a href="frontend/register.php" class="text-lg font-bold text-red-500 hover:text-red-400 transition-colors cursor-pointer">Get Started</a>
             </div>
         </div>
     </nav>
@@ -260,7 +260,7 @@
                 </p>
                 
                 <div class="flex flex-wrap items-center gap-4 gs-reveal">
-                    <a href="user/dashboard.php" class="animated-border px-8 py-4 font-bold text-white flex items-center gap-3 group cursor-pointer">
+                    <a href="frontend/register.php" class="animated-border px-8 py-4 font-bold text-white flex items-center gap-3 group cursor-pointer">
                         Launch Nexus
                         <span class="material-symbols-outlined group-hover:translate-x-1 transition-transform">rocket_launch</span>
                     </a>

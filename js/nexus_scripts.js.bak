@@ -22,10 +22,8 @@ function userDashboard() {
         questActiveTab: 'daily',
         showInviteModal: false,
         showNotifications: false,
-        showPremiumModal: false,
         friendsTab: 'connected',
         movieModalOpen: false,
-        localLikedComments: new Set(JSON.parse(localStorage.getItem('nexus_liked_comments') || '[]')),
         editingMovie: false,
         viewModalOpen: false,
         roomModalOpen: false,
@@ -101,10 +99,6 @@ function userDashboard() {
         async fetchMovies() { 
             try { 
                 const response = await fetch(`/user_backend/movies_api.php?t=${Date.now()}`);
-                if (response.status === 401) {
-                    window.location.href = '/frontend/login.php';
-                    return;
-                }
                 if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
                 
                 const data = await response.json(); 
@@ -386,10 +380,6 @@ function userDashboard() {
         async fetchFriends(retries = 1) {
             try {
                 const response = await fetch('/user_backend/get_friends.php');
-                if (response.status === 401) {
-                    window.location.href = '/frontend/login.php';
-                    return;
-                }
                 if (!response.ok) throw new Error('Failed to fetch friends');
                 
                 const data = await response.json();
@@ -1232,17 +1222,6 @@ function userDashboard() {
                 const res = await fetch(`/user_backend/get_comments.php?movie_id=${movieId}`);
                 const data = await res.json();
                 if (data.success) {
-                    const applyLikes = (comments) => {
-                        comments.forEach(c => {
-                            if (this.localLikedComments.has(Number(c.id)) || Number(c.is_liked) === 1) {
-                                c.is_liked = true;
-                            } else {
-                                c.is_liked = false;
-                            }
-                            if (c.replies) applyLikes(c.replies);
-                        });
-                    };
-                    applyLikes(data.comments);
                     this.selectedMovie.comments = data.comments;
                 }
             } catch (e) { 
@@ -1260,13 +1239,6 @@ function userDashboard() {
             // 2. Instantly update UI for the user (Optimistic UI)
             comment.is_liked = !comment.is_liked;
             comment.likes_count += comment.is_liked ? 1 : -1;
-            
-            if (comment.is_liked) {
-                this.localLikedComments.add(Number(commentId));
-            } else {
-                this.localLikedComments.delete(Number(commentId));
-            }
-            localStorage.setItem('nexus_liked_comments', JSON.stringify([...this.localLikedComments]));
             
             // Force Alpine to re-render
             this.selectedMovie.comments = [...this.selectedMovie.comments];
@@ -1426,14 +1398,6 @@ function userDashboard() {
             if (targetComment) {
                 targetComment.is_liked = !targetComment.is_liked;
                 targetComment.likes_count += targetComment.is_liked ? 1 : -1;
-                
-                if (targetComment.is_liked) {
-                    this.localLikedComments.add(Number(commentId));
-                } else {
-                    this.localLikedComments.delete(Number(commentId));
-                }
-                localStorage.setItem('nexus_liked_comments', JSON.stringify([...this.localLikedComments]));
-                
                 this.selectedMovie.comments = [...this.selectedMovie.comments];
             }
 
@@ -2066,13 +2030,8 @@ function watchParty() {
 
         async fetchMovies() {
             try {
-                const res = await fetch('/user_backend/movies_api.php?t=' + Date.now());
-                if (res.status === 401) {
-                    window.location.href = '/frontend/login.php';
-                    return;
-                }
+                const res = await fetch('/backend/movies_api.php?t=' + Date.now());
                 const data = await res.json();
-                console.log("Watch Party Movies:", data);
                 if (Array.isArray(data)) {
                     this.allMovies = data;
                 }
@@ -2101,10 +2060,6 @@ function watchParty() {
         async fetchFriends(retries = 1) {
             try {
                 const res = await fetch('/user_backend/get_friends.php');
-                if (res.status === 401) {
-                    window.location.href = '/frontend/login.php';
-                    return;
-                }
                 if (!res.ok) throw new Error('Failed to fetch friends');
                 const data = await res.json();
                 if (data.friends) {
@@ -3598,25 +3553,10 @@ function adminDashboard(userData = {}) {
                 return;
             }
             this.openEditMovieModal(movie);
-            this.movieTab = 'comments';
             await this.fetchMovieCommentsForAdmin(movieId);
-            
-            this.highlightCommentId = commentId;
-            
-            // Expand replies if the highlighted comment is a reply
-            for (let c of this.nestedMovieComments) {
-                if (c.replies && c.replies.some(r => r.id == commentId)) {
-                    c.show_replies = true;
-                }
-            }
-
-            // Scroll to the comment
-            setTimeout(() => {
-                const el = document.getElementById('admin-comment-' + commentId);
-                if (el) {
-                    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                }
-            }, 400);
+            window.dispatchEvent(new CustomEvent('admin-show-comment', {
+                detail: { commentId: commentId }
+            }));
         },
 
         // Shop       
@@ -4202,7 +4142,6 @@ function adminDashboard(userData = {}) {
             this.$watch('movieModalOpen', (isOpen) => {
                 if (!isOpen) {
                     this.currentMovieId = null;
-                    this.highlightCommentId = null;
                     if (this.returnToReportsAfterMovieModal) {
                         this.switchTab('reports');
                         this.returnToReportsAfterMovieModal = false;

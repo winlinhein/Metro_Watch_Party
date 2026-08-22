@@ -77,13 +77,6 @@
 
                         <p class="text-[9px] text-white/40 uppercase tracking-widest mt-1.5 font-mono" x-text="notif.created_at"></p>
                     </div>
-
-                    <!-- Delete button (new) -->
-                    <button @click.stop="deleteNotification(notif.id)" 
-                            class="ml-2 text-white/30 hover:text-red-400 transition-colors shrink-0"
-                            title="Delete notification">
-                        <span class="material-symbols-outlined text-[16px]">close</span>
-                    </button>
                 </div>
             </template>
 

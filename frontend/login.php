@@ -1,4 +1,4 @@
-<?php // login.php - Frontend view ?>
+<?php // index.php - Frontend view ?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -19,30 +19,23 @@
     <!-- GSAP -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js" crossorigin="anonymous"></script>
     <script>if(window.gsap) gsap.config({nullTargetWarn: false});</script>
+    <script>if(window.gsap) gsap.config({nullTargetWarn: false});</script>
 
-    <link rel="stylesheet" href="/frontend/style.css">
-    <script src="/js/nexus_scripts.js?v=5"></script>
+    <link rel="stylesheet" href="style.css">
+
+
+
+    <script src="../js/nexus_scripts.js?v=1787387210"></script>
 </head>
 <body class="bg-[#050505] text-white flex items-center justify-center font-sans antialiased relative overflow-hidden min-h-screen" data-barba="wrapper">
     <?php include __DIR__ . '/components/page_loader.php'; ?>
     <?php include __DIR__ . '/components/cursor.php'; ?>
     <?php include __DIR__ . '/components/toast.php'; ?>
-
-    <!-- Trigger toast if backend error exists -->
-    <?php if (isset($_GET['error'])): ?>
-    <script>
-        document.addEventListener('DOMContentLoaded', function() {
-            if (typeof showToast === 'function') {
-                showToast(<?php echo json_encode($_GET['error']); ?>, 'error');
-            }
-        });
-    </script>
-    <?php endif; ?>
-
 <div id="barba-container" data-barba="container" data-barba-namespace="login" x-data="{ showPassword: false }">
 
-    <!-- Floating Back Button -->
-    <a href="#" onclick="history.back(); return false;" class="fixed top-8 left-8 sm:top-12 sm:left-12 z-50 flex items-center justify-center w-14 h-14 rounded-full bg-black/40 border border-white/10 backdrop-blur-xl gs-back-btn overflow-visible" id="floating-back">
+
+<!-- Floating Back Button -->
+    <a href="../index.php" class="fixed top-8 left-8 sm:top-12 sm:left-12 z-50 flex items-center justify-center w-14 h-14 rounded-full bg-black/40 border border-white/10 backdrop-blur-xl gs-back-btn overflow-visible" id="floating-back">
         <!-- Magnetic hit area -->
         <div class="absolute -inset-6 bg-transparent rounded-full gs-back-hit"></div>
         <!-- Rotating ring -->
@@ -90,6 +83,12 @@
         <!-- Login Card -->
         <div class="glass-card rounded-2xl p-8 gs-reveal" id="glass-card">
             
+            <!-- Success Message Banner -->
+            
+
+            <!-- Error Message Banner -->
+            
+
             <!-- Form with novalidate so custom JS modal handles all validation -->
             <form action="../backend/login_backend.php" method="POST" class="space-y-6" id="loginForm" onsubmit="return validateLoginForm()" novalidate>
                 
@@ -192,7 +191,24 @@
         </div>
     </main>
 
-    <!-- Error Modal Popup (ONLY ONE instance) -->
+    <!-- Error Modal Popup -->
+    <div id="errorModal" onclick="closeErrorModalOnBackdrop(event)" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md hidden opacity-0 transition-opacity duration-300">
+        <div id="errorModalCard" class="w-full max-w-sm glass-card p-6 rounded-2xl border border-red-500/30 bg-[#0a0a0c] text-center shadow-[0_0_50px_rgba(220,38,38,0.25)] transform scale-95 transition-transform duration-300">
+            <div class="w-12 h-12 bg-red-600/15 text-red-500 rounded-full flex items-center justify-center mx-auto mb-3 border border-red-500/30">
+                <span class="material-symbols-outlined text-2xl">warning</span>
+            </div>
+            <h3 class="text-lg font-bold text-white uppercase tracking-wider mb-2">Notice</h3>
+            
+            <!-- Error Bullet List -->
+            <ul id="errorList" class="text-xs text-red-300 space-y-2 my-4 text-left bg-red-950/20 p-3.5 rounded-xl border border-red-900/40">
+                <!-- Injected via JS -->
+            </ul>
+
+            <button type="button" onclick="closeErrorModal()" class="w-full bg-gradient-to-r from-red-600 to-indigo-600 text-white font-black text-xs uppercase tracking-widest py-3 rounded-xl hover:shadow-[0_0_20px_rgba(220,38,38,0.4)] transition-all">
+                Dismiss
+            </button>
+        </div>
+    </div><!-- Error Modal Popup -->
     <div id="errorModal" onclick="closeErrorModalOnBackdrop(event)" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md hidden opacity-0 transition-opacity duration-300">
         <div id="errorModalCard" class="w-full max-w-sm glass-card p-6 rounded-2xl border border-red-500/30 bg-[#0a0a0c] text-center shadow-[0_0_50px_rgba(220,38,38,0.25)] transform scale-95 transition-transform duration-300">
             <div class="w-12 h-12 bg-red-600/15 text-red-500 rounded-full flex items-center justify-center mx-auto mb-3 border border-red-500/30">
@@ -212,12 +228,22 @@
     </div>
 
     <!-- GSAP Animations & Interactions -->
-    <!-- ... your existing scripts ... -->
+    
+    
 
-</div>
 
-<script src="https://unpkg.com/@barba/core@2.9.7/dist/barba.umd.js" crossorigin="anonymous"></script>
-<script src="/js/barba_setup.js?v=4"></script>
+
+
+    
+
+
+    </div>
+
+
+
+    <script src="https://unpkg.com/@barba/core@2.9.7/dist/barba.umd.js" crossorigin="anonymous"></script>
+    
+    <script src="../js/barba_setup.js?v=4"></script>
 
 </body>
 </html>

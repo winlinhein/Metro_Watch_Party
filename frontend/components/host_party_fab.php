@@ -1,8 +1,8 @@
 <!-- Fixed positioning to keep it floating at the bottom right -->
-<div class="fixed bottom-8 right-8 z-[100]">
+<div class="fixed bottom-8 right-8 z-[100]" x-show="!showMovieDetailModal" x-transition>
     
     <!-- Alpine @click instantly generates a random ID and redirects -->
-    <button @click="window.location.href = 'watch_party.php?room_id=' + Math.random().toString(36).substring(2, 10)" 
+    <button @click="createParty()" 
             class="group relative flex items-center justify-center gap-2 bg-nexus-red hover:bg-red-400 text-white px-6 py-4 rounded-full font-bold shadow-[0_0_20px_rgba(239,68,68,0.4)] hover:shadow-[0_0_40px_rgba(239,68,68,0.6)] transition-all duration-300 hover:-translate-y-1 overflow-hidden">
         
         <!-- Add Icon -->
@@ -27,7 +27,7 @@
             formData.append('action', 'create_room');
 
             // 2. Send the POST request with the data attached
-            const response = await fetch('create_room.php', { 
+            const response = await fetch('../user_backend/create_room.php', { 
                 method: 'POST',
                 body: formData
             });
@@ -40,6 +40,7 @@
                 window.location.href = `watch_party.php?room_id=${data.room_id}`;
             } else {
                 console.error("Room creation failed:", data.error);
+                if (window.showToast) window.showToast(data.error, 'error');
             }
         } catch (error) {
             console.error("Error creating room:", error);

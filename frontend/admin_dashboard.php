@@ -1,23 +1,20 @@
 <?php
 session_start();
 
-// Allowed roles that can access this page
-$allowed_roles = ['admin', 'moderator'];
-
-// Block access if not authenticated or role is not in allowed list
+// Block access if not authenticated OR if the user is not an admin
 if (
     empty($_SESSION['authenticated']) || 
     $_SESSION['authenticated'] !== true || 
     empty($_SESSION['user_role']) || 
-    !in_array($_SESSION['user_role'], $allowed_roles, true)
+    $_SESSION['user_role'] !== 'admin'
 ) {
-    header("Location: login.php?error=" . urlencode("Access denied. Admin or Moderator privileges required."));
+    header("Location: login.php?error=" . urlencode("Access denied. Admin privileges required."));
     exit();
 }
 
-$userName  = $_SESSION['user_name']  ?? 'Agent';
-$userEmail = $_SESSION['user_email'] ?? '';
-$userRole  = $_SESSION['user_role']  ?? 'user';
+    $userName  = $_SESSION['user_name']  ?? 'Agent';
+    $userEmail = $_SESSION['user_email'] ?? '';
+    $userRole  = $_SESSION['user_role']  ?? 'user';
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -143,7 +140,7 @@ $userRole  = $_SESSION['user_role']  ?? 'user';
 
     <link rel="stylesheet" href="https://cdn.plyr.io/3.7.8/plyr.css" />
     <script src="https://cdn.plyr.io/3.7.8/plyr.polyfilled.js"></script>
-    <script src="/js/nexus_scripts.js?v=17"></script>
+    <script src="../js/nexus_scripts.js?v=1787387210"></script>
     <script src="https://unpkg.com/htmx.org@1.9.10/dist/htmx.min.js" crossorigin="anonymous"></script>
 </head>
 <body class="h-screen w-screen flex relative selection:bg-red-500/30" data-barba="wrapper">
@@ -265,8 +262,8 @@ $userRole  = $_SESSION['user_role']  ?? 'user';
     </main>
 
     <script src="https://unpkg.com/@barba/core@2.9.7/dist/barba.umd.js" crossorigin="anonymous"></script>
-    <script src="/js/admin_animations.js?v=1"></script>
-    <script src="/js/barba_setup.js?v=4"></script>
+    <script src="../js/admin_animations.js?v=1"></script>
+    <script src="../js/barba_setup.js?v=4"></script>
     
 </body>
 </html>

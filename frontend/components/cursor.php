@@ -7,6 +7,24 @@
 body { cursor: none; }
 a, button, input, textarea, select, .cursor-pointer, .top-nav-item, [x-ref="progressBar"], .gs-movie-card { cursor: none !important; }
 
+/* Ensure native cursor stays hidden in fullscreen */
+:fullscreen, :fullscreen * {
+    cursor: none !important;
+}
+:-webkit-full-screen, :-webkit-full-screen * {
+    cursor: none !important;
+}
+.plyr--fullscreen-active,
+.plyr--fullscreen-active * {
+    cursor: none !important;
+}
+
+/* Fix for Plyr jumping to the top during load in aspect-video containers */
+.aspect-video .plyr {
+    height: 100%;
+    width: 100%;
+}
+
 #cursor-glow {
     position: fixed;
     top: 0;
@@ -16,7 +34,7 @@ a, button, input, textarea, select, .cursor-pointer, .top-nav-item, [x-ref="prog
     border-radius: 50%;
     background: radial-gradient(circle, rgba(239,68,68,0.1) 0%, rgba(79,70,229,0.05) 30%, transparent 70%);
     pointer-events: none;
-    z-index: 0;
+    z-index: 999998;
     transform: translate(-50%, -50%);
     mix-blend-mode: screen;
 }
@@ -38,6 +56,25 @@ a, button, input, textarea, select, .cursor-pointer, .top-nav-item, [x-ref="prog
 
 
 <script>
+    // Fullscreen detection to move custom cursor into the top layer
+    const handleFullscreenChange = () => {
+        const cursorGlow = document.getElementById('cursor-glow');
+        const innerCursor = document.querySelector('.inner-cursor');
+        const fsElement = document.fullscreenElement || document.webkitFullscreenElement;
+        
+        if (fsElement) {
+            // Move cursors inside the fullscreen element to keep them visible
+            if (cursorGlow) fsElement.appendChild(cursorGlow);
+            if (innerCursor) fsElement.appendChild(innerCursor);
+        } else {
+            // Move cursors back to body
+            if (cursorGlow) document.body.appendChild(cursorGlow);
+            if (innerCursor) document.body.appendChild(innerCursor);
+        }
+    };
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
+
     document.addEventListener('DOMContentLoaded', () => {
         // Prevent duplicate cursors
         if(document.querySelectorAll('#cursor-glow').length > 1) {

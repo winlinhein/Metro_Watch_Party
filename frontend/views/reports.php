@@ -1,5 +1,39 @@
 <!-- Reports View -->
-<div data-tab-panel="reports" style="display: none;" class="absolute inset-0 p-10 w-full min-h-full">
+<div x-data="{ 
+    viewModalOpen: false, 
+    selectedReport: null, 
+    filterStatus: 'all',
+    viewReport(report) { 
+        this.selectedReport = report; 
+        this.viewModalOpen = true; 
+    }, 
+    async resolveReport() { 
+        if(this.selectedReport) { 
+            try {
+                // Uses raw_id if available, falling back to id
+                const reportId = this.selectedReport.raw_id || this.selectedReport.id;
+                const res = await fetch('/backend/update_report_status.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ report_id: reportId })
+                });
+                const data = await res.json();
+                
+                if(data.success) {
+                    this.selectedReport.status = 'Read'; 
+                    this.viewModalOpen = false; 
+                    
+                    // Call the parent function to recalculate the dashboard stats
+                    if (typeof updateReportStats === 'function') updateReportStats();
+                    if (window.showToast) window.showToast('Report marked as resolved.', 'success');
+                }
+            } catch(e) {
+                console.error('Failed to update status', e);
+                if (window.showToast) window.showToast('Failed to resolve report.', 'error');
+            }
+        } 
+    } 
+}" data-tab-panel="reports" style="display: none;" class="absolute inset-0 p-10 w-full min-h-full">
     
     <!-- Header -->
     <div class="flex items-center justify-between mb-10 stagger-item">
@@ -95,13 +129,12 @@
                             </td>
                             <td class="p-5 font-medium text-white/70" x-text="report.user"></td>
                             <td class="p-5">
-                               <span class="px-3 py-1 rounded-full border text-[11px] font-bold tracking-wide"
-                                    :class="{
-                                        'bg-red-500/10 text-red-400 border-red-500/20': report.type === 'user',
-                                        'bg-blue-500/10 text-blue-400 border-blue-500/20': report.type === 'comment',
-                                        'bg-purple-500/10 text-purple-400 border-purple-500/20': report.type === 'room'
-                                    }"
-                                    x-text="report.type.charAt(0).toUpperCase() + report.type.slice(1)"></span>
+                                <span class="px-3 py-1 rounded-full border text-[11px] font-bold tracking-wide" 
+                                      :class="{
+                                          'bg-red-500/10 text-red-400 border-red-500/20 shadow-[0_0_10px_rgba(239,68,68,0.15)]': report.type === 'High',
+                                          'bg-yellow-500/10 text-yellow-400 border-yellow-500/20 shadow-[0_0_10px_rgba(234,179,8,0.15)]': report.type === 'Medium',
+                                          'bg-blue-500/10 text-blue-400 border-blue-500/20 shadow-[0_0_10px_rgba(59,130,246,0.15)]': report.type === 'Low' || !['High','Medium'].includes(report.type)
+                                      }" x-text="report.type || 'Standard'"></span>
                             </td>
                             <td class="p-5 text-white/60 truncate max-w-[200px]" x-text="report.excerpt"></td>
                             <td class="p-5 text-center">
@@ -185,13 +218,6 @@
                              </template>
                          </div>
                      </div>
-
-                     <template x-if="selectedReport.comment_text">
-                        <div class="bg-[#030305] border border-white/10 rounded-xl p-4">
-                            <p class="text-white/40 text-[10px] uppercase tracking-wider mb-2 font-bold">Reported Comment</p>
-                            <p class="text-white/80 text-xs leading-relaxed" x-text="selectedReport.comment_text"></p>
-                        </div>
-                    </template>
                      
                      <!-- Description / Notes -->
                      <div class="bg-[#030305] border border-white/10 rounded-xl p-4">
@@ -202,19 +228,11 @@
                  
                  <!-- Footer Buttons -->
                  <div class="flex gap-3 justify-end">
+                     <button x-show="selectedReport.reported_comment_id && selectedReport.reported_movie_id" @click="viewModalOpen = false; handleViewComment({movie_id: selectedReport.reported_movie_id, comment_id: selectedReport.reported_comment_id})" class="px-5 py-2.5 rounded-xl bg-indigo-500 hover:bg-indigo-600 text-white transition-all text-sm font-bold shadow-[0_0_15px_rgba(99,102,241,0.4)] flex items-center gap-2">
+                         <span class="material-symbols-outlined text-[18px]">visibility</span> View Comment
+                     </button>
                      <button @click="viewModalOpen = false" class="px-5 py-2.5 rounded-xl border border-white/10 text-white/70 hover:bg-white/5 hover:text-white transition-colors text-sm font-bold">
                          Dismiss
-                     </button>
-                     <button 
-                        x-show="selectedReport.comment_text && selectedReport.movie_id"
-                        @click="$dispatch('view-comment', { 
-                            movie_id: selectedReport.movie_id, 
-                            comment_id: selectedReport.comment_id 
-                        })"
-                        class="w-full px-5 py-2.5 rounded-xl bg-indigo-500 hover:bg-indigo-600 text-white text-sm font-bold flex items-center justify-center gap-2 transition-all"
-                     >
-                        <span class="material-symbols-outlined text-[18px]">open_in_new</span>
-                        View Comment in Movie Page
                      </button>
                      <button x-show="selectedReport.status === 'Pending'" @click="resolveReport()" class="px-5 py-2.5 rounded-xl bg-green-500 hover:bg-green-600 text-white transition-all text-sm font-bold shadow-[0_0_15px_rgba(34,197,94,0.4)] flex items-center gap-2">
                          <span class="material-symbols-outlined text-[18px]">check_circle</span> Mark Resolved

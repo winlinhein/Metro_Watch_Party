@@ -29,7 +29,7 @@
         </button>
     </template>
     
-    <button @click.stop="openReportModal(selectedProfileUser)" class="w-full text-left px-2.5 py-2 text-xs text-white/60 hover:bg-white/10 hover:text-white rounded-lg flex items-center gap-2 transition-colors">
+    <button @click="openReportModal()" class="w-full text-left px-2.5 py-2 text-xs text-white/60 hover:bg-white/10 hover:text-white rounded-lg flex items-center gap-2 transition-colors">
         <span class="material-symbols-outlined text-[16px]">flag</span> Report User
     </button>
 </div>
