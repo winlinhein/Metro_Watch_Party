@@ -1012,6 +1012,7 @@ function userDashboard() {
         },
 
         openReportItemModal(id, type) {
+            console.log('Opening item report modal:', { id, type }); // optional debug
             this.selectedItemIdToReport = id;
             this.reportItemType = type;
             this.reportItemDescription = '';
@@ -1035,68 +1036,45 @@ function userDashboard() {
             }, 300);
         },
 
-        async submitItemReport() {
-            if (!this.selectedItemIdToReport) return;
-            const id = this.selectedItemIdToReport;
-            const type = this.reportItemType;
-            const targetEl = document.getElementById(type + '-' + id);
-            
-            // Trigger insane GSAP animation FIRST
-            if (targetEl && window.gsap) {
-                const tl = gsap.timeline();
-                
-                // Shake & Flash Red
-                tl.to(targetEl, { x: -15, rotate: -3, borderColor: 'red', backgroundColor: 'rgba(255,0,0,0.5)', duration: 0.04, yoyo: true, repeat: 7 })
-                  .to(targetEl, { x: 15, rotate: 3, duration: 0.04, yoyo: true, repeat: 7 }, "-=0.28")
-                  // Glitch effect text
-                  .to(targetEl, { skewX: 30, scaleY: 0.7, filter: 'blur(3px) contrast(200%) hue-rotate(90deg)', duration: 0.1 })
-                  .to(targetEl, { skewX: -30, scaleY: 1.3, filter: 'blur(0px) contrast(150%) hue-rotate(-90deg)', duration: 0.1 })
-                  .to(targetEl, { skewX: 0, scaleY: 1, filter: 'none', duration: 0.1 })
-                  // Implode and vanish
-                  .to(targetEl, {
-                      scale: 0.01,
-                      opacity: 0,
-                      rotate: 360,
-                      duration: 0.6,
-                      ease: "power4.in",
-                      onComplete: () => {
-                          targetEl.style.display = 'none';
-                      }
-                  });
-            }
-            
-            // Animate the modal itself before closing
-            const modalEl = document.getElementById('report-item-modal-content');
-            const glitchEl = document.getElementById('item-modal-glitch');
-            if (modalEl && window.gsap) {
-                if (glitchEl) {
-                    gsap.to(glitchEl, { opacity: 1, duration: 0.05, yoyo: true, repeat: 5 });
-                }
-                gsap.to(modalEl, { scale: 0.8, opacity: 0, duration: 0.3, ease: "back.in(1.5)", delay: 0.1 });
-            }
+      async submitItemReport() {
+        if (!this.selectedItemIdToReport) return;
 
-            try {
-                await fetch('/user_backend/submit_report.php', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        reported_item_id: id,
-                        item_type: type,
-                        reason_ids: this.selectedItemReasonIds,
-                        description: this.reportItemDescription
-                    })
-                });
-                
-                setTimeout(() => {
-                    this.closeReportItemModal();
-                    if (window.showToast) window.showToast(`${type.charAt(0).toUpperCase() + type.slice(1)} Obliterated.`, 'success');
-                }, 500);
-            } catch (e) {
-                console.error("Report item failed:", e);
+        const id = this.selectedItemIdToReport;
+        const type = this.reportItemType;
+
+        // Animate modal close (unchanged)
+        const modalEl = document.getElementById('report-item-modal-content');
+        if (modalEl && window.gsap) {
+            gsap.to(modalEl, { scale: 0.8, opacity: 0, duration: 0.3, ease: "back.in(1.5)", delay: 0.1 });
+        }
+
+        try {
+            const res = await fetch('/user_backend/submit_report.php', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    reported_item_id: id,
+                    item_type: type,
+                    reason_ids: this.selectedItemReasonIds,
+                    description: this.reportItemDescription
+                })
+            });
+
+            const data = await res.json().catch(() => ({ success: false, message: 'Invalid server response' }));
+
+            if (data.success) {
                 this.closeReportItemModal();
+                if (window.showToast) window.showToast(`${type.charAt(0).toUpperCase() + type.slice(1)} reported.`, 'success');
+            } else {
+                this.closeReportItemModal();
+                if (window.showToast) window.showToast(data.message || 'Report failed.', 'error');
             }
-        },
-
+        } catch (e) {
+            console.error("Report item failed:", e);
+            this.closeReportItemModal();
+            if (window.showToast) window.showToast('Network error. Please try again.', 'error');
+        }
+    },
         submitReport() {
             if (!this.selectedProfileUser) return;
             if (this.selectedReasonIds.length === 0 && !this.reportDescription.trim()) return;

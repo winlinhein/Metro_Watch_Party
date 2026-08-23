@@ -279,7 +279,7 @@
                                                 </div>
                                                 <div class="flex items-center gap-2">
                                                     <span class="text-[10px] text-white/40" x-text="comment.created_at || ''"></span>
-                                                    <button @click="openReportItemModal(comment.id || comment.comment_id, 'comment')" class="opacity-0 group-hover:opacity-100 text-white/30 hover:text-red-500 transition-all focus:opacity-100" title="Report Comment">
+                                                    <button @click="openReportItemModal(comment.comment_id || comment.id, 'comment')" class="opacity-0 group-hover:opacity-100 text-white/30 hover:text-red-500 transition-all focus:opacity-100" title="Report Comment">
                                                         <span class="material-symbols-outlined text-[16px]">flag</span>
                                                     </button>
                                                 </div>
@@ -338,7 +338,9 @@
                                                  x-transition:leave-end="opacity-0 -translate-y-2 scale-95 blur-sm"
                                                  class="pl-4 mt-3 border-l-2 border-indigo-500/30 space-y-2 relative origin-top">
                                                 <template x-for="reply in comment.replies" :key="reply.id || reply.comment_id">
-                                                    <div :id="'reply-' + (reply.id || reply.comment_id)" class="p-2.5 bg-black/30 rounded-lg border border-white/5 relative group">
+                                                    <div :id="'reply-' + (reply.id || reply.comment_id)" 
+                                                        class="p-2.5 bg-black/30 rounded-lg border border-white/5 relative group"
+                                                        x-init="console.log('Reply object:', reply)">
                                                         <div class="flex justify-between items-start mb-1">
                                                             <div class="flex items-center gap-2">
                                                                 <!-- Reply Profile Avatar & Border -->
@@ -352,7 +354,7 @@
                                                             </div>
                                                             <div class="flex items-center gap-2">
                                                                 <span class="text-[9px] text-white/30" x-text="reply.created_at || ''"></span>
-                                                                <button @click="openReportItemModal(reply.id || reply.comment_id, 'reply')" class="opacity-0 group-hover:opacity-100 text-white/30 hover:text-red-500 transition-all focus:opacity-100" title="Report Reply">
+                                                                <button @click="openReportItemModal(reply.comment_id || reply.id || reply.reply_id, 'reply')" class="opacity-0 group-hover:opacity-100 text-white/30 hover:text-red-500 transition-all focus:opacity-100" title="Report Reply">
                                                                     <span class="material-symbols-outlined text-[14px]">flag</span>
                                                                 </button>
                                                             </div>
