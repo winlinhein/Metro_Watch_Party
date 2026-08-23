@@ -68,7 +68,7 @@ function userDashboard() {
         reportDescription: '',
 
         // --- Account State ---
-        accountForm: { username: 'CurrentUser', email: 'user@example.com' },
+        accountForm: { },
         passwordForm: { current: '', new: '', confirm: '' },
         activeBorderId: 1,
         availableBorders: [
@@ -86,6 +86,10 @@ function userDashboard() {
         reportItemType: 'reply', // 'reply' or 'comment'
         reportItemDescription: '',
         selectedItemReasonIds: [],
+
+        getAvatarUrl(name, background = 'ef4444') {
+            return `https://ui-avatars.com/api/?name=${encodeURIComponent(name || 'User')}&background=${background}&color=fff&bold=true`;
+        },
 
        // Live filtered movies getter
         get filteredMovies() {
@@ -124,14 +128,49 @@ function userDashboard() {
         },
 
         // --- Account Methods ---
+        savedProfile: {
+            username: 'CurrentUser',
+            email: 'user@example.com'
+        },
+        deleteAccountModalOpen: false,
+        deleteAccountPassword: '',
+        deleteAccountError: '',
+
         async updateAccountInfo() {
-            if (!this.accountForm.username || !this.accountForm.email) return;
+            if (!this.accountForm.username || !this.accountForm.email) {
+                if (window.showToast) window.showToast('Please fill all fields.', 'error');
+                return;
+            }
+
             try {
-                // Mock API call
-                if (window.showToast) window.showToast('Profile updated successfully!', 'success');
+                const res = await fetch('/user_backend/update_account.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        username: this.accountForm.username,
+                        email: this.accountForm.email
+                    })
+                });
+
+                const data = await res.json();
+               if (data.success) {
+                    // Update the saved profile (committed values)
+                    this.savedProfile = {
+                        username: this.accountForm.username,
+                        email: this.accountForm.email
+                    };
+
+                    // Optional: update global
+                    if (window.NEXUS_USER) {
+                        window.NEXUS_USER.username = this.savedProfile.username;
+                        window.NEXUS_USER.email = this.savedProfile.email;
+                    }
+
+                    if (window.showToast) window.showToast(data.message || 'Profile updated!', 'success');
+                }
             } catch (e) {
-                console.error(e);
-                if (window.showToast) window.showToast('Failed to update profile.', 'error');
+                console.error('Update profile error:', e);
+                if (window.showToast) window.showToast('Network error. Please try again.', 'error');
             }
         },
 
@@ -141,16 +180,30 @@ function userDashboard() {
                 return;
             }
             if (this.passwordForm.new !== this.passwordForm.confirm) {
-                if (window.showToast) window.showToast('Passwords do not match.', 'error');
+                if (window.showToast) window.showToast('New passwords do not match.', 'error');
                 return;
             }
+
             try {
-                // Mock API call
-                this.passwordForm = { current: '', new: '', confirm: '' };
-                if (window.showToast) window.showToast('Password updated securely!', 'success');
+                const res = await fetch('/user_backend/update_password.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        current_password: this.passwordForm.current,
+                        new_password: this.passwordForm.new
+                    })
+                });
+
+                const data = await res.json();
+                if (data.success) {
+                    this.passwordForm = { current: '', new: '', confirm: '' };
+                    if (window.showToast) window.showToast(data.message || 'Password updated!', 'success');
+                } else {
+                    if (window.showToast) window.showToast(data.message || 'Update failed.', 'error');
+                }
             } catch (e) {
-                console.error(e);
-                if (window.showToast) window.showToast('Failed to update password.', 'error');
+                console.error('Update password error:', e);
+                if (window.showToast) window.showToast('Network error. Please try again.', 'error');
             }
         },
 
@@ -169,6 +222,47 @@ function userDashboard() {
             }
             // Save to local storage or backend
             localStorage.setItem('activeBorder', borderId);
+        },
+        openDeleteAccountModal() {
+            this.deleteAccountModalOpen = true;
+            this.deleteAccountPassword = '';
+            this.deleteAccountError = '';
+        },
+
+        closeDeleteAccountModal() {
+            this.deleteAccountModalOpen = false;
+            this.deleteAccountPassword = '';
+            this.deleteAccountError = '';
+        },
+
+        async confirmDeleteAccount() {
+            if (!this.deleteAccountPassword) {
+                this.deleteAccountError = 'Please enter your password.';
+                return;
+            }
+
+            try {
+                const res = await fetch('/user_backend/delete_account.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ password: this.deleteAccountPassword })
+                });
+
+                const data = await res.json();
+
+                if (data.success) {
+                    if (window.showToast) window.showToast(data.message || 'Account deleted.', 'success');
+                    // Redirect to login page after short delay
+                    setTimeout(() => {
+                        window.location.href = '/frontend/login.php';
+                    }, 1500);
+                } else {
+                    this.deleteAccountError = data.message || 'Failed to delete account.';
+                }
+            } catch (e) {
+                console.error('Delete account error:', e);
+                this.deleteAccountError = 'Network error. Please try again.';
+            }
         },
 
         // Convert any standard YouTube link into a clean Embed URL
@@ -739,8 +833,10 @@ function userDashboard() {
         subscribeToChatChannel(friendId) {
             const targetFriendId = Number(friendId);
             const currentUserId = Number(window.CURRENT_USER_ID);
-
-            if (typeof Pusher === 'undefined' || !currentUserId || !targetFriendId) return;
+            if (typeof Pusher === 'undefined' || !currentUserId || !targetFriendId) {
+                console.warn('Chat subscription skipped: missing Pusher or IDs');
+                return;
+            }
 
             if (!this.pusherClient) {
                 this.pusherClient = new Pusher('f4b5637ef4b8952b6eb8', {
@@ -753,10 +849,15 @@ function userDashboard() {
             const maxId = Math.max(currentUserId, targetFriendId);
             const channelName = `chat-${minId}-${maxId}`;
 
-            if (this.activeSubscriptions.has(channelName)) return;
+            if (this.activeSubscriptions.has(channelName)) {
+                console.log(`Already subscribed to ${channelName}`);
+                return;
+            }
             this.activeSubscriptions.add(channelName);
 
             const channel = this.pusherClient.subscribe(channelName);
+            console.log(`Subscribed to ${channelName}`);
+
 
             channel.bind('new_message', (data) => {
                 const senderId = Number(data.sender_id);
@@ -1653,14 +1754,24 @@ function userDashboard() {
 
         // Initialize Pusher Connection
         initPusher() {
-            if (!window.CURRENT_USER_ID || typeof Pusher === 'undefined') return;
+            if (!window.CURRENT_USER_ID || typeof Pusher === 'undefined') {
+                console.warn('Pusher init skipped: CURRENT_USER_ID or Pusher missing');
+                return;
+            }
 
-            if (!this.pusherClient) {
-                this.pusherClient = new Pusher('f4b5637ef4b8952b6eb8', {
-                    cluster: 'ap1',
-                    encrypted: true
-                });
-            }   
+            Pusher.logToConsole = true; // ⚠️ REMOVE IN PRODUCTION
+
+            this.pusherClient = new Pusher('f4b5637ef4b8952b6eb8', {
+                cluster: 'ap1',
+                encrypted: true
+            });
+
+            this.pusherClient.connection.bind('connected', () => {
+                console.log('Pusher connected');
+            });
+            this.pusherClient.connection.bind('error', (err) => {
+                console.error('Pusher connection error:', err);
+            });
 
             const channel = this.pusherClient.subscribe(`user-${window.CURRENT_USER_ID}`);
 
@@ -1796,25 +1907,31 @@ function userDashboard() {
         },
 
         async init() { 
+            //Load real user info into account form
+            if (window.NEXUS_USER) {
+                this.savedProfile = {
+                    username: window.NEXUS_USER.username || 'CurrentUser',
+                    email: window.NEXUS_USER.email || 'user@example.com'
+                };
+                this.accountForm = { ...this.savedProfile }; // copy for editing
+            }
+
             const savedBorder = localStorage.getItem('activeBorder');
-            if (savedBorder) {
-                this.activeBorderId = parseInt(savedBorder, 10);
-            } 
-            // 1. Core Config
+            if (savedBorder) this.activeBorderId = parseInt(savedBorder, 10);
+
             if (typeof gsap !== 'undefined') gsap.config({ nullTargetWarn: false });
 
-            // 2. Initial Data Fetches
+            // 1. Initialize Pusher IMMEDIATELY (synchronous)
+            this.initPusher();
+
+            // 2. Now fetch data (all async)
             this.fetchReasons();
             await this.fetchMovies(); 
             await this.fetchWatchlist();
-            this.fetchFriends();
+            await this.fetchFriends();   
             this.searchUsers();
             this.loadMissions();
             this.fetchNotifications();
-
-            // 3. Real-Time Connections
-            this.initPusher();
-            this.initAllChatSubscriptions();
 
             // 4. Watchers & Interactions
             this.$watch('friends', () => this.updateFriendsCount());

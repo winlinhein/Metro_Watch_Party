@@ -1,14 +1,14 @@
 <?php
 session_start();
 
-// Block access if not authenticated OR if the user is not an admin
+// Block access if not authenticated OR if the user's role is not admin or moderator
 if (
     empty($_SESSION['authenticated']) || 
     $_SESSION['authenticated'] !== true || 
     empty($_SESSION['user_role']) || 
-    $_SESSION['user_role'] !== 'admin'
+    !in_array($_SESSION['user_role'], ['admin', 'moderator'])
 ) {
-    header("Location: login.php?error=" . urlencode("Access denied. Admin privileges required."));
+    header("Location: login.php?error=" . urlencode("Access denied. Admin or Moderator privileges required."));
     exit();
 }
 

@@ -1,13 +1,14 @@
 <?php
 session_start();
 
-// Block access if not authenticated OR if the user is not an admin
+// Block access if not authenticated OR if the user's role is not 'user'
 if (
     empty($_SESSION['authenticated']) || 
     $_SESSION['authenticated'] !== true || 
-    empty($_SESSION['user_role']) 
+    empty($_SESSION['user_role']) || 
+    $_SESSION['user_role'] !== 'user'
 ) {
-    header("Location: ../frontend/login.php?error=" . urlencode("Access denied. Please log in to view your dashboard."));
+    header("Location: ../frontend/login.php?error=" . urlencode("Access denied. User privileges required."));
     exit();
 }
 
@@ -20,6 +21,10 @@ $userId = $_SESSION['user_id'] ?? 0;
 <script>
     // This safely passes the logged-in user's ID from your backend session to JS
     window.CURRENT_USER_ID = <?php echo json_encode($_SESSION['user_id'] ?? null); ?>;
+    window.NEXUS_USER = {
+        username: <?php echo json_encode($userName); ?>,
+        email: <?php echo json_encode($userEmail); ?>
+    };
 </script>
 
 <!DOCTYPE html>
@@ -530,13 +535,13 @@ $userId = $_SESSION['user_id'] ?? 0;
                 <div class="relative z-[60]" x-data="{ showProfileMenu: false }" @click.outside="showProfileMenu = false">
                     <div @click="showProfileMenu = !showProfileMenu" class="flex items-center gap-3 p-2 bg-[#050508]/40 border border-white/5 rounded-xl cursor-pointer hover:bg-white/[0.05]">
                         <div class="relative w-10 h-10 flex items-center justify-center">
-                            <img src="https://ui-avatars.com/api/?name=<?= urlencode($userName) ?>&background=ef4444&color=fff&bold=true" class="w-10 h-10 rounded-full border-2 border-red-500/50 absolute z-0">
+                            <img :src="getAvatarUrl(savedProfile.username, 'ef4444')" class="w-10 h-10 rounded-full border-2 border-red-500/50 absolute z-0">
                             <template x-if="activeBorderId !== 1">
                                 <img :src="availableBorders.find(b => b.id === activeBorderId)?.preview" class="absolute inset-0 w-14 h-14 max-w-none -ml-2 -mt-2 pointer-events-none object-contain z-10">
                             </template>
                         </div>
                         <div class="hidden sm:block min-w-0 pr-1">
-                            <p class="text-sm font-bold text-white truncate"><?php echo htmlspecialchars($userName); ?></p>
+                            <p class="text-sm font-bold text-white truncate" x-text="savedProfile.username"></p>
                             <p class="text-[9px] text-red-400 uppercase tracking-widest mono font-bold bg-red-500/10 px-2 py-0.5 rounded border border-red-500/20 inline-block mt-0.5"><?php echo htmlspecialchars($userRole); ?></p>
                         </div>
                     </div>
