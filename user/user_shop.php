@@ -31,7 +31,7 @@
                     { id: 'c3', type: 'badges', name: 'Party Host MVP', price: 750, icon: 'celebration', color: 'from-fuchsia-500 to-pink-500' }
                 ],
                 get filteredItems() {
-                    return this.items.filter(i => i.type === this.activeCategory);
+                    return this.items;
                 },
                 buyItem() {
                     if(!this.selectedItem) return;
@@ -82,20 +82,6 @@
                             </p>
                         </div>
                     </div>
-                </div>
-
-                <!-- Categories -->
-                <div class="flex gap-4 overflow-x-auto custom-scrollbar pb-4 relative z-10">
-                    <template x-for="category in categories" :key="category.id">
-                        <button @click="activeCategory = category.id"
-                                class="flex items-center gap-3 px-6 py-4 rounded-2xl font-bold text-sm tracking-wide transition-all duration-500 border whitespace-nowrap"
-                                :class="activeCategory === category.id 
-                                    ? 'bg-white text-black border-white shadow-[0_0_30px_rgba(255,255,255,0.3)] scale-105' 
-                                    : 'bg-[#0a0a0f]/80 text-white/60 border-white/5 hover:bg-white/5 hover:text-white hover:border-white/20'">
-                            <span class="material-symbols-outlined text-xl" x-text="category.icon"></span>
-                            <span x-text="category.name"></span>
-                        </button>
-                    </template>
                 </div>
 
                 <!-- Items Grid -->

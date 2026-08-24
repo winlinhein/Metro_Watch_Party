@@ -1,6 +1,14 @@
 <?php
 session_start();
 // Ensure user is logged in, redirect if not...
+if (empty($_SESSION['authenticated']) || empty($_SESSION['user_id'])) {
+    header("Location: ../frontend/login.php?error=" . urlencode("Access denied."));
+    exit();
+}
+
+$userId = $_SESSION['user_id'] ?? 0;
+$userName = $_SESSION['user_name'] ?? 'Agent';
+$userEmail = $_SESSION['user_email'] ?? '';
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -8,6 +16,13 @@ session_start();
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Nexus - Watch Party</title>
+    
+    <script>
+        window.CURRENT_USER_ID = <?php echo json_encode($userId); ?>;
+        window.USER_NAME = <?php echo json_encode($userName); ?>;
+        window.USER_EMAIL = <?php echo json_encode($userEmail); ?>;
+    </script>
+    
     <script src="https://cdn.tailwindcss.com/3.4.17"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.1/dist/cdn.min.js" crossorigin="anonymous"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js" crossorigin="anonymous"></script>
@@ -74,7 +89,7 @@ session_start();
 <script src="https://unpkg.com/htmx.org@1.9.10/dist/htmx.min.js" crossorigin="anonymous"></script>
 
 <!-- 2. Your Custom Scripts Last -->
-<script src="/js/nexus_scripts.js?v=5"></script>
+<script src="../js/nexus_scripts.js?v=1787387210"></script>
 </head>
 <body class="h-screen w-screen flex relative selection:bg-red-500/30" data-barba="wrapper">
     <?php include __DIR__ . '/../frontend/components/page_loader.php'; ?>
@@ -160,7 +175,28 @@ session_start();
             <!-- Main Movie Player Background -->
             <div class="absolute inset-0 bg-black overflow-hidden group video-container z-0" @mousemove="showControls = true; clearTimeout(controlsTimeout); controlsTimeout = setTimeout(() => { if (isPlaying) showControls = false }, 2500)" @mouseleave="if (isPlaying) showControls = false">
                     
-                    <video id="main-player" class="w-full h-full object-contain bg-black cursor-pointer" x-ref="videoPlayer" @click="togglePlay" @timeupdate="updateProgress" @ended="isPlaying = false" src="https://upload.wikimedia.org/wikipedia/commons/transcoded/8/88/Big_Buck_Bunny_alt.webm/Big_Buck_Bunny_alt.webm.720p.vp9.webm" playsinline preload="metadata" poster="https://images.unsplash.com/photo-1536440136628-849c177e76a1?auto=format&fit=crop&q=80&w=1600&h=900"></video>
+                    <template x-if="videoUrl">
+                        <video id="main-player" class="w-full h-full object-contain bg-black cursor-pointer" x-ref="videoPlayer" @click="togglePlay" @timeupdate="updateProgress" @ended="isPlaying = false" :src="videoUrl" playsinline preload="metadata" poster="https://images.unsplash.com/photo-1536440136628-849c177e76a1?auto=format&fit=crop&q=80&w=1600&h=900"></video>
+                    </template>
+                    
+                    <template x-if="!videoUrl">
+                        <div class="absolute inset-0 flex flex-col items-center justify-center bg-[#050508] overflow-hidden group/empty cursor-pointer" @click="showMovieModal = true">
+                            <div class="absolute inset-0 bg-gradient-to-tr from-red-500/10 to-transparent opacity-0 group-hover/empty:opacity-100 transition-opacity duration-700 pointer-events-none"></div>
+                            
+                            <div class="w-32 h-32 rounded-full border border-red-500/30 flex items-center justify-center relative mb-6 group-hover/empty:scale-110 transition-transform duration-500 ease-out shadow-[0_0_50px_rgba(239,68,68,0.2)]">
+                                <div class="absolute inset-0 rounded-full border-t border-red-500 animate-spin" style="animation-duration: 3s;"></div>
+                                <div class="absolute inset-2 rounded-full border-b border-white/20 animate-spin" style="animation-duration: 2s; animation-direction: reverse;"></div>
+                                <span class="material-symbols-outlined text-[48px] text-red-400 group-hover/empty:text-red-300 transition-colors">movie</span>
+                                
+                                <div class="absolute -bottom-2 -right-2 w-10 h-10 bg-red-500 rounded-full flex items-center justify-center shadow-lg transform group-hover/empty:rotate-90 transition-transform duration-300">
+                                    <span class="material-symbols-outlined text-white text-[20px]">add</span>
+                                </div>
+                            </div>
+                            
+                            <h2 class="text-2xl font-black text-white tracking-widest uppercase mb-2">Select a Movie</h2>
+                            <p class="text-white/50 text-sm max-w-sm text-center">Choose a movie from our library to start the watch party and sync playback with your friends.</p>
+                        </div>
+                    </template>
                     
                     <!-- Loading State overlay -->
                     <div class="absolute inset-0 bg-black/80 flex items-center justify-center z-10 transition-opacity duration-500" x-show="isLoading" x-transition.opacity>
@@ -168,14 +204,14 @@ session_start();
                     </div>
 
                     <!-- Giant Play Button Overlay (when paused) -->
-                    <div class="absolute inset-0 bg-black/40 flex items-center justify-center z-10 transition-opacity duration-300 cursor-pointer" x-show="!isPlaying && !isLoading" @click="togglePlay" x-transition.opacity>
+                    <div class="absolute inset-0 bg-black/40 flex items-center justify-center z-10 transition-opacity duration-300 cursor-pointer" x-show="videoUrl && !isPlaying && !isLoading" @click="togglePlay" x-transition.opacity>
                         <div class="w-24 h-24 bg-red-500/90 rounded-full flex items-center justify-center shadow-[0_0_40px_rgba(239,68,68,0.6)] backdrop-blur-md transform transition-transform hover:scale-110">
                             <span class="material-symbols-outlined text-[48px] text-white ml-2">play_arrow</span>
                         </div>
                     </div>
 
                     <!-- Player Controls Overlay -->
-                    <div class="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent flex flex-col justify-end p-6 z-20 transition-opacity duration-500 pointer-events-none" :class="showControls ? 'opacity-100' : 'opacity-0'">
+                    <div class="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent flex flex-col justify-end p-6 z-20 transition-opacity duration-500 pointer-events-none" :class="(showControls && videoUrl) ? 'opacity-100' : 'opacity-0'" x-show="videoUrl">
                         
                         <!-- Progress Bar -->
                         <div class="w-full h-1.5 bg-white/20 rounded-full mb-6 cursor-pointer relative group/progress pointer-events-auto" @click="seek" x-ref="progressBar">
@@ -252,7 +288,8 @@ session_start();
                                 <video x-init="$el.srcObject = user.stream" autoplay playsinline class="w-full h-full object-cover" :muted="user.isSelf"></video>
                                 <div class="absolute bottom-1 left-1 bg-black/60 backdrop-blur px-1.5 py-0.5 rounded text-[9px] font-bold text-white flex items-center gap-1 border border-white/10">
                                     <span class="truncate max-w-[60px]" x-text="user.name"></span>
-                                    <span class="material-symbols-outlined text-[10px] text-red-500" x-show="user.muted">mic_off</span>
+                                    <span class="material-symbols-outlined text-[10px]" :class="user.muted ? 'text-red-500' : 'text-green-500'" x-text="user.muted ? 'mic_off' : 'mic'"></span>
+                                    <span class="material-symbols-outlined text-[10px]" :class="!user.videoOn ? 'text-red-500' : 'text-green-500'" x-text="!user.videoOn ? 'videocam_off' : 'videocam'"></span>
                                 </div>
                                 <!-- Speaking indicator -->
                                 <div class="absolute inset-0 border-[1.5px] border-emerald-500 rounded-xl opacity-0 transition-opacity" :class="{'opacity-100': user.speaking}"></div>
@@ -331,8 +368,8 @@ session_start();
             <button @click="toggleVideo($event)" class="w-12 h-12 rounded-xl flex items-center justify-center transition-all duration-300 shadow-lg border" :class="!isVideoOn ? 'bg-red-500/10 border-red-500/20 text-red-500 hover:bg-red-500/20' : 'bg-white/10 border-white/10 text-white hover:bg-white/20'">
                 <span class="material-symbols-outlined" x-text="!isVideoOn ? 'videocam_off' : 'videocam'"></span>
             </button>
-            <button class="w-12 h-12 rounded-xl bg-white/10 border-white/10 text-white hover:bg-white/20 flex items-center justify-center transition-all duration-300 shadow-lg border">
-                <span class="material-symbols-outlined">present_to_all</span>
+            <button @click="showMovieModal = true" class="w-12 h-12 rounded-xl bg-indigo-500/10 border-indigo-500/20 text-indigo-400 hover:bg-indigo-500/20 flex items-center justify-center transition-all duration-300 shadow-lg border">
+                <span class="material-symbols-outlined">movie</span>
             </button>
             
             <div class="w-px h-8 bg-white/10 mx-2"></div>
@@ -361,10 +398,124 @@ session_start();
             }
         });
     </script>
+    
+    <!-- Movie Selection Modal -->
+    <div x-show="showMovieModal" class="fixed inset-0 z-[100] flex flex-col justify-end pointer-events-auto" style="display: none;">
+        <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" x-show="showMovieModal" x-transition.opacity @click="showMovieModal = false"></div>
+        
+        <div class="relative w-full h-[70vh] bg-[#050508] border-t border-white/10 rounded-t-3xl flex flex-col shadow-2xl z-10 overflow-hidden" 
+             x-show="showMovieModal" 
+             x-transition:enter="transition ease-out duration-300 transform" 
+             x-transition:enter-start="translate-y-full" 
+             x-transition:enter-end="translate-y-0"
+             x-transition:leave="transition ease-in duration-200 transform"
+             x-transition:leave-start="translate-y-0"
+             x-transition:leave-end="translate-y-full">
+             
+            <!-- Header -->
+            <div class="flex flex-col md:flex-row md:items-center justify-between p-6 border-b border-white/5 gap-4">
+                <h3 class="text-xl font-bold text-white flex items-center gap-2 shrink-0">
+                    <span class="material-symbols-outlined text-red-500">movie</span>
+                    Choose Movie to Play
+                </h3>
+                
+                <div class="flex items-center gap-3 flex-1 justify-end">
+                    <!-- Search Bar -->
+                    <div class="relative w-full max-w-xs">
+                        <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-white/50 text-[18px]">search</span>
+                        <input type="text" x-model="movieSearchQuery" placeholder="Search movies..." class="w-full bg-[#030305]/50 border border-white/10 rounded-xl py-2 pl-10 pr-4 text-sm text-white placeholder-white/40 focus:outline-none focus:border-red-500/50 transition-colors">
+                    </div>
 
+                    <!-- Filter Dropdown -->
+                    <div class="relative" x-data="{ open: false }" @click.away="open = false">
+                        <button @click="open = !open" class="h-[38px] px-4 bg-[#030305]/50 border border-white/10 rounded-xl text-sm text-white flex items-center gap-2 hover:bg-white/5 transition-colors whitespace-nowrap">
+                            <span class="material-symbols-outlined text-[16px] text-red-400">filter_list</span>
+                            <span x-text="movieFilter === 'all' ? 'All Genres' : movieFilter"></span>
+                            <span class="material-symbols-outlined text-[16px] transition-transform duration-200" :class="open ? 'rotate-180' : ''">expand_more</span>
+                        </button>
+                        
+                        <div x-show="open" 
+                             x-transition:enter="transition ease-out duration-200"
+                             x-transition:enter-start="opacity-0 translate-y-2"
+                             x-transition:enter-end="opacity-100 translate-y-0"
+                             x-transition:leave="transition ease-in duration-150"
+                             x-transition:leave-start="opacity-100 translate-y-0"
+                             x-transition:leave-end="opacity-0 translate-y-2"
+                             class="absolute right-0 top-full mt-2 w-48 bg-[#0a0a0f] border border-white/10 rounded-xl shadow-xl overflow-hidden z-50">
+                             
+                            <div class="p-1 flex flex-col">
+                                <button @click="movieFilter = 'all'; open = false" class="flex items-center gap-2 px-3 py-2 text-sm rounded-lg transition-colors" :class="movieFilter === 'all' ? 'bg-red-500/10 text-red-400' : 'text-white/70 hover:bg-white/5 hover:text-white'">
+                                    <span class="material-symbols-outlined text-[16px]">category</span>
+                                    All Genres
+                                </button>
+                                <button @click="movieFilter = 'Action'; open = false" class="flex items-center gap-2 px-3 py-2 text-sm rounded-lg transition-colors" :class="movieFilter === 'Action' ? 'bg-red-500/10 text-red-400' : 'text-white/70 hover:bg-white/5 hover:text-white'">
+                                    <span class="material-symbols-outlined text-[16px]">sports_martial_arts</span>
+                                    Action
+                                </button>
+                                <button @click="movieFilter = 'Sci-Fi'; open = false" class="flex items-center gap-2 px-3 py-2 text-sm rounded-lg transition-colors" :class="movieFilter === 'Sci-Fi' ? 'bg-red-500/10 text-red-400' : 'text-white/70 hover:bg-white/5 hover:text-white'">
+                                    <span class="material-symbols-outlined text-[16px]">rocket_launch</span>
+                                    Sci-Fi
+                                </button>
+                                <button @click="movieFilter = 'Horror'; open = false" class="flex items-center gap-2 px-3 py-2 text-sm rounded-lg transition-colors" :class="movieFilter === 'Horror' ? 'bg-red-500/10 text-red-400' : 'text-white/70 hover:bg-white/5 hover:text-white'">
+                                    <span class="material-symbols-outlined text-[16px]">psychology_alt</span>
+                                    Horror
+                                </button>
+                                <button @click="movieFilter = 'Comedy'; open = false" class="flex items-center gap-2 px-3 py-2 text-sm rounded-lg transition-colors" :class="movieFilter === 'Comedy' ? 'bg-red-500/10 text-red-400' : 'text-white/70 hover:bg-white/5 hover:text-white'">
+                                    <span class="material-symbols-outlined text-[16px]">theater_comedy</span>
+                                    Comedy
+                                </button>
+                            </div>
+                        </div>
+                    </div>
 
+                    <button @click="showMovieModal = false" class="w-10 h-10 rounded-full bg-white/5 hover:bg-white/10 text-white flex items-center justify-center transition-colors shrink-0">
+                        <span class="material-symbols-outlined">close</span>
+                    </button>
+                </div>
+            </div>
 
+            <!-- Movie Grid -->
+            <div class="flex-1 overflow-y-auto custom-scrollbar p-6">
+                <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-6">
+                    <template x-for="movie in filteredMovies" :key="movie.id">
+                        <div class="group relative aspect-[2/3] rounded-2xl overflow-hidden cursor-pointer bg-white/5" 
+                             @click="selectMovie(movie)"
+                             @mouseenter="hoveredMovieId = movie.id"
+                             @mouseleave="hoveredMovieId = null">
+                             
+                            <!-- Poster Image -->
+                            <img :src="movie.img || movie.cover_image" 
+                                 class="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+                                 :class="hoveredMovieId === movie.id && (movie.trailer || movie.actual_video_url) ? 'opacity-0' : 'opacity-100'">
+                                 
+                            <!-- Video Preview (Trailer) -->
+                            <template x-if="hoveredMovieId === movie.id">
+                                <div class="absolute inset-0 z-0 bg-black pointer-events-none overflow-hidden">
+                                    <template x-if="movie.trailer && isYouTubeUrl(movie.trailer)">
+                                        <iframe :src="getYouTubeEmbedUrl(movie.trailer, true)" 
+                                                class="w-full h-full object-cover scale-150" 
+                                                frameborder="0" allow="autoplay; encrypted-media"></iframe>
+                                    </template>
+                                    <template x-if="movie.actual_video_url && !isYouTubeUrl(movie.trailer)">
+                                        <video :src="movie.actual_video_url" class="w-full h-full object-cover" autoplay muted loop playsinline></video>
+                                    </template>
+                                </div>
+                            </template>
 
+                            <div class="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent flex flex-col justify-end p-4 z-10 pointer-events-none transition-opacity duration-300"
+                                 :class="hoveredMovieId === movie.id && (movie.trailer || movie.actual_video_url) ? 'opacity-0' : 'opacity-100'">
+                                <h4 class="text-white font-bold text-sm truncate" x-text="movie.title"></h4>
+                                <p class="text-white/50 text-[10px]" x-text="movie.year || (movie.duration ? movie.duration + 'm' : '')"></p>
+                            </div>
+                            
+                            <div x-show="!(hoveredMovieId === movie.id && (movie.trailer || movie.actual_video_url))" class="absolute inset-0 bg-red-500/10 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none">
+                            </div>
+                        </div>
+                    </template>
+                </div>
+            </div>
+        </div>
+    </div>
 </div>
 
 
@@ -372,9 +523,9 @@ session_start();
     <script src="https://unpkg.com/@barba/core@2.9.7/dist/barba.umd.js" crossorigin="anonymous"></script>
     <script src="https://cdn.socket.io/4.7.4/socket.io.min.js"></script>
 <!-- Your external script file loaded at the bottom of the body -->
-<script src="watch_party.js?v=3"></script>
+
     
-    <script src="/js/barba_setup.js?v=4"></script>
+    <script src="../js/barba_setup.js?v=4"></script>
 
 </body>
 </html>

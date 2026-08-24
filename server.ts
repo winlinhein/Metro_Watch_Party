@@ -12,6 +12,9 @@ const io = new Server(httpServer, {
 });
 
 io.on("connection", (socket) => {
+  console.log(`New connection: ${socket.id}`);
+
+  // --- General Chat Events ---
   socket.on("join_chat", (room) => {
     socket.join(room);
   });
@@ -23,6 +26,43 @@ io.on("connection", (socket) => {
   socket.on("send_message", (data) => {
     // broadcast to everyone in the room
     io.to(data.room).emit("new_message", data);
+  });
+
+  // --- Lobby & Invite Events ---
+  socket.on('register-user', (userId) => {
+      socket.join(`user_channel_${userId}`); 
+      console.log(`User ${userId} is online and ready for invites.`);
+  });
+
+  socket.on('send-lobby-invite', (data) => {
+      console.log(`Invite sent to User ${data.targetUserId} for Room ${data.roomId}`);
+      socket.to(`user_channel_${data.targetUserId}`).emit('receive-invite', {
+          hostName: data.hostName,
+          roomId: data.roomId
+      });
+  });
+
+  // --- Watch Party Room & WebRTC Signaling Events ---
+  socket.on('join-room', (roomId, userId) => {
+      socket.join(roomId);
+      console.log(`User ${userId} joined room ${roomId}`);
+      socket.to(roomId).emit('user-connected', userId);
+  });
+
+  socket.on('offer', (data) => {
+      socket.to(data.targetSocketId).emit('offer', data);
+  });
+
+  socket.on('answer', (data) => {
+      socket.to(data.targetSocketId).emit('answer', data);
+  });
+
+  socket.on('ice-candidate', (data) => {
+      socket.to(data.targetSocketId).emit('ice-candidate', data);
+  });
+
+  socket.on('disconnect', () => {
+      console.log(`User disconnected: ${socket.id}`);
   });
 });
 
@@ -125,6 +165,14 @@ app.get("/user_backend/get_reasons.php", (req, res) => {
       { reason_id: 2, reason_title: "Harassment", reason_description: "Abusive or threatening behavior." },
       { reason_id: 3, reason_title: "Inappropriate Content", reason_description: "Contains offensive material." }
     ]
+  });
+});
+
+app.post("/user_backend/create_room.php", (req, res) => {
+  res.json({
+    success: true,
+    room_code: "NEXUS1",
+    room_id: Math.random().toString(36).substring(2, 10)
   });
 });
 
@@ -287,6 +335,10 @@ app.post("/user_backend/add_friend.php", (req, res) => {
   res.json({ success: true, message: "Friend added successfully." });
 });
 
+app.post("/user_backend/activate_premium.php", (req, res) => {
+  res.json({ success: true, message: "Premium activated successfully!" });
+});
+
 app.get("/backend/users_api.php", (req, res) => {
   res.json([
     { id: 1, name: "Alice", email: "alice@example.com", status: "Active", role: "Admin", points: 1250 },
@@ -305,6 +357,22 @@ app.get("/backend/movies_api.php", (req, res) => {
   res.json([]);
 });
 
+app.get("/user_backend/movies_api.php", (req, res) => {
+  res.json([]);
+});
+
+app.get("/user_backend/get_reasons.php", (req, res) => {
+  res.json({
+    success: true,
+    reasons: [
+      { reason_id: 1, reason_title: "Spam", reason_description: "Unsolicited content" },
+      { reason_id: 2, reason_title: "Harassment", reason_description: "Abusive behavior" },
+      { reason_id: 3, reason_title: "Inappropriate Content", reason_description: "Violates community guidelines" }
+    ]
+  });
+});
+
+
 app.post("/backend/movies_api.php", (req, res) => {
   res.json({ success: true, message: "Movie updated." });
 });
@@ -318,6 +386,14 @@ app.post("/backend/update_profile.php", (req, res) => {
 });
 
 app.post("/backend/delete_account.php", (req, res) => {
+  res.json({ success: true });
+});
+
+
+app.get("/backend/comments_api.php", (req, res) => {
+  res.json([]);
+});
+app.post("/backend/comments_api.php", (req, res) => {
   res.json({ success: true });
 });
 

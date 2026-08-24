@@ -34,12 +34,11 @@
                         
                         <!-- 2. INSERT THE TRAILER IFRAME HERE -->
                         <template x-if="isHovered && movie.trailer && isYouTubeUrl(movie.trailer)">
-                            <div x-data="{ hoverPlayer: null }"
-                                 x-init="$nextTick(() => { hoverPlayer = new Plyr($refs.hoverContainer, { autoplay: true, muted: true, controls: [], clickToPlay: false, youtube: { noCookie: false, rel: 0, showinfo: 0, iv_load_policy: 3, modestbranding: 1, disablekb: 1 } }) })"
-                                 class="absolute top-0 left-0 w-full h-[140%] -mt-[20%] scale-150 pointer-events-none z-0">
-                                <div class="plyr__video-embed w-full h-full" x-ref="hoverContainer">
+                            <div x-data="{}"
+                                 x-init="let p; $nextTick(() => { const iframe = $el.querySelector('iframe'); if (iframe) iframe.src = getYouTubeEmbedUrl(movie.trailer, true); p = new Plyr($el.querySelector('.plyr-target'), { autoplay: true, muted: true, controls: [], clickToPlay: false, youtube: { noCookie: false, rel: 0, showinfo: 0, iv_load_policy: 3, modestbranding: 1, disablekb: 1 } }); }); return () => { try { if (p) p.destroy(); } catch(e) {} }"
+                                 class="absolute top-1/2 left-1/2 w-[350%] -translate-x-1/2 -translate-y-1/2 pointer-events-none z-0">
+                                <div class="plyr__video-embed w-full plyr-target">
                                     <iframe
-                                         :src="getYouTubeEmbedUrl(movie.trailer, true)"
                                          class="w-full h-full pointer-events-none"
                                          frameborder="0"
                                          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
@@ -102,20 +101,7 @@
                     </button>
                 </div>
 
-                <div x-data="{ movieTab: 'details' }"
-                    @admin-show-comment.window="
-                        const id = $event.detail.commentId;
-                        if (id) {
-                            movieTab = 'comments';
-                            $nextTick(() => {
-                                const el = document.getElementById('admin-comment-' + id) || document.getElementById('admin-reply-' + id);
-                                if (el) {
-                                    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                                }
-                            });
-                        }
-                    "
-                    class="p-8 overflow-y-auto flex-1 space-y-6">
+                <div x-data="{ movieTab: 'details' }" class="p-8 overflow-y-auto flex-1 space-y-6">
                     
                     <!-- Segmented Tab Controls -->
                     <div class="grid grid-cols-2 p-1.5 bg-black/40 border border-white/10 rounded-2xl max-w-xs">
@@ -236,7 +222,7 @@
                             <div class="space-y-4">
                                 <template x-for="comment in nestedMovieComments" :key="comment.id">
                                     <!-- Parent Comment -->
-                                    <div :id="'admin-comment-' + comment.id" class="bg-white/[0.03] border border-white/10 rounded-2xl p-4">
+                                    <div class="rounded-2xl p-4 transition-all duration-700 border" :class="highlightCommentId == comment.id ? 'bg-red-500/10 border-red-500/50 shadow-[0_0_20px_rgba(239,68,68,0.2)]' : 'bg-white/[0.03] border-white/10'" :id="'admin-comment-' + comment.id">
                                         <!-- Header -->
                                         <div class="flex justify-between items-start mb-2">
                                             <div class="flex items-center gap-2">
@@ -279,7 +265,7 @@
                                             x-transition:enter-end="opacity-100 translate-y-0"
                                             class="pl-4 mt-3 border-l-2 border-indigo-500/30 space-y-2">
                                             <template x-for="reply in comment.replies" :key="reply.id">
-                                                <div :id="'admin-reply-' + reply.id" class="bg-black/30 rounded-lg border border-white/5 p-3">
+                                                <div class="rounded-lg p-3 transition-all duration-700 border" :class="highlightCommentId == reply.id ? 'bg-red-500/10 border-red-500/50 shadow-[0_0_20px_rgba(239,68,68,0.2)]' : 'bg-black/30 border-white/5'" :id="'admin-comment-' + reply.id">
                                                     <div class="flex justify-between items-start mb-1">
                                                         <div class="flex items-center gap-2">
                                                             <div class="w-6 h-6 rounded-full bg-gradient-to-tr from-red-500 to-indigo-600 flex items-center justify-center font-bold text-[10px] text-white uppercase"

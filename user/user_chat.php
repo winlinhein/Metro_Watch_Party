@@ -62,8 +62,12 @@
         <!-- Chat Input Area -->
         <div class="shrink-0 p-4 border-t border-white/10 bg-black/20 backdrop-blur-md relative z-10">
             <form @submit.prevent="sendMessage()" class="relative flex items-center group">
+                <button type="button" class="absolute left-2 w-10 h-10 rounded-xl text-white/50 hover:text-emerald-400 hover:bg-white/5 flex items-center justify-center transition-all z-10">
+                    <span class="material-symbols-outlined text-[20px]">image</span>
+                </button>
+                
                 <input type="text" x-model="chatInput" placeholder="Transmit secure message..." 
-                       class="w-full bg-white/5 border border-white/10 rounded-2xl py-4 pl-5 pr-14 text-sm text-white placeholder-white/30 outline-none focus:border-emerald-500/50 focus:bg-white/10 transition-all shadow-inner">
+                       class="w-full bg-white/5 border border-white/10 rounded-2xl py-4 pl-14 pr-14 text-sm text-white placeholder-white/30 outline-none focus:border-emerald-500/50 focus:bg-white/10 transition-all shadow-inner">
                 <button type="submit" 
                         class="absolute right-2 w-10 h-10 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-white flex items-center justify-center shadow-[0_0_15px_rgba(16,185,129,0.4)] transition-all hover:scale-105 active:scale-95 disabled:opacity-50 disabled:pointer-events-none"
                         :disabled="!chatInput.trim()">

@@ -1,7 +1,7 @@
 <?php
 session_start();
 
-// Allow only standard 'user' role to access this page
+// Block access if not authenticated OR if the user's role is not 'user'
 if (
     empty($_SESSION['authenticated']) || 
     $_SESSION['authenticated'] !== true || 
@@ -19,9 +19,12 @@ $userId = $_SESSION['user_id'] ?? 0;
 ?>
 <script src="https://js.pusher.com/8.2.0/pusher.min.js"></script>
 <script>
+    // This safely passes the logged-in user's ID from your backend session to JS
     window.CURRENT_USER_ID = <?php echo json_encode($_SESSION['user_id'] ?? null); ?>;
-    window.USER_NAME = <?php echo json_encode($userName); ?>;
-    window.USER_EMAIL = <?php echo json_encode($userEmail); ?>;
+    window.NEXUS_USER = {
+        username: <?php echo json_encode($userName); ?>,
+        email: <?php echo json_encode($userEmail); ?>
+    };
 </script>
 
 <!DOCTYPE html>
@@ -165,7 +168,7 @@ $userId = $_SESSION['user_id'] ?? 0;
 
     <link rel="stylesheet" href="https://cdn.plyr.io/3.7.8/plyr.css" />
     <script src="https://cdn.plyr.io/3.7.8/plyr.polyfilled.js"></script>
-    <script src="/js/nexus_scripts.js?v=14"></script>
+    <script src="../js/nexus_scripts.js?v=1787387210"></script>
 </head>
 <body class="h-screen w-screen flex flex-col relative selection:bg-red-500/30" data-barba="wrapper">
     <?php include __DIR__ . '/../frontend/components/page_loader.php'; ?>
@@ -211,7 +214,7 @@ $userId = $_SESSION['user_id'] ?? 0;
                 </template>
             </nav>
             <div class="mt-auto pt-6 pointer-events-auto">
-                <button onclick="handleLogout()" class="w-full flex items-center gap-3 p-3 rounded-xl border border-white/5 bg-white/[0.02] hover:bg-red-500/10 hover:border-red-500/30 text-white/50 hover:text-red-400 transition-all duration-300 group">
+                <button @click="window.handleLogout()" class="w-full flex items-center gap-3 p-3 rounded-xl border border-white/5 bg-white/[0.02] hover:bg-red-500/10 hover:border-red-500/30 text-white/50 hover:text-red-400 transition-all duration-300 group">
                     <div class="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center group-hover:bg-red-500/20 transition-colors shrink-0">
                         <span class="material-symbols-outlined text-[18px]">logout</span>
                     </div>
@@ -518,10 +521,7 @@ $userId = $_SESSION['user_id'] ?? 0;
                 
                 <div class="h-8 w-[1px] bg-white/10 hidden md:block"></div>
                 
-                <div class="hidden md:block">
-                    <h1 class="text-2xl font-bold tracking-tight">Welcome back, <span x-text="displayName"></span></h1>
-                    <p class="text-xs text-white/40 mono mt-1">NEXUS PROTOCOL ACTIVE</p>
-                </div>
+
             </div>
             
             <div class="flex items-center gap-6">
@@ -535,13 +535,13 @@ $userId = $_SESSION['user_id'] ?? 0;
                 <div class="relative z-[60]" x-data="{ showProfileMenu: false }" @click.outside="showProfileMenu = false">
                     <div @click="showProfileMenu = !showProfileMenu" class="flex items-center gap-3 p-2 bg-[#050508]/40 border border-white/5 rounded-xl cursor-pointer hover:bg-white/[0.05]">
                         <div class="relative w-10 h-10 flex items-center justify-center">
-                           <img :src="'https://ui-avatars.com/api/?name=' + encodeURIComponent(displayName) + '&background=ef4444&color=fff&bold=true'" class="w-10 h-10 rounded-full border-2 border-red-500/50 absolute z-0">
+                            <img :src="getAvatarUrl(savedProfile.username, 'ef4444')" class="w-10 h-10 rounded-full border-2 border-red-500/50 absolute z-0">
                             <template x-if="activeBorderId !== 1">
                                 <img :src="availableBorders.find(b => b.id === activeBorderId)?.preview" class="absolute inset-0 w-14 h-14 max-w-none -ml-2 -mt-2 pointer-events-none object-contain z-10">
                             </template>
                         </div>
                         <div class="hidden sm:block min-w-0 pr-1">
-                            <p class="text-sm font-bold text-white truncate" x-text="displayName"></p>
+                            <p class="text-sm font-bold text-white truncate" x-text="savedProfile.username"></p>
                             <p class="text-[9px] text-red-400 uppercase tracking-widest mono font-bold bg-red-500/10 px-2 py-0.5 rounded border border-red-500/20 inline-block mt-0.5"><?php echo htmlspecialchars($userRole); ?></p>
                         </div>
                     </div>
@@ -549,6 +549,13 @@ $userId = $_SESSION['user_id'] ?? 0;
                     <div class="absolute right-0 top-full mt-2 w-48 bg-[#050508] border border-white/10 rounded-xl shadow-2xl p-2 z-50" x-show="showProfileMenu" style="display: none;">
                         <button @click="currentTab = 'account'; showProfileMenu = false" class="w-full text-left p-2 hover:bg-white/10 rounded-lg text-xs font-semibold text-white/70 hover:text-white flex items-center gap-2">
                             <span class="material-symbols-outlined text-[16px]">manage_accounts</span> Account
+                        </button>
+                        <button @click="showPremiumModal = true; showProfileMenu = false" class="w-full text-left p-2 hover:bg-white/10 rounded-lg text-xs font-semibold text-white/70 hover:text-white flex items-center justify-between gap-2 mt-1">
+                            <div class="flex items-center gap-2">
+                                <span class="material-symbols-outlined text-[16px]">workspace_premium</span> Manage Plan
+                            </div>
+                            <span x-show="localStorage.getItem('nexus_premium') === 'true'" class="text-[9px] px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-400 font-bold uppercase border border-emerald-500/30">Active</span>
+                            <span x-show="localStorage.getItem('nexus_premium') !== 'true'" class="text-[9px] px-1.5 py-0.5 rounded bg-white/10 text-white/40 font-bold uppercase border border-white/10">Inactive</span>
                         </button>
                     </div>
                 </div>
@@ -568,10 +575,31 @@ $userId = $_SESSION['user_id'] ?? 0;
                             <div class="flex justify-between items-start mb-4">
                                 <div>
                                     <p class="text-white/50 text-xs uppercase tracking-widest mono mb-2" x-text="stat.label"></p>
-                                    <h3 class="text-4xl font-bold text-white tracking-tight flex items-end gap-1">
-                                        <span class="font-mono" x-text="stat.value"></span>
-                                        <span class="text-lg text-white/50 mb-1" x-text="stat.suffix" x-show="stat.suffix"></span>
-                                    </h3>
+                                    <div class="relative min-h-[40px] flex items-end">
+                                        <!-- Loading Spinner -->
+                                        <template x-if="statsLoading">
+                                            <div class="h-10 relative overflow-hidden flex items-center py-1">
+                                                <div class="relative w-9 h-9 flex items-center justify-center">
+                                                    <!-- Ambient Glow -->
+                                                    <div class="absolute inset-0 bg-indigo-500/20 rounded-full blur-md animate-pulse"></div>
+                                                    <!-- Outer Orbit Ring -->
+                                                    <div class="absolute inset-0 border-[2px] border-white/5 border-t-indigo-500 border-r-indigo-500 rounded-full animate-[spin_1.5s_linear_infinite] shadow-[0_0_10px_rgba(99,102,241,0.2)]"></div>
+                                                    <!-- Inner Counter-Orbit Ring -->
+                                                    <div class="absolute inset-1.5 border-[2px] border-white/5 border-b-red-500 border-l-red-500 rounded-full animate-[spin_1s_linear_infinite_reverse] shadow-[0_0_10px_rgba(239,68,68,0.2)]"></div>
+                                                    <!-- Core Energy Dot -->
+                                                    <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-2 h-2 bg-white shadow-[0_0_8px_#fff] rotate-45 animate-ping" style="animation-duration: 1.5s;"></div>
+                                                    <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-1.5 h-1.5 bg-white shadow-[0_0_8px_#fff] rotate-45"></div>
+                                                </div>
+                                            </div>
+                                        </template>
+                                        <!-- Actual Value -->
+                                        <template x-if="!statsLoading">
+                                            <h3 class="text-4xl font-bold text-white tracking-tight flex items-end gap-1">
+                                                <span class="font-mono" x-text="stat.value"></span>
+                                                <span class="text-lg text-white/50 mb-1" x-text="stat.suffix" x-show="stat.suffix"></span>
+                                            </h3>
+                                        </template>
+                                    </div>
                                 </div>
                                 <div class="w-12 h-12 rounded-xl flex items-center justify-center" :class="stat.colorClass">
                                     <span class="material-symbols-outlined text-[24px]" x-text="stat.icon"></span>
@@ -697,22 +725,6 @@ $userId = $_SESSION['user_id'] ?? 0;
                                 </button>
                             </div>
                         </div>
-
-                        <!-- Transmission Log -->
-                        <div class="glass-panel rounded-2xl p-6">
-                            <h2 class="text-lg font-bold tracking-wide uppercase mb-6 flex items-center gap-2">
-                                <span class="material-symbols-outlined text-white/50">history</span>
-                                Transmission Log
-                            </h2>
-                            <div class="relative pl-4 space-y-6 before:absolute before:inset-y-0 before:left-[11px] before:w-[1px] before:bg-white/10">
-                                <template x-for="(item, index) in activityFeed" :key="index">
-                                    <div class="relative">
-                                        <p class="text-sm text-white/80" x-html="item.text"></p>
-                                        <p class="text-[10px] text-white/40 mono mt-1 font-semibold" x-text="item.time"></p>
-                                    </div>
-                                </template>
-                            </div>
-                        </div>
                     </div>
                 </div>
             </div>
@@ -723,6 +735,7 @@ $userId = $_SESSION['user_id'] ?? 0;
         <?php include "user_movies.php"; ?>
         <?php include "user_shop.php"; ?>
         <?php include "account.php"; ?>
+        <?php include "user_premium.php"; ?>
         </div>
     </main>
 
@@ -736,23 +749,25 @@ $userId = $_SESSION['user_id'] ?? 0;
 </div>
 
 <script src="https://unpkg.com/@barba/core@2.9.7/dist/barba.umd.js" crossorigin="anonymous"></script>
-<script src="/js/barba_setup.js?v=4"></script>
+<script src="../js/barba_setup.js?v=4"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
-<script src="/js/nexus_scripts.js?v=6"></script>
+<script src="../js/nexus_scripts.js?v=1787387210"></script>
 <!-- Include Socket.io globally -->
 <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
 
 <script>
     // Initialize a global socket connection
-    const globalSocket = io('http://localhost:3000'); 
+    const globalSocket = io('/'); 
     
     // NOTE: This needs to be the actual logged-in user's ID
-    const currentUserId = '123'; 
+    const currentUserId = window.CURRENT_USER_ID; 
 
-    globalSocket.on('connect', () => {
-        // Register the user to receive invites across the whole site
-        globalSocket.emit('register-user', currentUserId);
-    });
+    if (currentUserId) {
+        globalSocket.on('connect', () => {
+            // Register the user to receive invites across the whole site
+            globalSocket.emit('register-user', currentUserId);
+        });
+    }
 
     globalSocket.on('receive-invite', (data) => {
         // Instead of an alert, we dispatch a custom browser event

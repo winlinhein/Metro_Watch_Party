@@ -18,7 +18,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js" crossorigin="anonymous"></script>
     <script>if(window.gsap) gsap.config({nullTargetWarn: false});</script>
 
-    <link rel="stylesheet" href="/frontend/style.css">
+    <link rel="stylesheet" href="style.css">
     
     <style>
         .ultimate-reveal { opacity: 0; }
@@ -28,7 +28,7 @@
 
 
 
-    <script src="/js/nexus_scripts.js?v=5"></script>
+    <script src="../js/nexus_scripts.js?v=1787387210"></script>
 </head>
 <body class="bg-[#050505] text-white flex items-center justify-center font-sans antialiased relative overflow-hidden min-h-screen" data-barba="wrapper">
     <?php include __DIR__ . '/components/page_loader.php'; ?>
@@ -157,7 +157,7 @@
 
     <script src="https://unpkg.com/@barba/core@2.9.7/dist/barba.umd.js" crossorigin="anonymous"></script>
     
-    <script src="/js/barba_setup.js?v=4"></script>
+    <script src="../js/barba_setup.js?v=4"></script>
 
 </body>
 </html>

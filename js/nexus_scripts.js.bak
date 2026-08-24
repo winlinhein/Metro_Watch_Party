@@ -22,10 +22,8 @@ function userDashboard() {
         questActiveTab: 'daily',
         showInviteModal: false,
         showNotifications: false,
-        showPremiumModal: false,
         friendsTab: 'connected',
         movieModalOpen: false,
-        localLikedComments: new Set(JSON.parse(localStorage.getItem('nexus_liked_comments') || '[]')),
         editingMovie: false,
         viewModalOpen: false,
         roomModalOpen: false,
@@ -68,7 +66,7 @@ function userDashboard() {
         reportDescription: '',
 
         // --- Account State ---
-        accountForm: { },
+        accountForm: { username: 'CurrentUser', email: 'user@example.com' },
         passwordForm: { current: '', new: '', confirm: '' },
         activeBorderId: 1,
         availableBorders: [
@@ -87,10 +85,6 @@ function userDashboard() {
         reportItemDescription: '',
         selectedItemReasonIds: [],
 
-        getAvatarUrl(name, background = 'ef4444') {
-            return `https://ui-avatars.com/api/?name=${encodeURIComponent(name || 'User')}&background=${background}&color=fff&bold=true`;
-        },
-
        // Live filtered movies getter
         get filteredMovies() {
             if (!this.movieSearchQuery.trim()) return this.movies;
@@ -105,10 +99,6 @@ function userDashboard() {
         async fetchMovies() { 
             try { 
                 const response = await fetch(`/user_backend/movies_api.php?t=${Date.now()}`);
-                if (response.status === 401) {
-                    window.location.href = '/frontend/login.php';
-                    return;
-                }
                 if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
                 
                 const data = await response.json(); 
@@ -128,49 +118,14 @@ function userDashboard() {
         },
 
         // --- Account Methods ---
-        savedProfile: {
-            username: 'CurrentUser',
-            email: 'user@example.com'
-        },
-        deleteAccountModalOpen: false,
-        deleteAccountPassword: '',
-        deleteAccountError: '',
-
         async updateAccountInfo() {
-            if (!this.accountForm.username || !this.accountForm.email) {
-                if (window.showToast) window.showToast('Please fill all fields.', 'error');
-                return;
-            }
-
+            if (!this.accountForm.username || !this.accountForm.email) return;
             try {
-                const res = await fetch('/user_backend/update_account.php', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        username: this.accountForm.username,
-                        email: this.accountForm.email
-                    })
-                });
-
-                const data = await res.json();
-               if (data.success) {
-                    // Update the saved profile (committed values)
-                    this.savedProfile = {
-                        username: this.accountForm.username,
-                        email: this.accountForm.email
-                    };
-
-                    // Optional: update global
-                    if (window.NEXUS_USER) {
-                        window.NEXUS_USER.username = this.savedProfile.username;
-                        window.NEXUS_USER.email = this.savedProfile.email;
-                    }
-
-                    if (window.showToast) window.showToast(data.message || 'Profile updated!', 'success');
-                }
+                // Mock API call
+                if (window.showToast) window.showToast('Profile updated successfully!', 'success');
             } catch (e) {
-                console.error('Update profile error:', e);
-                if (window.showToast) window.showToast('Network error. Please try again.', 'error');
+                console.error(e);
+                if (window.showToast) window.showToast('Failed to update profile.', 'error');
             }
         },
 
@@ -180,30 +135,16 @@ function userDashboard() {
                 return;
             }
             if (this.passwordForm.new !== this.passwordForm.confirm) {
-                if (window.showToast) window.showToast('New passwords do not match.', 'error');
+                if (window.showToast) window.showToast('Passwords do not match.', 'error');
                 return;
             }
-
             try {
-                const res = await fetch('/user_backend/update_password.php', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        current_password: this.passwordForm.current,
-                        new_password: this.passwordForm.new
-                    })
-                });
-
-                const data = await res.json();
-                if (data.success) {
-                    this.passwordForm = { current: '', new: '', confirm: '' };
-                    if (window.showToast) window.showToast(data.message || 'Password updated!', 'success');
-                } else {
-                    if (window.showToast) window.showToast(data.message || 'Update failed.', 'error');
-                }
+                // Mock API call
+                this.passwordForm = { current: '', new: '', confirm: '' };
+                if (window.showToast) window.showToast('Password updated securely!', 'success');
             } catch (e) {
-                console.error('Update password error:', e);
-                if (window.showToast) window.showToast('Network error. Please try again.', 'error');
+                console.error(e);
+                if (window.showToast) window.showToast('Failed to update password.', 'error');
             }
         },
 
@@ -222,47 +163,6 @@ function userDashboard() {
             }
             // Save to local storage or backend
             localStorage.setItem('activeBorder', borderId);
-        },
-        openDeleteAccountModal() {
-            this.deleteAccountModalOpen = true;
-            this.deleteAccountPassword = '';
-            this.deleteAccountError = '';
-        },
-
-        closeDeleteAccountModal() {
-            this.deleteAccountModalOpen = false;
-            this.deleteAccountPassword = '';
-            this.deleteAccountError = '';
-        },
-
-        async confirmDeleteAccount() {
-            if (!this.deleteAccountPassword) {
-                this.deleteAccountError = 'Please enter your password.';
-                return;
-            }
-
-            try {
-                const res = await fetch('/user_backend/delete_account.php', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ password: this.deleteAccountPassword })
-                });
-
-                const data = await res.json();
-
-                if (data.success) {
-                    if (window.showToast) window.showToast(data.message || 'Account deleted.', 'success');
-                    // Redirect to login page after short delay
-                    setTimeout(() => {
-                        window.location.href = '/frontend/login.php';
-                    }, 1500);
-                } else {
-                    this.deleteAccountError = data.message || 'Failed to delete account.';
-                }
-            } catch (e) {
-                console.error('Delete account error:', e);
-                this.deleteAccountError = 'Network error. Please try again.';
-            }
         },
 
         // Convert any standard YouTube link into a clean Embed URL
@@ -480,10 +380,6 @@ function userDashboard() {
         async fetchFriends(retries = 1) {
             try {
                 const response = await fetch('/user_backend/get_friends.php');
-                if (response.status === 401) {
-                    window.location.href = '/frontend/login.php';
-                    return;
-                }
                 if (!response.ok) throw new Error('Failed to fetch friends');
                 
                 const data = await response.json();
@@ -833,10 +729,8 @@ function userDashboard() {
         subscribeToChatChannel(friendId) {
             const targetFriendId = Number(friendId);
             const currentUserId = Number(window.CURRENT_USER_ID);
-            if (typeof Pusher === 'undefined' || !currentUserId || !targetFriendId) {
-                console.warn('Chat subscription skipped: missing Pusher or IDs');
-                return;
-            }
+
+            if (typeof Pusher === 'undefined' || !currentUserId || !targetFriendId) return;
 
             if (!this.pusherClient) {
                 this.pusherClient = new Pusher('f4b5637ef4b8952b6eb8', {
@@ -849,15 +743,10 @@ function userDashboard() {
             const maxId = Math.max(currentUserId, targetFriendId);
             const channelName = `chat-${minId}-${maxId}`;
 
-            if (this.activeSubscriptions.has(channelName)) {
-                console.log(`Already subscribed to ${channelName}`);
-                return;
-            }
+            if (this.activeSubscriptions.has(channelName)) return;
             this.activeSubscriptions.add(channelName);
 
             const channel = this.pusherClient.subscribe(channelName);
-            console.log(`Subscribed to ${channelName}`);
-
 
             channel.bind('new_message', (data) => {
                 const senderId = Number(data.sender_id);
@@ -1012,7 +901,6 @@ function userDashboard() {
         },
 
         openReportItemModal(id, type) {
-            console.log('Opening item report modal:', { id, type }); // optional debug
             this.selectedItemIdToReport = id;
             this.reportItemType = type;
             this.reportItemDescription = '';
@@ -1036,45 +924,68 @@ function userDashboard() {
             }, 300);
         },
 
-      async submitItemReport() {
-        if (!this.selectedItemIdToReport) return;
-
-        const id = this.selectedItemIdToReport;
-        const type = this.reportItemType;
-
-        // Animate modal close (unchanged)
-        const modalEl = document.getElementById('report-item-modal-content');
-        if (modalEl && window.gsap) {
-            gsap.to(modalEl, { scale: 0.8, opacity: 0, duration: 0.3, ease: "back.in(1.5)", delay: 0.1 });
-        }
-
-        try {
-            const res = await fetch('/user_backend/submit_report.php', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    reported_item_id: id,
-                    item_type: type,
-                    reason_ids: this.selectedItemReasonIds,
-                    description: this.reportItemDescription
-                })
-            });
-
-            const data = await res.json().catch(() => ({ success: false, message: 'Invalid server response' }));
-
-            if (data.success) {
-                this.closeReportItemModal();
-                if (window.showToast) window.showToast(`${type.charAt(0).toUpperCase() + type.slice(1)} reported.`, 'success');
-            } else {
-                this.closeReportItemModal();
-                if (window.showToast) window.showToast(data.message || 'Report failed.', 'error');
+        async submitItemReport() {
+            if (!this.selectedItemIdToReport) return;
+            const id = this.selectedItemIdToReport;
+            const type = this.reportItemType;
+            const targetEl = document.getElementById(type + '-' + id);
+            
+            // Trigger insane GSAP animation FIRST
+            if (targetEl && window.gsap) {
+                const tl = gsap.timeline();
+                
+                // Shake & Flash Red
+                tl.to(targetEl, { x: -15, rotate: -3, borderColor: 'red', backgroundColor: 'rgba(255,0,0,0.5)', duration: 0.04, yoyo: true, repeat: 7 })
+                  .to(targetEl, { x: 15, rotate: 3, duration: 0.04, yoyo: true, repeat: 7 }, "-=0.28")
+                  // Glitch effect text
+                  .to(targetEl, { skewX: 30, scaleY: 0.7, filter: 'blur(3px) contrast(200%) hue-rotate(90deg)', duration: 0.1 })
+                  .to(targetEl, { skewX: -30, scaleY: 1.3, filter: 'blur(0px) contrast(150%) hue-rotate(-90deg)', duration: 0.1 })
+                  .to(targetEl, { skewX: 0, scaleY: 1, filter: 'none', duration: 0.1 })
+                  // Implode and vanish
+                  .to(targetEl, {
+                      scale: 0.01,
+                      opacity: 0,
+                      rotate: 360,
+                      duration: 0.6,
+                      ease: "power4.in",
+                      onComplete: () => {
+                          targetEl.style.display = 'none';
+                      }
+                  });
             }
-        } catch (e) {
-            console.error("Report item failed:", e);
-            this.closeReportItemModal();
-            if (window.showToast) window.showToast('Network error. Please try again.', 'error');
-        }
-    },
+            
+            // Animate the modal itself before closing
+            const modalEl = document.getElementById('report-item-modal-content');
+            const glitchEl = document.getElementById('item-modal-glitch');
+            if (modalEl && window.gsap) {
+                if (glitchEl) {
+                    gsap.to(glitchEl, { opacity: 1, duration: 0.05, yoyo: true, repeat: 5 });
+                }
+                gsap.to(modalEl, { scale: 0.8, opacity: 0, duration: 0.3, ease: "back.in(1.5)", delay: 0.1 });
+            }
+
+            try {
+                await fetch('/user_backend/submit_report.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        reported_item_id: id,
+                        item_type: type,
+                        reason_ids: this.selectedItemReasonIds,
+                        description: this.reportItemDescription
+                    })
+                });
+                
+                setTimeout(() => {
+                    this.closeReportItemModal();
+                    if (window.showToast) window.showToast(`${type.charAt(0).toUpperCase() + type.slice(1)} Obliterated.`, 'success');
+                }, 500);
+            } catch (e) {
+                console.error("Report item failed:", e);
+                this.closeReportItemModal();
+            }
+        },
+
         submitReport() {
             if (!this.selectedProfileUser) return;
             if (this.selectedReasonIds.length === 0 && !this.reportDescription.trim()) return;
@@ -1311,17 +1222,6 @@ function userDashboard() {
                 const res = await fetch(`/user_backend/get_comments.php?movie_id=${movieId}`);
                 const data = await res.json();
                 if (data.success) {
-                    const applyLikes = (comments) => {
-                        comments.forEach(c => {
-                            if (this.localLikedComments.has(Number(c.id)) || Number(c.is_liked) === 1) {
-                                c.is_liked = true;
-                            } else {
-                                c.is_liked = false;
-                            }
-                            if (c.replies) applyLikes(c.replies);
-                        });
-                    };
-                    applyLikes(data.comments);
                     this.selectedMovie.comments = data.comments;
                 }
             } catch (e) { 
@@ -1339,13 +1239,6 @@ function userDashboard() {
             // 2. Instantly update UI for the user (Optimistic UI)
             comment.is_liked = !comment.is_liked;
             comment.likes_count += comment.is_liked ? 1 : -1;
-            
-            if (comment.is_liked) {
-                this.localLikedComments.add(Number(commentId));
-            } else {
-                this.localLikedComments.delete(Number(commentId));
-            }
-            localStorage.setItem('nexus_liked_comments', JSON.stringify([...this.localLikedComments]));
             
             // Force Alpine to re-render
             this.selectedMovie.comments = [...this.selectedMovie.comments];
@@ -1505,14 +1398,6 @@ function userDashboard() {
             if (targetComment) {
                 targetComment.is_liked = !targetComment.is_liked;
                 targetComment.likes_count += targetComment.is_liked ? 1 : -1;
-                
-                if (targetComment.is_liked) {
-                    this.localLikedComments.add(Number(commentId));
-                } else {
-                    this.localLikedComments.delete(Number(commentId));
-                }
-                localStorage.setItem('nexus_liked_comments', JSON.stringify([...this.localLikedComments]));
-                
                 this.selectedMovie.comments = [...this.selectedMovie.comments];
             }
 
@@ -1732,24 +1617,14 @@ function userDashboard() {
 
         // Initialize Pusher Connection
         initPusher() {
-            if (!window.CURRENT_USER_ID || typeof Pusher === 'undefined') {
-                console.warn('Pusher init skipped: CURRENT_USER_ID or Pusher missing');
-                return;
-            }
+            if (!window.CURRENT_USER_ID || typeof Pusher === 'undefined') return;
 
-            Pusher.logToConsole = true; // ⚠️ REMOVE IN PRODUCTION
-
-            this.pusherClient = new Pusher('f4b5637ef4b8952b6eb8', {
-                cluster: 'ap1',
-                encrypted: true
-            });
-
-            this.pusherClient.connection.bind('connected', () => {
-                console.log('Pusher connected');
-            });
-            this.pusherClient.connection.bind('error', (err) => {
-                console.error('Pusher connection error:', err);
-            });
+            if (!this.pusherClient) {
+                this.pusherClient = new Pusher('f4b5637ef4b8952b6eb8', {
+                    cluster: 'ap1',
+                    encrypted: true
+                });
+            }   
 
             const channel = this.pusherClient.subscribe(`user-${window.CURRENT_USER_ID}`);
 
@@ -1885,31 +1760,25 @@ function userDashboard() {
         },
 
         async init() { 
-            //Load real user info into account form
-            if (window.NEXUS_USER) {
-                this.savedProfile = {
-                    username: window.NEXUS_USER.username || 'CurrentUser',
-                    email: window.NEXUS_USER.email || 'user@example.com'
-                };
-                this.accountForm = { ...this.savedProfile }; // copy for editing
-            }
-
             const savedBorder = localStorage.getItem('activeBorder');
-            if (savedBorder) this.activeBorderId = parseInt(savedBorder, 10);
-
+            if (savedBorder) {
+                this.activeBorderId = parseInt(savedBorder, 10);
+            } 
+            // 1. Core Config
             if (typeof gsap !== 'undefined') gsap.config({ nullTargetWarn: false });
 
-            // 1. Initialize Pusher IMMEDIATELY (synchronous)
-            this.initPusher();
-
-            // 2. Now fetch data (all async)
+            // 2. Initial Data Fetches
             this.fetchReasons();
             await this.fetchMovies(); 
             await this.fetchWatchlist();
-            await this.fetchFriends();   
+            this.fetchFriends();
             this.searchUsers();
             this.loadMissions();
             this.fetchNotifications();
+
+            // 3. Real-Time Connections
+            this.initPusher();
+            this.initAllChatSubscriptions();
 
             // 4. Watchers & Interactions
             this.$watch('friends', () => this.updateFriendsCount());
@@ -2161,13 +2030,8 @@ function watchParty() {
 
         async fetchMovies() {
             try {
-                const res = await fetch('/user_backend/movies_api.php?t=' + Date.now());
-                if (res.status === 401) {
-                    window.location.href = '/frontend/login.php';
-                    return;
-                }
+                const res = await fetch('/backend/movies_api.php?t=' + Date.now());
                 const data = await res.json();
-                console.log("Watch Party Movies:", data);
                 if (Array.isArray(data)) {
                     this.allMovies = data;
                 }
@@ -2196,10 +2060,6 @@ function watchParty() {
         async fetchFriends(retries = 1) {
             try {
                 const res = await fetch('/user_backend/get_friends.php');
-                if (res.status === 401) {
-                    window.location.href = '/frontend/login.php';
-                    return;
-                }
                 if (!res.ok) throw new Error('Failed to fetch friends');
                 const data = await res.json();
                 if (data.friends) {
@@ -3693,25 +3553,10 @@ function adminDashboard(userData = {}) {
                 return;
             }
             this.openEditMovieModal(movie);
-            this.movieTab = 'comments';
             await this.fetchMovieCommentsForAdmin(movieId);
-            
-            this.highlightCommentId = commentId;
-            
-            // Expand replies if the highlighted comment is a reply
-            for (let c of this.nestedMovieComments) {
-                if (c.replies && c.replies.some(r => r.id == commentId)) {
-                    c.show_replies = true;
-                }
-            }
-
-            // Scroll to the comment
-            setTimeout(() => {
-                const el = document.getElementById('admin-comment-' + commentId);
-                if (el) {
-                    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                }
-            }, 400);
+            window.dispatchEvent(new CustomEvent('admin-show-comment', {
+                detail: { commentId: commentId }
+            }));
         },
 
         // Shop       
@@ -4297,7 +4142,6 @@ function adminDashboard(userData = {}) {
             this.$watch('movieModalOpen', (isOpen) => {
                 if (!isOpen) {
                     this.currentMovieId = null;
-                    this.highlightCommentId = null;
                     if (this.returnToReportsAfterMovieModal) {
                         this.switchTab('reports');
                         this.returnToReportsAfterMovieModal = false;

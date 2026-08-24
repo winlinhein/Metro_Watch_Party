@@ -1,31 +1,27 @@
 <?php
 session_start();
-
-// You MUST include your database connection here so $pdo is defined
-require_once 'db_connect.php'; 
+require_once __DIR__ . '/../conn.php'; 
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'create_room') {
     
-    // Safety check: ensure the user is actually logged in before creating a room
     if (!isset($_SESSION['user_id'])) {
         echo json_encode(['success' => false, 'error' => 'User not logged in']);
         exit;
     }
 
-    // Get the host's user_id from the session
     $host_id = $_SESSION['user_id']; 
-    
-    // Generate a unique 6-character room code
+    $movie_id = isset($_POST['movie_id']) && !empty($_POST['movie_id']) ? $_POST['movie_id'] : 0;
     $room_code = substr(str_shuffle("0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ"), 0, 6);
     
-    // Insert into database
-    $stmt = $pdo->prepare("INSERT INTO rooms (room_code, host_id, status, created_at) VALUES (?, ?, 'active', NOW())");
-    $stmt->execute([$room_code, $host_id]);
-    
-    $room_id = $pdo->lastInsertId();
-    
-    // Return the room code to the frontend so they can join it
-    echo json_encode(['success' => true, 'room_code' => $room_code, 'room_id' => $room_id]);
+    // Insert into database (ensure table exists or just create room)
+    try {
+        $stmt = $conn->prepare("INSERT INTO rooms (room_code, host_id, movie_id, status, created_at) VALUES (?, ?, ?, 'active', NOW())");
+        $stmt->execute([$room_code, $host_id, $movie_id]);
+        $room_id = $conn->lastInsertId();
+        
+        echo json_encode(['success' => true, 'room_code' => $room_code, 'room_id' => $room_id]);
+    } catch (PDOException $e) {
+        echo json_encode(['success' => false, 'error' => 'Database error: ' . $e->getMessage()]);
+    }
     exit;
 }
-?>

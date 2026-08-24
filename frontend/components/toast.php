@@ -26,7 +26,7 @@
             </div>
         </div>
         
-        <!-- Progress Bar -->
+        <!-- Progress Bar (Line Counter from below) -->
         <div class="relative h-[3px] w-full bg-white/5">
             <div class="absolute top-0 left-0 h-full origin-left w-full" id="nexus-toast-progress"></div>
         </div>
@@ -34,224 +34,156 @@
 </div>
 
 <script>
-(function() {
-    let dismissTimeout = null;
-    let entranceTimeline = null;
-    let exitTimeline = null;
-    let glowTween = null;
-    let floatTween = null;
-    let progressTween = null;
-
-    function killAllAnimations() {
-        if (entranceTimeline) entranceTimeline.kill();
-        if (exitTimeline) exitTimeline.kill();
-        if (glowTween) glowTween.kill();
-        if (floatTween) floatTween.kill();
-        if (progressTween) progressTween.kill();
-        entranceTimeline = exitTimeline = glowTween = floatTween = progressTween = null;
-    }
-
-    function resetToastState() {
-        const container = document.getElementById('nexus-toast-container');
-        const toast = document.getElementById('nexus-toast');
-        if (container) container.classList.add('hidden');
-        if (toast) {
-            toast.className = "pointer-events-auto relative bg-[#050505]/95 backdrop-blur-2xl border border-white/10 rounded-2xl shadow-[0_30px_60px_rgba(0,0,0,0.9)] overflow-hidden flex flex-col p-0 opacity-0 transform translate-y-[150px] rotate-x-[-30deg] rotate-y-[15deg] scale-90";
-            toast.style.cssText = '';
-        }
-
-        const elements = [
-            'toast-icon-container', 'toast-title', 'toast-divider',
-            'toast-msg', 'nexus-toast-progress', 'toast-bg-glow',
-            'toast-icon-wrapper', 'toast-icon-bg', 'toast-icon'
-        ];
-        elements.forEach(id => {
-            const el = document.getElementById(id);
-            if (el) {
-                el.style.cssText = '';
-                if (id === 'toast-icon-wrapper') el.className = 'relative w-12 h-12 rounded-2xl border flex items-center justify-center overflow-hidden';
-                if (id === 'toast-icon-bg') el.className = 'absolute inset-0 animate-pulse';
-                if (id === 'toast-icon') el.className = 'material-symbols-outlined text-[28px] relative z-10';
-            }
-        });
-
-        // Remove type-specific classes
-        const iconWrapper = document.getElementById('toast-icon-wrapper');
-        const iconBg = document.getElementById('toast-icon-bg');
-        const icon = document.getElementById('toast-icon');
-        const divider = document.getElementById('toast-divider');
-        const progressBar = document.getElementById('nexus-toast-progress');
-
-        if (iconWrapper) iconWrapper.classList.remove('bg-red-500/10', 'border-red-500/40', 'shadow-[0_0_20px_rgba(239,68,68,0.5)]', 'bg-green-500/10', 'border-green-500/40', 'shadow-[0_0_20px_rgba(34,197,94,0.5)]');
-        if (iconBg) iconBg.classList.remove('bg-red-500/20', 'bg-green-500/20');
-        if (icon) icon.classList.remove('text-red-500', 'drop-shadow-[0_0_12px_rgba(239,68,68,1)]', 'text-green-500', 'drop-shadow-[0_0_12px_rgba(34,197,94,1)]');
-        if (divider) divider.classList.remove('from-red-500/50', 'from-green-500/50');
-        if (progressBar) progressBar.classList.remove('bg-red-500', 'shadow-[0_0_15px_rgba(239,68,68,1)]', 'bg-green-500', 'shadow-[0_0_15px_rgba(34,197,94,1)]');
-    }
-
     window.showToast = function(toastMessage, toastType) {
-        if (!toastMessage) return;
+        if (toastMessage) {
+            const container = document.getElementById('nexus-toast-container');
+            const toast = document.getElementById('nexus-toast');
+            const bgGlow = document.getElementById('toast-bg-glow');
+            const iconWrapper = document.getElementById('toast-icon-wrapper');
+            const iconBg = document.getElementById('toast-icon-bg');
+            const icon = document.getElementById('toast-icon');
+            const title = document.getElementById('toast-title');
+            const divider = document.getElementById('toast-divider');
+            const msg = document.getElementById('toast-msg');
+            const progressBar = document.getElementById('nexus-toast-progress');
 
-        const container = document.getElementById('nexus-toast-container');
-        const toast = document.getElementById('nexus-toast');
-        if (!container || !toast) return;
+            // Check that essential elements exist before manipulating classList
+            if (!container || !toast) return;
 
-        if (dismissTimeout) {
-            clearTimeout(dismissTimeout);
-            dismissTimeout = null;
-        }
-        killAllAnimations();
-        resetToastState();
+            container.classList.remove('hidden');
+            if (msg) msg.textContent = toastMessage;
 
-        container.classList.remove('hidden');
-        const msg = document.getElementById('toast-msg');
-        if (msg) msg.textContent = toastMessage;
+            // Reset existing dynamic classes safely
+            toast.className = "pointer-events-auto relative bg-[#050505]/95 backdrop-blur-2xl border border-white/10 rounded-2xl shadow-[0_30px_60px_rgba(0,0,0,0.9)] overflow-hidden flex flex-col p-0 opacity-0 transform translate-y-[150px] rotate-x-[-30deg] rotate-y-[15deg] scale-90";
 
-        const bgGlow = document.getElementById('toast-bg-glow');
-        const iconWrapper = document.getElementById('toast-icon-wrapper');
-        const iconBg = document.getElementById('toast-icon-bg');
-        const icon = document.getElementById('toast-icon');
-        const title = document.getElementById('toast-title');
-        const divider = document.getElementById('toast-divider');
-        const progressBar = document.getElementById('nexus-toast-progress');
-
-        // Apply type-specific classes
-        if (toastType === 'error') {
-            toast.classList.add('shadow-[0_15px_50px_rgba(239,68,68,0.2)]');
-            if (bgGlow) bgGlow.classList.add('from-red-600/40', 'via-red-900/5');
-            if (iconWrapper) iconWrapper.classList.add('bg-red-500/10', 'border-red-500/40', 'shadow-[0_0_20px_rgba(239,68,68,0.5)]');
-            if (iconBg) iconBg.classList.add('bg-red-500/20');
-            if (icon) {
-                icon.classList.add('text-red-500', 'drop-shadow-[0_0_12px_rgba(239,68,68,1)]');
-                icon.textContent = 'error';
+            if (toastType === 'error') {
+                toast.classList.add('shadow-[0_15px_50px_rgba(239,68,68,0.2)]');
+                if (bgGlow) bgGlow.classList.add('from-red-600/40', 'via-red-900/5');
+                if (iconWrapper) iconWrapper.classList.add('bg-red-500/10', 'border-red-500/40', 'shadow-[0_0_20px_rgba(239,68,68,0.5)]');
+                if (iconBg) iconBg.classList.add('bg-red-500/20');
+                if (icon) {
+                    icon.classList.add('text-red-500', 'drop-shadow-[0_0_12px_rgba(239,68,68,1)]');
+                    icon.textContent = 'error';
+                }
+                if (title) title.textContent = 'System Error';
+                if (divider) divider.classList.add('from-red-500/50');
+                if (progressBar) progressBar.classList.add('bg-red-500', 'shadow-[0_0_15px_rgba(239,68,68,1)]');
+            } else {
+                toast.classList.add('shadow-[0_15px_50px_rgba(34,197,94,0.2)]');
+                if (bgGlow) bgGlow.classList.add('from-green-500/40', 'via-green-900/5');
+                if (iconWrapper) iconWrapper.classList.add('bg-green-500/10', 'border-green-500/40', 'shadow-[0_0_20px_rgba(34,197,94,0.5)]');
+                if (iconBg) iconBg.classList.add('bg-green-500/20');
+                if (icon) {
+                    icon.classList.add('text-green-500', 'drop-shadow-[0_0_12px_rgba(34,197,94,1)]');
+                    icon.textContent = 'check_circle';
+                }
+                if (title) title.textContent = 'Success';
+                if (divider) divider.classList.add('from-green-500/50');
+                if (progressBar) progressBar.classList.add('bg-green-500', 'shadow-[0_0_15px_rgba(34,197,94,1)]');
             }
-            if (title) title.textContent = 'System Error';
-            if (divider) divider.classList.add('from-red-500/50');
-            if (progressBar) progressBar.classList.add('bg-red-500', 'shadow-[0_0_15px_rgba(239,68,68,1)]');
-        } else {
-            toast.classList.add('shadow-[0_15px_50px_rgba(34,197,94,0.2)]');
-            if (bgGlow) bgGlow.classList.add('from-green-500/40', 'via-green-900/5');
-            if (iconWrapper) iconWrapper.classList.add('bg-green-500/10', 'border-green-500/40', 'shadow-[0_0_20px_rgba(34,197,94,0.5)]');
-            if (iconBg) iconBg.classList.add('bg-green-500/20');
-            if (icon) {
-                icon.classList.add('text-green-500', 'drop-shadow-[0_0_12px_rgba(34,197,94,1)]');
-                icon.textContent = 'check_circle';
+            if (typeof gsap !== 'undefined') {
+                const tl = gsap.timeline();
+                
+                // Initial states for intense entrance
+                gsap.set(toast, { y: 100, opacity: 0, rotateX: 30, rotateY: -20, scale: 0.85, transformOrigin: "50% 100%" });
+                gsap.set('#toast-icon-container', { scale: 0, rotation: -180 });
+                gsap.set(title, { y: 20, opacity: 0 });
+                
+                gsap.set(divider, { scaleX: 0 });
+                gsap.set(msg, { y: 20, opacity: 0 });
+                
+                // Insane 3D Entrance Sequence
+                tl.to(toast, { 
+                     y: 0, 
+                     opacity: 1, 
+                     rotateX: 0, 
+                     rotateY: 0, 
+                     scale: 1,
+                    duration: 1.2, 
+                     ease: "expo.out",
+                    delay: 0.1
+                })
+                .to('#toast-icon-container', {
+                    scale: 1,
+                    rotation: 0,
+                    duration: 0.8,
+                    ease: "back.out(2.5)"
+                }, "-=0.9")
+                .to(title, {
+                    y: 0,
+                    opacity: 1,
+                    duration: 0.6,
+                    ease: "back.out(1.5)"
+                }, "-=0.7")
+                
+                .to(divider, {
+                    scaleX: 1,
+                    duration: 0.8,
+                    ease: "expo.out"
+                }, "-=0.5")
+                .to(msg, {
+                    y: 0,
+                    opacity: 1,
+                    duration: 0.6,
+                    ease: "power2.out"
+                }, "-=0.5");
+
+                // Continuous background glow animation
+                gsap.to(bgGlow, {
+                    opacity: 0.5,
+                    duration: 2,
+                    yoyo: true,
+                    repeat: -1,
+                    ease: "sine.inOut"
+                });
+                
+                // Floating effect on the icon
+                gsap.to('#toast-icon-container', {
+                    y: -3,
+                    duration: 1.5,
+                    yoyo: true,
+                    repeat: -1,
+                    ease: "sine.inOut",
+                    delay: 1.2
+                });
+                
+                // Progress bar animation (countdown)
+                const displayDuration = 6; // seconds
+                
+                gsap.fromTo(progressBar, 
+                     { scaleX: 1 }, 
+                     { scaleX: 0, duration: displayDuration, ease: "linear", delay: 1.2 }
+                );
+
+                // Auto dismiss animation
+                const closeToast = () => {
+                    const exitTl = gsap.timeline({
+                        onComplete: () => {
+                            if(container) container.remove();
+                        }
+                    });
+                    
+                    exitTl.to(msg, { y: 20, opacity: 0, duration: 0.3, ease: "power2.in" })
+                          .to(divider, { scaleX: 0, duration: 0.3, ease: "power2.in" }, "-=0.2")
+                          .to(title, { y: 20, opacity: 0, duration: 0.3, ease: "power2.in" }, "-=0.2")
+                          .to('#toast-icon-container', { scale: 0.5, opacity: 0, duration: 0.3, ease: "back.in(2)" }, "-=0.2")
+                          .to(toast, {
+                              y: 80,
+                              opacity: 0,
+                              rotateX: 30,
+                              scale: 0.9,
+                              duration: 0.5,
+                              ease: "power3.in"
+                          }, "-=0.1");
+                };
+
+                // Auto dismiss after duration + entrance animations
+                setTimeout(() => {
+                    if (document.body.contains(toast)) {
+                        closeToast();
+                    }
+                }, (displayDuration + 1.2) * 1000);
             }
-            if (title) title.textContent = 'Success';
-            if (divider) divider.classList.add('from-green-500/50');
-            if (progressBar) progressBar.classList.add('bg-green-500', 'shadow-[0_0_15px_rgba(34,197,94,1)]');
-        }
-
-        if (typeof gsap !== 'undefined') {
-            gsap.set(toast, { y: 100, opacity: 0, rotateX: 30, rotateY: -20, scale: 0.85, transformOrigin: "50% 100%" });
-            gsap.set('#toast-icon-container', { scale: 0, rotation: -180 });
-            gsap.set(title, { y: 20, opacity: 0 });
-            gsap.set(divider, { scaleX: 0 });
-            gsap.set(msg, { y: 20, opacity: 0 });
-
-            entranceTimeline = gsap.timeline();
-            entranceTimeline.to(toast, {
-                y: 0,
-                opacity: 1,
-                rotateX: 0,
-                rotateY: 0,
-                scale: 1,
-                duration: 1.2,
-                ease: "expo.out",
-                delay: 0.1
-            })
-            .to('#toast-icon-container', {
-                scale: 1,
-                rotation: 0,
-                duration: 0.8,
-                ease: "back.out(2.5)"
-            }, "-=0.9")
-            .to(title, {
-                y: 0,
-                opacity: 1,
-                duration: 0.6,
-                ease: "back.out(1.5)"
-            }, "-=0.7")
-            .to(divider, {
-                scaleX: 1,
-                duration: 0.8,
-                ease: "expo.out"
-            }, "-=0.5")
-            .to(msg, {
-                y: 0,
-                opacity: 1,
-                duration: 0.6,
-                ease: "power2.out"
-            }, "-=0.5");
-
-            glowTween = gsap.to(bgGlow, {
-                opacity: 0.5,
-                duration: 2,
-                yoyo: true,
-                repeat: -1,
-                ease: "sine.inOut"
-            });
-
-            floatTween = gsap.to('#toast-icon-container', {
-                y: -3,
-                duration: 1.5,
-                yoyo: true,
-                repeat: -1,
-                ease: "sine.inOut",
-                delay: 1.2
-            });
-
-            const displayDuration = 6;
-            progressTween = gsap.fromTo(progressBar,
-                { scaleX: 1 },
-                { scaleX: 0, duration: displayDuration, ease: "linear", delay: 1.2 }
-            );
-
-            dismissTimeout = setTimeout(() => {
-                if (!document.body.contains(toast)) return;
-                closeToast();
-            }, (displayDuration + 1.2) * 1000);
-        } else {
-            // Fallback without GSAP
-            toast.style.opacity = '1';
-            toast.style.transform = 'none';
-            dismissTimeout = setTimeout(() => {
-                resetToastState();
-            }, 7200);
         }
     };
-
-    function closeToast() {
-        const toast = document.getElementById('nexus-toast');
-        const msg = document.getElementById('toast-msg');
-        const divider = document.getElementById('toast-divider');
-        const title = document.getElementById('toast-title');
-        const iconContainer = document.getElementById('toast-icon-container');
-
-        if (!toast) return;
-
-        if (typeof gsap !== 'undefined') {
-            exitTimeline = gsap.timeline({
-                onComplete: () => {
-                    resetToastState();
-                    killAllAnimations();
-                }
-            });
-            exitTimeline.to(msg, { y: 20, opacity: 0, duration: 0.3, ease: "power2.in" })
-                .to(divider, { scaleX: 0, duration: 0.3, ease: "power2.in" }, "-=0.2")
-                .to(title, { y: 20, opacity: 0, duration: 0.3, ease: "power2.in" }, "-=0.2")
-                .to(iconContainer, { scale: 0.5, opacity: 0, duration: 0.3, ease: "back.in(2)" }, "-=0.2")
-                .to(toast, {
-                    y: 80,
-                    opacity: 0,
-                    rotateX: 30,
-                    scale: 0.9,
-                    duration: 0.5,
-                    ease: "power3.in"
-                }, "-=0.1");
-        } else {
-            resetToastState();
-        }
-    }
-})();
 </script>
