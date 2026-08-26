@@ -39,7 +39,22 @@
     <?php include __DIR__ . '/components/cursor.php'; ?>
     <?php include __DIR__ . '/components/toast.php'; ?>
 <div id="barba-container" data-barba="container" data-barba-namespace="register" x-data="{ showPassword: false }">
-
+    <!-- Floating Back Button -->
+    <a href="../index.php" class="fixed top-8 left-8 sm:top-12 sm:left-12 z-50 flex items-center justify-center w-14 h-14 rounded-full bg-black/40 border border-white/10 backdrop-blur-xl gs-back-btn overflow-visible" id="floating-back">
+        <!-- Magnetic hit area -->
+        <div class="absolute -inset-6 bg-transparent rounded-full gs-back-hit"></div>
+        <!-- Rotating ring -->
+        <svg class="absolute inset-[-4px] w-[calc(100%+8px)] h-[calc(100%+8px)] pointer-events-none opacity-0 gs-back-ring" viewBox="0 0 100 100">
+            <circle cx="50" cy="50" r="48" fill="none" stroke="url(#redGrad)" stroke-width="2" stroke-dasharray="100 200" stroke-linecap="round"></circle>
+            <defs>
+                <linearGradient id="redGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" stop-color="#ef4444" />
+                    <stop offset="100%" stop-color="#7f1d1d" />
+                </linearGradient>
+            </defs>
+        </svg>
+        <span class="material-symbols-outlined text-white/60 relative z-10 gs-back-icon text-[20px]">arrow_back</span>
+    </a>
 
 <!-- Ambient background animation elements -->
     <div class="absolute inset-0 z-0 overflow-hidden pointer-events-none" id="particles-container">

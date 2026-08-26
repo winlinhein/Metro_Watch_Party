@@ -87,6 +87,112 @@ function userDashboard() {
         reportItemDescription: '',
         selectedItemReasonIds: [],
 
+        //Premium Plan
+        isPremium: false,
+        isActivating: false,
+        justPaid: false,
+
+        get isGuest() {
+            return window.NEXUS_USER?.isGuest === true;
+        },
+
+        requireLogin() {
+            if (this.isGuest) {
+                if (window.showToast) window.showToast('Please login to continue', 'info');
+                return false;
+            }
+            return true;
+        },
+
+        async activatePremium() {
+            if (this.isActivating) return;
+            this.isActivating = true;
+
+            // GSAP animation sequence (as before)
+            const tl = gsap.timeline();
+            tl.to('.premium-btn', { scale: 0.9, duration: 0.2 })
+            .to('.premium-btn', { scale: 1.1, duration: 0.1, yoyo: true, repeat: 3 })
+            .to('.premium-btn', { opacity: 0, scale: 0, duration: 0.4, ease: 'back.in(1.5)' });
+            tl.to('.premium-features', { opacity: 0, y: -20, duration: 0.3, stagger: 0.1 }, '-=0.4');
+            tl.to('.premium-card', { boxShadow: '0 0 100px rgba(99,102,241,0)', duration: 0.5 }, '-=0.5');
+            tl.fromTo('.premium-loader', { scale: 0, opacity: 0 }, { scale: 1, opacity: 1, duration: 0.5, ease: 'elastic.out(1, 0.5)' });
+
+            try {
+                const res = await fetch('/user_backend/create_checkout_session.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ type: 'premium' })
+                });
+                const data = await res.json();
+                if (!data.id) throw new Error(data.error || 'Failed to create session');
+
+                const stripe = Stripe('pk_test_51U7dOOQ4txrxX3UyKFl8Esnat3ahKw22hUWtA1HpDKSozJXz9UBofzTjLNreSIOlt8sN6WM4gkS8PCw2k7fuqhUO00CcN5mWd8');
+                const { error } = await stripe.redirectToCheckout({ sessionId: data.id });
+                if (error) throw error;
+            } catch (err) {
+                console.error('Payment error:', err);
+                if (window.showToast) window.showToast('Payment failed to start.', 'error');
+                // Revert UI
+                gsap.to('.premium-loader', { opacity: 0, scale: 0, duration: 0.3 });
+                gsap.to('.premium-btn', { opacity: 1, scale: 1, duration: 0.3, delay: 0.3 });
+                gsap.to('.premium-features', { opacity: 1, y: 0, duration: 0.3, stagger: 0.1, delay: 0.3 });
+            } finally {
+                this.isActivating = false;
+            }
+        },
+
+        initPremium() {
+            if (this.isPremium) {
+                gsap.set('.premium-success-icon', { opacity: 1, scale: 1, rotation: 0 });
+                gsap.set('.premium-welcome-text', { opacity: 1, y: 0 });
+                return;
+            }
+            gsap.fromTo('.premium-badge', { y: -20, opacity: 0 }, { y: 0, opacity: 1, duration: 0.8, ease: 'elastic.out(1, 0.5)', delay: 0.2 });
+            gsap.fromTo('.premium-title', { y: 20, opacity: 0, scale: 0.9 }, { y: 0, opacity: 1, scale: 1, duration: 0.8, ease: 'power3.out', delay: 0.3 });
+            gsap.fromTo('.premium-desc', { y: 20, opacity: 0 }, { y: 0, opacity: 1, duration: 0.6, ease: 'power3.out', delay: 0.5 });
+            gsap.fromTo('.premium-features li', { x: -30, opacity: 0, scale: 0.9 }, { x: 0, opacity: 1, scale: 1, duration: 0.6, stagger: 0.1, ease: 'back.out(1.2)', delay: 0.7 });
+            gsap.fromTo('.premium-btn', { scale: 0, opacity: 0 }, { scale: 1, opacity: 1, duration: 0.8, ease: 'elastic.out(1, 0.4)', delay: 1.2 });
+        },
+
+        async checkPaymentStatus() {
+            const params = new URLSearchParams(window.location.search);
+            if (params.get('payment') === 'success') {
+                const sessionId = params.get('session_id');
+                if (sessionId) {
+                    try {
+                        const res = await fetch(`/user_backend/verify_payment.php?session_id=${sessionId}`);
+                        const data = await res.json();
+                        if (data.success) {
+                            this.justPaid = true;   // mark that payment was just completed
+                            if (window.showToast) window.showToast('Payment successful! Premium activated.', 'success');
+                        } else {
+                            if (window.showToast) window.showToast(data.message || 'Payment verification failed.', 'error');
+                        }
+                    } catch (e) {
+                        console.error('Verification error:', e);
+                    }
+                }
+                history.replaceState({}, document.title, window.location.pathname);
+            } else if (params.get('payment') === 'cancelled') {
+                if (window.showToast) window.showToast('Payment cancelled.', 'info');
+                history.replaceState({}, document.title, window.location.pathname);
+            }
+        },
+
+       async fetchPremiumStatus() {
+            try {
+                const res = await fetch('/user_backend/get_premium_status.php');
+                const data = await res.json();
+                if (data.success) {
+                    this.isPremium = data.is_premium;
+                    localStorage.setItem('nexus_premium', data.is_premium ? 'true' : 'false');
+                    if (window.NEXUS_USER) window.NEXUS_USER.is_premium = data.is_premium;
+                }
+            } catch (e) {
+                console.error('Premium status check failed', e);
+            }
+        },
+
         getAvatarUrl(name, background = 'ef4444') {
             return `https://ui-avatars.com/api/?name=${encodeURIComponent(name || 'User')}&background=${background}&color=fff&bold=true`;
         },
@@ -106,6 +212,10 @@ function userDashboard() {
             try { 
                 const response = await fetch(`/user_backend/movies_api.php?t=${Date.now()}`);
                 if (response.status === 401) {
+                    if (this.isGuest) {
+                        if (window.showToast) window.showToast('Unable to load movies. Please try again.', 'error');
+                        return;
+                    }
                     window.location.href = '/frontend/login.php';
                     return;
                 }
@@ -116,7 +226,6 @@ function userDashboard() {
                 this.movies = data;
             } catch(e) {
                 console.error("Failed to load movies from database:", e);
-                // Optional: Set an error message visible in the UI
                 this.movieError = "Failed to load movies. Please try again.";
             } 
         },
@@ -481,6 +590,10 @@ function userDashboard() {
             try {
                 const response = await fetch('/user_backend/get_friends.php');
                 if (response.status === 401) {
+                    if (this.isGuest) {
+                        if (window.showToast) window.showToast('Unable to load movies. Please try again.', 'error');
+                        return;
+                    }
                     window.location.href = '/frontend/login.php';
                     return;
                 }
@@ -1885,13 +1998,17 @@ function userDashboard() {
         },
 
         async init() { 
-            //Load real user info into account form
-            if (window.NEXUS_USER) {
+           // Load real user info into account form (only for logged-in users)
+            if (!this.isGuest && window.NEXUS_USER) {
                 this.savedProfile = {
                     username: window.NEXUS_USER.username || 'CurrentUser',
                     email: window.NEXUS_USER.email || 'user@example.com'
                 };
-                this.accountForm = { ...this.savedProfile }; // copy for editing
+                this.accountForm = { ...this.savedProfile };
+            } else {
+                // For guests, set placeholder or empty
+                this.savedProfile = { username: 'Guest', email: '' };
+                this.accountForm = { ...this.savedProfile };
             }
 
             const savedBorder = localStorage.getItem('activeBorder');
@@ -1899,22 +2016,55 @@ function userDashboard() {
 
             if (typeof gsap !== 'undefined') gsap.config({ nullTargetWarn: false });
 
-            // 1. Initialize Pusher IMMEDIATELY (synchronous)
-            this.initPusher();
+            // 1. Initialize Pusher only for logged-in users
+            if (!this.isGuest) {
+                this.initPusher();
+            }
 
-            // 2. Now fetch data (all async)
-            this.fetchReasons();
-            await this.fetchMovies(); 
-            await this.fetchWatchlist();
-            await this.fetchFriends();   
-            this.searchUsers();
-            this.loadMissions();
-            this.fetchNotifications();
+            // 2. Always fetch movies (public for everyone)
+            await this.fetchMovies();
 
-            // 4. Watchers & Interactions
-            this.$watch('friends', () => this.updateFriendsCount());
-            
-            // Debounce search watcher
+            // 3. For guests, skip all user-specific data fetching
+            if (this.isGuest) {
+                this.statsLoading = false;
+                this.stats = this.stats.map(stat => ({ ...stat, value: '0' }));
+                this.friends = [];
+                this.pendingRequests = [];
+                this.quests = { daily: [], weekly: [], monthly: [] };
+                this.watchlist = [];
+                this.notifications = [];
+                this.unreadNotifCount = 0;
+                // Set up a simple watch for showPremiumModal? Not needed.
+            } else {
+                // Logged-in user flow
+                this.fetchReasons();
+                await this.fetchWatchlist();
+                await this.fetchFriends();
+                this.searchUsers();
+                this.loadMissions();
+                this.fetchNotifications();
+                await this.checkPaymentStatus();
+                await this.fetchPremiumStatus();
+
+                if (this.justPaid) {
+                    this.showPremiumModal = true;
+                    this.justPaid = false;
+                }
+            }
+
+            // Watchers remain the same, but guard quests watchers to avoid GSAP errors
+            this.$watch('showPremiumModal', value => {
+                if (value && !this.isGuest) {
+                    this.$nextTick(() => this.initPremium());
+                }
+            });
+
+            this.$watch('friends', () => {
+                if (!this.isGuest) this.updateFriendsCount();
+            });
+
+            // Search watcher – allow searching even for guests (backend returns public data)
+            // but no actions will be possible.
             this.$watch('searchQuery', (query) => {
                 clearTimeout(this.searchTimeout);
                 const trimmed = (query || '').trim();
@@ -1923,36 +2073,35 @@ function userDashboard() {
                 this.searchTimeout = setTimeout(() => this.searchUsers(), 300);
             });
 
-            // Auto-trigger initial search when invite modal opens
             this.$watch('showInviteModal', (isOpen) => {
-                if (isOpen) this.searchUsers(this.searchQuery);
+                if (isOpen && !this.isGuest) this.searchUsers(this.searchQuery);
             });
 
-            // Watchers for Quests UI animations (Runs GSAP only when panel is toggled)
-            this.$watch('showQuestsPanel', value => {
-                if(value) {
+            if (!this.isGuest) {
+                this.$watch('showQuestsPanel', value => {
+                    if (value) {
+                        this.$nextTick(() => {
+                            gsap.fromTo('.quest-item',
+                                { x: 100, opacity: 0, scale: 0.8, rotationY: 45 },
+                                { x: 0, opacity: 1, scale: 1, rotationY: 0, duration: 0.8, stagger: 0.1, ease: 'elastic.out(1, 0.75)' }
+                            );
+                            gsap.fromTo('.quest-header',
+                                { y: -50, opacity: 0 },
+                                { y: 0, opacity: 1, duration: 0.6, ease: 'back.out(1.7)' }
+                            );
+                        });
+                    }
+                });
+
+                this.$watch('questActiveTab', value => {
                     this.$nextTick(() => {
-                        gsap.fromTo('.quest-item', 
-                            { x: 100, opacity: 0, scale: 0.8, rotationY: 45 },
-                            { x: 0, opacity: 1, scale: 1, rotationY: 0, duration: 0.8, stagger: 0.1, ease: 'elastic.out(1, 0.75)' }
-                        );
-                        gsap.fromTo('.quest-header',
-                            { y: -50, opacity: 0 },
-                            { y: 0, opacity: 1, duration: 0.6, ease: 'back.out(1.7)' }
+                        gsap.fromTo('.quest-item',
+                            { x: 50, opacity: 0, scale: 0.95 },
+                            { x: 0, opacity: 1, scale: 1, duration: 0.5, stagger: 0.05, ease: 'power3.out' }
                         );
                     });
-                }
-            });
-
-            this.$watch('questActiveTab', value => {
-                this.$nextTick(() => {
-                    gsap.fromTo('.quest-item', 
-                        { x: 50, opacity: 0, scale: 0.95 },
-                        { x: 0, opacity: 1, scale: 1, duration: 0.5, stagger: 0.05, ease: 'power3.out' }
-                    );
                 });
-            });
-
+            }
             // 5. Global Event Listeners
             window.addEventListener('keydown', (e) => {
                 if (e.key === 'Escape' && this.isNavOpen) this.closeNav();
