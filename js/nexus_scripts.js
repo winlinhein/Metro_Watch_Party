@@ -237,9 +237,11 @@ function userDashboard() {
         },
 
         // --- Account Methods ---
+        // Initialized synchronously from NEXUS_USER so the correct name is
+        // shown on the very first render, without waiting for init().
         savedProfile: {
-            username: 'CurrentUser',
-            email: 'user@example.com'
+            username: '...',   
+            email: ''
         },
         deleteAccountModalOpen: false,
         deleteAccountPassword: '',
@@ -826,6 +828,11 @@ function userDashboard() {
         },
         // Tab Navigation
         switchTab(tabId) {
+            if (this.isGuest && ['watchlist', 'account', 'shop'].includes(tabId)) {
+                window.location.href = '/frontend/login.php';
+                return;
+            }
+
             if (this.currentTab === tabId) return;
             const oldTab = this.currentTab;
             this.currentTab = tabId;
@@ -1998,15 +2005,35 @@ function userDashboard() {
         },
 
         async init() { 
-           // Load real user info into account form (only for logged-in users)
-            if (!this.isGuest && window.NEXUS_USER) {
+             // 1. Read user data from data attributes (works even on Barba transitions)
+            const root = this.$root;
+
+            if (root.dataset.currentUserId) {
+                window.CURRENT_USER_ID = Number(root.dataset.currentUserId) || null;
+            } else {
+                window.CURRENT_USER_ID = null;
+            }
+
+            if (root.dataset.nexusUser) {
+                try {
+                    window.NEXUS_USER = JSON.parse(root.dataset.nexusUser);
+                } catch (e) {
+                    console.error('Failed to parse NEXUS_USER from data attribute', e);
+                    window.NEXUS_USER = { isGuest: true, username: 'Guest', email: '' };
+                }
+            } else {
+                // Fallback (should not normally happen)
+                window.NEXUS_USER = { isGuest: true, username: 'Guest', email: '' };
+            }
+
+            // 2. Update savedProfile and accountForm based on NEXUS_USER
+            if (!window.NEXUS_USER.isGuest) {
                 this.savedProfile = {
                     username: window.NEXUS_USER.username || 'CurrentUser',
-                    email: window.NEXUS_USER.email || 'user@example.com'
+                    email: window.NEXUS_USER.email || ''
                 };
                 this.accountForm = { ...this.savedProfile };
             } else {
-                // For guests, set placeholder or empty
                 this.savedProfile = { username: 'Guest', email: '' };
                 this.accountForm = { ...this.savedProfile };
             }
