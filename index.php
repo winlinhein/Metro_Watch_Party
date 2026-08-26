@@ -260,7 +260,7 @@
                 </p>
                 
                 <div class="flex flex-wrap items-center gap-4 gs-reveal">
-                    <a href="frontend/register.php" class="animated-border px-8 py-4 font-bold text-white flex items-center gap-3 group cursor-pointer">
+                    <a href="backend/guest_login.php" class="animated-border px-8 py-4 font-bold text-white flex items-center gap-3 group cursor-pointer">
                         Launch Nexus
                         <span class="material-symbols-outlined group-hover:translate-x-1 transition-transform">rocket_launch</span>
                     </a>
