@@ -180,7 +180,13 @@ $userId = $_SESSION['user_id'] ?? null;
     <?php include __DIR__ . '/../frontend/components/cursor.php'; ?>
     <?php include __DIR__ . '/../frontend/components/toast.php'; ?>
 
-<div id="barba-container" class="flex w-full h-full" data-barba="container" data-barba-namespace="dashboard" x-data="userDashboard()" x-init="init()">
+<div id="barba-container" class="flex w-full h-full" data-barba="container" data-barba-namespace="dashboard" x-data="userDashboard()" x-init="init()" data-current-user-id="<?php echo htmlspecialchars(json_encode($userId)); ?>"
+     data-nexus-user='<?php echo htmlspecialchars(json_encode([
+         'username' => $userName,
+         'email'    => $userEmail,
+         'role'     => $userRole,
+         'isGuest'  => $userRole === 'guest'
+     ])); ?>'>
 
     <div class="bg-mesh"></div>
     <div class="noise"></div>
@@ -207,7 +213,7 @@ $userId = $_SESSION['user_id'] ?? null;
         <div class="flex-1 flex flex-col p-6 relative z-10 overflow-y-auto">
             <nav class="flex-1 flex flex-col gap-2">
                 <template x-for="item in navItems" :key="item.id">
-                    <a href="#" @click.prevent="currentTab = item.id; closeNav()" 
+                    <a href="#" @click.prevent="switchTab(item.id); closeNav()" 
                        :class="{'bg-red-500/10 border-red-500/30 text-white shadow-[0_0_20px_rgba(239,68,68,0.1)]': currentTab === item.id, 'bg-white/[0.02] border-white/5 text-white/50': currentTab !== item.id}"
                        class="flex items-center gap-3 p-3 rounded-xl border hover:bg-white/[0.05] hover:text-white transition-all duration-300 cursor-pointer group pointer-events-auto">
                         <div class="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center group-hover:bg-red-500/20 group-hover:text-red-400 transition-colors shrink-0"
@@ -234,47 +240,49 @@ $userId = $_SESSION['user_id'] ?? null;
     <div class="fixed top-0 right-0 w-full md:w-[400px] h-screen bg-[#050508]/95 backdrop-blur-3xl border-l border-white/10 z-[100] flex flex-col shadow-[0_0_50px_rgba(0,0,0,0.5)] transition-transform duration-500" :class="showQuestsPanel ? 'translate-x-0' : 'translate-x-full'">
        <!-- Quests Drawer Content for Logged-in Users -->
         <template x-if="!isGuest">
-            <!-- Header -->
-            <div class="p-6 border-b border-white/5 relative z-10 shrink-0">
-                <div class="flex items-center justify-between mb-6">
-                    <div class="flex items-center gap-3">
-                        <div class="w-10 h-10 rounded-xl bg-yellow-500/10 border border-yellow-500/20 flex items-center justify-center">
-                            <span class="material-symbols-outlined text-yellow-400">stars</span>
+            <div class="flex flex-col flex-1 min-h-0">
+                <!-- Header -->
+                <div class="p-6 border-b border-white/5 relative z-10 shrink-0">
+                    <div class="flex items-center justify-between mb-6">
+                        <div class="flex items-center gap-3">
+                            <div class="w-10 h-10 rounded-xl bg-yellow-500/10 border border-yellow-500/20 flex items-center justify-center">
+                                <span class="material-symbols-outlined text-yellow-400">stars</span>
+                            </div>
+                            <div>
+                                <h2 class="text-xl font-bold text-white tracking-tight">Quests</h2>
+                                <p class="text-xs text-white/50 mono"><span x-text="stats[3].value"></span> PTS AVAILABLE</p>
+                            </div>
                         </div>
-                        <div>
-                            <h2 class="text-xl font-bold text-white tracking-tight">Quests</h2>
-                            <p class="text-xs text-white/50 mono"><span x-text="stats[3].value"></span> PTS AVAILABLE</p>
-                        </div>
+                        <button @click="showQuestsPanel = false" class="w-8 h-8 rounded-lg bg-white/5 hover:bg-white/10 flex items-center justify-center text-white/50 hover:text-white">
+                            <span class="material-symbols-outlined text-[18px]">close</span>
+                        </button>
                     </div>
-                    <button @click="showQuestsPanel = false" class="w-8 h-8 rounded-lg bg-white/5 hover:bg-white/10 flex items-center justify-center text-white/50 hover:text-white">
-                        <span class="material-symbols-outlined text-[18px]">close</span>
-                    </button>
+                    
+                    <div class="flex items-center gap-2 bg-black/40 p-1 rounded-xl border border-white/5">
+                        <button @click="questActiveTab = 'daily'" class="flex-1 py-1.5 text-xs font-bold rounded-lg uppercase" :class="questActiveTab === 'daily' ? 'bg-yellow-500/20 text-yellow-400' : 'text-white/40'">Daily</button>
+                        <button @click="questActiveTab = 'weekly'" class="flex-1 py-1.5 text-xs font-bold rounded-lg uppercase" :class="questActiveTab === 'weekly' ? 'bg-yellow-500/20 text-yellow-400' : 'text-white/40'">Weekly</button>
+                        <button @click="questActiveTab = 'monthly'" class="flex-1 py-1.5 text-xs font-bold rounded-lg uppercase" :class="questActiveTab === 'monthly' ? 'bg-yellow-500/20 text-yellow-400' : 'text-white/40'">Monthly</button>
+                    </div>
                 </div>
                 
-                <div class="flex items-center gap-2 bg-black/40 p-1 rounded-xl border border-white/5">
-                    <button @click="questActiveTab = 'daily'" class="flex-1 py-1.5 text-xs font-bold rounded-lg uppercase" :class="questActiveTab === 'daily' ? 'bg-yellow-500/20 text-yellow-400' : 'text-white/40'">Daily</button>
-                    <button @click="questActiveTab = 'weekly'" class="flex-1 py-1.5 text-xs font-bold rounded-lg uppercase" :class="questActiveTab === 'weekly' ? 'bg-yellow-500/20 text-yellow-400' : 'text-white/40'">Weekly</button>
-                    <button @click="questActiveTab = 'monthly'" class="flex-1 py-1.5 text-xs font-bold rounded-lg uppercase" :class="questActiveTab === 'monthly' ? 'bg-yellow-500/20 text-yellow-400' : 'text-white/40'">Monthly</button>
-                </div>
-            </div>
-            
-            <!-- Quest List -->
-            <div class="flex-1 overflow-y-auto p-6 relative z-10 space-y-4">
-                <template x-for="quest in quests[questActiveTab]" :key="quest.id">
-                    <div class="bg-white/5 border border-white/10 rounded-xl p-4">
-                        <div class="flex justify-between items-start mb-2">
-                            <div>
-                                <h4 class="text-sm font-bold text-white" x-text="quest.title"></h4>
-                                <p class="text-[11px] text-white/50" x-text="quest.desc"></p>
+                <!-- Quest List -->
+                <div class="flex-1 overflow-y-auto p-6 relative z-10 space-y-4">
+                    <template x-for="quest in quests[questActiveTab]" :key="quest.id">
+                        <div class="bg-white/5 border border-white/10 rounded-xl p-4">
+                            <div class="flex justify-between items-start mb-2">
+                                <div>
+                                    <h4 class="text-sm font-bold text-white" x-text="quest.title"></h4>
+                                    <p class="text-[11px] text-white/50" x-text="quest.desc"></p>
+                                </div>
+                                <span class="material-symbols-outlined text-[18px]" :class="quest.completed ? 'text-green-400' : 'text-white/30'" x-text="quest.completed ? 'check_circle' : 'hourglass_empty'"></span>
                             </div>
-                            <span class="material-symbols-outlined text-[18px]" :class="quest.completed ? 'text-green-400' : 'text-white/30'" x-text="quest.completed ? 'check_circle' : 'hourglass_empty'"></span>
+                            <div class="flex justify-between items-center mt-3">
+                                <span class="text-[10px] font-bold text-yellow-400 mono" x-text="quest.points + ' PTS'"></span>
+                                <button class="text-[10px] uppercase font-bold text-yellow-400 hover:underline" x-text="quest.completed ? 'Claimed' : 'Claim'"></button>
+                            </div>
                         </div>
-                        <div class="flex justify-between items-center mt-3">
-                            <span class="text-[10px] font-bold text-yellow-400 mono" x-text="quest.points + ' PTS'"></span>
-                            <button class="text-[10px] uppercase font-bold text-yellow-400 hover:underline" x-text="quest.completed ? 'Claimed' : 'Claim'"></button>
-                        </div>
-                    </div>
-                </template>
+                    </template>
+                </div>
             </div>
         </template>
 
@@ -306,132 +314,134 @@ $userId = $_SESSION['user_id'] ?? null;
         
         <!-- Friends Drawer Content for Logged-in Users -->
         <template x-if="!isGuest">
-            <!-- Header -->
-            <div class="p-4 border-b border-white/5 relative z-10 shrink-0 bg-gradient-to-b from-white/[0.02] to-transparent">
-                <div class="flex items-center justify-between mb-4">
-                    <div class="flex items-center gap-3">
-                        <div class="w-9 h-9 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center shadow-[0_0_15px_rgba(16,185,129,0.1)] shrink-0">
-                            <span class="material-symbols-outlined text-emerald-400 text-[18px]">group</span>
+            <div class="flex flex-col flex-1 min-h-0">
+                <!-- Header -->
+                <div class="p-4 border-b border-white/5 relative z-10 shrink-0 bg-gradient-to-b from-white/[0.02] to-transparent">
+                    <div class="flex items-center justify-between mb-4">
+                        <div class="flex items-center gap-3">
+                            <div class="w-9 h-9 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center shadow-[0_0_15px_rgba(16,185,129,0.1)] shrink-0">
+                                <span class="material-symbols-outlined text-emerald-400 text-[18px]">group</span>
+                            </div>
+                            <div>
+                                <h2 class="text-base font-bold uppercase tracking-wider text-white">Friends</h2>
+                                <p class="text-[10px] text-emerald-400/90 uppercase tracking-widest font-mono mt-0.5 flex items-center gap-1.5">
+                                    <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                                    <span x-text="friends.length"></span> Active Friends
+                                </p>
+                            </div>
                         </div>
-                        <div>
-                            <h2 class="text-base font-bold uppercase tracking-wider text-white">Friends</h2>
-                            <p class="text-[10px] text-emerald-400/90 uppercase tracking-widest font-mono mt-0.5 flex items-center gap-1.5">
-                                <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
-                                <span x-text="friends.length"></span> Active Friends
-                            </p>
+                        <div class="flex items-center gap-1.5">
+                            <button @click="showInviteModal = true" class="w-8 h-8 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/20 hover:border-emerald-500/40 transition-all duration-200 flex items-center justify-center group" title="Search Users">
+                                <span class="material-symbols-outlined text-[16px] group-hover:scale-110 transition-transform">person_add</span>
+                            </button>
+                            <button @click="showFriendsPanel = false" class="w-8 h-8 rounded-lg bg-white/5 hover:bg-white/10 text-white/40 hover:text-white border border-white/5 transition-all duration-200 flex items-center justify-center">
+                                <span class="material-symbols-outlined text-[16px]">close</span>
+                            </button>
                         </div>
                     </div>
-                    <div class="flex items-center gap-1.5">
-                        <button @click="showInviteModal = true" class="w-8 h-8 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/20 hover:border-emerald-500/40 transition-all duration-200 flex items-center justify-center group" title="Search Users">
-                            <span class="material-symbols-outlined text-[16px] group-hover:scale-110 transition-transform">person_add</span>
-                        </button>
-                        <button @click="showFriendsPanel = false" class="w-8 h-8 rounded-lg bg-white/5 hover:bg-white/10 text-white/40 hover:text-white border border-white/5 transition-all duration-200 flex items-center justify-center">
-                            <span class="material-symbols-outlined text-[16px]">close</span>
-                        </button>
-                    </div>
-                </div>
 
-                <!-- Friends Sub-Tabs -->
-                <div class="flex items-center gap-2 bg-black/40 p-1 rounded-xl border border-white/5 mb-3">
-                    <button @click="friendsTab = 'connected'" 
-                            class="flex-1 py-1.5 text-[11px] font-bold rounded-lg uppercase transition-all" 
-                            :class="friendsTab === 'connected' ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'text-white/40 hover:text-white'">
-                        Connected (<span x-text="friends.length"></span>)
-                    </button>
-                    <button @click="friendsTab = 'pending'" 
-                            class="flex-1 py-1.5 text-[11px] font-bold rounded-lg uppercase transition-all relative" 
-                            :class="friendsTab === 'pending' ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'text-white/40 hover:text-white'">
-                        Requests (<span x-text="pendingRequests.length"></span>)
-                        <template x-if="pendingRequests.length > 0">
-                            <span class="w-2 h-2 rounded-full bg-red-500 absolute top-1 right-1 animate-pulse"></span>
-                        </template>
-                    </button>
+                    <!-- Friends Sub-Tabs -->
+                    <div class="flex items-center gap-2 bg-black/40 p-1 rounded-xl border border-white/5 mb-3">
+                        <button @click="friendsTab = 'connected'" 
+                                class="flex-1 py-1.5 text-[11px] font-bold rounded-lg uppercase transition-all" 
+                                :class="friendsTab === 'connected' ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'text-white/40 hover:text-white'">
+                            Connected (<span x-text="friends.length"></span>)
+                        </button>
+                        <button @click="friendsTab = 'pending'" 
+                                class="flex-1 py-1.5 text-[11px] font-bold rounded-lg uppercase transition-all relative" 
+                                :class="friendsTab === 'pending' ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'text-white/40 hover:text-white'">
+                            Requests (<span x-text="pendingRequests.length"></span>)
+                            <template x-if="pendingRequests.length > 0">
+                                <span class="w-2 h-2 rounded-full bg-red-500 absolute top-1 right-1 animate-pulse"></span>
+                            </template>
+                        </button>
+                    </div>
+                    
+                    <!-- Filter Input -->
+                    <div class="relative">
+                        <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-white/30 text-[16px]">search</span>
+                        <input type="text" 
+                            x-model="friendSearchQuery" 
+                            placeholder="Filter users..." 
+                            class="w-full bg-white/[0.03] border border-white/10 focus:border-emerald-500/50 rounded-xl py-2 pl-9 pr-3 text-[11px] text-white placeholder-white/30 outline-none">
+                    </div>
                 </div>
                 
-                <!-- Filter Input -->
-                <div class="relative">
-                    <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-white/30 text-[16px]">search</span>
-                    <input type="text" 
-                        x-model="friendSearchQuery" 
-                        placeholder="Filter users..." 
-                        class="w-full bg-white/[0.03] border border-white/10 focus:border-emerald-500/50 rounded-xl py-2 pl-9 pr-3 text-[11px] text-white placeholder-white/30 outline-none">
-                </div>
-            </div>
-            
-            <!-- Tab 1: Connected Friends List -->
-            <div x-show="friendsTab === 'connected'" class="flex-1 overflow-y-auto p-3 space-y-2.5 custom-scrollbar relative z-10">
-                <template x-for="friend in filteredFriends" :key="friend.user_id">
-                    <div class="group relative bg-gradient-to-br from-white/[0.04] to-white/[0.01] hover:from-white/[0.07] hover:to-emerald-500/[0.04] border border-white/10 hover:border-emerald-500/30 rounded-xl p-3 transition-all duration-300">
-                        <div class="flex items-center justify-between gap-2.5">
-                            <div class="flex items-center gap-2.5 min-w-0 flex-1 cursor-pointer hover:opacity-80" @click.stop="toggleDropdown(friend, $event)">
-                                <div class="relative shrink-0 cursor-pointer hover:scale-105 transition-transform" @click.stop="toggleDropdown(friend, $event)">
-                                    <img :src="`https://ui-avatars.com/api/?name=${encodeURIComponent(friend.user_name)}&background=10b981&color=fff`" 
-                                        class="w-9 h-9 rounded-full border border-emerald-500/30 shadow-md object-cover">
-                                    <span class="absolute -bottom-0.5 -right-0.5 flex h-2.5 w-2.5">
-                                        <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                                        <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500 border-2 border-[#07070b]"></span>
-                                    </span>
+                <!-- Tab 1: Connected Friends List -->
+                <div x-show="friendsTab === 'connected'" class="flex-1 overflow-y-auto p-3 space-y-2.5 custom-scrollbar relative z-10">
+                    <template x-for="friend in filteredFriends" :key="friend.user_id">
+                        <div class="group relative bg-gradient-to-br from-white/[0.04] to-white/[0.01] hover:from-white/[0.07] hover:to-emerald-500/[0.04] border border-white/10 hover:border-emerald-500/30 rounded-xl p-3 transition-all duration-300">
+                            <div class="flex items-center justify-between gap-2.5">
+                                <div class="flex items-center gap-2.5 min-w-0 flex-1 cursor-pointer hover:opacity-80" @click.stop="toggleDropdown(friend, $event)">
+                                    <div class="relative shrink-0 cursor-pointer hover:scale-105 transition-transform" @click.stop="toggleDropdown(friend, $event)">
+                                        <img :src="`https://ui-avatars.com/api/?name=${encodeURIComponent(friend.user_name)}&background=10b981&color=fff`" 
+                                            class="w-9 h-9 rounded-full border border-emerald-500/30 shadow-md object-cover">
+                                        <span class="absolute -bottom-0.5 -right-0.5 flex h-2.5 w-2.5">
+                                            <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                                            <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500 border-2 border-[#07070b]"></span>
+                                        </span>
+                                    </div>
+                                    <div class="min-w-0 flex-1 cursor-pointer" @click.stop="toggleDropdown(friend, $event)">
+                                        <h4 class="text-xs font-semibold text-white/90 truncate" x-text="friend.user_name"></h4>
+                                    </div>
                                 </div>
-                                <div class="min-w-0 flex-1 cursor-pointer" @click.stop="toggleDropdown(friend, $event)">
-                                    <h4 class="text-xs font-semibold text-white/90 truncate" x-text="friend.user_name"></h4>
-                                </div>
-                            </div>
-                            
-                            <button @click="openChat(friend)" 
-                                :class="friend.unread_count > 0 ? 'bg-emerald-500/20 border-emerald-500/50 shadow-lg shadow-emerald-500/10' : 'bg-emerald-500/10 hover:bg-emerald-500/20 border-emerald-500/20 hover:border-emerald-500/40'"
-                                class="shrink-0 flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-emerald-400 text-[10px] font-semibold uppercase tracking-wider border transition-all relative">
                                 
-                                <span class="material-symbols-outlined text-[13px]">chat</span>
-                                <span>Chat</span>
+                                <button @click="openChat(friend)" 
+                                    :class="friend.unread_count > 0 ? 'bg-emerald-500/20 border-emerald-500/50 shadow-lg shadow-emerald-500/10' : 'bg-emerald-500/10 hover:bg-emerald-500/20 border-emerald-500/20 hover:border-emerald-500/40'"
+                                    class="shrink-0 flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-emerald-400 text-[10px] font-semibold uppercase tracking-wider border transition-all relative">
+                                    
+                                    <span class="material-symbols-outlined text-[13px]">chat</span>
+                                    <span>Chat</span>
 
-                                <template x-if="friend.unread_count > 0">
-                                    <span class="inline-flex items-center justify-center px-1.5 py-0.5 text-[9px] font-extrabold leading-none text-white bg-red-500 rounded-full animate-pulse shadow-sm"
-                                        x-text="friend.unread_count > 99 ? '99+' : friend.unread_count">
-                                    </span>
-                                </template>
-                            </button>
-                        </div>
-                    </div>
-                </template>
-
-                <div x-show="filteredFriends.length === 0" class="py-10 text-center">
-                    <span class="material-symbols-outlined text-white/30 text-[24px]">group_off</span>
-                    <p class="text-[11px] text-white/40 mt-1">No friends found</p>
-                </div>
-            </div>
-
-            <!-- Tab 2: Pending Incoming Friend Requests -->
-            <div x-show="friendsTab === 'pending'" class="flex-1 overflow-y-auto p-3 space-y-2.5 custom-scrollbar relative z-10" style="display: none;">
-                <template x-for="req in pendingRequests" :key="req.user_id">
-                    <div class="bg-gradient-to-br from-white/[0.04] to-white/[0.01] border border-yellow-500/30 rounded-xl p-3 transition-all">
-                        <div class="flex items-center justify-between gap-2 mb-2">
-                            <div class="flex items-center gap-2.5 min-w-0 flex-1 cursor-pointer hover:opacity-80" @click.stop="toggleDropdown(req, $event)">
-                                <img :src="`https://ui-avatars.com/api/?name=${encodeURIComponent(req.user_name)}&background=f59e0b&color=fff`" 
-                                    class="w-8 h-8 rounded-full border border-yellow-500/30 object-cover shrink-0">
-                                <div class="min-w-0 flex-1 cursor-pointer" @click.stop="toggleDropdown(req, $event)">
-                                    <h4 class="text-xs font-semibold text-white truncate" x-text="req.user_name"></h4>
-                                    <p class="text-[9px] text-yellow-400 uppercase font-mono tracking-wider">Added you</p>
-                                </div>
+                                    <template x-if="friend.unread_count > 0">
+                                        <span class="inline-flex items-center justify-center px-1.5 py-0.5 text-[9px] font-extrabold leading-none text-white bg-red-500 rounded-full animate-pulse shadow-sm"
+                                            x-text="friend.unread_count > 99 ? '99+' : friend.unread_count">
+                                        </span>
+                                    </template>
+                                </button>
                             </div>
                         </div>
+                    </template>
 
-                        <div class="flex items-center gap-2 mt-2">
-                            <button @click="respondToFriendRequest(req.user_id, 'accept')" 
-                                    class="flex-1 py-1.5 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 border border-emerald-500/30 text-[10px] font-bold uppercase tracking-wider transition-all flex items-center justify-center gap-1">
-                                <span class="material-symbols-outlined text-[14px]">person_add</span>
-                                <span>Add Back</span>
-                            </button>
-                            <button @click="respondToFriendRequest(req.user_id, 'decline')" 
-                                    class="py-1.5 px-3 rounded-lg bg-white/5 hover:bg-white/10 text-white/40 hover:text-white border border-white/10 text-[10px] font-bold uppercase transition-all">
-                                Decline
-                            </button>
-                        </div>
+                    <div x-show="filteredFriends.length === 0" class="py-10 text-center">
+                        <span class="material-symbols-outlined text-white/30 text-[24px]">group_off</span>
+                        <p class="text-[11px] text-white/40 mt-1">No friends found</p>
                     </div>
-                </template>
+                </div>
 
-                <div x-show="pendingRequests.length === 0" class="py-10 text-center">
-                    <span class="material-symbols-outlined text-white/30 text-[24px]">inbox</span>
-                    <p class="text-[11px] text-white/40 mt-1">No pending requests</p>
+                <!-- Tab 2: Pending Incoming Friend Requests -->
+                <div x-show="friendsTab === 'pending'" class="flex-1 overflow-y-auto p-3 space-y-2.5 custom-scrollbar relative z-10" style="display: none;">
+                    <template x-for="req in pendingRequests" :key="req.user_id">
+                        <div class="bg-gradient-to-br from-white/[0.04] to-white/[0.01] border border-yellow-500/30 rounded-xl p-3 transition-all">
+                            <div class="flex items-center justify-between gap-2 mb-2">
+                                <div class="flex items-center gap-2.5 min-w-0 flex-1 cursor-pointer hover:opacity-80" @click.stop="toggleDropdown(req, $event)">
+                                    <img :src="`https://ui-avatars.com/api/?name=${encodeURIComponent(req.user_name)}&background=f59e0b&color=fff`" 
+                                        class="w-8 h-8 rounded-full border border-yellow-500/30 object-cover shrink-0">
+                                    <div class="min-w-0 flex-1 cursor-pointer" @click.stop="toggleDropdown(req, $event)">
+                                        <h4 class="text-xs font-semibold text-white truncate" x-text="req.user_name"></h4>
+                                        <p class="text-[9px] text-yellow-400 uppercase font-mono tracking-wider">Added you</p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="flex items-center gap-2 mt-2">
+                                <button @click="respondToFriendRequest(req.user_id, 'accept')" 
+                                        class="flex-1 py-1.5 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 border border-emerald-500/30 text-[10px] font-bold uppercase tracking-wider transition-all flex items-center justify-center gap-1">
+                                    <span class="material-symbols-outlined text-[14px]">person_add</span>
+                                    <span>Add Back</span>
+                                </button>
+                                <button @click="respondToFriendRequest(req.user_id, 'decline')" 
+                                        class="py-1.5 px-3 rounded-lg bg-white/5 hover:bg-white/10 text-white/40 hover:text-white border border-white/10 text-[10px] font-bold uppercase transition-all">
+                                    Decline
+                                </button>
+                            </div>
+                        </div>
+                    </template>
+
+                    <div x-show="pendingRequests.length === 0" class="py-10 text-center">
+                        <span class="material-symbols-outlined text-white/30 text-[24px]">inbox</span>
+                        <p class="text-[11px] text-white/40 mt-1">No pending requests</p>
+                    </div>
                 </div>
             </div>
         </template>
@@ -593,8 +603,8 @@ $userId = $_SESSION['user_id'] ?? null;
                             <div class="flex items-center gap-2">
                                 <span class="material-symbols-outlined text-[16px]">workspace_premium</span> Manage Plan
                             </div>
-                            <span x-show="localStorage.getItem('nexus_premium') === 'true'" class="text-[9px] px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-400 font-bold uppercase border border-emerald-500/30">Active</span>
-                            <span x-show="localStorage.getItem('nexus_premium') !== 'true'" class="text-[9px] px-1.5 py-0.5 rounded bg-white/10 text-white/40 font-bold uppercase border border-white/10">Inactive</span>
+                            <span x-show="isPremium" class="text-[9px] px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-400 font-bold uppercase border border-emerald-500/30">Active</span>
+                            <span x-show="!isPremium" class="text-[9px] px-1.5 py-0.5 rounded bg-white/10 text-white/40 font-bold uppercase border border-white/10">Inactive</span>
                         </button>
                     </div>
                 </div>
@@ -729,7 +739,8 @@ $userId = $_SESSION['user_id'] ?? null;
                                             <p class="text-[10px] font-mono text-yellow-500/70 tracking-[0.2em] uppercase">Membership</p>
                                         </div>
                                     </div>
-                                    <span class="px-3 py-1 bg-yellow-500/10 border border-yellow-500/30 rounded-full text-yellow-400 text-[10px] font-bold uppercase tracking-widest animate-pulse">Active</span>
+                                    <span x-show="isPremium" class="px-3 py-1 bg-yellow-500/10 border border-yellow-500/30 rounded-full text-yellow-400 text-[10px] font-bold uppercase tracking-widest animate-pulse">Active</span>
+                                    <span x-show="!isPremium" class="px-3 py-1 bg-white/10 border border-white/10 rounded-full text-white/40 text-[10px] font-bold uppercase tracking-widest">Inactive</span>
                                 </div>
 
                                 <!-- Benefits List -->
@@ -780,9 +791,9 @@ $userId = $_SESSION['user_id'] ?? null;
         </div>
 
         <!-- Watchlist Section Included -->
+        <?php include "user_movies.php"; ?>
         <?php if ($userRole !== 'guest'): ?>
             <?php include "watchlist.php"; ?>
-            <?php include "user_movies.php"; ?>
             <?php include "user_shop.php"; ?>
             <?php include "account.php"; ?>
             <?php include "user_premium.php"; ?>

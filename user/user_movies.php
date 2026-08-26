@@ -56,13 +56,13 @@
                         </div>
 
                         <!-- Watchlist Button Overlay -->
-                        <button @click.stop="toggleWatchlist(movie)" 
+                        <button @click.stop="isGuest ? window.location.href='../frontend/login.php' : toggleWatchlist(movie)" 
                                 class="absolute top-4 right-4 z-40 group/watchlist w-10 h-10 flex items-center justify-center rounded-xl backdrop-blur-xl border transition-all duration-500 overflow-hidden transform-gpu"
                                 :class="movie.inWatchlist ? 'bg-indigo-500/20 border-indigo-400/50 shadow-[0_0_20px_rgba(99,102,241,0.5)]' : 'bg-black/40 border-white/10 hover:border-indigo-500/50 hover:bg-black/60'">
                             <span class="material-symbols-outlined relative z-10 transition-all duration-500 transform group-hover/watchlist:scale-110"
-                                  :class="movie.inWatchlist ? 'text-indigo-400' : 'text-white/60 group-hover/watchlist:text-white'"
-                                  :style="movie.inWatchlist ? 'font-variation-settings: \'FILL\' 1;' : ''"
-                                  x-text="movie.inWatchlist ? 'bookmark_added' : 'bookmark_add'"></span>
+                                :class="movie.inWatchlist ? 'text-indigo-400' : 'text-white/60 group-hover/watchlist:text-white'"
+                                :style="movie.inWatchlist ? 'font-variation-settings: \'FILL\' 1;' : ''"
+                                x-text="movie.inWatchlist ? 'bookmark_added' : 'bookmark_add'"></span>
                         </button>
 
                         <div x-show="!(hovered && (movie.trailer || movie.video_url))"
@@ -155,7 +155,7 @@
                                     <h2 class="text-3xl font-black text-white" x-text="selectedMovie?.title"></h2>
                                     
                                     <!-- NEW: Watchlist Button inside Modal -->
-                                    <button @click="toggleWatchlist(selectedMovie)" 
+                                    <button @click="isGuest ? window.location.href='../frontend/login.php' : toggleWatchlist(selectedMovie)" 
                                             class="px-3 py-1.5 rounded-xl border flex items-center gap-1.5 text-xs font-bold transition-all duration-300"
                                             :class="selectedMovie?.inWatchlist ? 'bg-indigo-500/20 text-indigo-400 border-indigo-500/40 shadow-[0_0_15px_rgba(99,102,241,0.3)]' : 'bg-white/5 text-white/70 hover:text-white border-white/10 hover:border-indigo-500/40'">
                                         <span class="material-symbols-outlined text-[16px]"
@@ -165,7 +165,7 @@
                                     </button>
                                     
                                     <!-- Host Party Button inside Modal -->
-                                    <button @click="createParty(selectedMovie?.id || selectedMovie?.movie_id)" 
+                                    <button @click="isGuest ? window.location.href='../frontend/login.php' : createParty(selectedMovie?.id || selectedMovie?.movie_id)"
                                             class="px-3 py-1.5 rounded-xl border border-red-500/40 bg-red-500/10 text-red-400 hover:bg-red-500 hover:text-white flex items-center gap-1.5 text-xs font-bold transition-all duration-300 shadow-[0_0_15px_rgba(239,68,68,0.1)] hover:shadow-[0_0_25px_rgba(239,68,68,0.4)]">
                                         <span class="material-symbols-outlined text-[16px]">celebration</span>
                                         <span>Host Party</span>
@@ -211,49 +211,64 @@
                                     <span class="px-2 py-0.5 rounded-full bg-white/5 text-white/50 text-[10px]" x-text="selectedMovie?.comments ? selectedMovie?.comments.length : 0"></span>
                                 </h3>
 
-                                <!-- Submit Review Form -->
-                                <div class="bg-gradient-to-br from-[#0a0a0f] to-[#050508] p-5 rounded-2xl border border-white/5 shadow-inner mb-8 relative overflow-hidden group">
-                                    <div class="relative z-10">
-                                        <div class="flex flex-col sm:flex-row sm:items-center gap-4 mb-4">
-                                            <div class="flex gap-1">
-                                                <template x-for="i in 5">
-                                                    <button @mouseenter="hoveredRating = i" 
-                                                            @mouseleave="hoveredRating = 0" 
-                                                            @click="newRating = i" 
-                                                            class="transition-all duration-300 transform hover:scale-125 focus:outline-none"
-                                                            :class="(hoveredRating >= i || newRating >= i) ? 'text-yellow-400 drop-shadow-[0_0_10px_rgba(234,179,8,0.5)]' : 'text-white/20'">
-                                                        <span class="material-symbols-outlined text-[28px]" :style="(hoveredRating >= i || newRating >= i) ? 'font-variation-settings: \'FILL\' 1;' : ''">star</span>
-                                                    </button>
-                                                </template>
+                                <template x-if="!isGuest">
+                                    <!-- Submit Review Form -->
+                                    <div class="bg-gradient-to-br from-[#0a0a0f] to-[#050508] p-5 rounded-2xl border border-white/5 shadow-inner mb-8 relative overflow-hidden group">
+                                        <div class="relative z-10">
+                                            <div class="flex flex-col sm:flex-row sm:items-center gap-4 mb-4">
+                                                <div class="flex gap-1">
+                                                    <template x-for="i in 5">
+                                                        <button @mouseenter="hoveredRating = i" 
+                                                                @mouseleave="hoveredRating = 0" 
+                                                                @click="newRating = i" 
+                                                                class="transition-all duration-300 transform hover:scale-125 focus:outline-none"
+                                                                :class="(hoveredRating >= i || newRating >= i) ? 'text-yellow-400 drop-shadow-[0_0_10px_rgba(234,179,8,0.5)]' : 'text-white/20'">
+                                                            <span class="material-symbols-outlined text-[28px]" :style="(hoveredRating >= i || newRating >= i) ? 'font-variation-settings: \'FILL\' 1;' : ''">star</span>
+                                                        </button>
+                                                    </template>
+                                                </div>
+                                                <span class="text-xs font-bold uppercase tracking-wider transition-colors duration-300" 
+                                                    :class="newRating > 0 ? 'text-yellow-400' : 'text-white/30'"
+                                                    x-text="newRating === 0 ? 'Select Rating' : newRating + ' out of 5 stars'"></span>
                                             </div>
-                                            <span class="text-xs font-bold uppercase tracking-wider transition-colors duration-300" 
-                                                  :class="newRating > 0 ? 'text-yellow-400' : 'text-white/30'"
-                                                  x-text="newRating === 0 ? 'Select Rating' : newRating + ' out of 5 stars'"></span>
-                                        </div>
-                                        
-                                        <div class="relative">
-                                            <textarea x-model="commentText" 
-                                                      class="w-full bg-black/40 border border-white/10 rounded-xl p-4 pb-14 text-sm text-white placeholder-white/30 focus:border-indigo-500/50 outline-none resize-none transition-all duration-300 custom-scrollbar"
-                                                      rows="3" 
-                                                      placeholder="Share your thoughts about this title..."></textarea>
-                                                      
-                                            <div class="absolute bottom-3 right-3">
-                                                <button @click="handleReviewSubmission()" 
-                                                        :disabled="isSubmittingReview || (newRating === 0 && commentText.trim() === '')"
-                                                        class="px-5 py-2 rounded-lg font-bold text-xs uppercase tracking-wider transition-all duration-300 flex items-center gap-2"
-                                                        :class="(isSubmittingReview || (newRating === 0 && commentText.trim() === '')) ? 'bg-white/5 text-white/30 cursor-not-allowed' : 'bg-indigo-600 hover:bg-indigo-500 text-white shadow-[0_0_20px_rgba(99,102,241,0.4)]'">
-                                                    <span x-show="!isSubmittingReview" class="flex items-center gap-2">
-                                                        Post Review <span class="material-symbols-outlined text-[16px]">send</span>
-                                                    </span>
-                                                    <span x-show="isSubmittingReview" class="flex items-center gap-2">
-                                                        Posting <span class="material-symbols-outlined text-[16px] animate-spin">sync</span>
-                                                    </span>
-                                                </button>
+                                            
+                                            <div class="relative">
+                                                <textarea x-model="commentText" 
+                                                        class="w-full bg-black/40 border border-white/10 rounded-xl p-4 pb-14 text-sm text-white placeholder-white/30 focus:border-indigo-500/50 outline-none resize-none transition-all duration-300 custom-scrollbar"
+                                                        rows="3" 
+                                                        placeholder="Share your thoughts about this title..."></textarea>
+                                                        
+                                                <div class="absolute bottom-3 right-3">
+                                                    <button @click="handleReviewSubmission()" 
+                                                            :disabled="isSubmittingReview || (newRating === 0 && commentText.trim() === '')"
+                                                            class="px-5 py-2 rounded-lg font-bold text-xs uppercase tracking-wider transition-all duration-300 flex items-center gap-2"
+                                                            :class="(isSubmittingReview || (newRating === 0 && commentText.trim() === '')) ? 'bg-white/5 text-white/30 cursor-not-allowed' : 'bg-indigo-600 hover:bg-indigo-500 text-white shadow-[0_0_20px_rgba(99,102,241,0.4)]'">
+                                                        <span x-show="!isSubmittingReview" class="flex items-center gap-2">
+                                                            Post Review <span class="material-symbols-outlined text-[16px]">send</span>
+                                                        </span>
+                                                        <span x-show="isSubmittingReview" class="flex items-center gap-2">
+                                                            Posting <span class="material-symbols-outlined text-[16px] animate-spin">sync</span>
+                                                        </span>
+                                                    </button>
+                                                </div>
                                             </div>
                                         </div>
                                     </div>
-                                </div>
+                                </template>
 
+                                <template x-if="isGuest">
+                                    <div class="bg-gradient-to-br from-[#0a0a0f] to-[#050508] p-5 rounded-2xl border border-white/5 shadow-inner mb-8 relative overflow-hidden group">
+                                        <div class="flex flex-col items-center justify-center py-8 text-center">
+                                            <span class="material-symbols-outlined text-5xl text-white/20 mb-3">lock</span>
+                                            <h4 class="text-lg font-bold text-white/80 mb-2">Login to Rate & Comment</h4>
+                                            <p class="text-sm text-white/50 mb-4">Share your thoughts and ratings with the community.</p>
+                                            <a href="../frontend/login.php" class="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-bold uppercase tracking-wider transition-all hover:shadow-[0_0_20px_rgba(99,102,241,0.4)]">
+                                                Login / Register
+                                            </a>
+                                        </div>
+                                    </div>
+                                </template>
+                                
                                 <!-- Comments List -->
                                 <div class="space-y-4 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar relative">
                                     <template x-for="comment in (selectedMovie?.comments || [])" :key="String(comment.id || comment.comment_id)">
@@ -279,7 +294,7 @@
                                                 </div>
                                                 <div class="flex items-center gap-2">
                                                     <span class="text-[10px] text-white/40" x-text="comment.created_at || ''"></span>
-                                                    <button @click="openReportItemModal(comment.comment_id || comment.id, 'comment')" class="opacity-0 group-hover:opacity-100 text-white/30 hover:text-red-500 transition-all focus:opacity-100" title="Report Comment">
+                                                    <button @click="isGuest ? window.location.href='../frontend/login.php' : openReportItemModal(comment.comment_id || comment.id, 'comment')" class="opacity-0 group-hover:opacity-100 text-white/30 hover:text-red-500 transition-all focus:opacity-100" title="Report Comment">
                                                         <span class="material-symbols-outlined text-[16px]">flag</span>
                                                     </button>
                                                 </div>
@@ -289,11 +304,11 @@
 
                                             <!-- Like & Reply Buttons -->
                                             <div class="flex items-center gap-4 mt-2 pt-2 border-t border-white/5 text-[11px]">
-                                                <button @click="likeComment(comment.id || comment.comment_id)" class="flex items-center gap-1 text-white/50 hover:text-red-400 transition-colors">
+                                                <button @click="isGuest ? window.location.href='../frontend/login.php' : likeComment(comment.id || comment.comment_id)"  class="flex items-center gap-1 text-white/50 hover:text-red-400 transition-colors">
                                                     <span class="material-symbols-outlined text-[14px]" :class="comment.is_liked ? 'text-red-500' : ''" :style="comment.is_liked ? 'font-variation-settings: \'FILL\' 1;' : ''">favorite</span>
                                                     <span x-text="comment.likes_count || 0"></span>
                                                 </button>
-                                                <button @click="replyingToCommentId = replyingToCommentId === (comment.id || comment.comment_id) ? null : (comment.id || comment.comment_id)" class="text-white/50 hover:text-white transition-colors">Reply</button>
+                                                <button @click="isGuest ? window.location.href='../frontend/login.php' : replyingToCommentId = replyingToCommentId === (comment.id || comment.comment_id) ? null : (comment.id || comment.comment_id)"  class="text-white/50 hover:text-white transition-colors">Reply</button>
                                                 
                                                 <template x-if="comment.replies && comment.replies.length > 0">
                                                     <button @click="comment.show_replies = comment.show_replies === undefined ? false : !comment.show_replies" 
@@ -354,7 +369,7 @@
                                                             </div>
                                                             <div class="flex items-center gap-2">
                                                                 <span class="text-[9px] text-white/30" x-text="reply.created_at || ''"></span>
-                                                                <button @click="openReportItemModal(reply.comment_id || reply.id || reply.reply_id, 'reply')" class="opacity-0 group-hover:opacity-100 text-white/30 hover:text-red-500 transition-all focus:opacity-100" title="Report Reply">
+                                                                <button @click="isGuest ? window.location.href='../frontend/login.php' : openReportItemModal(reply.comment_id || reply.id || reply.reply_id, 'reply')" class="opacity-0 group-hover:opacity-100 text-white/30 hover:text-red-500 transition-all focus:opacity-100" title="Report Reply">
                                                                     <span class="material-symbols-outlined text-[14px]">flag</span>
                                                                 </button>
                                                             </div>
