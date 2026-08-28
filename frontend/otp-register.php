@@ -49,6 +49,47 @@
             <!-- Populated by JS -->
         </div>
     </div>
+    <script>
+    (function() {
+        var POSTER_IMAGES = [
+            '3 Idiots.jpg','A Brighter Summer Day.jpg','Deadpool & Wolverine.jpg',
+            'Deep Water.jpg','Doctor Strange in the Multiverse of Madness.jpg','Dune.jpg',
+            'Forrest Gump.jpg','Grave of the Fireflies.jpg','Heartstopper Forever.jpg',
+            'Inception.jpg','Interstellar.jpg','KPop Demon Hunters.jpg',
+            'Minions & Monsters.jpg','Modern Times.jpg',"Now You See Me Now You Don't.jpg",
+            'Obsession.jpg','Once We Were Us.jpg','Parasite.jpg',
+            'Reservoir Dogs.jpg','Spider-Man Brand New Day.jpg','Supergirl.jpg',
+            'Swapped.jpg','The Lady.jpg','The Mandalorian and Grogu.jpg',
+            'The Mask.jpg','The Odyssey.jpg','The Salt of the Earth.jpg',
+            'The Shawshank Redemption.jpg','Warfare.jpg','World War Z.jpg','Your Name.jpg'
+        ];
+        var BASE = 'Movies poster/';
+        function shuffle(arr) {
+            var a = arr.slice();
+            for (var i = a.length - 1; i > 0; i--) {
+                var j = Math.floor(Math.random() * (i + 1));
+                var t = a[i]; a[i] = a[j]; a[j] = t;
+            }
+            return a;
+        }
+        var wall = document.getElementById('poster-wall-container');
+        if (wall) {
+            wall.dataset.initialized = '1';
+            var html = '';
+            for (var i = 0; i < 8; i++) {
+                var dir = i % 2 === 0 ? 'up' : 'down';
+                var dur = 40 + (i * 5);
+                var imgs = shuffle(POSTER_IMAGES).concat(shuffle(POSTER_IMAGES));
+                var posters = '';
+                imgs.forEach(function(f) {
+                    posters += '<div class="poster"><img src="' + BASE + encodeURIComponent(f) + '" alt="" class="poster-img" loading="eager" decoding="async" onerror="this.parentElement.style.display=\'none\'"></div>';
+                });
+                html += '<div class="poster-col ' + dir + '" style="animation-duration:' + dur + 's">' + posters + '</div>';
+            }
+            wall.innerHTML = html;
+        }
+    })();
+    </script>
 
     <!-- Main Container -->
     <main class="w-full max-w-md p-6 z-10" id="main-container">

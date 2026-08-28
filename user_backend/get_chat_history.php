@@ -20,6 +20,7 @@ require_once __DIR__ . '/../conn.php';
 try {
     $stmt = $conn->prepare("
         SELECT message_id, sender_id, receiver_id, message_text, is_read,
+               message_type, image_url,
                DATE_FORMAT(created_at, '%h:%i %p') AS time 
         FROM friends_message 
         WHERE (sender_id = :user_id_1 AND receiver_id = :friend_id_1)
@@ -27,7 +28,6 @@ try {
         ORDER BY created_at ASC
     ");
     
-    // Pass each parameter uniquely, even if the values are the same
     $stmt->execute([
         'user_id_1'   => $userId, 
         'friend_id_1' => $friendId,
@@ -36,6 +36,11 @@ try {
     ]);
     
     $messages = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+    foreach ($messages as &$msg) {
+        $msg['message_type'] = $msg['message_type'] ?? 'text';
+        $msg['image_url'] = $msg['image_url'] ?? null;
+    }
 
     echo json_encode(['success' => true, 'messages' => $messages ?: []]);
 } catch (PDOException $e) {

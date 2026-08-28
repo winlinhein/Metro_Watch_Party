@@ -1,18 +1,21 @@
 function initLocalAnimations() {
-    // Generate Posters
-    const posterWall = document.getElementById('poster-wall-container');
-    if (posterWall) {
+   // Generate Posters with real movie data from backend
+const posterWall = document.getElementById('poster-wall-container');
+if (posterWall) {
+    const buildColumns = (movies) => {
+        console.log('Building columns with', movies.length, 'movies');
         let html = '';
         for (let i = 0; i < 20; i++) {
             const dir = i % 2 === 0 ? 'up' : 'down';
             const duration = 50 + (Math.random() * 30);
             let posters = '';
             for (let j = 0; j < 30; j++) {
-                posters += `
-                    <div class="poster">
-                        <span class="material-symbols-outlined text-white/20 text-6xl">movie</span>
-                    </div>
-                `;
+                const movie = (movies && movies.length) ? movies[Math.floor(Math.random() * movies.length)] : null;
+                const imgSrc = movie ? (movie.img || movie.cover_image) : null;
+                const posterContent = imgSrc 
+                    ? `<img src="${imgSrc}" alt="${movie.title || 'Movie poster'}" class="poster-img">`
+                    : `<span class="material-symbols-outlined text-white/20 text-6xl">movie</span>`;
+                posters += `<div class="poster">${posterContent}</div>`;
             }
             html += `
                 <div class="poster-col ${dir}" style="animation-duration: ${duration}s;">
@@ -21,8 +24,56 @@ function initLocalAnimations() {
             `;
         }
         posterWall.innerHTML = html;
-    }
+        console.log('Poster wall populated');
+    };
 
+    const urls = [
+        '../user_backend/movies_api.php',
+        '../../user_backend/movies_api.php',
+        '/user_backend/movies_api.php'
+    ];
+
+    console.log('Starting movie fetch...');
+    (async () => {
+        let fetchedMovies = [];
+        for (const url of urls) {
+            try {
+                console.log('Trying', url);
+                const res = await fetch(url);
+                if (!res.ok) {
+                    console.warn('Status', res.status, 'for', url);
+                    continue;
+                }
+                const data = await res.json();
+                if (Array.isArray(data)) {
+                    fetchedMovies = data;
+                    console.log('Got array with', data.length, 'movies');
+                    break;
+                } else if (data && data.success && Array.isArray(data.movies)) {
+                    fetchedMovies = data.movies;
+                    console.log('Got wrapper with', data.movies.length, 'movies');
+                    break;
+                } else {
+                    console.warn('Unexpected format', data);
+                }
+            } catch (e) {
+                console.error('Fetch error for', url, e);
+            }
+        }
+        if (fetchedMovies.length === 0) {
+            console.warn('No movies fetched, using placeholders');
+        }
+        buildColumns(fetchedMovies);
+    })();
+
+    // Fallback after 3 seconds if fetch hasn't completed
+    setTimeout(() => {
+        if (posterWall.innerHTML === '') {
+            console.warn('Fetch timed out, showing placeholders');
+            buildColumns([]);
+        }
+    }, 3000);
+}
     // Particle Generation
     const particlesContainer = document.getElementById('particles-container');
     if (particlesContainer) {
