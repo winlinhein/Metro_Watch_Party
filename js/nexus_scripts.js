@@ -2736,7 +2736,7 @@ window.initAnimations = function(container = document) {
         let html = '';
         for (let i = 0; i < 8; i++) {
             const dir = i % 2 === 0 ? 'up' : 'down';
-            const duration = 40 + (i * 5);
+            const duration = 120 + (i * 15);
             const shuffled = shuffleArray(POSTER_IMAGES);
             // Duplicate for seamless loop
             const doubled = [...shuffled, ...shuffled];

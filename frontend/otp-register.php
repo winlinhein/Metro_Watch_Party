@@ -78,7 +78,7 @@
             var html = '';
             for (var i = 0; i < 8; i++) {
                 var dir = i % 2 === 0 ? 'up' : 'down';
-                var dur = 40 + (i * 5);
+                var dur = 120 + (i * 15);
                 var imgs = shuffle(POSTER_IMAGES).concat(shuffle(POSTER_IMAGES));
                 var posters = '';
                 imgs.forEach(function(f) {

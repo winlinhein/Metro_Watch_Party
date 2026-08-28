@@ -7,7 +7,7 @@ if (posterWall) {
         let html = '';
         for (let i = 0; i < 20; i++) {
             const dir = i % 2 === 0 ? 'up' : 'down';
-            const duration = 50 + (Math.random() * 30);
+            const duration = 120 + (Math.random() * 40);
             let posters = '';
             for (let j = 0; j < 30; j++) {
                 const movie = (movies && movies.length) ? movies[Math.floor(Math.random() * movies.length)] : null;
