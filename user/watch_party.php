@@ -90,6 +90,7 @@ $userEmail = $_SESSION['user_email'] ?? '';
 
 <!-- 2. Your Custom Scripts Last -->
 <script src="../js/nexus_scripts.js?v=1787387210"></script>
+<script src="watch_party.js?v=<?php echo time(); ?>"></script>
 </head>
 <body class="h-screen w-screen flex relative selection:bg-red-500/30" data-barba="wrapper">
     <?php include __DIR__ . '/../frontend/components/page_loader.php'; ?>
@@ -374,9 +375,9 @@ $userEmail = $_SESSION['user_email'] ?? '';
             
             <div class="w-px h-8 bg-white/10 mx-2"></div>
             
-            <a href="dashboard.php" class="px-6 py-3 rounded-xl bg-red-500 hover:bg-red-600 text-white font-bold text-sm transition-all duration-300 shadow-[0_0_20px_rgba(239,68,68,0.3)] hover:shadow-[0_0_30px_rgba(239,68,68,0.5)] flex items-center gap-2">
-                <span class="material-symbols-outlined text-[18px]">call_end</span> Leave Party
-            </a>
+            <button type="button" @click="leaveRoom()" class="w-12 h-12 rounded-[16px] bg-gradient-to-tr from-indigo-500 to-red-600 flex items-center justify-center shadow-[0_0_20px_rgba(239,68,68,0.3)] hover:scale-105 hover:rounded-[12px] transition-all duration-300 cursor-pointer">
+    <span class="material-symbols-outlined text-white font-bold">arrow_back</span>
+</button>
         </div>
     </div>
 
@@ -526,6 +527,8 @@ $userEmail = $_SESSION['user_email'] ?? '';
 
     
     <script src="../js/barba_setup.js?v=4"></script>
+   
+
 
 </body>
 </html>

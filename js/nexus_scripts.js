@@ -1406,9 +1406,25 @@ function userDashboard() {
             this.selectedRoom = room;
             this.roomModalOpen = true;
         },
-        disbandRoom(roomId) {
-            this.roomModalOpen = false;
+        async disbandRoom(roomId) {
+            if (!roomId) return;
+            if (!confirm('Are you sure you want to disband this room? This cannot be undone.')) return;
+            try {
+                const res = await fetch(`/user_backend/leave_room.php?room_id=${roomId}`, { method: 'POST' });
+                const data = await res.json();
+                if (data.success) {
+                    this.rooms = this.rooms.filter(r => r.id !== roomId);
+                    this.roomModalOpen = false;
+                    if (window.showToast) window.showToast('Room disbanded successfully.', 'success');
+                } else {
+                    if (window.showToast) window.showToast(data.message || 'Failed to disband room.', 'error');
+                }
+            } catch (e) {
+                console.error('disbandRoom error:', e);
+                if (window.showToast) window.showToast('Network error while disbanding room.', 'error');
+            }
         },
+
         openModal(mode, item = null) {
             this.modalMode = mode;
             this.formData = item ? { ...item } : { name: '', price: 0, rarity: 'Common', image: '' };
@@ -3750,17 +3766,24 @@ function adminDashboard(userData = {}) {
         // Sessions
         roomModalOpen: false,
         selectedRoom: null,
-        rooms: [
-            { id: 1, name: 'Sci-Fi Night', host: 'Alice', users: 5 },
-            { id: 2, name: 'Horror Marathon', host: 'Bob', users: 12 },
-            { id: 3, name: 'Anime Watch Party', host: 'Charlie', users: 8 },
-            { id: 4, name: 'Classic Movies', host: 'Diana', users: 3 },
-            { id: 5, name: 'Comedy Hour', host: 'Eve', users: 15 }
-        ],
+        rooms: [],
+
         mockRoomUsers: [{ id: 1, name: 'Alice', isHost: true, avatar: '' }, { id: 2, name: 'Charlie', isHost: false, avatar: '' } ], mockRoomUsers2: [
             { name: 'Alice', isHost: true },
             { name: 'Charlie', isHost: false }
         ],
+
+        async fetchRooms() {
+            try {
+                const res = await fetch('/user_backend/get_rooms.php');
+                const data = await res.json();
+                if (data.success) {
+                    this.rooms = data.rooms;
+                }
+            } catch (e) {
+                console.error('fetchRooms error:', e);
+            }
+        },
 
         // Reports
         viewModalOpen: false,
@@ -4341,9 +4364,25 @@ function adminDashboard(userData = {}) {
             this.selectedRoom = room;
             this.roomModalOpen = true;
         },
-        disbandRoom(roomId) {
-            this.roomModalOpen = false;
+        async disbandRoom(roomId) {
+            if (!roomId) return;
+            if (!confirm('Are you sure you want to disband this room? This cannot be undone.')) return;
+            try {
+                const res = await fetch(`/user_backend/leave_room.php?room_id=${roomId}`, { method: 'POST' });
+                const data = await res.json();
+                if (data.success) {
+                    this.rooms = this.rooms.filter(r => r.id !== roomId);
+                    this.roomModalOpen = false;
+                    if (window.showToast) window.showToast('Room disbanded successfully.', 'success');
+                } else {
+                    if (window.showToast) window.showToast(data.message || 'Failed to disband room.', 'error');
+                }
+            } catch (e) {
+                console.error('disbandRoom error:', e);
+                if (window.showToast) window.showToast('Network error while disbanding room.', 'error');
+            }
         },
+
         openModal(mode, item = null) {
             this.modalMode = mode;
             this.formData = item ? { ...item } : { name: '', price: 0, rarity: 'Common', image: '' };
@@ -4467,8 +4506,10 @@ function adminDashboard(userData = {}) {
             this.fetchGenres();
             this.fetchUsers();
             this.fetchNotifications();
+            this.fetchRooms();
             this.initPusher();
             this.fetchComments();
+
             
             this.$watch('movieModalOpen', (isOpen) => {
                 if (!isOpen) {
