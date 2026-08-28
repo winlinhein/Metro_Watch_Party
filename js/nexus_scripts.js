@@ -5,11 +5,13 @@ function userDashboard() {
         isNavOpen: false,
         returnToWatchlistAfterClose: false,
         
-        // Chat State
+        // Chat State (existing)
         showChatPanel: false,
         activeChatFriend: null,
         chatMessages: [],
         chatInput: '',
+        selectedImageFile: null,
+        selectedImagePreview: null,
         
         // Drawer Panels & Modals State
         showFriendsPanel: false,
@@ -103,6 +105,8 @@ function userDashboard() {
             }
             return true;
         },
+
+        
 
         async activatePremium() {
             if (this.isActivating) return;
@@ -208,8 +212,8 @@ function userDashboard() {
         },
 
         // API Fetching
-        async fetchMovies() { 
-            try { 
+        async fetchMovies() {
+            try {
                 const response = await fetch(`/user_backend/movies_api.php?t=${Date.now()}`);
                 if (response.status === 401) {
                     if (this.isGuest) {
@@ -220,14 +224,32 @@ function userDashboard() {
                     return;
                 }
                 if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-                
-                const data = await response.json(); 
-                console.log("Fetched movies:", data)
-                this.movies = data;
-            } catch(e) {
+
+                const data = await response.json();
+                console.log("Fetched movies raw:", data);
+
+                // -- Handle three possible response shapes --
+                if (Array.isArray(data)) {
+                    // Backend returns a plain array
+                    this.movies = data;
+                } else if (data && typeof data === 'object' && data.success !== undefined) {
+                    // Backend returns { success: true, movies: [...] }
+                    if (data.success && Array.isArray(data.movies)) {
+                        this.movies = data.movies;
+                    } else {
+                        throw new Error(data.message || 'Failed to load movies');
+                    }
+                } else {
+                    // Unexpected format
+                    throw new Error('Invalid response format');
+                }
+
+                console.log("Movies assigned:", this.movies);
+            } catch (e) {
                 console.error("Failed to load movies from database:", e);
                 this.movieError = "Failed to load movies. Please try again.";
-            } 
+                this.movies = [];   // ensure it's always an array
+            }
         },
 
         // Detect if URL is from YouTube
@@ -990,7 +1012,9 @@ function userDashboard() {
                     this.chatMessages = [...this.chatMessages, {
                         id: data.message_id || data.id || 'live-' + Date.now(),
                         sender: 'them',
-                        text: data.message_text,
+                        text: data.message_text || '',
+                        message_type: data.message_type || 'text',
+                        image_url: data.image_url || null,
                         time: this.formatTime(data.time)
                     }];
                     this.scrollToBottom();
@@ -1338,11 +1362,13 @@ function userDashboard() {
                 }
 
                 if (data.success) {
-                    this.chatMessages = data.messages.map(msg => ({
-                        id: msg.id || msg.message_id || 'db-' + Math.random(), // ADDED: ID mapping
+                   this.chatMessages = data.messages.map(msg => ({
+                        id: msg.message_id,
                         sender: Number(msg.sender_id) === Number(window.CURRENT_USER_ID) ? 'me' : 'them',
                         text: msg.message_text,
-                        time: this.formatTime(msg.time),
+                        message_type: msg.message_type || 'text',
+                        image_url: msg.image_url || null,
+                        time: this.formatTime(msg.time || msg.created_at),
                         is_read: msg.is_read
                     }));
                     this.scrollToBottom();
@@ -1356,35 +1382,91 @@ function userDashboard() {
 
         // 6. Updated sendMessage Method
         async sendMessage() {
-            if (!this.chatInput.trim() || !this.activeChatFriend) return;
-
-            const messageText = this.chatInput.trim();
-            this.chatInput = '';
+            if ((!this.chatInput.trim() && !this.selectedImageFile) || !this.activeChatFriend) return;
             
-            const messageObj = {
-                id: 'local-' + Date.now(), 
-                sender: 'me',
-                text: messageText,
-                time: this.formatTime(new Date()),
-                is_read: 0
-            };
-
-            // ADDED: A unique ID so Alpine.js renders it instantly
-            this.chatMessages = [...this.chatMessages, messageObj];
-            this.scrollToBottom();
-
-            try {
-                await fetch('/user_backend/send_chat.php', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        receiver_id: Number(this.activeChatFriend.user_id || this.activeChatFriend.friend_id || this.activeChatFriend.id),
-                        message: messageText
-                    })
-                });
-            } catch (e) {
-                console.error("Failed to send message:", e);
+            const receiverId = Number(this.activeChatFriend.user_id || this.activeChatFriend.friend_id || this.activeChatFriend.id);
+            const formData = new FormData();
+            formData.append('receiver_id', receiverId);
+            formData.append('message', this.chatInput.trim());
+            if (this.selectedImageFile) {
+                formData.append('image', this.selectedImageFile);
             }
+            
+            // Optimistic UI for text
+            if (this.chatInput.trim()) {
+                this.chatMessages.push({
+                    id: 'local-' + Date.now(),
+                    sender: 'me',
+                    text: this.chatInput.trim(),
+                    time: this.formatTime(new Date()),
+                    is_read: 0,
+                    message_type: 'text',
+                    image_url: null
+                });
+            }
+            // Optimistic UI for image (using local preview)
+            if (this.selectedImagePreview) {
+                this.chatMessages.push({
+                    id: 'temp-img-' + Date.now(),
+                    sender: 'me',
+                    message_type: 'image',
+                    image_url: this.selectedImagePreview,
+                    time: this.formatTime(new Date()),
+                    is_temp: true
+                });
+            }
+            
+            this.chatInput = '';
+            this.clearSelectedImage();
+            
+            try {
+                const res = await fetch('/user_backend/send_chat.php', {
+                    method: 'POST',
+                    body: formData   // do NOT set Content-Type header
+                });
+                
+                const data = await res.json();
+                if (data.success && data.data.message_type === 'image') {
+                    // Replace temp image message with real URL
+                    const tempMsg = this.chatMessages.find(m => m.id.startsWith('temp-img-'));
+                    if (tempMsg) {
+                        tempMsg.image_url = data.data.image_url;
+                        tempMsg.is_temp = false;
+                    }
+                } else if (!data.success) {
+                    console.error('Send failed:', data.message);
+                    // Optionally remove the optimistic message or show error
+                }
+            } catch (e) {
+                console.error('Network error:', e);
+            }
+        },
+
+        handleImageSelect(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            
+            if (!['image/jpeg', 'image/png', 'image/gif', 'image/webp'].includes(file.type)) {
+                alert('Invalid image type');
+                return;
+            }
+            if (file.size > 5 * 1024 * 1024) {
+                alert('Image too large (max 5MB)');
+                return;
+            }
+            
+            this.selectedImageFile = file;
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                this.selectedImagePreview = e.target.result;
+            };
+            reader.readAsDataURL(file);
+            event.target.value = '';
+        },
+
+        clearSelectedImage() {
+            this.selectedImageFile = null;
+            this.selectedImagePreview = null;
         },
 
         // Auto-scroll utility
@@ -2603,26 +2685,51 @@ window.initAnimations = function(container = document) {
         });
     }
 
-    // Generate Posters
+    // Generate Posters with actual movie images
     const posterWall = container.querySelector('#poster-wall-container');
-    if (posterWall) {
-        let html = '';
-        for (let i = 0; i < 20; i++) {
-            const dir = i % 2 === 0 ? 'up' : 'down';
-            const duration = 50 + (Math.random() * 30);
-            let posters = '';
-            for (let j = 0; j < 30; j++) {
-                posters += `
-                    <div class="poster">
-                        <span class="material-symbols-outlined text-white/20 text-6xl">movie</span>
-                    </div>
-                `;
+    if (posterWall && !posterWall.dataset.initialized) {
+        posterWall.dataset.initialized = '1';
+
+        const POSTER_IMAGES = [
+            '3 Idiots.jpg', 'A Brighter Summer Day.jpg', 'Deadpool & Wolverine.jpg',
+            'Deep Water.jpg', 'Doctor Strange in the Multiverse of Madness.jpg', 'Dune.jpg',
+            'Forrest Gump.jpg', 'Grave of the Fireflies.jpg', 'Heartstopper Forever.jpg',
+            'Inception.jpg', 'Interstellar.jpg', 'KPop Demon Hunters.jpg',
+            'Minions & Monsters.jpg', 'Modern Times.jpg', "Now You See Me Now You Don't.jpg",
+            'Obsession.jpg', 'Once We Were Us.jpg', 'Parasite.jpg',
+            'Reservoir Dogs.jpg', 'Spider-Man Brand New Day.jpg', 'Supergirl.jpg',
+            'Swapped.jpg', 'The Lady.jpg', 'The Mandalorian and Grogu.jpg',
+            'The Mask.jpg', 'The Odyssey.jpg', 'The Salt of the Earth.jpg',
+            'The Shawshank Redemption.jpg', 'Warfare.jpg', 'World War Z.jpg', 'Your Name.jpg'
+        ];
+
+        // Detect path prefix based on where we are (frontend pages vs root)
+        const isInFrontend = window.location.pathname.includes('/frontend/');
+        const POSTER_BASE = isInFrontend ? 'Movies poster/' : 'frontend/Movies poster/';
+
+        // Fisher-Yates shuffle helper
+        function shuffleArray(arr) {
+            const a = [...arr];
+            for (let i = a.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [a[i], a[j]] = [a[j], a[i]];
             }
-            html += `
-                <div class="poster-col ${dir}" style="animation-duration: ${duration}s;">
-                    ${posters}
-                </div>
-            `;
+            return a;
+        }
+
+        let html = '';
+        for (let i = 0; i < 8; i++) {
+            const dir = i % 2 === 0 ? 'up' : 'down';
+            const duration = 40 + (i * 5);
+            const shuffled = shuffleArray(POSTER_IMAGES);
+            // Duplicate for seamless loop
+            const doubled = [...shuffled, ...shuffled];
+            let posters = '';
+            doubled.forEach(filename => {
+                const src = POSTER_BASE + encodeURIComponent(filename);
+                posters += `<div class="poster"><img src="${src}" alt="" class="poster-img" loading="eager" decoding="async" onerror="this.parentElement.style.display='none'"></div>`;
+            });
+            html += `<div class="poster-col ${dir}" style="animation-duration:${duration}s;">${posters}</div>`;
         }
         posterWall.innerHTML = html;
     }

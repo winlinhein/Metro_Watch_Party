@@ -47,11 +47,18 @@
                         <template x-if="msg.sender !== 'me'">
                             <img :src="`https://ui-avatars.com/api/?name=${encodeURIComponent(activeChatFriend?.user_name || 'User')}&background=10b981&color=fff`" class="w-6 h-6 rounded-full opacity-70">
                         </template>
-                        <div class="p-4 rounded-2xl relative group" 
-                             :class="msg.sender === 'me' 
+                        <div class="p-2 rounded-2xl relative group overflow-hidden" 
+                            :class="msg.sender === 'me' 
                                 ? 'bg-gradient-to-br from-emerald-600 to-emerald-700 text-white rounded-br-sm shadow-[0_10px_20px_rgba(16,185,129,0.2)]' 
                                 : 'bg-white/10 text-white/90 rounded-bl-sm border border-white/5'">
-                            <p class="text-sm leading-relaxed" x-text="msg.text"></p>
+                            <!-- Text message -->
+                            <template x-if="msg.message_type === 'text' || !msg.message_type">
+                                <p class="text-sm leading-relaxed px-2 py-1" x-text="msg.text || msg.message_text"></p>
+                            </template>
+                            <!-- Image message -->
+                            <template x-if="msg.message_type === 'image'">
+                                <img :src="msg.image_url" class="max-w-full max-h-64 rounded-lg cursor-pointer hover:opacity-90" @click="window.open(msg.image_url, '_blank')" />
+                            </template>
                         </div>
                     </div>
                     <span class="text-[9px] text-white/30 font-mono mt-1 px-8" x-text="msg.time"></span>
@@ -61,16 +68,24 @@
         
         <!-- Chat Input Area -->
         <div class="shrink-0 p-4 border-t border-white/10 bg-black/20 backdrop-blur-md relative z-10">
+            <!-- Image preview -->
+            <div x-show="selectedImagePreview" class="mb-2 relative inline-block">
+                <img :src="selectedImagePreview" class="h-20 w-20 object-cover rounded-lg border border-white/20" />
+                <button @click="clearSelectedImage()" class="absolute -top-2 -right-2 w-6 h-6 bg-red-500 rounded-full text-white text-xs">✕</button>
+            </div>
+
             <form @submit.prevent="sendMessage()" class="relative flex items-center group">
-                <button type="button" class="absolute left-2 w-10 h-10 rounded-xl text-white/50 hover:text-emerald-400 hover:bg-white/5 flex items-center justify-center transition-all z-10">
+                <!-- Image button -->
+                <button type="button" @click="$refs.imageInput.click()" class="absolute left-2 w-10 h-10 rounded-xl text-white/50 hover:text-emerald-400 hover:bg-white/5 flex items-center justify-center transition-all z-10">
                     <span class="material-symbols-outlined text-[20px]">image</span>
                 </button>
-                
+                <input type="file" x-ref="imageInput" accept="image/*" class="hidden" @change="handleImageSelect($event)" />
+
                 <input type="text" x-model="chatInput" placeholder="Transmit secure message..." 
-                       class="w-full bg-white/5 border border-white/10 rounded-2xl py-4 pl-14 pr-14 text-sm text-white placeholder-white/30 outline-none focus:border-emerald-500/50 focus:bg-white/10 transition-all shadow-inner">
+                    class="w-full bg-white/5 border border-white/10 rounded-2xl py-4 pl-14 pr-14 text-sm text-white placeholder-white/30 outline-none focus:border-emerald-500/50 focus:bg-white/10 transition-all shadow-inner">
                 <button type="submit" 
                         class="absolute right-2 w-10 h-10 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-white flex items-center justify-center shadow-[0_0_15px_rgba(16,185,129,0.4)] transition-all hover:scale-105 active:scale-95 disabled:opacity-50 disabled:pointer-events-none"
-                        :disabled="!chatInput.trim()">
+                        :disabled="!chatInput.trim() && !selectedImagePreview">
                     <span class="material-symbols-outlined text-[18px] translate-x-0.5">send</span>
                 </button>
             </form>

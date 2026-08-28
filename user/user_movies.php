@@ -126,11 +126,23 @@
                             </div>
                         </template>
 
+                       <!-- Non-YouTube direct video file -->
                         <template x-if="selectedMovie?.actual_video_url && !isYouTubeUrl(selectedMovie?.actual_video_url)">
-                            <div x-data="{}"
-                                x-init="let p; $nextTick(() => { const video = $el.querySelector('video'); if(video) video.src = selectedMovie?.actual_video_url; p = new Plyr($el.querySelector('.plyr-target'), { autoplay: true, controls: ['play-large', 'play', 'progress', 'current-time', 'mute', 'volume', 'fullscreen'] }); }); return () => { try { if (p) p.destroy(); } catch(e) {} }"
+                            <div x-data="{ movieUrl: selectedMovie?.actual_video_url }"
+                                x-init="let player;
+                                        $nextTick(() => {
+                                            const video = $el.querySelector('video');
+                                            if (video && movieUrl) {
+                                                video.src = movieUrl;
+                                                player = new Plyr(video, {
+                                                    autoplay: false,   // or true, but browsers may block
+                                                    controls: ['play-large', 'play', 'progress', 'current-time', 'mute', 'volume', 'fullscreen']
+                                                });
+                                            }
+                                        });
+                                        $cleanup(() => { if (player) player.destroy(); });"
                                 class="absolute inset-0 w-full h-full">
-                                <video playsinline controls class="w-full h-full object-contain plyr-target"></video>
+                                <video class="w-full h-full object-contain"></video>
                             </div>
                         </template>
 
