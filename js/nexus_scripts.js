@@ -1,3 +1,27 @@
+(function () {
+    if (typeof window !== 'undefined' && typeof window.gsapSafe === 'undefined') {
+        const noopTween = { to: () => noopTween, fromTo: () => noopTween, play: () => {}, pause: () => {}, kill: () => {}, add: () => noopTween, set: () => noopTween };
+        const safe = {
+            to: () => noopTween,
+            fromTo: () => noopTween,
+            from: () => noopTween,
+            set: () => {},
+            timeline: () => noopTween,
+            config: () => {},
+            killTweensOf: () => {},
+            del: () => {},
+            setProperty: () => {},
+            getProperty: () => null,
+            utils: {},
+            plugins: {}
+        };
+        Object.defineProperty(window, 'gsapSafe', {
+            configurable: true,
+            get() { return typeof gsap !== 'undefined' ? gsap : safe; }
+        });
+    }
+})();
+
 function userDashboard() {
     return {
         // Navigation & Tab State
@@ -112,14 +136,15 @@ function userDashboard() {
             if (this.isActivating) return;
             this.isActivating = true;
 
-            // GSAP animation sequence (as before)
-            const tl = gsap.timeline();
-            tl.to('.premium-btn', { scale: 0.9, duration: 0.2 })
-            .to('.premium-btn', { scale: 1.1, duration: 0.1, yoyo: true, repeat: 3 })
-            .to('.premium-btn', { opacity: 0, scale: 0, duration: 0.4, ease: 'back.in(1.5)' });
-            tl.to('.premium-features', { opacity: 0, y: -20, duration: 0.3, stagger: 0.1 }, '-=0.4');
-            tl.to('.premium-card', { boxShadow: '0 0 100px rgba(99,102,241,0)', duration: 0.5 }, '-=0.5');
-            tl.fromTo('.premium-loader', { scale: 0, opacity: 0 }, { scale: 1, opacity: 1, duration: 0.5, ease: 'elastic.out(1, 0.5)' });
+            if (typeof gsap !== 'undefined') {
+                const tl = gsap.timeline();
+                tl.to('.premium-btn', { scale: 0.9, duration: 0.2 })
+                .to('.premium-btn', { scale: 1.1, duration: 0.1, yoyo: true, repeat: 3 })
+                .to('.premium-btn', { opacity: 0, scale: 0, duration: 0.4, ease: 'back.in(1.5)' });
+                tl.to('.premium-features', { opacity: 0, y: -20, duration: 0.3, stagger: 0.1 }, '-=0.4');
+                tl.to('.premium-card', { boxShadow: '0 0 100px rgba(99,102,241,0)', duration: 0.5 }, '-=0.5');
+                tl.fromTo('.premium-loader', { scale: 0, opacity: 0 }, { scale: 1, opacity: 1, duration: 0.5, ease: 'elastic.out(1, 0.5)' });
+            }
 
             try {
                 const res = await fetch('/user_backend/create_checkout_session.php', {
@@ -136,16 +161,18 @@ function userDashboard() {
             } catch (err) {
                 console.error('Payment error:', err);
                 if (window.showToast) window.showToast('Payment failed to start.', 'error');
-                // Revert UI
-                gsap.to('.premium-loader', { opacity: 0, scale: 0, duration: 0.3 });
-                gsap.to('.premium-btn', { opacity: 1, scale: 1, duration: 0.3, delay: 0.3 });
-                gsap.to('.premium-features', { opacity: 1, y: 0, duration: 0.3, stagger: 0.1, delay: 0.3 });
+                if (typeof gsap !== 'undefined') {
+                    gsap.to('.premium-loader', { opacity: 0, scale: 0, duration: 0.3 });
+                    gsap.to('.premium-btn', { opacity: 1, scale: 1, duration: 0.3, delay: 0.3 });
+                    gsap.to('.premium-features', { opacity: 1, y: 0, duration: 0.3, stagger: 0.1, delay: 0.3 });
+                }
             } finally {
                 this.isActivating = false;
             }
         },
 
         initPremium() {
+            if (typeof gsap === 'undefined') return;
             if (this.isPremium) {
                 gsap.set('.premium-success-icon', { opacity: 1, scale: 1, rotation: 0 });
                 gsap.set('.premium-welcome-text', { opacity: 1, y: 0 });
@@ -205,16 +232,34 @@ function userDashboard() {
         get filteredMovies() {
             if (!this.movieSearchQuery.trim()) return this.movies;
             const query = this.movieSearchQuery.toLowerCase();
-            return this.movies.filter(movie => 
-                (movie.title && movie.title.toLowerCase().includes(query)) ||
-                (Array.isArray(movie.genres) && movie.genres.some(g => g.toLowerCase().includes(query)))
-            );
+            return this.movies.filter(movie => {
+                const titleMatch = movie.title && movie.title.toLowerCase().includes(query);
+                let genres = movie.genres;
+                if (typeof genres === 'string') genres = genres.split(',').map(s => s.trim()).filter(Boolean);
+                const genreMatch = Array.isArray(genres) && genres.some(g => (g || '').toLowerCase().includes(query));
+                return titleMatch || genreMatch;
+            });
+        },
+
+        // Normalize movies returned by the API: ensure genres=array, add year/genre helpers
+        _normalizeMovie(m) {
+            if (!m || typeof m !== 'object') return m;
+            let genres = m.genres;
+            if (typeof genres === 'string') genres = genres.split(',').map(s => s.trim()).filter(Boolean);
+            if (!Array.isArray(genres)) genres = [];
+            const year = m.year || (m.created_at ? new Date(m.created_at).getFullYear() : 2024);
+            return {
+                ...m,
+                genres,
+                year,
+                genre: m.genre || genres[0] || 'Movie'
+            };
         },
 
         // API Fetching
         async fetchMovies() {
             try {
-                const response = await fetch(`/user_backend/movies_api.php?t=${Date.now()}`);
+                const response = await fetch('/user_backend/movies_api.php');
                 if (response.status === 401) {
                     if (this.isGuest) {
                         if (window.showToast) window.showToast('Unable to load movies. Please try again.', 'error');
@@ -226,29 +271,26 @@ function userDashboard() {
                 if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
 
                 const data = await response.json();
-                console.log("Fetched movies raw:", data);
 
-                // -- Handle three possible response shapes --
+                let rawMovies = [];
                 if (Array.isArray(data)) {
-                    // Backend returns a plain array
-                    this.movies = data;
+                    rawMovies = data;
                 } else if (data && typeof data === 'object' && data.success !== undefined) {
-                    // Backend returns { success: true, movies: [...] }
                     if (data.success && Array.isArray(data.movies)) {
-                        this.movies = data.movies;
+                        rawMovies = data.movies;
                     } else {
                         throw new Error(data.message || 'Failed to load movies');
                     }
                 } else {
-                    // Unexpected format
                     throw new Error('Invalid response format');
                 }
 
-                console.log("Movies assigned:", this.movies);
+                this.movies = rawMovies.map(m => this._normalizeMovie(m));
+                this.syncWatchlistState();
             } catch (e) {
                 console.error("Failed to load movies from database:", e);
                 this.movieError = "Failed to load movies. Please try again.";
-                this.movies = [];   // ensure it's always an array
+                this.movies = [];
             }
         },
 
@@ -605,7 +647,7 @@ function userDashboard() {
             } catch (err) {
                 console.error('Failed to fetch missions:', err);
             } finally {
-                setTimeout(() => { this.statsLoading = false; }, 800);
+                this.statsLoading = false;
             }
         },
 
@@ -877,10 +919,14 @@ function userDashboard() {
             if (this.isNavOpen) return;
             this.isNavOpen = true;
             
-            const tl = gsap.timeline();
-            this.$root.querySelector('#side-panel').style.pointerEvents = 'auto';
-            this.$root.querySelector('#nav-overlay').style.pointerEvents = 'auto';
+            const sidePanel = this.$root.querySelector('#side-panel');
+            const navOverlay = this.$root.querySelector('#nav-overlay');
+            if (sidePanel) sidePanel.style.pointerEvents = 'auto';
+            if (navOverlay) navOverlay.style.pointerEvents = 'auto';
             
+            if (typeof gsap === 'undefined') return;
+            
+            const tl = gsap.timeline();
             tl.to('#nav-overlay', { opacity: 1, duration: 0.15, ease: "power2.out" }, 0);
             tl.to('#side-panel', { x: 0, duration: 0.5, ease: "expo.out" }, 0);
             tl.fromTo('.side-nav-item', 
@@ -898,10 +944,19 @@ function userDashboard() {
             if (!this.isNavOpen) return;
             this.isNavOpen = false;
             
+            const sidePanel = this.$root.querySelector('#side-panel');
+            const navOverlay = this.$root.querySelector('#nav-overlay');
+            
+            if (typeof gsap === 'undefined') {
+                if (sidePanel) sidePanel.style.pointerEvents = 'none';
+                if (navOverlay) navOverlay.style.pointerEvents = 'none';
+                return;
+            }
+            
             const tl = gsap.timeline({
                 onComplete: () => {
-                    this.$root.querySelector('#side-panel').style.pointerEvents = 'none';
-                    this.$root.querySelector('#nav-overlay').style.pointerEvents = 'none';
+                    if (sidePanel) sidePanel.style.pointerEvents = 'none';
+                    if (navOverlay) navOverlay.style.pointerEvents = 'none';
                 }
             });
             
@@ -1080,13 +1135,13 @@ function userDashboard() {
                 }
             });
 
-            await fetch('/user_backend/mark_as_read.php', {
+            const historyPromise = this.fetchChatHistory(friendId);
+            fetch('/user_backend/mark_as_read.php', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ sender_id: friendId })
-            });
-
-            await this.fetchChatHistory(friendId);
+            }).catch(() => {});
+            await historyPromise;
         },
 
         
@@ -1775,15 +1830,7 @@ function userDashboard() {
         async fetchWatchlist() {
             try {
                 const response = await fetch("/user_backend/get_watchlist.php");
-                let raw = await response.text();
-                console.log("Raw watchlist response:", raw);
-                
-                // Remove leading backslash if present
-                if (raw.startsWith('\\')) {
-                    raw = raw.substring(1);
-                }
-                
-                const data = JSON.parse(raw);
+                const data = await response.json();
                 if (data.success) {
                     this.watchlist = data.watchlist || [];
                     this.watchlist = [...this.watchlist];
@@ -1955,8 +2002,6 @@ function userDashboard() {
                 return;
             }
 
-            Pusher.logToConsole = true; // ⚠️ REMOVE IN PRODUCTION
-
             this.pusherClient = new Pusher('f4b5637ef4b8952b6eb8', {
                 cluster: 'ap1',
                 encrypted: true
@@ -2082,8 +2127,6 @@ function userDashboard() {
                     window.showToast(`${data.sender_name} ${data.message}`, toastType);
                 }
 
-                this.fetchFriends();
-                this.searchUsers();
                 this.fetchNotifications();
             });
 
@@ -2141,15 +2184,10 @@ function userDashboard() {
 
             if (typeof gsap !== 'undefined') gsap.config({ nullTargetWarn: false });
 
-            // 1. Initialize Pusher only for logged-in users
             if (!this.isGuest) {
                 this.initPusher();
             }
 
-            // 2. Always fetch movies (public for everyone)
-            await this.fetchMovies();
-
-            // 3. For guests, skip all user-specific data fetching
             if (this.isGuest) {
                 this.statsLoading = false;
                 this.stats = this.stats.map(stat => ({ ...stat, value: '0' }));
@@ -2159,17 +2197,21 @@ function userDashboard() {
                 this.watchlist = [];
                 this.notifications = [];
                 this.unreadNotifCount = 0;
-                // Set up a simple watch for showPremiumModal? Not needed.
+                await this.fetchMovies();
             } else {
-                // Logged-in user flow
-                this.fetchReasons();
-                await this.fetchWatchlist();
-                await this.fetchFriends();
+                await Promise.all([
+                    this.fetchMovies(),
+                    this.fetchWatchlist(),
+                    this.fetchFriends(),
+                    this.fetchNotifications(),
+                    this.loadMissions(),
+                    this.fetchReasons(),
+                    (async () => {
+                        await this.checkPaymentStatus();
+                        await this.fetchPremiumStatus();
+                    })()
+                ]);
                 this.searchUsers();
-                this.loadMissions();
-                this.fetchNotifications();
-                await this.checkPaymentStatus();
-                await this.fetchPremiumStatus();
 
                 if (this.justPaid) {
                     this.showPremiumModal = true;
@@ -2204,7 +2246,7 @@ function userDashboard() {
 
             if (!this.isGuest) {
                 this.$watch('showQuestsPanel', value => {
-                    if (value) {
+                    if (value && typeof gsap !== 'undefined') {
                         this.$nextTick(() => {
                             gsap.fromTo('.quest-item',
                                 { x: 100, opacity: 0, scale: 0.8, rotationY: 45 },
@@ -2219,12 +2261,14 @@ function userDashboard() {
                 });
 
                 this.$watch('questActiveTab', value => {
-                    this.$nextTick(() => {
-                        gsap.fromTo('.quest-item',
-                            { x: 50, opacity: 0, scale: 0.95 },
-                            { x: 0, opacity: 1, scale: 1, duration: 0.5, stagger: 0.05, ease: 'power3.out' }
-                        );
-                    });
+                    if (typeof gsap !== 'undefined') {
+                        this.$nextTick(() => {
+                            gsap.fromTo('.quest-item',
+                                { x: 50, opacity: 0, scale: 0.95 },
+                                { x: 0, opacity: 1, scale: 1, duration: 0.5, stagger: 0.05, ease: 'power3.out' }
+                            );
+                        });
+                    }
                 });
             }
             // 5. Global Event Listeners
@@ -2235,86 +2279,89 @@ function userDashboard() {
             // 6. Initial GSAP UI Animations 
             // Uses a single $nextTick to ensure Alpine has finished rendering the HTML
             this.$nextTick(() => {
-                
-                // A. Animated Number Counters
-                const counters = this.$root.querySelectorAll('.stat-counter');
-                counters.forEach(counter => {
-                    const target = parseFloat(counter.getAttribute('data-target'));
-                    const obj = { val: 0 };
-                    
-                    gsap.to(obj, {
-                        val: target,
-                        duration: 2.5,
-                        ease: "power3.out",
-                        delay: 0.8,
-                        onUpdate: () => {
-                            counter.innerText = Math.floor(obj.val);
-                        }
-                    });
-                });
-                
-                // B. Intro Animations
-                const tl = gsap.timeline();
-                tl.fromTo(".gs-header-item", 
-                    { y: -40, opacity: 0, scale: 0.95 }, 
-                    { y: 0, opacity: 1, scale: 1, stagger: 0.1, duration: 0.8, ease: "back.out(1.5)" }, 
-                    0.2
-                )
-                .fromTo(".stagger-item", 
-                    { opacity: 0, y: 80, rotationY: 15, scale: 0.9 }, 
-                    { opacity: 1, y: 0, rotationY: 0, scale: 1, stagger: 0.1, duration: 0.9, ease: "back.out(1.2)" }, 
-                    "-=0.6"
-                );
-
-                // C. Split text animation for welcome header
-                const welcomeText = this.$root.querySelector('.welcome-text');
-                if (welcomeText) {
-                    const text = welcomeText.innerText;
-                    welcomeText.innerHTML = '';
-                    [...text].forEach(char => {
-                        const span = document.createElement('span');
-                        span.innerText = char;
-                        span.style.opacity = '0';
-                        span.style.display = 'inline-block';
-                        if (char === ' ') span.innerHTML = '&nbsp;';
-                        welcomeText.appendChild(span);
+                if (typeof gsap !== 'undefined') {
+                    // A. Animated Number Counters
+                    const counters = this.$root.querySelectorAll('.stat-counter');
+                    counters.forEach(counter => {
+                        const target = parseFloat(counter.getAttribute('data-target'));
+                        const obj = { val: 0 };
+                        
+                        gsap.to(obj, {
+                            val: target,
+                            duration: 2.5,
+                            ease: "power3.out",
+                            delay: 0.8,
+                            onUpdate: () => {
+                                counter.innerText = Math.floor(obj.val);
+                            }
+                        });
                     });
                     
-                    gsap.fromTo(welcomeText.querySelectorAll('span'), 
-                        { opacity: 0, y: 30, rotationX: 90 },
-                        { opacity: 1, y: 0, rotationX: 0, stagger: 0.04, duration: 0.7, ease: "back.out(2)", delay: 0.5 }
+                    // B. Intro Animations
+                    const tl = gsap.timeline();
+                    tl.fromTo(".gs-header-item", 
+                        { y: -40, opacity: 0, scale: 0.95 }, 
+                        { y: 0, opacity: 1, scale: 1, stagger: 0.1, duration: 0.8, ease: "back.out(1.5)" }, 
+                        0.2
+                    )
+                    .fromTo(".stagger-item", 
+                        { opacity: 0, y: 80, rotationY: 15, scale: 0.9 }, 
+                        { opacity: 1, y: 0, rotationY: 0, scale: 1, stagger: 0.1, duration: 0.9, ease: "back.out(1.2)" }, 
+                        "-=0.6"
                     );
-                }
 
-                // D. Continuous pulse micro-animation for activity feed items
-                gsap.to('.activity-item .dot-pulse', {
-                    scale: 1.8,
-                    opacity: 0,
-                    repeat: -1,
-                    duration: 1.5,
-                    ease: "power2.out",
-                    stagger: 0.3
-                });
+                    // C. Split text animation for welcome header
+                    const welcomeText = this.$root.querySelector('.welcome-text');
+                    if (welcomeText) {
+                        const text = welcomeText.innerText;
+                        welcomeText.innerHTML = '';
+                        [...text].forEach(char => {
+                            const span = document.createElement('span');
+                            span.innerText = char;
+                            span.style.opacity = '0';
+                            span.style.display = 'inline-block';
+                            if (char === ' ') span.innerHTML = '&nbsp;';
+                            welcomeText.appendChild(span);
+                        });
+                        
+                        gsap.fromTo(welcomeText.querySelectorAll('span'), 
+                            { opacity: 0, y: 30, rotationX: 90 },
+                            { opacity: 1, y: 0, rotationX: 0, stagger: 0.04, duration: 0.7, ease: "back.out(2)", delay: 0.5 }
+                        );
+                    }
+
+                    // D. Continuous pulse micro-animation for activity feed items
+                    gsap.to('.activity-item .dot-pulse', {
+                        scale: 1.8,
+                        opacity: 0,
+                        repeat: -1,
+                        duration: 1.5,
+                        ease: "power2.out",
+                        stagger: 0.3
+                    });
+                }
             });
 
             // 7. Interval Animations
             // Random glitch effect on dashboard stat numbers periodically
-            setInterval(() => {
-                const stats = this.$root.querySelectorAll('.stat-counter');
-                if (stats.length > 0) {
-                    const randomStat = stats[Math.floor(Math.random() * stats.length)];
-                    gsap.to(randomStat, {
-                        x: () => Math.random() * 8 - 4,
-                        y: () => Math.random() * 8 - 4,
-                        duration: 0.05,
-                        yoyo: true,
-                        repeat: 5,
-                        onComplete: () => {
-                            gsap.set(randomStat, {x: 0, y: 0});
-                        }
-                    });
-                }
-            }, 6000);
+            if (typeof gsap !== 'undefined') {
+                setInterval(() => {
+                    const stats = this.$root.querySelectorAll('.stat-counter');
+                    if (stats.length > 0) {
+                        const randomStat = stats[Math.floor(Math.random() * stats.length)];
+                        gsap.to(randomStat, {
+                            x: () => Math.random() * 8 - 4,
+                            y: () => Math.random() * 8 - 4,
+                            duration: 0.05,
+                            yoyo: true,
+                            repeat: 5,
+                            onComplete: () => {
+                                gsap.set(randomStat, {x: 0, y: 0});
+                            }
+                        });
+                    }
+                }, 6000);
+            }
         }
     };
 }
@@ -2412,19 +2459,10 @@ function watchParty() {
             if (savedBorder) {
                 this.activeBorderId = parseInt(savedBorder, 10);
             }
-            // Fetch friends right when the room loads
-            await this.fetchRoomDetails();
-            await this.fetchFriends();
-            
-            if (this.$refs.videoPlayer) {
-                this.$refs.videoPlayer.onloadedmetadata = () => {
-                    this.duration = this.$refs.videoPlayer.duration;
-                };
-            }
-            await this.startLocalMedia();
+            this.fetchRoomDetails();
+            this.fetchFriends();
+            this.startLocalMedia();
             this.connectSignaling();
-            
-            // Fetch movies for selection
             this.fetchMovies();
         },
 
@@ -2435,13 +2473,12 @@ function watchParty() {
 
         async fetchMovies() {
             try {
-                const res = await fetch('/user_backend/movies_api.php?t=' + Date.now());
+                const res = await fetch('/user_backend/movies_api.php');
                 if (res.status === 401) {
                     window.location.href = '/frontend/login.php';
                     return;
                 }
                 const data = await res.json();
-                console.log("Watch Party Movies:", data);
                 if (Array.isArray(data)) {
                     this.allMovies = data;
                 }
@@ -2836,6 +2873,7 @@ window.initAnimations = function(container = document) {
         );
     }
 
+    if (typeof gsap !== 'undefined') {
     // Smooth Floating & Parallax Effect
     const card = container.querySelector('#glass-card');
     const mainContainer = container.querySelector('#main-container');
@@ -2857,7 +2895,6 @@ window.initAnimations = function(container = document) {
             const x = e.clientX - rect.left;
             const y = e.clientY - rect.top;
             
-            // Subtle content shift (parallax)
             gsap.to(container.querySelectorAll('.glass-card > *'), {
                 x: (x - rect.width / 2) * 0.03,
                 y: (y - rect.height / 2) * 0.03,
@@ -2885,10 +2922,8 @@ window.initAnimations = function(container = document) {
         });
     }
 
-    // Input field focus animations
     const inputFields = container.querySelectorAll('.input-field');
     inputFields.forEach(input => {
-        const label = input.nextElementSibling;
         const icon = input.nextElementSibling ? input.nextElementSibling.nextElementSibling : null;
         
         input.addEventListener('focus', () => {
@@ -2926,7 +2961,6 @@ window.initAnimations = function(container = document) {
         });
     });
 
-    // Social button hover animations
     const socialBtns = container.querySelectorAll('.grid.grid-cols-2 button');
     socialBtns.forEach(btn => {
         const icon = btn.querySelector('svg');
@@ -2965,13 +2999,10 @@ window.initAnimations = function(container = document) {
         });
     });
 
-    // Button hover effect
     const submitBtn = container.querySelector('#submitBtn');
     const ripple = container.querySelector('#btnRipple');
     const btnIcon = submitBtn ? submitBtn.querySelector('span.material-symbols-outlined') : null;
     
-    // Check if it's the register page to avoid some button conflicts? 
-    // Just wrap in try/catch or if
     if (submitBtn) {
         submitBtn.addEventListener('mouseenter', (e) => {
             if (ripple) gsap.to(ripple, { scale: 1.5, opacity: 1, duration: 0.4, ease: 'power2.out' });
@@ -2983,7 +3014,6 @@ window.initAnimations = function(container = document) {
             if (btnIcon) gsap.to(btnIcon, { x: 0, duration: 0.3, ease: 'power2.out' });
         });
         
-        // Button click animation
         submitBtn.addEventListener('mousedown', () => {
             gsap.to(submitBtn, { scale: 0.95, duration: 0.1, ease: 'power2.inOut' });
         });
@@ -2993,14 +3023,12 @@ window.initAnimations = function(container = document) {
         });
     }
 
-    // Next-Level Magnetic Back Button
     const backBtn = container.querySelector('.gs-back-btn');
     const backHit = container.querySelector('.gs-back-hit');
     const backRing = container.querySelector('.gs-back-ring');
     const backIcon = container.querySelector('.gs-back-icon');
     
     if (backBtn && backHit) {
-        // Initial entrance
         gsap.fromTo(backBtn, 
              { x: -50, opacity: 0, scale: 0 }, 
              { x: 0, opacity: 1, scale: 1, duration: 1.5, ease: "elastic.out(1, 0.4)", delay: 0.3 }
@@ -3013,7 +3041,6 @@ window.initAnimations = function(container = document) {
             const x = e.clientX - rect.left - rect.width / 2;
             const y = e.clientY - rect.top - rect.height / 2;
 
-            // Move the button itself
             gsap.to(backBtn, {
                 x: x * 0.4,
                 y: y * 0.4,
@@ -3024,7 +3051,6 @@ window.initAnimations = function(container = document) {
                 borderColor: "rgba(239, 68, 68, 0.5)"
             });
             
-            // Move icon slightly more for parallax
             if (backIcon) {
                 gsap.to(backIcon, {
                     x: x * 0.3,
@@ -3076,6 +3102,7 @@ window.initAnimations = function(container = document) {
             gsap.to(backBtn, { scale: 1.1, duration: 0.4, ease: "elastic.out(1, 0.4)" });
             if (backIcon) gsap.to(backIcon, { scale: 1, duration: 0.4 });
         });
+    }
     }
 }
 
@@ -3317,7 +3344,7 @@ window.otpForm = function() {
             this.isResending = true;
             
             // GSAP Animation for resend button
-            if (this.$refs.resendIcon) {
+            if (this.$refs.resendIcon && typeof gsap !== 'undefined') {
                 gsap.to(this.$refs.resendIcon, { rotation: "+=360", duration: 1, ease: "power2.inOut" });
             }
 
@@ -3638,7 +3665,7 @@ function adminDashboard(userData = {}) {
             } catch (err) {
                 console.error('Network error fetching dashboard stats:', err);
             } finally {
-                setTimeout(() => { this.statsLoading = false; }, 800);
+                this.statsLoading = false;
             }
         },
 
@@ -3706,7 +3733,7 @@ function adminDashboard(userData = {}) {
        async fetchMovies() {
             this.isLoading = true;
             try {
-                const response = await fetch(`/backend/movies_api.php?t=${Date.now()}`);
+                const response = await fetch('/backend/movies_api.php');
                 const text = await response.text();
                 const data = JSON.parse(text);
                 if (response.ok) {

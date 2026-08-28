@@ -34,7 +34,8 @@ function triggerPusherEvent($channel, $event, $data) {
         CURLOPT_POSTFIELDS => $payload,
         CURLOPT_HTTPHEADER => ['Content-Type: application/json'],
         CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_TIMEOUT => 5,
+        CURLOPT_CONNECTTIMEOUT => 2,
+        CURLOPT_TIMEOUT => 2,
         // 🔥 FIX: Bypass SSL verification for local Windows environments
         CURLOPT_SSL_VERIFYPEER => false 
     ]);

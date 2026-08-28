@@ -10,6 +10,7 @@ if (empty($_SESSION['user_id'])) {
 require_once __DIR__ . '/../conn.php';
 
 $userId = $_SESSION['user_id'];
+session_write_close();
 
 // Updated table variables to match your schema naming
 $missionsTable = 'missions'; 

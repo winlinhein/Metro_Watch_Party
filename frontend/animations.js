@@ -155,7 +155,7 @@ if (posterWall) {
         );
     }
 
-    // Smooth Floating & Parallax Effect
+    if (typeof gsap !== 'undefined') {
     const card = document.getElementById('glass-card');
     const container = document.getElementById('main-container');
     
@@ -176,7 +176,6 @@ if (posterWall) {
             const x = e.clientX - rect.left;
             const y = e.clientY - rect.top;
             
-            // Subtle content shift (parallax)
             gsap.to('.glass-card > *', {
                 x: (x - rect.width / 2) * 0.03,
                 y: (y - rect.height / 2) * 0.03,
@@ -204,7 +203,6 @@ if (posterWall) {
         });
     }
 
-    // Input field focus animations
     const inputFields = document.querySelectorAll('.input-field');
     inputFields.forEach(input => {
         const label = input.nextElementSibling;
@@ -245,7 +243,6 @@ if (posterWall) {
         });
     });
 
-    // Social button hover animations
     const socialBtns = document.querySelectorAll('.grid.grid-cols-2 button');
     socialBtns.forEach(btn => {
         const icon = btn.querySelector('svg');
@@ -284,13 +281,10 @@ if (posterWall) {
         });
     });
 
-    // Button hover effect
     const submitBtn = document.getElementById('submitBtn');
     const ripple = document.getElementById('btnRipple');
     const btnIcon = submitBtn ? submitBtn.querySelector('span.material-symbols-outlined') : null;
     
-    // Check if it's the register page to avoid some button conflicts? 
-    // Just wrap in try/catch or if
     if (submitBtn) {
         submitBtn.addEventListener('mouseenter', (e) => {
             if (ripple) gsap.to(ripple, { scale: 1.5, opacity: 1, duration: 0.4, ease: 'power2.out' });
@@ -302,7 +296,6 @@ if (posterWall) {
             if (btnIcon) gsap.to(btnIcon, { x: 0, duration: 0.3, ease: 'power2.out' });
         });
         
-        // Button click animation
         submitBtn.addEventListener('mousedown', () => {
             gsap.to(submitBtn, { scale: 0.95, duration: 0.1, ease: 'power2.inOut' });
         });
@@ -312,14 +305,12 @@ if (posterWall) {
         });
     }
 
-    // Next-Level Magnetic Back Button
     const backBtn = document.querySelector(".gs-back-btn");
     const backHit = document.querySelector(".gs-back-hit");
     const backRing = document.querySelector(".gs-back-ring");
     const backIcon = document.querySelector(".gs-back-icon");
     
     if (backBtn && backHit) {
-        // Initial entrance
         gsap.fromTo(backBtn, 
              { x: -50, opacity: 0, scale: 0 }, 
              { x: 0, opacity: 1, scale: 1, duration: 1.5, ease: "elastic.out(1, 0.4)", delay: 0.3 }
@@ -332,7 +323,6 @@ if (posterWall) {
             const x = e.clientX - rect.left - rect.width / 2;
             const y = e.clientY - rect.top - rect.height / 2;
 
-            // Move the button itself
             gsap.to(backBtn, {
                 x: x * 0.4,
                 y: y * 0.4,
@@ -343,7 +333,6 @@ if (posterWall) {
                 borderColor: "rgba(239, 68, 68, 0.5)"
             });
             
-            // Move icon slightly more for parallax
             if (backIcon) {
                 gsap.to(backIcon, {
                     x: x * 0.3,
@@ -395,6 +384,7 @@ if (posterWall) {
             gsap.to(backBtn, { scale: 1.1, duration: 0.4, ease: "elastic.out(1, 0.4)" });
             if (backIcon) gsap.to(backIcon, { scale: 1, duration: 0.4 });
         });
+    }
     }
 }
 initLocalAnimations();

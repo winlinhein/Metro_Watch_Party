@@ -33,12 +33,14 @@ if (typeof barba !== 'undefined') {
                 return new Promise(resolve => {
                     if (typeof window.showPageLoader === 'function') {
                         window.showPageLoader(resolve);
-                    } else {
+                    } else if (typeof gsap !== 'undefined') {
                         gsap.to(data.current.container, {
                             opacity: 0,
                             duration: 0.3,
                             onComplete: resolve
                         });
+                    } else {
+                        resolve();
                     }
                 });
             },
@@ -47,10 +49,12 @@ if (typeof barba !== 'undefined') {
                 // We do not manually call Alpine.start() or Alpine.initTree() to avoid duplicate errors.
 
                 // Start entering animation
-                gsap.from(data.next.container, {
-                    opacity: 0,
-                    duration: 0.3
-                });
+                if (typeof gsap !== 'undefined') {
+                    gsap.from(data.next.container, {
+                        opacity: 0,
+                        duration: 0.3
+                    });
+                }
                 
                 // Update body classes safely
                 if (data.next.html) {

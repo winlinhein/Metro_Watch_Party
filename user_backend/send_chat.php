@@ -83,10 +83,13 @@ try {
         'time'         => $time
     ];
 
-    // Trigger Pusher event using helper
-    triggerPusherEvent($channelName, "new_message", $payload);
-
     echo json_encode(['success' => true, 'data' => $payload]);
+
+    if (function_exists('fastcgi_finish_request')) {
+        fastcgi_finish_request();
+    }
+
+    triggerPusherEvent($channelName, "new_message", $payload);
 } catch (PDOException $e) {
     echo json_encode(['success' => false, 'message' => 'Database error']);
 }

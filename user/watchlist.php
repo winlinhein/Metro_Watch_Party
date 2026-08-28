@@ -67,7 +67,7 @@
                      :style="`animation-delay: ${index * 100}ms; perspective: 1000px;`">
                      <!-- Card -->
                     <div class="aspect-[2/3] w-full relative rounded-3xl overflow-hidden shadow-[0_20px_50px_rgba(0,0,0,0.5)] transition-all duration-700 ease-[cubic-bezier(0.34,1.56,0.64,1)] group-hover:[transform:translateY(-16px)_rotateX(12deg)] group-hover:shadow-[0_40px_80px_rgba(239,68,68,0.2)] border border-white/5 group-hover:border-red-500/30">
-                        <img :src="item.img" class="w-full h-full object-cover transition-all duration-700 ease-[cubic-bezier(0.34,1.56,0.64,1)] group-hover:scale-110 group-hover:brightness-50">
+                        <img :src="item.img" loading="lazy" decoding="async" class="w-full h-full object-cover transition-all duration-700 ease-[cubic-bezier(0.34,1.56,0.64,1)] group-hover:scale-110 group-hover:brightness-50">
                         
                         <div class="absolute inset-0 bg-gradient-to-t from-[#050508] via-[#050508]/40 to-transparent opacity-80 group-hover:opacity-100 transition-opacity duration-500"></div>
                         

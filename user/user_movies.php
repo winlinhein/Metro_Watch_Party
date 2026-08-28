@@ -28,7 +28,7 @@
                     
                     <!-- Poster Image & Trailer Container -->
                     <div class="aspect-[2/3] w-full relative overflow-hidden bg-[#050508]">
-                        <img :src="movie.img || movie.cover_image || 'https://via.placeholder.com/300x450/0d0d12/ffffff?text=No+Poster'" alt="Poster" class="w-full h-full object-cover transition-all duration-700 absolute inset-0 z-10 group-hover:scale-110" :class="hovered && (movie.trailer || movie.video_url) ? 'opacity-0' : 'opacity-100'">
+                        <img :src="movie.img || movie.cover_image || 'https://via.placeholder.com/300x450/0d0d12/ffffff?text=No+Poster'" alt="Poster" loading="lazy" decoding="async" class="w-full h-full object-cover transition-all duration-700 absolute inset-0 z-10 group-hover:scale-110" :class="hovered && (movie.trailer || movie.video_url) ? 'opacity-0' : 'opacity-100'">
                         
                         <div class="absolute inset-0 z-0 transition-opacity duration-500 overflow-hidden pointer-events-none" :class="hovered ? 'opacity-100' : 'opacity-0'">
                             <template x-if="hovered && (movie.trailer || movie.video_url)">

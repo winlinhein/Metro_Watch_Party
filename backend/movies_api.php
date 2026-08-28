@@ -7,6 +7,7 @@ if (empty($_SESSION['authenticated']) || $_SESSION['user_role'] !== 'admin') {
 }
 header('Content-Type: application/json');
 require_once __DIR__ . '/../conn.php';
+require_once __DIR__ . '/../poster_helper.php';
 
 // Session authentication check
 if (
@@ -26,13 +27,13 @@ $method = $_SERVER['REQUEST_METHOD'];
 // GET: Fetch all movies along with ratings and combined genres
 // -------------------------------------------------------------
 if ($method === 'GET') {
+    session_write_close();
     try {
         $sql = "
             SELECT 
                 m.movie_id AS id,
                 m.title,
                 m.description,
-                m.poster AS img,
                 m.video_url AS trailer,
                 m.actual_video_url,
                 m.duration,
@@ -52,17 +53,14 @@ if ($method === 'GET') {
         $stmt = $conn->query($sql);
         $movies = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-        // Format genre_ids and convert BLOB poster to Base64
         foreach ($movies as &$movie) {
             $movie['genre_ids'] = $movie['genre_ids'] ? array_map('intval', explode(',', $movie['genre_ids'])) : [];
             $movie['duration'] = (int) $movie['duration'];
             $movie['view_count'] = (int) $movie['view_count'];
-
-            // Convert raw BLOB bytes to base64 string
-            if (!empty($movie['img'])) {
-                $movie['img'] = 'data:image/jpeg;base64,' . base64_encode($movie['img']);
-            }
+            $movie['img'] = moviePosterUrl($movie['id']);
+            $movie['cover_image'] = $movie['img'];
         }
+        unset($movie);
 
         echo json_encode($movies);
         exit();
@@ -95,8 +93,8 @@ if ($method === 'POST') {
             $stmtDel->execute([$movieId]);
             
             $conn->commit();
+            invalidateMoviePosterCache($movieId);
             
-            // Trigger Pusher event
             require_once __DIR__ . '/../pusher_helper.php';
             triggerPusherEvent('movie-updates', 'movie_changed', [
                 'action' => 'delete',
@@ -186,7 +184,6 @@ if ($method === 'POST') {
                 m.movie_id AS id,
                 m.title,
                 m.description,
-                m.poster AS img,
                 m.video_url AS trailer,
                 m.actual_video_url,
                 m.duration,
@@ -209,20 +206,25 @@ if ($method === 'POST') {
             $movie['genre_ids'] = $movie['genre_ids'] ? array_map('intval', explode(',', $movie['genre_ids'])) : [];
             $movie['duration'] = (int)$movie['duration'];
             $movie['view_count'] = (int)$movie['view_count'];
-            if (!empty($movie['img'])) {
-                $movie['img'] = 'data:image/jpeg;base64,' . base64_encode($movie['img']);
-            }
+            $movie['img'] = moviePosterUrl($movie['id']);
+            $movie['cover_image'] = $movie['img'];
         }
 
-        // Trigger Pusher event AFTER we have all data, using correct action
+        if ($posterBytes !== null) {
+            invalidateMoviePosterCache($movieId);
+        }
+
+        echo json_encode(['success' => true, 'movie' => $movie]);
+
+        if (function_exists('fastcgi_finish_request')) {
+            fastcgi_finish_request();
+        }
+
         require_once __DIR__ . '/../pusher_helper.php';
         triggerPusherEvent('movie-updates', 'movie_changed', [
             'action' => $isUpdate ? 'update' : 'create',
             'movie_id' => $movieId
         ]);
-
-        // Single JSON response
-        echo json_encode(['success' => true, 'movie' => $movie]);
 
     } catch (Exception $e) {
         $conn->rollBack();

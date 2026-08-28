@@ -33,30 +33,27 @@ friends: [
             if (this.isNavOpen) return;
             this.isNavOpen = true;
             
+            if (document.getElementById('side-panel')) document.getElementById('side-panel').style.pointerEvents = 'auto';
+            if (document.getElementById('nav-overlay')) document.getElementById('nav-overlay').style.pointerEvents = 'auto';
+            
+            if (typeof gsap === 'undefined') return;
+            
             const tl = gsap.timeline();
             
-            // Enable pointers
-            document.getElementById('side-panel').style.pointerEvents = 'auto';
-            document.getElementById('nav-overlay').style.pointerEvents = 'auto';
-            
-            // Overlay fade
             tl.to('#nav-overlay', { opacity: 1, duration: 0.15, ease: "power2.out" }, 0);
             
-            // Panel slide in
             tl.to('#side-panel', {
                 x: 0,
                 duration: 0.5,
                 ease: "expo.out"
             }, 0);
             
-            // Stagger nav items
             tl.fromTo('.side-nav-item', 
                 { x: 30, opacity: 0, scale: 0.9, rotationX: -15 },
                 { x: 0, opacity: 1, scale: 1, rotationX: 0, stagger: 0.05, duration: 0.6, ease: "back.out(1.5)" },
                 0.2
             );
             
-            // Stagger other panel elements
             tl.fromTo('.side-panel-stagger',
                 { opacity: 0, x: -20, scale: 0.95 },
                 { opacity: 1, x: 0, scale: 1, stagger: 0.05, duration: 0.5, ease: "back.out(1.2)" },
@@ -67,14 +64,19 @@ friends: [
             if (!this.isNavOpen) return;
             this.isNavOpen = false;
             
+            if (typeof gsap === 'undefined') {
+                if (document.getElementById('side-panel')) document.getElementById('side-panel').style.pointerEvents = 'none';
+                if (document.getElementById('nav-overlay')) document.getElementById('nav-overlay').style.pointerEvents = 'none';
+                return;
+            }
+            
             const tl = gsap.timeline({
                 onComplete: () => {
-                    document.getElementById('side-panel').style.pointerEvents = 'none';
-                    document.getElementById('nav-overlay').style.pointerEvents = 'none';
+                    if (document.getElementById('side-panel')) document.getElementById('side-panel').style.pointerEvents = 'none';
+                    if (document.getElementById('nav-overlay')) document.getElementById('nav-overlay').style.pointerEvents = 'none';
                 }
             });
             
-            // Fade out elements quickly
             tl.to('.side-nav-item', {
                 x: -30, opacity: 0, scale: 0.9, rotationX: 15, stagger: 0.02, duration: 0.3, ease: "power3.in"
             }, 0);
@@ -83,14 +85,12 @@ friends: [
                 opacity: 0, x: -20, scale: 0.95, duration: 0.2, ease: "power3.in"
             }, 0);
             
-            // Hide panel
             tl.to('#side-panel', {
                 x: '-100%',
                 duration: 0.4,
                 ease: "expo.inOut"
             }, 0.1);
             
-            // Hide overlay
             tl.to('#nav-overlay', { opacity: 0, duration: 0.3, ease: "power2.in" }, 0.2);
         },
         navItems: [
@@ -125,20 +125,19 @@ friends: [
             { text: 'Achievement unlocked: <span class="font-bold text-yellow-400">Night Owl V2</span>', time: 'YESTERDAY', dotColor: 'bg-yellow-500' },
             { text: 'System diagnostic completed. Connection stable.', time: '2 DAYS AGO', dotColor: 'bg-white/20' }
         ],
-        initDashboard() { gsap.config({ nullTargetWarn: false });
+        initDashboard() {
+            if (typeof gsap !== 'undefined') {
+                gsap.config({ nullTargetWarn: false });
+            }
             
-            
-            // Escape key to close nav
             document.addEventListener('keydown', (e) => {
                 if (e.key === 'Escape' && this.isNavOpen) {
                     this.closeNav();
                 }
             });
             
-            
-            
             this.$watch('showQuestsPanel', value => {
-                if(value) {
+                if (value && typeof gsap !== 'undefined') {
                     this.$nextTick(() => {
                         gsap.fromTo('.quest-item', 
                             { x: 100, opacity: 0, scale: 0.8, rotationY: 45 },
@@ -153,109 +152,103 @@ friends: [
             });
 
             this.$watch('questActiveTab', value => {
-                this.$nextTick(() => {
-                    gsap.fromTo('.quest-item', 
-                        { x: 50, opacity: 0, scale: 0.95 },
-                        { x: 0, opacity: 1, scale: 1, duration: 0.5, stagger: 0.05, ease: 'power3.out' }
-                    );
-                });
-            });
-
-            this.$nextTick(() => {
-                // 3. Animated Number Counters
-                const counters = document.querySelectorAll('.stat-counter');
-                counters.forEach(counter => {
-                    const target = parseFloat(counter.getAttribute('data-target'));
-                    const obj = { val: 0 };
-                    
-                    gsap.to(obj, {
-                        val: target,
-                        duration: 2.5,
-                        ease: "power3.out",
-                        delay: 0.8, // Wait for intro sequence
-                        onUpdate: () => {
-                            counter.innerText = Math.floor(obj.val);
-                        }
-                    });
-                });
-            });
-
-            // Epic Intro Sequence
-            const tl = gsap.timeline();
-            
-            // Header items drop in
-            tl.fromTo(".gs-header-item", 
-                { y: -40, opacity: 0, scale: 0.95 }, 
-                { y: 0, opacity: 1, scale: 1, stagger: 0.1, duration: 0.8, ease: "back.out(1.5)" }, 
-                0.2
-            )
-            // Staggered grid cards entry
-            .fromTo(".stagger-item", 
-                { opacity: 0, y: 80, rotationY: 15, scale: 0.9 }, 
-                { opacity: 1, y: 0, rotationY: 0, scale: 1, stagger: 0.1, duration: 0.9, ease: "back.out(1.2)" }, 
-                "-=0.6"
-            );
-
-            // Split text animation for welcome
-            const welcomeText = document.querySelector('.welcome-text');
-            if (welcomeText) {
-                const text = welcomeText.innerText;
-                welcomeText.innerHTML = '';
-                [...text].forEach(char => {
-                    const span = document.createElement('span');
-                    span.innerText = char;
-                    span.style.opacity = '0';
-                    span.style.display = 'inline-block';
-                    if (char === ' ') span.innerHTML = '&nbsp;';
-                    welcomeText.appendChild(span);
-                });
-                
-                gsap.fromTo(welcomeText.querySelectorAll('span'), 
-                    { opacity: 0, y: 30, rotationX: 90 },
-                    {
-                        opacity: 1,
-                        y: 0,
-                        rotationX: 0,
-                        stagger: 0.04,
-                        duration: 0.7,
-                        ease: "back.out(2)",
-                        delay: 0.5
-                    }
-                );
-            }
-
-            // Continuous Micro-Animations
-            
-            // Pulsing dots in activity feed
-            
-            this.$nextTick(() => {
-                gsap.to('.activity-item .dot-pulse', {
-                    scale: 1.8,
-                    opacity: 0,
-                    repeat: -1,
-                    duration: 1.5,
-                    ease: "power2.out",
-                    stagger: 0.3
-                });
-            });
-
-            // Random glitch effect on stat numbers periodically
-            setInterval(() => {
-                const stats = document.querySelectorAll('.stat-counter');
-                if (stats.length > 0) {
-                    const randomStat = stats[Math.floor(Math.random() * stats.length)];
-                    gsap.to(randomStat, {
-                        x: () => Math.random() * 8 - 4,
-                        y: () => Math.random() * 8 - 4,
-                        duration: 0.05,
-                        yoyo: true,
-                        repeat: 5,
-                        onComplete: () => {
-                            gsap.set(randomStat, {x:0, y:0});
-                        }
+                if (typeof gsap !== 'undefined') {
+                    this.$nextTick(() => {
+                        gsap.fromTo('.quest-item', 
+                            { x: 50, opacity: 0, scale: 0.95 },
+                            { x: 0, opacity: 1, scale: 1, duration: 0.5, stagger: 0.05, ease: 'power3.out' }
+                        );
                     });
                 }
-            }, 6000);
+            });
+
+            if (typeof gsap !== 'undefined') {
+                this.$nextTick(() => {
+                    const counters = document.querySelectorAll('.stat-counter');
+                    counters.forEach(counter => {
+                        const target = parseFloat(counter.getAttribute('data-target'));
+                        const obj = { val: 0 };
+                        
+                        gsap.to(obj, {
+                            val: target,
+                            duration: 2.5,
+                            ease: "power3.out",
+                            delay: 0.8,
+                            onUpdate: () => {
+                                counter.innerText = Math.floor(obj.val);
+                            }
+                        });
+                    });
+                });
+
+                const tl = gsap.timeline();
+                
+                tl.fromTo(".gs-header-item", 
+                    { y: -40, opacity: 0, scale: 0.95 }, 
+                    { y: 0, opacity: 1, scale: 1, stagger: 0.1, duration: 0.8, ease: "back.out(1.5)" }, 
+                    0.2
+                )
+                .fromTo(".stagger-item", 
+                    { opacity: 0, y: 80, rotationY: 15, scale: 0.9 }, 
+                    { opacity: 1, y: 0, rotationY: 0, scale: 1, stagger: 0.1, duration: 0.9, ease: "back.out(1.2)" }, 
+                    "-=0.6"
+                );
+
+                const welcomeText = document.querySelector('.welcome-text');
+                if (welcomeText) {
+                    const text = welcomeText.innerText;
+                    welcomeText.innerHTML = '';
+                    [...text].forEach(char => {
+                        const span = document.createElement('span');
+                        span.innerText = char;
+                        span.style.opacity = '0';
+                        span.style.display = 'inline-block';
+                        if (char === ' ') span.innerHTML = '&nbsp;';
+                        welcomeText.appendChild(span);
+                    });
+                    
+                    gsap.fromTo(welcomeText.querySelectorAll('span'), 
+                        { opacity: 0, y: 30, rotationX: 90 },
+                        {
+                            opacity: 1,
+                            y: 0,
+                            rotationX: 0,
+                            stagger: 0.04,
+                            duration: 0.7,
+                            ease: "back.out(2)",
+                            delay: 0.5
+                        }
+                    );
+                }
+
+                this.$nextTick(() => {
+                    gsap.to('.activity-item .dot-pulse', {
+                        scale: 1.8,
+                        opacity: 0,
+                        repeat: -1,
+                        duration: 1.5,
+                        ease: "power2.out",
+                        stagger: 0.3
+                    });
+                });
+
+                setInterval(() => {
+                    const stats = document.querySelectorAll('.stat-counter');
+                    if (stats.length > 0) {
+                        const randomStat = stats[Math.floor(Math.random() * stats.length)];
+                        gsap.to(randomStat, {
+                            x: () => Math.random() * 8 - 4,
+                            y: () => Math.random() * 8 - 4,
+                            duration: 0.05,
+                            yoyo: true,
+                            repeat: 5,
+                            onComplete: () => {
+                                gsap.set(randomStat, {x:0, y:0});
+                            }
+                        });
+                    }
+                }, 6000);
+            }
         }
     }
 }

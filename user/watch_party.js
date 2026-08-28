@@ -4,8 +4,8 @@ function watchParty() {
         showMovieModal: false,
         movieSearchQuery: '',
         movieFilter: 'all',
-        filteredMovies: [],
         hoveredMovieId: null,
+        allMovies: [],
         // --- 1. UI State ---
         showChat: true,
         showParticipants: true,
@@ -48,15 +48,11 @@ function watchParty() {
                 }
             });
 
-            // Fetch room details and friends on load[cite: 6]
-            await this.fetchRoomDetails();
-            await this.fetchFriends(); //[cite: 6]
-            
-            //this.$refs.videoPlayer.onloadedmetadata = () => { //[cite: 6]
-               // this.duration = this.$refs.videoPlayer.duration; //[cite: 6]
-          //  };
-            await this.startLocalMedia(); //[cite: 6]
-            this.connectSignaling(); //[cite: 6]
+            this.fetchRoomDetails();
+            this.fetchFriends();
+            this.fetchMovies();
+            this.startLocalMedia();
+            this.connectSignaling();
         },
 
         // Fetch room metadata & enforce host permissions / room active status
@@ -136,6 +132,69 @@ function watchParty() {
             } catch (e) {
                 console.error("Error fetching friends:", e); //[cite: 6]
             }
+        },
+
+        get filteredMovies() {
+            const query = (this.movieSearchQuery || '').toLowerCase();
+            return (this.allMovies || []).filter(movie => {
+                const genres = Array.isArray(movie.genres) ? movie.genres : String(movie.genre || '').split(',').map(s => s.trim());
+                const genreOk = this.movieFilter === 'all' || genres.includes(this.movieFilter);
+                const titleOk = !query || (movie.title && movie.title.toLowerCase().includes(query));
+                return genreOk && titleOk;
+            });
+        },
+
+        async fetchMovies() {
+            try {
+                const res = await fetch('/user_backend/movies_api.php');
+                const data = await res.json();
+                this.allMovies = Array.isArray(data) ? data : [];
+            } catch (e) {
+                console.error("Error fetching movies:", e);
+            }
+        },
+
+        selectMovie(movie) {
+            this.videoUrl = movie.actual_video_url || movie.trailer || movie.video_url || '';
+            this.currentMovie = movie;
+            this.showMovieModal = false;
+            setTimeout(() => {
+                if (this.$refs.videoPlayer) {
+                    this.$refs.videoPlayer.onloadedmetadata = () => {
+                        this.duration = this.$refs.videoPlayer.duration;
+                    };
+                    this.isPlaying = true;
+                    this.$refs.videoPlayer.play();
+                }
+            }, 100);
+        },
+
+        isYouTubeUrl(url) {
+            if (!url) return false;
+            return url.includes('youtube.com') || url.includes('youtu.be');
+        },
+
+        getYouTubeEmbedUrl(url, isHover = false) {
+            if (!url) return '';
+            const match = url.match(/^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/);
+            if (match && match[2].length === 11) {
+                const videoId = match[2];
+                const params = new URLSearchParams({
+                    autoplay: isHover ? '1' : '0',
+                    mute: isHover ? '1' : '0',
+                    controls: '0',
+                    loop: '1',
+                    playlist: videoId,
+                    modestbranding: '1',
+                    rel: '0',
+                    showinfo: '0',
+                    iv_load_policy: '3',
+                    enablejsapi: '1',
+                    disablekb: '1'
+                });
+                return `https://www.youtube.com/embed/${videoId}?${params.toString()}`;
+            }
+            return url;
         },
 
         inviteFriend(friendId) { //[cite: 6]

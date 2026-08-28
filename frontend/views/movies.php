@@ -30,7 +30,7 @@
                     class="group relative rounded-2xl bg-[#08080c] border border-white/[0.08] hover:border-red-500/40 transition-all duration-300 hover:-translate-y-1.5 shadow-xl hover:shadow-[0_12px_30px_rgba(239,68,68,0.15)] overflow-hidden">
                     
                     <div class="aspect-[2/3] w-full relative overflow-hidden bg-white/5">
-                        <img :src="movie.img || movie.cover_image || 'https://via.placeholder.com/300x450/0d0d12/ffffff?text=No+Poster'" alt="Poster" class="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110">
+                        <img :src="movie.img || movie.cover_image || 'https://via.placeholder.com/300x450/0d0d12/ffffff?text=No+Poster'" alt="Poster" loading="lazy" decoding="async" class="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110">
                         
                         <!-- 2. INSERT THE TRAILER IFRAME HERE -->
                         <template x-if="isHovered && movie.trailer && isYouTubeUrl(movie.trailer)">
