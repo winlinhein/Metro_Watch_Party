@@ -1,5 +1,5 @@
 <!-- Users View -->
-<div data-tab-panel="users" style="display: none;" class="absolute inset-0 p-10 w-full min-h-full">
+<div data-tab-panel="users" style="display: none;" class="absolute inset-0 p-10 w-full min-h-full overflow-y-auto">
 
     <div class="flex flex-col md:flex-row items-start md:items-center justify-between mb-6 gap-4 stagger-item">
         <div>

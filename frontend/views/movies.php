@@ -1,5 +1,5 @@
 <!-- Movies View Container -->
-<div data-tab-panel="movies"  style="display: none;" class="relative w-full min-h-full p-8 lg:p-12">
+<div data-tab-panel="movies"  style="display: none;" class="relative w-full min-h-full p-8 lg:p-12 overflow-y-auto">
     <!-- Section Header -->
     <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-10 stagger-item">
         <div>

@@ -1,5 +1,5 @@
 <!-- Profile View -->
-<div data-tab-panel="profile" style="display: none;" class="absolute inset-0 p-10 w-full min-h-full">
+<div data-tab-panel="profile" style="display: none;" class="absolute inset-0 p-10 w-full min-h-full overflow-y-auto">
     <!-- Inline Notification Banner -->
     <div x-show="notification.show" 
         x-transition:enter="transition ease-out duration-300"

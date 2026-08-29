@@ -250,7 +250,7 @@ if (
         </header>
 
         <!-- Content Area -->
-        <div class="flex-1 overflow-y-auto p-10 tab-content relative scroll-smooth" >
+        <div class="flex-1 min-h-0 overflow-y-auto p-10 tab-content relative scroll-smooth">
             <?php include __DIR__ . '/views/dashboard.php'; ?>
             <?php include __DIR__ . '/views/movies.php'; ?>
             <?php include __DIR__ . '/views/users.php'; ?>

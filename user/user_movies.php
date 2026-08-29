@@ -111,36 +111,51 @@
                 <div class="flex flex-col h-full overflow-y-auto custom-scrollbar">
                     
                     <div class="relative aspect-video w-full bg-black">
-                        <template x-if="selectedMovie?.actual_video_url && isYouTubeUrl(selectedMovie?.actual_video_url)">
-                            <div x-data="{}"
-                                x-init="let p; $nextTick(() => { const iframe = $el.querySelector('iframe'); if(iframe) iframe.src = getYouTubeEmbedUrl(selectedMovie?.actual_video_url, false); p = new Plyr($el.querySelector('.plyr-target'), { autoplay: true, controls: ['play-large', 'play', 'progress', 'current-time', 'mute', 'volume', 'fullscreen'], youtube: { noCookie: false, rel: 0, showinfo: 0, iv_load_policy: 3, modestbranding: 1 } }); }); return () => { try { if (p) p.destroy(); } catch(e) {} }"
+                       <template x-if="selectedMovie?.actual_video_url && isYouTubeUrl(selectedMovie?.actual_video_url)">
+                            <div x-init="let p; 
+                                        $nextTick(() => { 
+                                            const iframe = $el.querySelector('iframe'); 
+                                            if(iframe) iframe.src = getYouTubeEmbedUrl(selectedMovie?.actual_video_url, false); 
+                                            p = new Plyr($el.querySelector('.plyr-target'), { 
+                                                autoplay: true, 
+                                                controls: ['play-large', 'play', 'progress', 'current-time', 'mute', 'volume', 'fullscreen'], 
+                                                youtube: { noCookie: false, rel: 0, showinfo: 0, iv_load_policy: 3, modestbranding: 1 } 
+                                            }); 
+                                            // View counting trigger
+                                            p.on('timeupdate', () => {
+                                                if (p.currentTime >= viewThresholdSeconds && !viewRecorded) {
+                                                    recordView(selectedMovie?.id || selectedMovie?.movie_id);
+                                                }
+                                            });
+                                        }); 
+                                        return () => { try { if (p) p.destroy(); } catch(e) {} }"
                                 class="absolute inset-0 w-full h-full">
                                 <div class="plyr__video-embed w-full h-full plyr-target">
-                                    <iframe
-                                        class="w-full h-full"
-                                        frameborder="0"
-                                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                                        allowfullscreen>
-                                    </iframe>
+                                    <iframe class="w-full h-full" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
                                 </div>
                             </div>
                         </template>
 
                        <!-- Non-YouTube direct video file -->
                         <template x-if="selectedMovie?.actual_video_url && !isYouTubeUrl(selectedMovie?.actual_video_url)">
-                            <div x-data="{ movieUrl: selectedMovie?.actual_video_url }"
-                                x-init="let player;
+                            <div x-init="let player;
                                         $nextTick(() => {
                                             const video = $el.querySelector('video');
-                                            if (video && movieUrl) {
-                                                video.src = movieUrl;
+                                            if (video && selectedMovie?.actual_video_url) {
+                                                video.src = selectedMovie.actual_video_url;
                                                 player = new Plyr(video, {
-                                                    autoplay: false,   // or true, but browsers may block
+                                                    autoplay: false,
                                                     controls: ['play-large', 'play', 'progress', 'current-time', 'mute', 'volume', 'fullscreen']
+                                                });
+                                                // View counting trigger
+                                                player.on('timeupdate', () => {
+                                                    if (player.currentTime >= viewThresholdSeconds && !viewRecorded) {
+                                                        recordView(selectedMovie?.id || selectedMovie?.movie_id);
+                                                    }
                                                 });
                                             }
                                         });
-                                        $cleanup(() => { if (player) player.destroy(); });"
+                                        return () => { if (player) player.destroy(); }"
                                 class="absolute inset-0 w-full h-full">
                                 <video class="w-full h-full object-contain"></video>
                             </div>

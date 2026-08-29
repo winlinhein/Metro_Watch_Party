@@ -68,6 +68,8 @@ function userDashboard() {
         movies: [],
         movieSearchQuery: '',
         selectedMovie: null,
+        viewRecorded: false,        // reset each time a new movie detail is opened
+        viewThresholdSeconds: 10,   // minimum watch time before counting a view 
         newRating: 0,
         hoveredRating: 0,
         commentText: '',
@@ -291,6 +293,35 @@ function userDashboard() {
                 console.error("Failed to load movies from database:", e);
                 this.movieError = "Failed to load movies. Please try again.";
                 this.movies = [];
+            }
+        },
+
+       async recordView(movieId) {
+            if (!movieId || this.viewRecorded) return;
+
+            try {
+                const res = await fetch('/user_backend/record_view.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ movie_id: movieId })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    // Update modal
+                    if (this.selectedMovie && this.getMovieId(this.selectedMovie) === movieId) {
+                        this.selectedMovie.view_count = data.view_count;
+                    }
+                    // Update main movies array
+                    const movieInList = this.movies.find(m => this.getMovieId(m) === movieId);
+                    if (movieInList) {
+                        movieInList.view_count = data.view_count;
+                    }
+                }
+                // Always mark as recorded to prevent repeated calls
+                this.viewRecorded = true;
+            } catch (e) {
+                console.error('Failed to record view:', e);
+                this.viewRecorded = true; // prevent repeated attempts on network error
             }
         },
 
@@ -520,6 +551,7 @@ function userDashboard() {
 
         async openMovieDetail(movie) {
             this.selectedMovie = movie;
+            this.viewRecorded = false; 
             this.newRating = movie?.user_rating ? parseInt(movie.user_rating, 10) : 0;
             this.hoveredRating = 0;
             this.commentText = '';
@@ -1960,6 +1992,20 @@ function userDashboard() {
                 const newComments = [...(this.selectedMovie.comments || [])];
                 if (findAndSetLikes(newComments)) {
                     this.selectedMovie.comments = newComments;
+                }
+            });
+
+            // 5. Live View Count Update
+            channel.bind('view_count_updated', (data) => {
+                if (!this.selectedMovie || Number(this.getMovieId(this.selectedMovie)) !== Number(data.movie_id)) return;
+
+                // Update modal
+                this.selectedMovie.view_count = data.view_count;
+
+                // Update main movies array
+                const movieInList = this.movies.find(m => Number(this.getMovieId(m)) === Number(data.movie_id));
+                if (movieInList) {
+                    movieInList.view_count = data.view_count;
                 }
             });
         },
@@ -3796,8 +3842,10 @@ function adminDashboard(userData = {}) {
                 duration: '', 
                 genre_ids: [] 
             };
+            this.movieTab = 'details';   
             this.movieModalOpen = true;
         },
+
         async saveMovie() {
             this.isLoading = true;
             this.errorMessage = '';
@@ -3925,6 +3973,87 @@ function adminDashboard(userData = {}) {
         reportsList: [],
         reportStats: { total: 0, pending: 0, read: 0 },
         filterStatus: 'all',
+        reportCommentDetails: null,
+        loadingReportComment: false,
+        commentsCache: {},
+
+        preloadReportComments() {
+            const movieIds = [...new Set(
+                this.reportsList
+                    .filter(r => r.reported_movie_id && r.reported_comment_id)
+                    .map(r => r.reported_movie_id)
+            )];
+
+            movieIds.forEach(async (movieId) => {
+                if (this.commentsCache[movieId]) return;
+                try {
+                    const res = await fetch(`/backend/comments_api.php?movie_id=${movieId}`);
+                    const data = await res.json();
+                    if (data.success) {
+                        this.commentsCache[movieId] = data.comments;
+                    }
+                } catch (e) {
+                    console.error('Failed to preload comments for movie', movieId, e);
+                }
+            });
+        },
+
+        viewReport(report) {
+            this.selectedReport = report;
+            this.viewModalOpen = true;
+            this.reportCommentDetails = null;
+
+            // Mark as read if pending
+            if (report.status === 'Pending') {
+                try {
+                    fetch('/backend/update_report_status.php', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ report_id: report.id, status: 'Read' })
+                    }).then(res => res.json()).then(data => {
+                        if (data.success) {
+                            report.status = 'Read';
+                            this.updateReportStats();
+                        }
+                    });
+                } catch (e) {
+                    console.error("Failed to mark report as read:", e);
+                }
+            }
+
+            // Load comment details from cache
+            if (report.reported_comment_id && report.reported_movie_id) {
+                const movieComments = this.commentsCache[report.reported_movie_id];
+                if (movieComments) {
+                    const found = movieComments.find(c => c.id == report.reported_comment_id);
+                    if (found) this.reportCommentDetails = found;
+                } else {
+                    this.fetchReportComment(report);
+                }
+            }
+        },
+
+        async fetchReportComment(report) {
+            this.loadingReportComment = true;
+            this.reportCommentDetails = null;
+            try {
+                const movieId = report.reported_movie_id;
+                const commentId = report.reported_comment_id;
+                const res = await fetch(`/backend/comments_api.php?movie_id=${movieId}`);
+                const data = await res.json();
+                if (data.success) {
+                    this.commentsCache[movieId] = data.comments;
+                    const found = data.comments.find(c => c.id == commentId);
+                    if (found) this.reportCommentDetails = found;
+                }
+            } catch (e) {
+                console.error('Failed to fetch reported comment:', e);
+            } finally {
+                this.loadingReportComment = false;
+            }
+        },
+
+        // Optionally update resolveReport if needed (it's fine as is)
 
         async fetchReports() {
             try {
@@ -3934,6 +4063,7 @@ function adminDashboard(userData = {}) {
                 if (data.success) {
                     this.reportsList = data.reports;
                     this.updateReportStats();
+                    this.preloadReportComments();
                 }
             } catch (error) {
                 console.error("Error fetching reports:", error);
@@ -3946,31 +4076,6 @@ function adminDashboard(userData = {}) {
             this.reportStats.read = this.reportsList.filter(r => r.status === 'Read').length;
         },
 
-        // UPDATED: Opens the modal and marks the report as "Read" in the database
-        async viewReport(report) {
-            this.selectedReport = report;
-            this.viewModalOpen = true;
-
-            // If it's a new report, mark it as read when the admin opens it
-            if (report.status === 'Pending') {
-                try {
-                    const res = await fetch('/backend/update_report_status.php', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ report_id: report.id, status: 'Read' })
-                    });
-                    const data = await res.json();
-                    
-                    if (data.success) {
-                        report.status = 'Read';
-                        this.updateReportStats();
-                    }
-                } catch (e) {
-                    console.error("Failed to mark report as read:", e);
-                }
-            }
-        },
-
         // UPDATED: Sends a request to the backend to mark the report as "Resolved"
         async resolveReport() {
             if (!this.selectedReport) return;
@@ -3979,13 +4084,13 @@ function adminDashboard(userData = {}) {
                 const res = await fetch('/backend/update_report_status.php', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ report_id: this.selectedReport.id, status: 'Resolved' })
+                    body: JSON.stringify({ report_id: this.selectedReport.id, status: 'Read' })
                 });
                 
                 const data = await res.json();
                 
                 if (data.success) {
-                    this.selectedReport.status = 'Resolved';
+                    this.selectedReport.status = 'Read';
                     this.viewModalOpen = false;
                     this.updateReportStats();
                     
