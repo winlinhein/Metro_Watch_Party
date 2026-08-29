@@ -46,6 +46,9 @@ io.on("connection", (socket) => {
   socket.on('join-room', (roomId, userId) => {
       socket.join(roomId);
       console.log(`User ${userId} joined room ${roomId}`);
+      // Store roomId and userId on the socket for disconnect cleanup
+      (socket as any)._roomId = roomId;
+      (socket as any)._userId = userId;
       socket.to(roomId).emit('user-connected', userId);
   });
 
@@ -61,7 +64,28 @@ io.on("connection", (socket) => {
       socket.to(data.targetSocketId).emit('ice-candidate', data);
   });
 
+  socket.on('toggle-mic', (isMuted) => {
+      const roomId = (socket as any)._roomId;
+      const userId = (socket as any)._userId;
+      if (roomId) {
+          socket.to(roomId).emit('peer-mic-changed', { userId, isMuted });
+      }
+  });
+
+  socket.on('toggle-video', (isVideoOn) => {
+      const roomId = (socket as any)._roomId;
+      const userId = (socket as any)._userId;
+      if (roomId) {
+          socket.to(roomId).emit('peer-video-changed', { userId, isVideoOn });
+      }
+  });
+
   socket.on('disconnect', () => {
+      const roomId = (socket as any)._roomId;
+      const userId = (socket as any)._userId;
+      if (roomId && userId) {
+          socket.to(roomId).emit('user-disconnected', userId);
+      }
       console.log(`User disconnected: ${socket.id}`);
   });
 });
@@ -204,6 +228,10 @@ app.post("/user_backend/send_chat.php", (req, res) => {
 
 app.post("/user_backend/mark_as_read.php", (req, res) => {
   res.json({ success: true });
+});
+
+app.post("/user_backend/leave_room.php", (req, res) => {
+  res.json({ success: true, message: "Left room (mock)." });
 });
 
 

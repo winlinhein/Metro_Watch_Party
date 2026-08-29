@@ -286,7 +286,16 @@ $userEmail = $_SESSION['user_email'] ?? '';
                     <div class="flex flex-col gap-3 origin-top pointer-events-auto overflow-y-auto custom-scrollbar pr-1 pb-4" x-show="showParticipants" x-transition:enter="transition ease-out duration-300" x-transition:enter-start="opacity-0 scale-y-90" x-transition:enter-end="opacity-100 scale-y-100" x-transition:leave="transition ease-in duration-200" x-transition:leave-start="opacity-100 scale-y-100" x-transition:leave-end="opacity-0 scale-y-90">
                         <template x-for="(user, index) in participants" :key="index">
                             <div class="participant-card w-full aspect-video hover:scale-105 transition-transform duration-300 bg-white/5 rounded-xl border border-white/10 overflow-hidden relative group shadow-lg shrink-0">
-                                <video x-init="$el.srcObject = user.stream" autoplay playsinline class="w-full h-full object-cover" :muted="user.isSelf"></video>
+                                <!-- Live video feed (only when stream is available) -->
+                                <template x-if="user.stream">
+                                    <video x-init="$el.srcObject = user.stream" autoplay playsinline class="w-full h-full object-cover" :muted="user.isSelf"></video>
+                                </template>
+                                <!-- Placeholder avatar (when no stream — camera denied/unavailable) -->
+                                <template x-if="!user.stream">
+                                    <div class="w-full h-full flex items-center justify-center bg-[#0a0a0f]">
+                                        <div class="w-12 h-12 rounded-full bg-gradient-to-tr from-indigo-500 to-red-600 flex items-center justify-center text-white font-bold text-lg select-none" x-text="(user.name || 'U').charAt(0).toUpperCase()"></div>
+                                    </div>
+                                </template>
                                 <div class="absolute bottom-1 left-1 bg-black/60 backdrop-blur px-1.5 py-0.5 rounded text-[9px] font-bold text-white flex items-center gap-1 border border-white/10">
                                     <span class="truncate max-w-[60px]" x-text="user.name"></span>
                                     <span class="material-symbols-outlined text-[10px]" :class="user.muted ? 'text-red-500' : 'text-green-500'" x-text="user.muted ? 'mic_off' : 'mic'"></span>
@@ -523,7 +532,6 @@ $userEmail = $_SESSION['user_email'] ?? '';
 
 
     <script src="https://unpkg.com/@barba/core@2.9.7/dist/barba.umd.js" crossorigin="anonymous"></script>
-    <script src="https://cdn.socket.io/4.7.4/socket.io.min.js"></script>
 <!-- Your external script file loaded at the bottom of the body -->
 
     
