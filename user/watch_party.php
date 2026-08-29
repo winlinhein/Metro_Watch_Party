@@ -23,12 +23,10 @@ $userEmail = $_SESSION['user_email'] ?? '';
         window.USER_EMAIL = <?php echo json_encode($userEmail); ?>;
     </script>
     
+    <!-- Tailwind CSS (needs to be in head for styling) -->
     <script src="https://cdn.tailwindcss.com/3.4.17"></script>
-    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.1/dist/cdn.min.js" crossorigin="anonymous"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js" crossorigin="anonymous" onerror="window.gsap=window.gsap||{to:()=>({to:()=>({}),fromTo:()=>({})}),fromTo:()=>({}),from:()=>({}),set:()=>{},timeline:()=>({to:()=>({}),fromTo:()=>({}),add:()=>({}),set:()=>({})}),config:()=>{},killTweensOf:()=>{}}"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js" crossorigin="anonymous" onerror="if(window.gsap)window.gsap.ScrollTrigger=window.gsap.ScrollTrigger||{create:()=>{},refresh:()=>{},kill:()=>{}}"></script>
-    <script>if(window.gsap) gsap.config({nullTargetWarn: false});</script>
     
+    <!-- Fonts & Styles -->
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0" />
     <style>
@@ -83,14 +81,9 @@ $userEmail = $_SESSION['user_email'] ?? '';
         }
     </style>
 
-
-   <!-- 1. Third-Party Libraries First -->
-<script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
-<script src="https://unpkg.com/htmx.org@1.9.10/dist/htmx.min.js" crossorigin="anonymous"></script>
-
-<!-- 2. Your Custom Scripts Last -->
-<script src="../js/nexus_scripts.js?v=1787387210"></script>
-<script src="watch_party.js?v=<?php echo time(); ?>"></script>
+    <!-- ========== CRITICAL FIX: Load watch_party.js BEFORE Alpine ========== -->
+    <script defer src="watch_party.js?v=<?php echo md5(uniqid(rand(), true)); ?>"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.1/dist/cdn.min.js"></script>
 </head>
 <body class="h-screen w-screen flex relative selection:bg-red-500/30" data-barba="wrapper">
     <?php include __DIR__ . '/../frontend/components/page_loader.php'; ?>
@@ -286,7 +279,17 @@ $userEmail = $_SESSION['user_email'] ?? '';
                     <div class="flex flex-col gap-3 origin-top pointer-events-auto overflow-y-auto custom-scrollbar pr-1 pb-4" x-show="showParticipants" x-transition:enter="transition ease-out duration-300" x-transition:enter-start="opacity-0 scale-y-90" x-transition:enter-end="opacity-100 scale-y-100" x-transition:leave="transition ease-in duration-200" x-transition:leave-start="opacity-100 scale-y-100" x-transition:leave-end="opacity-0 scale-y-90">
                         <template x-for="(user, index) in participants" :key="index">
                             <div class="participant-card w-full aspect-video hover:scale-105 transition-transform duration-300 bg-white/5 rounded-xl border border-white/10 overflow-hidden relative group shadow-lg shrink-0">
-                                <video x-init="$el.srcObject = user.stream" autoplay playsinline class="w-full h-full object-cover" :muted="user.isSelf"></video>
+                                <!-- Live camera feed -->
+                                <template x-if="user.stream">
+                                    <video x-init="$el.srcObject = user.stream" autoplay playsinline class="w-full h-full object-cover" :muted="user.isSelf"></video>
+                                </template>
+                                <!-- No-camera placeholder -->
+                                <template x-if="!user.stream">
+                                    <div class="w-full h-full flex flex-col items-center justify-center bg-[#0a0a0f] gap-2">
+                                        <span class="material-symbols-outlined text-[32px] text-white/30">videocam_off</span>
+                                        <span class="text-[9px] text-white/30">Camera unavailable</span>
+                                    </div>
+                                </template>
                                 <div class="absolute bottom-1 left-1 bg-black/60 backdrop-blur px-1.5 py-0.5 rounded text-[9px] font-bold text-white flex items-center gap-1 border border-white/10">
                                     <span class="truncate max-w-[60px]" x-text="user.name"></span>
                                     <span class="material-symbols-outlined text-[10px]" :class="user.muted ? 'text-red-500' : 'text-green-500'" x-text="user.muted ? 'mic_off' : 'mic'"></span>
@@ -381,7 +384,7 @@ $userEmail = $_SESSION['user_email'] ?? '';
         </div>
     </div>
 
-    
+    <!-- Inline Fullscreen Handler (kept where it is, but could be moved) -->
     <script>
         document.addEventListener('fullscreenchange', () => {
             const cursorGlow = document.getElementById('cursor-glow');
@@ -389,11 +392,9 @@ $userEmail = $_SESSION['user_email'] ?? '';
             const contentArea = document.getElementById('content-area');
             
             if (document.fullscreenElement === contentArea) {
-                // Move cursors to content area so they show in fullscreen
                 if (cursorGlow) contentArea.appendChild(cursorGlow);
                 if (innerCursor) contentArea.appendChild(innerCursor);
             } else {
-                // Move them back to body
                 if (cursorGlow) document.body.appendChild(cursorGlow);
                 if (innerCursor) document.body.appendChild(innerCursor);
             }
@@ -520,16 +521,20 @@ $userEmail = $_SESSION['user_email'] ?? '';
     </div>
 </div>
 
+<!-- ====================== SCRIPTS AT BOTTOM (non‑critical) ====================== -->
+<!-- Third-party libraries (Socket.IO, HTMX, GSAP) can remain here -->
+<script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+<script src="https://unpkg.com/htmx.org@1.9.10/dist/htmx.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js"></script>
+<script>if(window.gsap) gsap.config({nullTargetWarn: false});</script>
 
+<!-- Custom scripts (nexus_scripts before watch_party is already in head) -->
+<script src="../js/nexus_scripts.js?v=1787387210"></script>
 
-    <script src="https://unpkg.com/@barba/core@2.9.7/dist/barba.umd.js" crossorigin="anonymous"></script>
-    <script src="https://cdn.socket.io/4.7.4/socket.io.min.js"></script>
-<!-- Your external script file loaded at the bottom of the body -->
-
-    
-    <script src="../js/barba_setup.js?v=4"></script>
-   
-
+<!-- Barba etc. -->
+<script src="https://unpkg.com/@barba/core@2.9.7/dist/barba.umd.js"></script>
+<script src="../js/barba_setup.js?v=4"></script>
 
 </body>
 </html>
