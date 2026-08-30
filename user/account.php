@@ -75,11 +75,11 @@
                     <div class="relative w-24 h-24 flex items-center justify-center mt-6 mb-4">
                         <!-- Avatar Base -->
                         <div class="w-full h-full rounded-full flex items-center justify-center shadow-lg relative z-0 overflow-hidden bg-black">
-                            <img :src="'https://ui-avatars.com/api/?name=' + encodeURIComponent(savedProfile.username || 'User') + '&background=ef4444&color=fff&bold=true'" class="w-full h-full object-cover border-2 border-white/10 rounded-full">
+                            <img :src="selectedAvatar || 'https://ui-avatars.com/api/?name=' + encodeURIComponent(savedProfile.username || 'User') + '&background=ef4444&color=fff&bold=true'" class="w-full h-full object-cover border-2 border-white/10 rounded-full">
                         </div>
                         
                         <!-- Selected Border Overlay -->
-                        <template x-if="activeBorderId !== 1">
+                        <template x-if="activeBorderId !== 0">
                             <img :src="availableBorders.find(b => b.id === activeBorderId)?.preview" class="absolute inset-0 w-full h-full object-contain z-10 pointer-events-none scale-[1.4]">
                         </template>
                     </div>
@@ -89,9 +89,17 @@
                         <p class="text-emerald-400 text-[10px] font-bold uppercase tracking-wider mt-1" x-text="availableBorders.find(b => b.id === activeBorderId)?.name || 'None'"></p>
                     </div>
                     
-                    <button type="button" class="mt-5 w-full py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-xs font-bold text-white transition-colors flex items-center justify-center gap-2 z-20 shadow-sm">
+                    <button type="button" @click="$refs.avatarInput.click()" class="mt-5 w-full py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-xs font-bold text-white transition-colors flex items-center justify-center gap-2 z-20 shadow-sm">
                         <span class="material-symbols-outlined text-[16px]">add_a_photo</span>
                         Change Picture
+                    </button>
+                    <input type="file" x-ref="avatarInput" @change="uploadAvatar" accept="image/*" class="hidden">
+
+                    <!-- Remove Photo Button (only when custom avatar exists) -->
+                    <button type="button" x-show="hasCustomAvatar" @click="removeAvatar()" 
+                            class="mt-2 w-full py-2 bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 rounded-xl text-xs font-bold text-red-400 transition-colors flex items-center justify-center gap-2 z-20 shadow-sm">
+                        <span class="material-symbols-outlined text-[16px]">delete</span>
+                        Remove Photo
                     </button>
                 </div>
 
@@ -99,7 +107,7 @@
                 <div class="flex-1">
                     <div class="grid grid-cols-2 xl:grid-cols-3 gap-4">
                         <template x-for="border in availableBorders" :key="border.id">
-                            <button @click="setActiveBorder(border.id)" 
+                            <button @click="border.owned ? setActiveBorder(border.id) : null" 
                                     class="relative p-4 rounded-xl border flex flex-col items-center justify-center gap-3 transition-all duration-300 transform"
                                     :class="[
                                         !border.owned ? 'bg-black/60 border-white/5 opacity-50 cursor-not-allowed hover:bg-black/60' : 'hover:-translate-y-1',
@@ -107,9 +115,9 @@
                                     ]">
                                 
                                 <div class="relative w-12 h-12 flex items-center justify-center">
-                                    <img :src="'https://ui-avatars.com/api/?name=' + encodeURIComponent(savedProfile.username || 'User') + '&background=ef4444&color=fff&bold=true'" class="w-10 h-10 rounded-full border-2 absolute z-0" :class="activeBorderId === border.id ? 'border-emerald-500' : 'border-white/10'">
+                                    <img :src="selectedAvatar || 'https://ui-avatars.com/api/?name=' + encodeURIComponent(savedProfile.username || 'User') + '&background=ef4444&color=fff&bold=true'" class="w-10 h-10 rounded-full border-2 absolute z-0" :class="activeBorderId === border.id ? 'border-emerald-500' : 'border-white/10'">
                                     
-                                    <template x-if="border.id !== 1">
+                                    <template x-if="border.id !== 0">
                                         <img :src="border.preview" class="absolute inset-0 w-full h-full object-contain scale-[1.4] pointer-events-none z-10">
                                     </template>
                                     
@@ -151,7 +159,7 @@
     </div>
 </div>
 
-<!-- Account Deletion Confirmation Modal -->
+<!-- Account Deletion Confirmation Modal (unchanged) -->
 <div x-show="deleteAccountModalOpen" 
      class="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/85 backdrop-blur-md" 
      style="display: none;" 

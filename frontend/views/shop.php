@@ -104,7 +104,7 @@
                  <div>
                      <label class="block text-xs font-bold text-white/50 uppercase tracking-wider mb-4 text-center">Border Image</label>
                      <div class="relative w-24 h-24 mx-auto cursor-pointer group" @click="$refs.fileInput.click()">
-                         <input type="file" x-ref="fileInput" @change="handleFileUpload" accept="image/*" class="hidden">
+                        <input type="file" x-ref="fileInput" @change="handleShopImageSelect" accept="image/*" class="hidden">
                          
                          <div class="absolute inset-1 rounded-full bg-[#111116] border border-white/5 shadow-inner flex items-center justify-center">
                             <span class="material-symbols-outlined text-white/10 text-3xl">person</span>

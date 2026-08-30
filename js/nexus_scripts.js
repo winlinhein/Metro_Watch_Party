@@ -61,8 +61,14 @@ function userDashboard() {
         // Form & Data Objects
         selectedReport: null,
         selectedRoom: null,
-        formData: { name: '', price: 0, rarity: 'Common', image: '' },
+
+         // Shop & Points
+        formData: { name: '', price: 0, rarity: 'Common', image: '' },      
+        userPoints: 0,
+        userInventory: [],
         shopItems: [],
+        showConfirmModal: false,  
+        selectedItem: null,        
 
         // Movie State & Modals
         movies: [],
@@ -95,18 +101,133 @@ function userDashboard() {
         selectedReasonIds: [],
         reportDescription: '',
 
-        // --- Account State ---
+       // Account State
         accountForm: { },
         passwordForm: { current: '', new: '', confirm: '' },
-        activeBorderId: 1,
-        availableBorders: [
-            { id: 1, name: 'None', preview: 'https://via.placeholder.com/150/000000/FFFFFF/?text=None', owned: true },
-            { id: 2, name: 'Encom Grid', preview: '/frontend/assets/borders/Encom%20grid.gif', owned: true },
-            { id: 3, name: 'Glitch', preview: '/frontend/assets/borders/Glitch.gif', owned: false },
-            { id: 4, name: 'Hallucination', preview: '/frontend/assets/borders/Hallunication.gif', owned: false },
-            { id: 5, name: 'Spray Doodle', preview: '/frontend/assets/borders/Spray%20doodle.gif', owned: false },
-            { id: 6, name: 'Sukuna Slashes', preview: '/frontend/assets/borders/Sukuna\'s%20slashes.gif', owned: true }
-        ],
+        activeBorderId: 0,
+        availableBorders: [],
+        hasCustomAvatar: false,
+        selectedAvatar: '',   
+
+        buildAvailableBorders() {
+            const borderItems = this.shopItems.filter(item => item.category === 'border');
+            const ownedIds = new Set(this.userInventory);
+            this.availableBorders = [
+                { id: 0, name: 'None', preview: '', owned: true },
+                ...borderItems.map(item => ({
+                    id: item.id,
+                    name: item.name,
+                    preview: item.image,
+                    owned: ownedIds.has(item.id)
+                }))
+            ];
+        },
+
+       async fetchUserProfile() {
+            try {
+                const res = await fetch('/user_backend/get_user_profile.php');
+                const data = await res.json();
+                if (data.success) {
+                    this.userPoints = data.points;
+                    this.userInventory = data.inventory;
+                    this.activeBorderId = data.active_border_id;
+                    if (data.avatar_url) {
+                        this.selectedAvatar = data.avatar_url;
+                        this.savedProfile.avatar_url = data.avatar_url;
+                        this.hasCustomAvatar = true;
+                    } else {
+                        // Fallback to generated avatar
+                        this.selectedAvatar = this.getAvatarUrl(this.savedProfile.username);
+                        this.savedProfile.avatar_url = '';
+                        this.hasCustomAvatar = false;
+                    }
+                    this.buildAvailableBorders();
+                    
+                    // Force reset if active border is not owned
+                    const currentBorder = this.availableBorders.find(b => b.id === this.activeBorderId);
+                    if (this.activeBorderId !== 0 && (!currentBorder || !currentBorder.owned)) {
+                        this.activeBorderId = 0;
+                        // Optionally persist the reset to backend
+                        fetch('/user_backend/update_active_border.php', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ border_id: 0 })
+                        }).catch(() => {});
+                    }
+                }
+            } catch (e) {
+                console.error('Failed to fetch profile:', e);
+            }
+        },
+
+        async setActiveBorder(borderId) {
+            const border = this.availableBorders.find(b => b.id === borderId);
+            if (!border || !border.owned) {
+                if (window.showToast) window.showToast('You do not own this border', 'error');
+                return;
+            }
+
+            // Optimistic UI
+            this.activeBorderId = borderId;
+            if (window.showToast) window.showToast(`${border.name} border applied!`, 'success');
+
+            // Persist to backend
+            try {
+                await fetch('/user_backend/update_active_border.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ border_id: borderId })
+                });
+            } catch (e) {
+                console.error('Failed to save border:', e);
+            }
+        },
+
+       async uploadAvatar(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const formData = new FormData();
+            formData.append('avatar', file);
+
+            try {
+                const res = await fetch('/user_backend/upload_avatar.php', {
+                    method: 'POST',
+                    body: formData
+                });
+                const data = await res.json();
+                if (data.success) {
+                    this.selectedAvatar = data.avatar_url;
+                    this.savedProfile.avatar_url = data.avatar_url;
+                    this.hasCustomAvatar = true;   // <-- add this
+                    if (window.showToast) window.showToast('Profile picture updated!', 'success');
+                } else {
+                    if (window.showToast) window.showToast(data.message || 'Upload failed', 'error');
+                }
+            } catch (e) {
+                console.error('Avatar upload error:', e);
+                if (window.showToast) window.showToast('Network error', 'error');
+            }
+        },
+
+        async removeAvatar() {
+            try {
+                const res = await fetch('/user_backend/remove_avatar.php', { method: 'POST' });
+                const data = await res.json();
+                if (data.success) {
+                    // Fall back to generated avatar
+                    this.selectedAvatar = this.getAvatarUrl(this.savedProfile.username);
+                    this.savedProfile.avatar_url = '';
+                    this.hasCustomAvatar = false;
+                    if (window.showToast) window.showToast('Profile picture removed', 'success');
+                } else {
+                    if (window.showToast) window.showToast(data.message || 'Failed to remove avatar', 'error');
+                }
+            } catch (e) {
+                console.error('Remove avatar error:', e);
+                if (window.showToast) window.showToast('Network error', 'error');
+            }
+        },
 
         // --- Report Item Modal State ---
         showReportItemModal: false,
@@ -413,22 +534,6 @@ function userDashboard() {
             }
         },
 
-        setActiveBorder(borderId) {
-            const border = this.availableBorders.find(b => b.id === borderId);
-            if (!border) return;
-            
-            if (!border.owned) {
-                if (window.showToast) window.showToast('You do not own this border. Purchase it in the shop!', 'error');
-                return;
-            }
-
-            this.activeBorderId = borderId;
-            if (window.showToast) {
-                window.showToast(`${border.name} border applied!`, 'success');
-            }
-            // Save to local storage or backend
-            localStorage.setItem('activeBorder', borderId);
-        },
         openDeleteAccountModal() {
             this.deleteAccountModalOpen = true;
             this.deleteAccountPassword = '';
@@ -1859,6 +1964,48 @@ function userDashboard() {
             return await this.processLiveReview(rating, commentText);
         },
 
+        async fetchShopItems() {
+            try {
+                const res = await fetch('/user_backend/get_shop_items.php');
+                const data = await res.json();
+                if (data.success) {
+                    this.shopItems = data.items.map(item => ({
+                        id: item.id,
+                        name: item.name,
+                        price: item.price,
+                        rarity: item.rarity,
+                        image: item.image,
+                        category: item.category
+                    }));
+                }
+            } catch (e) {
+                console.error('Failed to fetch shop items:', e);
+            }
+        },
+
+        async purchaseItem(itemId) {
+            try {
+                const res = await fetch('/user_backend/purchase_item.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ item_id: itemId })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    this.userPoints = data.new_points;
+                    this.userInventory.push(itemId);
+                    this.showConfirmModal = false;   // close modal
+                    if (window.showToast) window.showToast('Purchase successful!', 'success');
+                    this.fetchUserProfile();
+                } else {
+                    if (window.showToast) window.showToast(data.message || 'Purchase failed', 'error');
+                }
+            } catch (e) {
+                console.error('Purchase error:', e);
+                if (window.showToast) window.showToast('Network error', 'error');
+            }
+        },
+
         async fetchWatchlist() {
             try {
                 const response = await fetch("/user_backend/get_watchlist.php");
@@ -2041,17 +2188,54 @@ function userDashboard() {
                 });
         },
 
-        // Initialize Pusher Connection
-        initPusher() {
-            if (!window.CURRENT_USER_ID || typeof Pusher === 'undefined') {
-                console.warn('Pusher init skipped: CURRENT_USER_ID or Pusher missing');
-                return;
+         handleProfileChanged(data) {
+            // Update current user if it's them (e.g., another tab)
+            if (window.CURRENT_USER_ID && Number(data.user_id) === Number(window.CURRENT_USER_ID)) {
+                if (data.avatar_url) this.selectedAvatar = data.avatar_url;
+                if (data.border_id !== undefined) this.activeBorderId = data.border_id;
             }
 
-            this.pusherClient = new Pusher('f4b5637ef4b8952b6eb8', {
-                cluster: 'ap1',
-                encrypted: true
+            // Update comments (if any)
+            if (this.selectedMovie && this.selectedMovie.comments) {
+                this.selectedMovie.comments = this.selectedMovie.comments.map(comment => {
+                    if (Number(comment.user_id) === Number(data.user_id)) {
+                        comment.avatar_url = data.avatar_url || comment.avatar_url;
+                        comment.border_preview = data.border_preview || comment.border_preview;
+                    }
+                    return comment;
+                });
+            }
+
+            // Update friends list
+            this.friends = this.friends.map(friend => {
+                if (Number(friend.user_id) === Number(data.user_id)) {
+                    friend.avatar_url = data.avatar_url || friend.avatar_url;
+                    friend.border_preview = data.border_preview || friend.border_preview;
+                }
+                return friend;
             });
+
+            // Update searchResults
+            this.searchResults = this.searchResults.map(user => {
+                if (Number(user.user_id) === Number(data.user_id)) {
+                    user.avatar_url = data.avatar_url || user.avatar_url;
+                    user.border_preview = data.border_preview || user.border_preview;
+                }
+                return user;
+            });
+        },
+
+        // Initialize Pusher Connection
+        initPusher() {
+            // Only run if Pusher library is available
+            if (typeof Pusher === 'undefined') return;
+
+            if (!this.pusherClient) {
+                this.pusherClient = new Pusher('f4b5637ef4b8952b6eb8', {
+                    cluster: 'ap1',
+                    encrypted: true
+                });
+            }
 
             this.pusherClient.connection.bind('connected', () => {
                 console.log('Pusher connected');
@@ -2059,6 +2243,34 @@ function userDashboard() {
             this.pusherClient.connection.bind('error', (err) => {
                 console.error('Pusher connection error:', err);
             });
+
+            // ---- PUBLIC CHANNELS (always subscribe) ----
+
+            // Shop live updates
+            const shopChannel = this.pusherClient.subscribe('shop-updates');
+            shopChannel.bind('shop_changed', () => {
+                this.fetchShopItems();
+            });
+
+            // Movie live updates
+            const movieChannel = this.pusherClient.subscribe('movie-updates');
+            movieChannel.bind('movie_changed', (data) => {
+                if (data.action === 'delete') {
+                    const movieId = Number(data.movie_id);
+                    this.movies = this.movies.filter(m => Number(m.id || m.movie_id) !== movieId);
+                } else {
+                    this.fetchMovies();
+                }
+            });
+
+            //Border and Avater
+            const profileChannel = this.pusherClient.subscribe('profile-updates');
+            profileChannel.bind('profile_changed', (data) => {
+                this.handleProfileChanged(data);
+            });
+
+            // ---- USER-SPECIFIC CHANNEL (only if logged in) ----
+            if (!window.CURRENT_USER_ID) return;
 
             const channel = this.pusherClient.subscribe(`user-${window.CURRENT_USER_ID}`);
 
@@ -2075,39 +2287,29 @@ function userDashboard() {
             // Real-time unfriend
             channel.bind('friend-removed', (data) => {
                 const removedId = Number(data.friend_id);
-
                 this.friends = this.friends.filter(
                     f => Number(f.user_id || f.friend_id || f.id) !== removedId
                 );
-
                 this.updateFriendsCount();
-
-                // Also update search results immediately
                 this.searchResults = this.searchResults.map(user => {
                     if (Number(user.user_id) === removedId) {
-                        return {
-                            ...user,
-                            friend_status: null,
-                            requester_id: null
-                        };
+                        return { ...user, friend_status: null, requester_id: null };
                     }
                     return user;
                 });
-
                 if (window.showToast) {
                     window.showToast('A friendship was removed.', 'info');
                 }
             });
 
+            // Watchlist updates
             channel.bind('watchlist-updated', (data) => {
                 const movieId = data.movie_id;
                 const action = data.action;
-
                 const catalogItem = this.movies.find(m => Number(this.getMovieId(m)) === Number(movieId));
                 if (catalogItem) {
                     catalogItem.inWatchlist = (action === 'added');
                 }
-
                 if (action === 'removed') {
                     this.watchlist = this.watchlist.filter(w => Number(w.id) !== Number(movieId));
                 } else if (action === 'added') {
@@ -2115,6 +2317,7 @@ function userDashboard() {
                 }
             });
 
+            // Friend events
             channel.bind('friend_event', (data) => {
                 this.notifications = [
                     {
@@ -2128,17 +2331,13 @@ function userDashboard() {
                     },
                     ...this.notifications
                 ];
-
                 this.unreadNotifCount++;
 
                 if (data.type === 'friend_request') {
                     const alreadyExists = this.pendingRequests.some(r => r.user_id == data.sender_id);
                     if (!alreadyExists) {
                         this.pendingRequests = [
-                            {
-                                user_id: data.sender_id,
-                                user_name: data.sender_name
-                            }, 
+                            { user_id: data.sender_id, user_name: data.sender_name },
                             ...this.pendingRequests
                         ];
                     }
@@ -2147,47 +2346,25 @@ function userDashboard() {
                 if (data.type === 'friend_accepted') {
                     const acceptorId = Number(data.sender_id);
                     const acceptorName = data.sender_name;
-
                     const friendExists = this.friends.some(f => Number(f.user_id) === acceptorId);
                     if (!friendExists) {
                         this.friends = [
                             ...this.friends,
-                            {
-                                user_id: acceptorId,
-                                user_name: acceptorName,
-                                unread_count: 0
-                            }
+                            { user_id: acceptorId, user_name: acceptorName, unread_count: 0 }
                         ];
                         this.subscribeToChatChannel(acceptorId);
                     }
-
                     const userIndex = this.searchResults.findIndex(u => Number(u.user_id) === acceptorId);
                     if (userIndex !== -1) {
                         this.searchResults[userIndex].friend_status = 'accepted';
                         this.searchResults = [...this.searchResults];
                     }
-
                     if (window.showToast) window.showToast(`${acceptorName} accepted your request!`, 'success');
                 } else if (typeof window.showToast === 'function') {
                     const toastType = data.type === 'friend_rejected' ? 'error' : 'success';
                     window.showToast(`${data.sender_name} ${data.message}`, toastType);
                 }
-
                 this.fetchNotifications();
-            });
-
-            // Subscribe to movie update events
-            const movieChannel = this.pusherClient.subscribe('movie-updates');
-
-            movieChannel.bind('movie_changed', (data) => {
-                // Refresh the movie list when any change occurs
-                if (data.action === 'delete') {
-                    const movieId = Number(data.movie_id);
-                    this.movies = this.movies.filter(m => Number(m.id || m.movie_id) !== movieId);
-                } else {
-                    // For create/update, simply re-fetch the full list
-                    this.fetchMovies();
-                }
             });
         },
 
@@ -2230,10 +2407,8 @@ function userDashboard() {
 
             if (typeof gsap !== 'undefined') gsap.config({ nullTargetWarn: false });
 
-            if (!this.isGuest) {
-                this.initPusher();
-            }
-
+            this.initPusher();  
+            
             if (this.isGuest) {
                 this.statsLoading = false;
                 this.stats = this.stats.map(stat => ({ ...stat, value: '0' }));
@@ -2244,6 +2419,7 @@ function userDashboard() {
                 this.notifications = [];
                 this.unreadNotifCount = 0;
                 await this.fetchMovies();
+                await this.fetchShopItems();
             } else {
                 await Promise.all([
                     this.fetchMovies(),
@@ -2252,12 +2428,15 @@ function userDashboard() {
                     this.fetchNotifications(),
                     this.loadMissions(),
                     this.fetchReasons(),
+                    this.fetchShopItems(),             
+                    this.fetchUserProfile(),         
                     (async () => {
                         await this.checkPaymentStatus();
                         await this.fetchPremiumStatus();
                     })()
                 ]);
                 this.searchUsers();
+                this.buildAvailableBorders(); 
 
                 if (this.justPaid) {
                     this.showPremiumModal = true;
@@ -3482,18 +3661,10 @@ window.handleLogout = async function() {
         if (typeof window.hidePageLoader === 'function') window.hidePageLoader();
     }
 };
-
 function adminDashboard(userData = {}) {
     return {
         // Merged the duplicate init() logic here so both GSAP and fetchMovies() run properly
 
-        modalMode: 'add',         // Missing variable 1
-        formData: {               // Missing variable 2
-            name: '',
-            price: '',
-            rarity: '',
-            image: null
-        },
         //comments
         comments: [],
         commentsLoading: false,
@@ -3607,7 +3778,6 @@ function adminDashboard(userData = {}) {
             }
         },
 
-        currentTab: 'dashboard',
         isNavOpen: false,
         notificationsOpen: false,
         unreadNotifications: 0,
@@ -3768,11 +3938,6 @@ function adminDashboard(userData = {}) {
             }
             await this.fetchMovies();
             await this.fetchGenres();
-        },
-
-        switchTab(tab) {
-            this.currentTab = tab;
-            this.isNavOpen = false;
         },
 
         // --- Fetch API Methods ---
@@ -4156,13 +4321,103 @@ function adminDashboard(userData = {}) {
         modalOpen: false,
         modalMode: 'add',
         formData: { name: '', price: 0, rarity: 'Common', image: '' },
-        shopItems: [
-            { id: 1, name: 'Gold Border', price: 500, rarity: 'Legendary' }
-        ],
-        selectedAvatar: null,
-        selectedBorder: null,
-        avatarModalOpen: false,
+        shopItems: [],
         borders: [],
+        shopImageFile: null,   // holds File object for shop item image
+
+        async fetchShopItems() {
+            try {
+                const res = await fetch('/backend/shop_items_api.php?action=list');
+                const data = await res.json();
+                if (data.success) {
+                    this.shopItems = data.items.map(item => ({
+                        id: item.id,
+                        name: item.name,
+                        price: item.price,
+                        rarity: item.rarity,
+                        image: item.image,
+                        category: item.category
+                    }));
+                } else {
+                    this.showToast(data.error || 'Failed to load shop items', 'error');
+                }
+            } catch (e) {
+                console.error('Fetch shop items error:', e);
+                this.showToast('Network error loading shop items', 'error');
+            }
+        },
+
+        handleShopImageSelect(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            this.shopImageFile = file;
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                this.formData.image = e.target.result;  // base64 preview
+            };
+            reader.readAsDataURL(file);
+        },
+
+        async saveItem() {
+            if (!this.formData.name || this.formData.price <= 0) {
+                this.showToast('Name and positive price required', 'error');
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('action', this.modalMode === 'add' ? 'create' : 'update');
+            formData.append('name', this.formData.name);
+            formData.append('price', this.formData.price);
+            formData.append('rarity', this.formData.rarity);
+            formData.append('category', this.formData.category || 'border');
+            if (this.modalMode === 'edit' && this.formData.id) {
+                formData.append('id', this.formData.id);
+            }
+            if (this.shopImageFile) {
+                formData.append('image', this.shopImageFile);
+            }
+
+            try {
+                const res = await fetch('/backend/shop_items_api.php', {
+                    method: 'POST',
+                    body: formData   // do NOT set Content-Type header
+                });
+                const data = await res.json();
+                if (data.success) {
+                    this.showToast(this.modalMode === 'add' ? 'Item added' : 'Item updated', 'success');
+                    this.modalOpen = false;
+                    await this.fetchShopItems();
+                } else {
+                    this.showToast(data.error || 'Save failed', 'error');
+                }
+            } catch (e) {
+                console.error('Save item error:', e);
+                this.showToast('Network error saving item', 'error');
+            }
+        },
+
+        async deleteItem(id) {
+            if (!confirm('Are you sure you want to delete this item?')) return;
+            try {
+                const formData = new FormData();
+                formData.append('action', 'delete');
+                formData.append('id', id);
+                const res = await fetch('/backend/shop_items_api.php', {
+                    method: 'POST',
+                    body: formData
+                });
+                const data = await res.json();
+                if (data.success) {
+                    this.showToast('Item deleted', 'success');
+                    await this.fetchShopItems();
+                } else {
+                    this.showToast(data.error || 'Delete failed', 'error');
+                }
+            } catch (e) {
+                console.error('Delete item error:', e);
+                this.showToast('Network error deleting item', 'error');
+            }
+        },
 
         // Profile
         currentTab: 'dashboard',
@@ -4624,18 +4879,25 @@ function adminDashboard(userData = {}) {
 
         openModal(mode, item = null) {
             this.modalMode = mode;
-            this.formData = item ? { ...item } : { name: '', price: 0, rarity: 'Common', image: '' };
+            if (item) {
+                this.formData = {
+                    id: item.id,
+                    name: item.name,
+                    price: item.price,
+                    rarity: item.rarity,
+                    image: item.image || '',
+                    category: item.category || 'border'
+                };
+            } else {
+                this.formData = { name: '', price: 0, rarity: 'Common', image: '', category: 'border' };
+            }
+            this.shopImageFile = null;
             this.modalOpen = true;
         },
         closeModal() {
             this.modalOpen = false;
         },
-        deleteItem(id) {
-            this.shopItems = this.shopItems.filter(i => i.id !== id);
-        },
-        saveItem() {
-            this.modalOpen = false;
-        },
+       
         async compressImage(file, maxWidth = 800, quality = 0.8) {
             return new Promise((resolve, reject) => {
                 const reader = new FileReader();
@@ -4746,6 +5008,7 @@ function adminDashboard(userData = {}) {
             this.fetchUsers();
             this.fetchNotifications();
             this.fetchRooms();
+            this.fetchShopItems(); 
             this.initPusher();
             this.fetchComments();
 
@@ -4762,30 +5025,52 @@ function adminDashboard(userData = {}) {
             });
         },
 
-        initPusher() {
-            if (!window.CURRENT_USER_ID || typeof Pusher === 'undefined') return;
+        handleProfileChanged(data) {
+            // Update users list (admin user management)
+            this.users = this.users.map(user => {
+                const userId = user.id || user.user_id;
+                if (Number(userId) === Number(data.user_id)) {
+                    user.avatar_url = data.avatar_url || user.avatar_url;
+                    user.border_preview = data.border_preview || user.border_preview;
+                }
+                return user;
+            });
+
+            // Update comments if viewing
+            if (this.comments) {
+                this.comments = this.comments.map(comment => {
+                    if (Number(comment.user_id) === Number(data.user_id)) {
+                        comment.avatar_url = data.avatar_url || comment.avatar_url;
+                        comment.border_preview = data.border_preview || comment.border_preview;
+                    }
+                    return comment;
+                });
+            }
+
+            // Update selected report if it shows the user
+            if (this.selectedReport && Number(this.selectedReport.reported_user_id) === Number(data.user_id)) {
+                this.selectedReport.reported_avatar_url = data.avatar_url || this.selectedReport.reported_avatar_url;
+                this.selectedReport.reported_border_preview = data.border_preview || this.selectedReport.reported_border_preview;
+            }
+        },
+
+       initPusher() {
+            // Only run if Pusher library is available
+            if (typeof Pusher === 'undefined') return;
 
             if (!this.pusherClient) {
                 this.pusherClient = new Pusher('f4b5637ef4b8952b6eb8', {
                     cluster: 'ap1',
                     encrypted: true
                 });
-            }   
+            }
 
-            const channel = this.pusherClient.subscribe(`user-${window.CURRENT_USER_ID}`);
+            // ---- PUBLIC CHANNELS (always subscribe) ----
 
-            channel.bind('force_logout', (data) => {
-                // Optional: Show an alert so they know why they are being kicked
-                alert(data.message || 'Your account has been banned.');
-                
-                // Redirect them to your logout script to destroy the local PHP session
-                window.location.href = '/backend/logout.php'; 
-            });
-
+            // Admin comments channel
             const adminCommentsChannel = this.pusherClient.subscribe('admin-comments');
 
             adminCommentsChannel.bind('new_comment', (data) => {
-                // Add new comment to the top of the list
                 this.comments.unshift({
                     id: data.id,
                     movie_id: data.movie_id,
@@ -4799,7 +5084,6 @@ function adminDashboard(userData = {}) {
             });
 
             adminCommentsChannel.bind('new_reply', () => {
-                // Simplest: refresh the entire list to include the reply
                 this.fetchComments();
             });
 
@@ -4807,27 +5091,60 @@ function adminDashboard(userData = {}) {
                 const comment = this.comments.find(c => c.id == data.comment_id);
                 if (comment) comment.likes_count = data.likes_count;
             });
+
+            // Shop updates channel
+            const shopChannel = this.pusherClient.subscribe('shop-updates');
+
+            shopChannel.bind('shop_changed', (data) => {
+                if (data.action === 'create') {
+                    if (!this.shopItems.some(item => item.id === data.item.id)) {
+                        this.shopItems.push(data.item);
+                    }
+                } else if (data.action === 'update') {
+                    const index = this.shopItems.findIndex(item => item.id === data.item.id);
+                    if (index !== -1) {
+                        this.shopItems.splice(index, 1, data.item);
+                    } else {
+                        this.shopItems.push(data.item);
+                    }
+                } else if (data.action === 'delete') {
+                    this.shopItems = this.shopItems.filter(item => item.id !== data.item_id);
+                }
+
+                // Ensure Alpine reactivity
+                this.shopItems = [...this.shopItems];
+            });
+
+            // Movie updates channel (optional, but recommended for live movie changes)
+            const movieChannel = this.pusherClient.subscribe('movie-updates');
+            movieChannel.bind('movie_changed', (data) => {
+                if (data.action === 'delete') {
+                    const movieId = Number(data.movie_id);
+                    this.movies = this.movies.filter(m => Number(m.id || m.movie_id) !== movieId);
+                } else {
+                    this.fetchMovies();
+                }
+            });
+
+            const profileChannel = this.pusherClient.subscribe('profile-updates');
+            profileChannel.bind('profile_changed', (data) => {
+                this.handleProfileChanged(data);
+            });
+
+            // ---- USER-SPECIFIC CHANNEL (only if logged in) ----
+            if (!window.CURRENT_USER_ID) return;
+
+            const userChannel = this.pusherClient.subscribe(`user-${window.CURRENT_USER_ID}`);
+
+            userChannel.bind('force_logout', (data) => {
+                alert(data.message || 'Your account has been banned.');
+                window.location.href = '/backend/logout.php';
+            });
+
+            // You can add other personal events (e.g., notifications) here if needed
         }
     };
 }
-
-window.shopPage = function() {
-    return {
-        modalOpen: false,
-        modalMode: 'add',
-        formData: { name: '', price: 0, rarity: 'Common', image: '' },
-        shopItems: [
-            { id: 1, name: 'Gold Border', price: 500, rarity: 'Legendary', image: '' }
-        ],
-        openModal(mode, item = null) {
-            this.modalMode = mode;
-            this.modalOpen = true;
-        },
-        closeModal() {
-            this.modalOpen = false;
-        }
-    };
-};
 
 window.createParty = async function(movieId = null) {
     try {
