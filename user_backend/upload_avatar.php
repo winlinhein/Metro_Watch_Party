@@ -2,6 +2,7 @@
 session_start();
 require_once __DIR__ . '/../conn.php';
 require_once __DIR__ . '/../pusher_helper.php';
+require_once __DIR__ . '/../shop_image_helper.php';
 header('Content-Type: application/json');
 
 if (empty($_SESSION['user_id'])) {
@@ -53,9 +54,10 @@ $activeBorderId = $stmt->fetchColumn() ?: 0;
 
 $borderPreview = '';
 if ($activeBorderId != 0) {
-    $stmt = $conn->prepare("SELECT image_url FROM shop_items WHERE item_id = ?");
+    $stmt = $conn->prepare("SELECT image_url, item_name FROM shop_items WHERE item_id = ?");
     $stmt->execute([$activeBorderId]);
-    $borderPreview = $stmt->fetchColumn() ?: '';
+    $border = $stmt->fetch(PDO::FETCH_ASSOC) ?: [];
+    $borderPreview = shopImageUrl($border['image_url'] ?? '', $border['item_name'] ?? '');
 }
 
 $payload = [

@@ -109,6 +109,14 @@ function userDashboard() {
         hasCustomAvatar: false,
         selectedAvatar: '',   
 
+        resolveShopImage(image) {
+            if (!image) return '';
+            if (/^(https?:)?\/\//i.test(image) || image.startsWith('/') || image.startsWith('data:') || image.startsWith('blob:')) {
+                return image;
+            }
+            return '/uploads/shop/' + image;
+        },
+
         buildAvailableBorders() {
             const borderItems = this.shopItems.filter(item => item.category === 'border');
             const ownedIds = new Set(this.userInventory);
@@ -1974,7 +1982,7 @@ function userDashboard() {
                         name: item.name,
                         price: item.price,
                         rarity: item.rarity,
-                        image: item.image,
+                        image: this.resolveShopImage(item.image),
                         category: item.category
                     }));
                 }
@@ -3665,6 +3673,14 @@ function adminDashboard(userData = {}) {
     return {
         // Merged the duplicate init() logic here so both GSAP and fetchMovies() run properly
 
+        resolveShopImage(image) {
+            if (!image) return '';
+            if (/^(https?:)?\/\//i.test(image) || image.startsWith('/') || image.startsWith('data:') || image.startsWith('blob:')) {
+                return image;
+            }
+            return '/uploads/shop/' + image;
+        },
+
         //comments
         comments: [],
         commentsLoading: false,
@@ -4335,7 +4351,7 @@ function adminDashboard(userData = {}) {
                         name: item.name,
                         price: item.price,
                         rarity: item.rarity,
-                        image: item.image,
+                        image: this.resolveShopImage(item.image),
                         category: item.category
                     }));
                 } else {

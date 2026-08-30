@@ -49,10 +49,20 @@
                     <div class="absolute inset-0 bg-gradient-to-br from-indigo-500/10 to-purple-500/10 opacity-0 group-hover:opacity-20 transition-opacity duration-700 pointer-events-none"></div>
                     
                     <!-- Visual Asset -->
-                    <div class="w-full aspect-square rounded-2xl mb-6 relative overflow-hidden bg-black/50 border border-white/5 flex items-center justify-center">
-                        <!-- Image (borders/avatars) -->
-                        <template x-if="item.image">
-                            <img :src="item.image" :alt="item.name" class="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" :class="item.category === 'border' ? 'object-contain p-4' : ''">
+                    <div class="w-full aspect-square rounded-2xl mb-6 relative bg-black/50 border border-white/5 flex items-center justify-center"
+                         :class="item.category === 'border' ? '' : 'overflow-hidden'">
+                        <!-- Animated border preview (ring around an avatar) -->
+                        <template x-if="item.category === 'border' && item.image">
+                            <div class="relative w-[58%] h-[58%] flex items-center justify-center group-hover:scale-110 transition-transform duration-700">
+                                <div class="absolute inset-[12%] rounded-full bg-[#111116] border border-white/10 shadow-inner overflow-hidden flex items-center justify-center">
+                                    <span class="material-symbols-outlined text-white/15 text-4xl">person</span>
+                                </div>
+                                <img :src="item.image" :alt="item.name" class="absolute inset-0 w-full h-full object-contain pointer-events-none scale-[1.45] mix-blend-screen drop-shadow-[0_0_18px_rgba(255,255,255,0.18)]">
+                            </div>
+                        </template>
+                        <!-- Image (avatars / other categories) -->
+                        <template x-if="item.category !== 'border' && item.image">
+                            <img :src="item.image" :alt="item.name" class="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110">
                         </template>
                         <!-- No image fallback -->
                         <template x-if="!item.image">
@@ -127,7 +137,15 @@
                 <div class="relative z-10 text-center">
                     <!-- Preview Icon/Image -->
                     <div class="w-24 h-24 mx-auto rounded-2xl bg-black/50 border border-white/10 mb-6 flex items-center justify-center overflow-hidden">
-                        <template x-if="selectedItem.image">
+                        <template x-if="selectedItem.category === 'border' && selectedItem.image">
+                            <div class="relative w-16 h-16">
+                                <div class="absolute inset-[12%] rounded-full bg-[#111116] border border-white/10 flex items-center justify-center">
+                                    <span class="material-symbols-outlined text-white/20 text-xl">person</span>
+                                </div>
+                                <img :src="selectedItem.image" class="absolute inset-0 w-full h-full object-contain pointer-events-none scale-[1.45] mix-blend-screen">
+                            </div>
+                        </template>
+                        <template x-if="selectedItem.category !== 'border' && selectedItem.image">
                             <img :src="selectedItem.image" class="w-full h-full object-cover">
                         </template>
                         <template x-if="!selectedItem.image">

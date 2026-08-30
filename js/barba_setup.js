@@ -7,6 +7,19 @@ if (typeof barba !== 'undefined') {
             if (el.href && el.href.includes('backend/')) return true;
             return false;
         },
+        views: [{
+            namespace: 'index',
+            afterEnter({ next }) {
+                if (typeof window.initHomePage === 'function') {
+                    requestAnimationFrame(() => window.initHomePage(next.container));
+                }
+            },
+            beforeLeave() {
+                if (typeof window.destroyHomePage === 'function') {
+                    window.destroyHomePage();
+                }
+            }
+        }],
         transitions: [{
             name: 'opacity-transition',
             leave(data) {
@@ -18,6 +31,10 @@ if (typeof barba !== 'undefined') {
                     v.load();
                     v.remove();
                 });
+
+                if (typeof window.destroyHomePage === 'function') {
+                    window.destroyHomePage();
+                }
 
                 // Kill all ScrollTriggers before leaving to prevent memory leaks and conflicts
                 if (typeof ScrollTrigger !== 'undefined') {
@@ -50,10 +67,19 @@ if (typeof barba !== 'undefined') {
 
                 // Start entering animation
                 if (typeof gsap !== 'undefined') {
-                    gsap.from(data.next.container, {
-                        opacity: 0,
-                        duration: 0.3
-                    });
+                    if (data.next.namespace === 'index') {
+                        gsap.from(data.next.container, {
+                            opacity: 0,
+                            y: 20,
+                            duration: 0.55,
+                            ease: 'power3.out'
+                        });
+                    } else {
+                        gsap.from(data.next.container, {
+                            opacity: 0,
+                            duration: 0.3
+                        });
+                    }
                 }
                 
                 // Update body classes safely
@@ -127,6 +153,10 @@ if (typeof barba !== 'undefined') {
                 
                 if (typeof initLocalAnimations === 'function') {
                     initLocalAnimations(data.next.container);
+                }
+
+                if (data.next.namespace === 'index' && typeof window.initHomePage === 'function') {
+                    requestAnimationFrame(() => window.initHomePage(data.next.container));
                 }
 
                 // Check for URL parameters (error/success messages) after Barba transition
