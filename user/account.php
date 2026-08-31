@@ -72,15 +72,13 @@
                 <div class="shrink-0 w-full md:w-64 bg-[#050508]/60 border border-white/5 rounded-2xl p-6 flex flex-col items-center justify-center relative shadow-inner h-fit">
                     <h3 class="text-[10px] font-black text-white/40 uppercase tracking-[0.2em] absolute top-4 left-0 w-full text-center">Profile Preview</h3>
                     
-                    <div class="relative w-24 h-24 flex items-center justify-center mt-6 mb-4">
-                        <!-- Avatar Base -->
-                        <div class="w-full h-full rounded-full flex items-center justify-center shadow-lg relative z-0 overflow-hidden bg-black">
-                            <img :src="selectedAvatar || 'https://ui-avatars.com/api/?name=' + encodeURIComponent(savedProfile.username || 'User') + '&background=ef4444&color=fff&bold=true'" class="w-full h-full object-cover border-2 border-white/10 rounded-full">
+                    <div class="relative w-24 h-24 mt-6 mb-4 overflow-visible shrink-0" style="width: 6rem; height: 6rem;">
+                        <div class="absolute inset-0 z-0 overflow-hidden rounded-full bg-black shadow-lg scale-[1.18]"
+                             :class="activeBorderId === 0 ? 'ring-2 ring-white/10' : ''">
+                            <img :src="selectedAvatar || 'https://ui-avatars.com/api/?name=' + encodeURIComponent(savedProfile.username || 'User') + '&background=ef4444&color=fff&bold=true'" class="absolute inset-0 h-full w-full object-cover" style="object-fit: cover;">
                         </div>
-                        
-                        <!-- Selected Border Overlay -->
                         <template x-if="activeBorderId !== 0">
-                            <img :src="availableBorders.find(b => b.id === activeBorderId)?.preview" class="absolute inset-0 w-full h-full object-contain z-10 pointer-events-none scale-[1.4]">
+                            <img :src="availableBorders.find(b => b.id === activeBorderId)?.preview" class="absolute inset-0 z-10 h-full w-full object-contain pointer-events-none scale-[1.38]">
                         </template>
                     </div>
                     
@@ -114,15 +112,14 @@
                                         activeBorderId === border.id ? 'bg-emerald-500/10 border-emerald-500 text-emerald-400 shadow-[0_0_15px_rgba(16,185,129,0.2)]' : 'bg-black/40 border-white/5 text-white/50 hover:bg-white/5 hover:border-white/20'
                                     ]">
                                 
-                                <div class="relative w-12 h-12 flex items-center justify-center">
-                                    <img :src="selectedAvatar || 'https://ui-avatars.com/api/?name=' + encodeURIComponent(savedProfile.username || 'User') + '&background=ef4444&color=fff&bold=true'" class="w-10 h-10 rounded-full border-2 absolute z-0" :class="activeBorderId === border.id ? 'border-emerald-500' : 'border-white/10'">
-                                    
+                                <div class="relative w-12 h-12 overflow-visible shrink-0" style="width: 3rem; height: 3rem;">
+                                    <div class="absolute inset-0 z-0 overflow-hidden rounded-full scale-[1.18]" :class="border.id === 0 ? (activeBorderId === border.id ? 'ring-2 ring-emerald-500' : 'ring-2 ring-white/10') : ''">
+                                        <img :src="selectedAvatar || 'https://ui-avatars.com/api/?name=' + encodeURIComponent(savedProfile.username || 'User') + '&background=ef4444&color=fff&bold=true'" class="absolute inset-0 h-full w-full object-cover" style="object-fit: cover;">
+                                    </div>
                                     <template x-if="border.id !== 0">
-                                        <img :src="border.preview" class="absolute inset-0 w-full h-full object-contain scale-[1.4] pointer-events-none z-10">
+                                        <img :src="border.preview" class="absolute inset-0 z-10 h-full w-full object-contain scale-[1.38] pointer-events-none">
                                     </template>
-                                    
-                                    <!-- Lock overlay for unowned -->
-                                    <div x-show="!border.owned" class="absolute w-10 h-10 bg-black/60 rounded-full flex items-center justify-center backdrop-blur-[1px] z-20">
+                                    <div x-show="!border.owned" class="absolute inset-0 z-20 flex scale-[1.18] items-center justify-center rounded-full bg-black/60 backdrop-blur-[1px]">
                                         <span class="material-symbols-outlined text-[16px] text-white/70">lock</span>
                                     </div>
                                 </div>

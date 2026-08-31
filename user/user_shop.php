@@ -53,11 +53,12 @@
                          :class="item.category === 'border' ? '' : 'overflow-hidden'">
                         <!-- Animated border preview (ring around an avatar) -->
                         <template x-if="item.category === 'border' && item.image">
-                            <div class="relative w-[58%] h-[58%] flex items-center justify-center group-hover:scale-110 transition-transform duration-700">
-                                <div class="absolute inset-[12%] rounded-full bg-[#111116] border border-white/10 shadow-inner overflow-hidden flex items-center justify-center">
-                                    <span class="material-symbols-outlined text-white/15 text-4xl">person</span>
+                            <div class="absolute inset-0">
+                                <!-- Width + padding-bottom both % of parent WIDTH, so the hole stays 1:1 -->
+                                <div class="absolute left-1/2 top-1/2 w-[64%] pb-[64%] -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-full bg-[#111116] shadow-inner">
+                                    <img :src="selectedAvatar || 'https://ui-avatars.com/api/?name=' + encodeURIComponent(savedProfile.username || 'User') + '&background=ef4444&color=fff&bold=true'" class="absolute inset-0 h-full w-full object-cover" style="object-fit: cover;">
                                 </div>
-                                <img :src="item.image" :alt="item.name" class="absolute inset-0 w-full h-full object-contain pointer-events-none scale-[1.45] mix-blend-screen drop-shadow-[0_0_18px_rgba(255,255,255,0.18)]">
+                                <img :src="item.image" :alt="item.name" class="absolute left-1/2 top-1/2 w-[80%] -translate-x-1/2 -translate-y-1/2 object-contain pointer-events-none mix-blend-screen drop-shadow-[0_0_18px_rgba(255,255,255,0.18)] group-hover:scale-110 transition-transform duration-700" style="aspect-ratio: 1 / 1; height: auto;">
                             </div>
                         </template>
                         <!-- Image (avatars / other categories) -->
@@ -136,13 +137,14 @@
             <template x-if="selectedItem">
                 <div class="relative z-10 text-center">
                     <!-- Preview Icon/Image -->
-                    <div class="w-24 h-24 mx-auto rounded-2xl bg-black/50 border border-white/10 mb-6 flex items-center justify-center overflow-hidden">
+                    <div class="w-24 h-24 mx-auto mb-6 flex items-center justify-center"
+                         :class="selectedItem.category === 'border' ? '' : 'rounded-2xl bg-black/50 border border-white/10 overflow-hidden'">
                         <template x-if="selectedItem.category === 'border' && selectedItem.image">
-                            <div class="relative w-16 h-16">
-                                <div class="absolute inset-[12%] rounded-full bg-[#111116] border border-white/10 flex items-center justify-center">
-                                    <span class="material-symbols-outlined text-white/20 text-xl">person</span>
+                            <div class="relative h-full w-full">
+                                <div class="absolute left-1/2 top-1/2 w-[64%] pb-[64%] -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-full bg-[#111116]">
+                                    <img :src="selectedAvatar || 'https://ui-avatars.com/api/?name=' + encodeURIComponent(savedProfile.username || 'User') + '&background=ef4444&color=fff&bold=true'" class="absolute inset-0 h-full w-full object-cover" style="object-fit: cover;">
                                 </div>
-                                <img :src="selectedItem.image" class="absolute inset-0 w-full h-full object-contain pointer-events-none scale-[1.45] mix-blend-screen">
+                                <img :src="selectedItem.image" class="absolute left-1/2 top-1/2 w-[80%] -translate-x-1/2 -translate-y-1/2 object-contain pointer-events-none mix-blend-screen" style="aspect-ratio: 1 / 1; height: auto;">
                             </div>
                         </template>
                         <template x-if="selectedItem.category !== 'border' && selectedItem.image">

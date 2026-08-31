@@ -583,10 +583,12 @@ $userId = $_SESSION['user_id'] ?? null;
                 <!-- Profile Menu -->
                 <div class="relative z-[60]" x-data="{ showProfileMenu: false }" @click.outside="showProfileMenu = false" x-show="!isGuest">
                     <div @click="showProfileMenu = !showProfileMenu" class="flex items-center gap-3 p-2 bg-[#050508]/40 border border-white/5 rounded-xl cursor-pointer hover:bg-white/[0.05]">
-                        <div class="relative w-10 h-10 flex items-center justify-center">
-                            <img :src="getAvatarUrl(savedProfile.username, 'ef4444')" class="w-10 h-10 rounded-full border-2 border-red-500/50 absolute z-0">
-                            <template x-if="activeBorderId !== 1">
-                                <img :src="availableBorders.find(b => b.id === activeBorderId)?.preview" class="absolute inset-0 w-14 h-14 max-w-none -ml-2 -mt-2 pointer-events-none object-contain z-10">
+                        <div class="relative w-10 h-10 overflow-visible shrink-0" style="width: 2.5rem; height: 2.5rem;">
+                            <div class="absolute inset-0 z-0 overflow-hidden rounded-full scale-[1.18]" :class="activeBorderId === 0 ? 'ring-2 ring-red-500/50' : ''">
+                                <img :src="selectedAvatar || getAvatarUrl(savedProfile.username, 'ef4444')" class="absolute inset-0 h-full w-full object-cover" style="object-fit: cover;">
+                            </div>
+                            <template x-if="activeBorderId !== 0">
+                                <img :src="availableBorders.find(b => b.id === activeBorderId)?.preview" class="absolute inset-0 z-10 h-full w-full scale-[1.38] object-contain pointer-events-none">
                             </template>
                         </div>
                         <div class="hidden sm:block min-w-0 pr-1">

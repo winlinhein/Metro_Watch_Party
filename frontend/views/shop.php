@@ -22,13 +22,11 @@
                 <div class="absolute -top-10 -left-10 w-32 h-32 bg-purple-500/20 rounded-full blur-3xl opacity-0 group-hover:opacity-100 transition-opacity duration-700 pointer-events-none"></div>
                 
                 <div class="p-8 flex flex-col items-center justify-center relative z-10 border-b border-white/5 bg-gradient-to-b from-white/[0.02] to-transparent">
-                    <div class="relative w-32 h-32 group-hover:scale-110 transition-transform duration-500 ease-out">
-                        <!-- Base Placeholder -->
-                        <div class="absolute inset-2 rounded-full bg-[#111116] border border-white/5 shadow-inner flex items-center justify-center">
-                            <span class="material-symbols-outlined text-white/10 text-3xl">person</span>
+                    <div class="relative w-32 h-32 shrink-0 group-hover:scale-110 transition-transform duration-500 ease-out" style="width: 8rem; height: 8rem;">
+                        <div class="absolute inset-0 overflow-hidden rounded-full bg-[#111116] shadow-inner scale-[1.18]">
+                            <span class="material-symbols-outlined text-white/10 text-3xl absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">person</span>
                         </div>
-                        <!-- Border Image -->
-                        <img :src="item.image" class="absolute inset-0 w-full h-full object-cover z-20 pointer-events-none scale-[1.3] mix-blend-screen drop-shadow-[0_0_15px_rgba(255,255,255,0.2)]">
+                        <img :src="item.image" class="absolute inset-0 z-20 h-full w-full object-contain pointer-events-none scale-[1.38] mix-blend-screen drop-shadow-[0_0_15px_rgba(255,255,255,0.2)]">
                     </div>
                 </div>
 
@@ -103,11 +101,11 @@
                  </div>
                  <div>
                      <label class="block text-xs font-bold text-white/50 uppercase tracking-wider mb-4 text-center">Border Image</label>
-                     <div class="relative w-24 h-24 mx-auto cursor-pointer group" @click="$refs.fileInput.click()">
+                     <div class="relative w-24 h-24 mx-auto cursor-pointer group shrink-0" @click="$refs.fileInput.click()">
                         <input type="file" x-ref="fileInput" @change="handleShopImageSelect" accept="image/*" class="hidden">
                          
-                         <div class="absolute inset-1 rounded-full bg-[#111116] border border-white/5 shadow-inner flex items-center justify-center">
-                            <span class="material-symbols-outlined text-white/10 text-3xl">person</span>
+                         <div class="absolute inset-0 overflow-hidden rounded-full bg-[#111116] shadow-inner scale-[1.18]">
+                            <span class="material-symbols-outlined text-white/10 text-3xl absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">person</span>
                         </div>
                          <template x-if="!formData.image">
                              <div class="absolute inset-0 w-full h-full rounded-full bg-[#030305] border-2 border-dashed border-white/20 flex flex-col items-center justify-center scale-[1.3] transition-colors group-hover:border-purple-500/50">

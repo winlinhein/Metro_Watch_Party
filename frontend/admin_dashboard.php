@@ -230,15 +230,16 @@ if (
                             <?php echo htmlspecialchars($userRole); ?>
                         </p>
                     </div>
-                    <div class="relative w-12 h-12">
-                        <!-- 2. Dynamically updates avatar image & alt text -->
-                        <img :src="selectedAvatar" 
-                            :alt="displayName"
-                            src="https://ui-avatars.com/api/?name=<?= urlencode($userName) ?>&background=ef4444&color=fff&bold=true" 
-                            class="w-full h-full rounded-full border border-white/20 group-hover:border-red-500/50 group-hover:shadow-[0_0_15px_rgba(239,68,68,0.3)] transition-all duration-300 relative z-10">
-                        
+                    <div class="relative w-12 h-12 overflow-visible shrink-0" style="width: 3rem; height: 3rem;">
+                        <div class="absolute inset-0 z-10 overflow-hidden rounded-full scale-[1.18] group-hover:shadow-[0_0_15px_rgba(239,68,68,0.3)] transition-all duration-300" :class="selectedBorder ? '' : 'ring-1 ring-white/20 group-hover:ring-red-500/50'">
+                            <img :src="selectedAvatar" 
+                                :alt="displayName"
+                                src="https://ui-avatars.com/api/?name=<?= urlencode($userName) ?>&background=ef4444&color=fff&bold=true" 
+                                class="absolute inset-0 h-full w-full object-cover"
+                                style="object-fit: cover;">
+                        </div>
                         <template x-if="selectedBorder">
-                            <img :src="selectedBorder" class="absolute inset-0 w-full h-full object-cover z-20 pointer-events-none scale-[1.3] drop-shadow-[0_0_15px_rgba(255,255,255,0.2)] mix-blend-screen opacity-90">
+                            <img :src="selectedBorder" class="absolute inset-0 z-20 h-full w-full object-contain pointer-events-none scale-[1.38] drop-shadow-[0_0_15px_rgba(255,255,255,0.2)] mix-blend-screen opacity-90">
                         </template>
                         <div class="absolute -bottom-1 -right-1 w-3.5 h-3.5 bg-green-500 border-2 border-[#030305] rounded-full z-30"></div>
                     </div>

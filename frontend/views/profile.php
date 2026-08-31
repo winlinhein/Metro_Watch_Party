@@ -58,14 +58,14 @@
         <div class="xl:col-span-1 space-y-6">
             <div class="glass-card rounded-2xl p-8 stagger-item flex flex-col items-center relative overflow-hidden group hover:border-red-500/30 transition-colors duration-300 shadow-xl">
                 <div class="absolute inset-0 bg-gradient-to-b from-red-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
-                <div class="relative z-10 w-full flex flex-col items-center">
-                    
-                    <div class="relative w-32 h-32 mb-6 group cursor-pointer mt-4" @click="avatarModalOpen = true">
-                        <img :src="selectedAvatar" class="w-full h-full rounded-full object-cover border-4 border-red-500/50 group-hover:border-red-500 transition-colors z-10 relative shadow-2xl">
+                    <div class="relative z-10 w-full flex flex-col items-center">
                         
-                        <!-- Dynamic Border -->
+                    <div class="relative w-32 h-32 mb-6 group cursor-pointer mt-4 overflow-visible shrink-0" style="width: 8rem; height: 8rem;" @click="avatarModalOpen = true">
+                        <div class="absolute inset-0 z-10 overflow-hidden rounded-full shadow-2xl scale-[1.18]" :class="selectedBorder ? '' : 'ring-4 ring-red-500/50 group-hover:ring-red-500'">
+                            <img :src="selectedAvatar" class="absolute inset-0 h-full w-full object-cover" style="object-fit: cover;">
+                        </div>
                         <template x-if="selectedBorder">
-                            <img :src="selectedBorder" class="absolute inset-0 w-full h-full object-cover z-20 pointer-events-none scale-[1.3] drop-shadow-[0_0_15px_rgba(255,255,255,0.2)] mix-blend-screen opacity-90">
+                            <img :src="selectedBorder" class="absolute inset-0 z-20 h-full w-full object-contain pointer-events-none scale-[1.38] drop-shadow-[0_0_15px_rgba(255,255,255,0.2)] mix-blend-screen opacity-90">
                         </template>
                         
                         <div class="absolute inset-0 rounded-full bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity z-30">

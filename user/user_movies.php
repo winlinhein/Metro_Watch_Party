@@ -303,10 +303,12 @@
                                             <div class="flex justify-between items-start mb-1">
                                                 <div class="flex items-center gap-2.5">
                                                     <!-- Comment Profile Avatar & Border -->
-                                                    <div class="relative w-8 h-8 flex items-center justify-center shrink-0">
-                                                        <img :src="'https://ui-avatars.com/api/?name=' + encodeURIComponent(comment.user_name || 'User') + '&background=ef4444&color=fff&bold=true'" class="w-8 h-8 rounded-full border border-red-500/50 absolute z-0">
-                                                        <template x-if="comment.border_preview || (comment.user_name === '<?php echo htmlspecialchars($userName); ?>' && activeBorderId !== 1)">
-                                                            <img :src="comment.border_preview || availableBorders.find(b => b.id === activeBorderId)?.preview" class="absolute inset-0 w-11 h-11 max-w-none -ml-1.5 -mt-1.5 pointer-events-none object-contain z-10">
+                                                    <div class="relative w-8 h-8 shrink-0 overflow-visible" style="width: 2rem; height: 2rem;">
+                                                        <div class="absolute inset-0 z-0 overflow-hidden rounded-full scale-[1.18]">
+                                                            <img :src="'https://ui-avatars.com/api/?name=' + encodeURIComponent(comment.user_name || 'User') + '&background=ef4444&color=fff&bold=true'" class="absolute inset-0 h-full w-full object-cover" style="object-fit: cover;">
+                                                        </div>
+                                                        <template x-if="comment.border_preview || (comment.user_name === '<?php echo htmlspecialchars($userName); ?>' && activeBorderId !== 0)">
+                                                            <img :src="comment.border_preview || availableBorders.find(b => b.id === activeBorderId)?.preview" class="absolute inset-0 z-10 h-full w-full scale-[1.38] object-contain pointer-events-none">
                                                         </template>
                                                     </div>
                                                     <div>
@@ -386,10 +388,12 @@
                                                         <div class="flex justify-between items-start mb-1">
                                                             <div class="flex items-center gap-2">
                                                                 <!-- Reply Profile Avatar & Border -->
-                                                                <div class="relative w-6 h-6 flex items-center justify-center shrink-0">
-                                                                    <img :src="'https://ui-avatars.com/api/?name=' + encodeURIComponent(reply.user_name || 'User') + '&background=ef4444&color=fff&bold=true'" class="w-6 h-6 rounded-full border border-red-500/50 absolute z-0">
-                                                                    <template x-if="reply.border_preview || (reply.user_name === '<?php echo htmlspecialchars($userName); ?>' && activeBorderId !== 1)">
-                                                                        <img :src="reply.border_preview || availableBorders.find(b => b.id === activeBorderId)?.preview" class="absolute inset-0 w-8 h-8 max-w-none -ml-1 -mt-1 pointer-events-none object-contain z-10">
+                                                                <div class="relative w-6 h-6 shrink-0 overflow-visible" style="width: 1.5rem; height: 1.5rem;">
+                                                                    <div class="absolute inset-0 z-0 overflow-hidden rounded-full scale-[1.18]">
+                                                                        <img :src="'https://ui-avatars.com/api/?name=' + encodeURIComponent(reply.user_name || 'User') + '&background=ef4444&color=fff&bold=true'" class="absolute inset-0 h-full w-full object-cover" style="object-fit: cover;">
+                                                                    </div>
+                                                                    <template x-if="reply.border_preview || (reply.user_name === '<?php echo htmlspecialchars($userName); ?>' && activeBorderId !== 0)">
+                                                                        <img :src="reply.border_preview || availableBorders.find(b => b.id === activeBorderId)?.preview" class="absolute inset-0 z-10 h-full w-full scale-[1.38] object-contain pointer-events-none">
                                                                     </template>
                                                                 </div>
                                                                 <span class="text-[11px] font-bold text-white/90" x-text="reply.user_name || 'User'"></span>
