@@ -8,7 +8,8 @@ if (empty($_SESSION['user_id'])) {
     exit();
 }
 
-require_once __DIR__ . '/../conn.php'; 
+require_once __DIR__ . '/../conn.php';
+require_once __DIR__ . '/../profile_media_helper.php';
 
 $currentUserId = (int)$_SESSION['user_id'];
 $query = trim($_GET['q'] ?? '');
@@ -60,7 +61,7 @@ try {
         ]);
     }
 
-    $users = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    $users = attachProfileMedia($conn, $stmt->fetchAll(PDO::FETCH_ASSOC));
     echo json_encode($users);
 
 } catch (PDOException $e) {

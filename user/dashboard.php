@@ -18,18 +18,43 @@ $userName  = $_SESSION['user_name']  ?? 'Agent';
 $userEmail = $_SESSION['user_email'] ?? '';
 $userRole  = $_SESSION['user_role']  ?? 'user';
 $userId = $_SESSION['user_id'] ?? null;
+
+// Boot avatar/border from DB so header renders instantly (no waiting on JS fetch)
+$avatarUrl = '';
+$borderPreview = '';
+$activeBorderId = 0;
+if (!empty($userId) && $userRole !== 'guest') {
+    try {
+        require_once __DIR__ . '/../conn.php';
+        require_once __DIR__ . '/../profile_media_helper.php';
+        $uid = (int)$userId;
+        $avatarStmt = $conn->prepare("SELECT avatar_url FROM users WHERE user_id = ? LIMIT 1");
+        $avatarStmt->execute([$uid]);
+        $avatarUrl = normalizeAvatarUrl((string)($avatarStmt->fetchColumn() ?: ''));
+        // Same path as get_user_profile so boot matches what fetch would return
+        $activeBorderId = getActiveBorderId($conn, $uid);
+        $borderPreview = borderPreviewForId($conn, $activeBorderId);
+    } catch (Throwable $e) {
+        error_log('dashboard boot profile media: ' . $e->getMessage());
+    }
+}
+
+$nexusUserBoot = [
+    'username' => $userName,
+    'email' => $userEmail,
+    'role' => $userRole,
+    'isGuest' => $userRole === 'guest',
+    'avatar_url' => $avatarUrl,
+    'active_border_id' => $activeBorderId,
+    'border_preview' => $borderPreview,
+];
 ?>
 <script src="https://js.pusher.com/8.2.0/pusher.min.js"></script>
 <script src="https://js.stripe.com/v3/"></script>
 <script>
     // This safely passes the logged-in user's ID from your backend session to JS
     window.CURRENT_USER_ID = <?php echo json_encode($userId); ?>;
-    window.NEXUS_USER = {
-        username: <?php echo json_encode($userName); ?>,
-        email: <?php echo json_encode($userEmail); ?>,
-        role: <?php echo json_encode($userRole); ?>,
-        isGuest: <?php echo json_encode($userRole === 'guest'); ?>
-    };
+    window.NEXUS_USER = <?php echo json_encode($nexusUserBoot, JSON_UNESCAPED_SLASHES); ?>;
 </script>
 
 <!DOCTYPE html>
@@ -64,6 +89,12 @@ $userId = $_SESSION['user_id'] ?? null;
     <!-- Google Fonts -->
     <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined" rel="stylesheet" />
+    <?php if ($avatarUrl !== ''): ?>
+    <link rel="preload" as="image" href="<?php echo htmlspecialchars($avatarUrl, ENT_QUOTES, 'UTF-8'); ?>">
+    <?php endif; ?>
+    <?php if ($borderPreview !== ''): ?>
+    <link rel="preload" as="image" href="<?php echo htmlspecialchars($borderPreview, ENT_QUOTES, 'UTF-8'); ?>">
+    <?php endif; ?>
     
     <!-- Alpine.js & GSAP -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js" crossorigin="anonymous" onerror="window.gsap=window.gsap||{to:()=>({to:()=>({}),fromTo:()=>({})}),fromTo:()=>({}),from:()=>({}),set:()=>{},timeline:()=>({to:()=>({}),fromTo:()=>({}),add:()=>({}),set:()=>({})}),config:()=>{},killTweensOf:()=>{}}"></script>
@@ -173,7 +204,7 @@ $userId = $_SESSION['user_id'] ?? null;
 
     <link rel="stylesheet" href="https://cdn.plyr.io/3.7.8/plyr.css" />
     <script src="https://cdn.plyr.io/3.7.8/plyr.polyfilled.js"></script>
-    <script src="../js/nexus_scripts.js?v=1788150001"></script>
+    <script src="../js/nexus_scripts.js?v=1788153000"></script>
 </head>
 <body class="h-screen w-screen flex flex-col relative selection:bg-red-500/30" data-barba="wrapper">
     <?php include __DIR__ . '/../frontend/components/page_loader.php'; ?>
@@ -181,12 +212,7 @@ $userId = $_SESSION['user_id'] ?? null;
     <?php include __DIR__ . '/../frontend/components/toast.php'; ?>
 
 <div id="barba-container" class="flex w-full h-full" data-barba="container" data-barba-namespace="dashboard" x-data="userDashboard()" x-init="init()" data-current-user-id="<?php echo htmlspecialchars($userId ?? '', ENT_QUOTES, 'UTF-8'); ?>"
-     data-nexus-user="<?php echo htmlspecialchars(json_encode([
-         'username' => $userName,
-         'email'    => $userEmail,
-         'role'     => $userRole,
-         'isGuest'  => $userRole === 'guest'
-     ]), ENT_QUOTES, 'UTF-8'); ?>">
+     data-nexus-user="<?php echo htmlspecialchars(json_encode($nexusUserBoot, JSON_UNESCAPED_SLASHES), ENT_QUOTES, 'UTF-8'); ?>">
 
     <div class="bg-mesh"></div>
     <div class="noise"></div>
@@ -306,7 +332,8 @@ $userId = $_SESSION['user_id'] ?? null;
     <div x-show="showFriendsPanel" 
         class="fixed inset-0 bg-black/70 backdrop-blur-md z-[90] transition-opacity duration-300 ease-out" 
         x-transition.opacity
-        @click="showFriendsPanel = false" 
+        @click="if (!showChatPanel) showFriendsPanel = false" 
+        :class="showChatPanel ? 'pointer-events-none' : ''"
         style="display: none;"></div>
 
     <div class="fixed top-0 right-0 w-full md:w-[320px] h-screen bg-[#07070b]/95 backdrop-blur-2xl border-l border-white/10 z-[100] flex flex-col shadow-[0_0_60px_rgba(0,0,0,0.8)] transition-transform duration-300 ease-out" 
@@ -373,10 +400,15 @@ $userId = $_SESSION['user_id'] ?? null;
                         <div class="group relative bg-gradient-to-br from-white/[0.04] to-white/[0.01] hover:from-white/[0.07] hover:to-emerald-500/[0.04] border border-white/10 hover:border-emerald-500/30 rounded-xl p-3 transition-all duration-300">
                             <div class="flex items-center justify-between gap-2.5">
                                 <div class="flex items-center gap-2.5 min-w-0 flex-1 cursor-pointer hover:opacity-80" @click.stop="toggleDropdown(friend, $event)">
-                                    <div class="relative shrink-0 cursor-pointer hover:scale-105 transition-transform" @click.stop="toggleDropdown(friend, $event)">
-                                        <img :src="`https://ui-avatars.com/api/?name=${encodeURIComponent(friend.user_name)}&background=10b981&color=fff`" 
-                                            class="w-9 h-9 rounded-full border border-emerald-500/30 shadow-md object-cover">
-                                        <span class="absolute -bottom-0.5 -right-0.5 flex h-2.5 w-2.5">
+                                    <div class="relative shrink-0 cursor-pointer hover:scale-105 transition-transform w-9 h-9 overflow-visible" style="width: 2.25rem; height: 2.25rem;" @click.stop="toggleDropdown(friend, $event)">
+                                        <div class="absolute inset-0 z-0 overflow-hidden rounded-full scale-[1.15] border border-emerald-500/30 shadow-md">
+                                            <img :src="resolveAvatarUrl(friend.avatar_url, friend.user_name)"
+                                                class="absolute inset-0 h-full w-full object-cover">
+                                        </div>
+                                        <template x-if="friend.border_preview">
+                                            <img :src="friend.border_preview" class="absolute inset-0 z-10 h-full w-full scale-[1.4] object-contain pointer-events-none" alt="">
+                                        </template>
+                                        <span class="absolute -bottom-0.5 -right-0.5 flex h-2.5 w-2.5 z-20">
                                             <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
                                             <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500 border-2 border-[#07070b]"></span>
                                         </span>
@@ -415,8 +447,15 @@ $userId = $_SESSION['user_id'] ?? null;
                         <div class="bg-gradient-to-br from-white/[0.04] to-white/[0.01] border border-yellow-500/30 rounded-xl p-3 transition-all">
                             <div class="flex items-center justify-between gap-2 mb-2">
                                 <div class="flex items-center gap-2.5 min-w-0 flex-1 cursor-pointer hover:opacity-80" @click.stop="toggleDropdown(req, $event)">
-                                    <img :src="`https://ui-avatars.com/api/?name=${encodeURIComponent(req.user_name)}&background=f59e0b&color=fff`" 
-                                        class="w-8 h-8 rounded-full border border-yellow-500/30 object-cover shrink-0">
+                                    <div class="relative w-8 h-8 shrink-0 overflow-visible" style="width: 2rem; height: 2rem;">
+                                        <div class="absolute inset-0 z-0 overflow-hidden rounded-full scale-[1.15] border border-yellow-500/30">
+                                            <img :src="resolveAvatarUrl(req.avatar_url, req.user_name)"
+                                                class="absolute inset-0 h-full w-full object-cover">
+                                        </div>
+                                        <template x-if="req.border_preview">
+                                            <img :src="req.border_preview" class="absolute inset-0 z-10 h-full w-full scale-[1.4] object-contain pointer-events-none" alt="">
+                                        </template>
+                                    </div>
                                     <div class="min-w-0 flex-1 cursor-pointer" @click.stop="toggleDropdown(req, $event)">
                                         <h4 class="text-xs font-semibold text-white truncate" x-text="req.user_name"></h4>
                                         <p class="text-[9px] text-yellow-400 uppercase font-mono tracking-wider">Added you</p>
@@ -503,8 +542,15 @@ $userId = $_SESSION['user_id'] ?? null;
                         
                         <!-- User Info -->
                         <div class="flex items-center gap-3 min-w-0 flex-1 cursor-pointer hover:opacity-80" @click.stop="toggleDropdown(user, $event)">
-                            <img :src="`https://ui-avatars.com/api/?name=${encodeURIComponent(user.user_name)}&background=10b981&color=fff`" 
-                                class="w-9 h-9 rounded-full border border-emerald-500/30 object-cover shrink-0">
+                            <div class="relative w-9 h-9 shrink-0 overflow-visible" style="width: 2.25rem; height: 2.25rem;">
+                                <div class="absolute inset-0 z-0 overflow-hidden rounded-full scale-[1.15] border border-emerald-500/30">
+                                    <img :src="resolveAvatarUrl(user.avatar_url, user.user_name)"
+                                        class="absolute inset-0 h-full w-full object-cover">
+                                </div>
+                                <template x-if="user.border_preview">
+                                    <img :src="user.border_preview" class="absolute inset-0 z-10 h-full w-full scale-[1.4] object-contain pointer-events-none" alt="">
+                                </template>
+                            </div>
                             <div class="min-w-0 flex-1 cursor-pointer" @click.stop="toggleDropdown(user, $event)">
                                 <h4 class="text-xs font-bold text-white truncate" x-text="user.user_name"></h4>
                                 <p class="text-[10px] text-white/40 truncate" x-text="user.email"></p>
@@ -581,18 +627,32 @@ $userId = $_SESSION['user_id'] ?? null;
                 </button>
 
                 <!-- Profile Menu -->
-                <div class="relative z-[60]" x-data="{ showProfileMenu: false }" @click.outside="showProfileMenu = false" x-show="!isGuest">
+                <?php if ($userRole !== 'guest'): ?>
+                <div class="relative z-[60]" x-data="{ showProfileMenu: false }" @click.outside="showProfileMenu = false">
                     <div @click="showProfileMenu = !showProfileMenu" class="flex items-center gap-3 p-2 bg-[#050508]/40 border border-white/5 rounded-xl cursor-pointer hover:bg-white/[0.05]">
                         <div class="relative w-10 h-10 overflow-visible shrink-0" style="width: 2.5rem; height: 2.5rem;">
-                            <div class="absolute inset-0 z-0 overflow-hidden rounded-full scale-[1.18]" :class="activeBorderId === 0 ? 'ring-2 ring-red-500/50' : ''">
-                                <img :src="selectedAvatar || getAvatarUrl(savedProfile.username, 'ef4444')" class="absolute inset-0 h-full w-full object-cover" style="object-fit: cover;">
+                            <div class="absolute inset-0 z-0 overflow-hidden rounded-full scale-[1.18]<?php echo $activeBorderId > 0 ? '' : ' ring-2 ring-red-500/50'; ?>" :class="Number(activeBorderId) === 0 ? 'ring-2 ring-red-500/50' : ''">
+                                <img src="<?php echo htmlspecialchars($avatarUrl !== '' ? $avatarUrl : ('https://ui-avatars.com/api/?name=' . rawurlencode($userName) . '&background=ef4444&color=fff&bold=true'), ENT_QUOTES, 'UTF-8'); ?>"
+                                     :src="selectedAvatar || getAvatarUrl(savedProfile.username, 'ef4444')" class="absolute inset-0 h-full w-full object-cover" style="object-fit: cover;" alt="" decoding="sync" fetchpriority="high">
                             </div>
-                            <template x-if="activeBorderId !== 0">
-                                <img :src="availableBorders.find(b => b.id === activeBorderId)?.preview" class="absolute inset-0 z-10 h-full w-full scale-[1.38] object-contain pointer-events-none">
-                            </template>
+                            <?php if ($activeBorderId > 0 && $borderPreview !== ''): ?>
+                            <img src="<?php echo htmlspecialchars($borderPreview, ENT_QUOTES, 'UTF-8'); ?>"
+                                 :src="activeBorderPreview || '<?php echo htmlspecialchars($borderPreview, ENT_QUOTES, 'UTF-8'); ?>'"
+                                 class="absolute inset-0 z-10 h-full w-full scale-[1.38] object-contain pointer-events-none"
+                                 alt=""
+                                 decoding="sync"
+                                 fetchpriority="high"
+                                 :class="Number(activeBorderId) === 0 ? 'invisible' : ''">
+                            <?php else: ?>
+                            <img x-show="Number(activeBorderId) !== 0 && !!activeBorderPreview"
+                                 :src="activeBorderPreview"
+                                 class="absolute inset-0 z-10 h-full w-full scale-[1.38] object-contain pointer-events-none"
+                                 style="display: none;"
+                                 alt="">
+                            <?php endif; ?>
                         </div>
                         <div class="hidden sm:block min-w-0 pr-1">
-                            <p class="text-sm font-bold text-white truncate" x-text="savedProfile.username"></p>
+                            <p class="text-sm font-bold text-white truncate" x-text="savedProfile.username"><?php echo htmlspecialchars($userName); ?></p>
                             <p class="text-[9px] text-red-400 uppercase tracking-widest mono font-bold bg-red-500/10 px-2 py-0.5 rounded border border-red-500/20 inline-block mt-0.5"><?php echo htmlspecialchars($userRole); ?></p>
                         </div>
                     </div>
@@ -610,16 +670,17 @@ $userId = $_SESSION['user_id'] ?? null;
                         </button>
                     </div>
                 </div>
+                <?php else: ?>
 
                 <!-- Login button for guests -->
                 <a href="../frontend/login.php" 
-                class="relative z-[60] flex items-center gap-3 p-2 bg-[#050508]/40 border border-white/5 rounded-xl hover:bg-white/[0.05] transition-all"
-                x-show="isGuest">
+                class="relative z-[60] flex items-center gap-3 p-2 bg-[#050508]/40 border border-white/5 rounded-xl hover:bg-white/[0.05] transition-all">
                     <div class="w-10 h-10 rounded-full bg-gradient-to-tr from-indigo-500 to-red-600 flex items-center justify-center">
                         <span class="material-symbols-outlined text-white">login</span>
                     </div>
                     <span class="text-sm font-bold text-white">Login</span>
                 </a>
+                <?php endif; ?>
             </div>
         </header>
 
@@ -815,7 +876,7 @@ $userId = $_SESSION['user_id'] ?? null;
 <script src="https://unpkg.com/@barba/core@2.9.7/dist/barba.umd.js" crossorigin="anonymous"></script>
 <script src="../js/barba_setup.js?v=4"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js" onerror="window.gsap=window.gsap||{to:()=>({to:()=>({}),fromTo:()=>({})}),fromTo:()=>({}),from:()=>({}),set:()=>{},timeline:()=>({to:()=>({}),fromTo:()=>({}),add:()=>({}),set:()=>({})}),config:()=>{},killTweensOf:()=>{}}"></script>
-<script src="../js/nexus_scripts.js?v=1788150001"></script>
+<script src="../js/nexus_scripts.js?v=1788153000"></script>
 <!-- Include Socket.io globally -->
 <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
 

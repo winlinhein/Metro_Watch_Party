@@ -2,6 +2,7 @@
 session_start();
 require_once __DIR__ . '/../conn.php';
 require_once __DIR__ . '/../pusher_helper.php';
+require_once __DIR__ . '/../profile_media_helper.php';
 
 header('Content-Type: application/json');
 
@@ -12,6 +13,8 @@ $data = json_decode(file_get_contents('php://input'), true);
 $senderId = (int)($data['sender_id'] ?? 0); // The user who originally sent the request
 $action   = $data['action'] ?? ''; // 'accept' or 'decline'
 session_write_close();
+
+$actorMedia = getUserProfileMedia($conn, (int)$userId);
 
 if (!$userId || !$senderId) {
     echo json_encode(['success' => false, 'message' => 'Invalid request.']);
@@ -59,13 +62,13 @@ try {
     $eventType = ($action === 'accept') ? 'friend_accepted' : 'friend_rejected';
     $message   = ($action === 'accept') ? 'accepted your friend request.' : 'declined your friend request.';
 
-    $payload = [
+    $payload = array_merge([
         'type'        => $eventType,
         'sender_id'   => $userId,
         'sender_name' => $userName,
         'message'     => $message,
         'created_at'  => date('Y-m-d H:i:s')
-    ];
+    ], $actorMedia);
 
     // Notify the original sender
     triggerPusherEvent("user-{$senderId}", "friend_event", $payload);

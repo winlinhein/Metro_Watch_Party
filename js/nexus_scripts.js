@@ -23,6 +23,22 @@
 })();
 
 function userDashboard() {
+    const bootUser = window.NEXUS_USER || {};
+    const bootName = bootUser.username || 'User';
+    const bootAvatarRaw = bootUser.avatar_url || '';
+    const bootBorderId = Number(bootUser.active_border_id) || 0;
+    const bootBorderPreview = bootUser.border_preview || '';
+    const resolveBootAvatar = (url, name) => {
+        if (!url) {
+            return `https://ui-avatars.com/api/?name=${encodeURIComponent(name || 'User')}&background=ef4444&color=fff&bold=true`;
+        }
+        if (/^(https?:)?\/\//i.test(url) || url.startsWith('/') || url.startsWith('data:') || url.startsWith('blob:')) {
+            return url;
+        }
+        return '/uploads/avatars/' + String(url).replace(/^\/+/, '');
+    };
+    const bootAvatar = resolveBootAvatar(bootAvatarRaw, bootName);
+
     return {
         // Navigation & Tab State
         currentTab: 'dashboard',
@@ -102,12 +118,21 @@ function userDashboard() {
         reportDescription: '',
 
        // Account State
-        accountForm: { },
+        accountForm: {
+            username: bootName,
+            email: bootUser.email || ''
+        },
         passwordForm: { current: '', new: '', confirm: '' },
-        activeBorderId: 0,
-        availableBorders: [],
-        hasCustomAvatar: false,
-        selectedAvatar: '',   
+        activeBorderId: bootBorderId,
+        activeBorderPreview: bootBorderPreview,
+        availableBorders: [
+            { id: 0, name: 'None', preview: '', owned: true },
+            ...(bootBorderId && bootBorderPreview
+                ? [{ id: bootBorderId, name: 'Equipped', preview: bootBorderPreview, owned: true }]
+                : [])
+        ],
+        hasCustomAvatar: !!bootAvatarRaw,
+        selectedAvatar: bootAvatar,   
 
         resolveShopImage(image) {
             if (!image) return '';
@@ -137,6 +162,12 @@ function userDashboard() {
                     owned: ownedIds.has(Number(item.id))
                 }))
             ];
+            const active = this.availableBorders.find(b => Number(b.id) === Number(this.activeBorderId));
+            if (active?.preview) {
+                this.activeBorderPreview = active.preview;
+            } else if (!this.activeBorderId) {
+                this.activeBorderPreview = '';
+            }
         },
 
        async fetchUserProfile() {
@@ -154,6 +185,7 @@ function userDashboard() {
                     this.userPoints = data.points;
                     this.userInventory = (data.inventory || []).map(id => Number(id));
                     this.activeBorderId = Number(data.active_border_id) || 0;
+                    this.activeBorderPreview = data.border_preview || '';
                     localStorage.removeItem('activeBorder');
                     if (data.avatar_url) {
                         const avatar = this.resolveAvatarUrl(data.avatar_url, this.savedProfile.username);
@@ -165,12 +197,18 @@ function userDashboard() {
                         this.savedProfile.avatar_url = '';
                         this.hasCustomAvatar = false;
                     }
+                    if (window.NEXUS_USER) {
+                        window.NEXUS_USER.avatar_url = data.avatar_url || '';
+                        window.NEXUS_USER.active_border_id = this.activeBorderId;
+                        window.NEXUS_USER.border_preview = this.activeBorderPreview;
+                    }
                     this.buildAvailableBorders();
 
                     // Force reset if active border is not owned
                     const owned = this.userInventory.includes(Number(this.activeBorderId));
                     if (this.activeBorderId !== 0 && !owned) {
                         this.activeBorderId = 0;
+                        this.activeBorderPreview = '';
                         fetch('/user_backend/update_active_border.php', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
@@ -192,7 +230,9 @@ function userDashboard() {
             }
 
             const previous = this.activeBorderId;
+            const previousPreview = this.activeBorderPreview;
             this.activeBorderId = borderId;
+            this.activeBorderPreview = border.preview || '';
             if (window.showToast) window.showToast(`${border.name} border applied!`, 'success');
 
             try {
@@ -204,12 +244,18 @@ function userDashboard() {
                 const data = await res.json();
                 if (!data.success) {
                     this.activeBorderId = previous;
+                    this.activeBorderPreview = previousPreview;
                     if (window.showToast) window.showToast(data.message || 'Failed to save border', 'error');
                     return;
                 }
                 localStorage.removeItem('activeBorder');
+                if (window.NEXUS_USER) {
+                    window.NEXUS_USER.active_border_id = borderId;
+                    window.NEXUS_USER.border_preview = this.activeBorderPreview;
+                }
             } catch (e) {
                 this.activeBorderId = previous;
+                this.activeBorderPreview = previousPreview;
                 console.error('Failed to save border:', e);
                 if (window.showToast) window.showToast('Failed to save border', 'error');
             }
@@ -232,6 +278,7 @@ function userDashboard() {
                     this.selectedAvatar = this.resolveAvatarUrl(data.avatar_url, this.savedProfile.username);
                     this.savedProfile.avatar_url = this.selectedAvatar;
                     this.hasCustomAvatar = true;
+                    if (window.NEXUS_USER) window.NEXUS_USER.avatar_url = this.selectedAvatar;
                     if (window.showToast) window.showToast('Profile picture updated!', 'success');
                 } else {
                     if (window.showToast) window.showToast(data.message || 'Upload failed', 'error');
@@ -252,6 +299,7 @@ function userDashboard() {
                     this.selectedAvatar = this.getAvatarUrl(this.savedProfile.username);
                     this.savedProfile.avatar_url = '';
                     this.hasCustomAvatar = false;
+                    if (window.NEXUS_USER) window.NEXUS_USER.avatar_url = '';
                     if (window.showToast) window.showToast('Profile picture removed', 'success');
                 } else {
                     if (window.showToast) window.showToast(data.message || 'Failed to remove avatar', 'error');
@@ -276,6 +324,56 @@ function userDashboard() {
 
         get isGuest() {
             return window.NEXUS_USER?.isGuest === true;
+        },
+
+        applyBootProfile(user = window.NEXUS_USER) {
+            if (!user || user.isGuest) {
+                this.savedProfile = { username: 'Guest', email: '', avatar_url: '' };
+                this.accountForm = { username: 'Guest', email: '' };
+                this.selectedAvatar = this.getAvatarUrl('Guest');
+                this.hasCustomAvatar = false;
+                this.activeBorderId = 0;
+                this.activeBorderPreview = '';
+                return;
+            }
+
+            const name = user.username || 'User';
+            const email = user.email || '';
+            const avatarRaw = user.avatar_url || '';
+            const borderId = Number(user.active_border_id) || 0;
+            const borderPreview = user.border_preview || '';
+
+            this.savedProfile = {
+                username: name,
+                email,
+                avatar_url: avatarRaw
+            };
+            this.accountForm = { username: name, email };
+
+            if (avatarRaw) {
+                this.selectedAvatar = this.resolveAvatarUrl(avatarRaw, name);
+                this.hasCustomAvatar = true;
+            } else {
+                this.selectedAvatar = this.getAvatarUrl(name);
+                this.hasCustomAvatar = false;
+            }
+
+            this.activeBorderId = borderId;
+            this.activeBorderPreview = borderPreview;
+            if (borderId && borderPreview) {
+                const exists = this.availableBorders.some(b => Number(b.id) === borderId);
+                if (!exists) {
+                    this.availableBorders = [
+                        { id: 0, name: 'None', preview: '', owned: true },
+                        { id: borderId, name: 'Equipped', preview: borderPreview, owned: true },
+                        ...this.availableBorders.filter(b => Number(b.id) !== 0 && Number(b.id) !== borderId)
+                    ];
+                } else {
+                    this.availableBorders = this.availableBorders.map(b =>
+                        Number(b.id) === borderId ? { ...b, preview: borderPreview || b.preview } : b
+                    );
+                }
+            }
         },
 
         requireLogin() {
@@ -486,11 +584,12 @@ function userDashboard() {
         },
 
         // --- Account Methods ---
-        // Initialized synchronously from NEXUS_USER so the correct name is
+        // Initialized synchronously from NEXUS_USER so the correct name/avatar/border
         // shown on the very first render, without waiting for init().
         savedProfile: {
-            username: '...',   
-            email: ''
+            username: bootName,
+            email: bootUser.email || '',
+            avatar_url: bootAvatarRaw || ''
         },
         deleteAccountModalOpen: false,
         deleteAccountPassword: '',
@@ -915,18 +1014,34 @@ function userDashboard() {
                     // If not found in pending, check notifications
                     if (!acceptedUser) {
                         const notifUser = this.notifications.find(n => Number(n.sender_id) === targetUserId);
-                        if (notifUser) acceptedUser = { user_id: notifUser.sender_id, user_name: notifUser.sender_name };
+                        if (notifUser) {
+                            acceptedUser = {
+                                user_id: notifUser.sender_id,
+                                user_name: notifUser.sender_name,
+                                avatar_url: notifUser.avatar_url || '',
+                                border_preview: notifUser.border_preview || ''
+                            };
+                        }
                     }
                     
                     // If still not found, check search results
                     if (!acceptedUser) {
                         const searchUser = this.searchResults.find(u => Number(u.user_id) === targetUserId);
-                        if (searchUser) acceptedUser = { user_id: searchUser.user_id, user_name: searchUser.user_name || searchUser.name };
+                        if (searchUser) {
+                            acceptedUser = {
+                                user_id: searchUser.user_id,
+                                user_name: searchUser.user_name || searchUser.name,
+                                avatar_url: searchUser.avatar_url || '',
+                                border_preview: searchUser.border_preview || ''
+                            };
+                        }
                     }
 
                     // Synchronize State Arrays (Immediately remove the requests/notifications)
                     this.pendingRequests = this.pendingRequests.filter(req => Number(req.user_id) !== targetUserId);
-                    this.notifications = this.notifications.filter(notif => Number(notif.sender_id) !== targetUserId);
+                    this.notifications = this.notifications.filter(notif =>
+                        !(Number(notif.sender_id) === targetUserId && notif.type === 'friend_request')
+                    );
                     this.unreadNotifCount = this.notifications.filter(n => Number(n.is_read) === 0).length;
 
                     // Update Search Results UI instantly
@@ -942,6 +1057,8 @@ function userDashboard() {
                             this.friends = [...this.friends, {
                                 user_id: acceptedUser.user_id,
                                 user_name: acceptedUser.user_name || "New Friend",
+                                avatar_url: acceptedUser.avatar_url || '',
+                                border_preview: acceptedUser.border_preview || '',
                                 unread_count: 0
                             }];
                             this.updateFriendsCount();
@@ -1529,13 +1646,7 @@ function userDashboard() {
                         );
                     }
 
-                    this.friends = this.friends.filter(
-                        f => Number(f.user_id || f.friend_id || f.id) !== targetId
-                    );
-
-                    this.updateFriendsCount();
-                    this.closeDropdown();
-
+                    this.applyFriendRemoved(targetId);
                 } else {
                     if (window.showToast) {
                         window.showToast(
@@ -1548,6 +1659,38 @@ function userDashboard() {
             .catch(err => {
                 console.error('Unfriend error:', err);
             });
+        },
+
+        applyFriendRemoved(removedId) {
+            const id = Number(removedId);
+            if (!id) return;
+
+            this.friends = this.friends.filter(
+                f => Number(f.user_id || f.friend_id || f.id) !== id
+            );
+            this.updateFriendsCount();
+
+            this.searchResults = this.searchResults.map(user => {
+                if (Number(user.user_id) === id) {
+                    return { ...user, friend_status: null, requester_id: null };
+                }
+                return user;
+            });
+
+            if (this.activeChatFriend && Number(this.activeChatFriend.user_id) === id) {
+                this.closeChat();
+            }
+
+            if (this.selectedProfileUser) {
+                const selectedId = Number(
+                    this.selectedProfileUser.user_id ||
+                    this.selectedProfileUser.friend_id ||
+                    this.selectedProfileUser.id
+                );
+                if (selectedId === id) {
+                    this.closeDropdown();
+                }
+            }
         },
 
         // 4. Updated closeChat Method
@@ -2236,6 +2379,7 @@ function userDashboard() {
                     }
                 }
                 if (data.border_id !== undefined) this.activeBorderId = Number(data.border_id) || 0;
+                if (data.border_preview !== undefined) this.activeBorderPreview = data.border_preview || '';
             }
 
             // Update comments (if any)
@@ -2252,17 +2396,42 @@ function userDashboard() {
             // Update friends list
             this.friends = this.friends.map(friend => {
                 if (Number(friend.user_id) === Number(data.user_id)) {
-                    friend.avatar_url = data.avatar_url || friend.avatar_url;
-                    friend.border_preview = data.border_preview || friend.border_preview;
+                    if (data.avatar_url !== undefined && data.avatar_url !== null) friend.avatar_url = data.avatar_url;
+                    if (data.border_preview !== undefined && data.border_preview !== null) friend.border_preview = data.border_preview;
                 }
                 return friend;
             });
 
+            if (Array.isArray(this.pendingRequests)) {
+                this.pendingRequests = this.pendingRequests.map(req => {
+                    if (Number(req.user_id) === Number(data.user_id)) {
+                        if (data.avatar_url !== undefined && data.avatar_url !== null) req.avatar_url = data.avatar_url;
+                        if (data.border_preview !== undefined && data.border_preview !== null) req.border_preview = data.border_preview;
+                    }
+                    return req;
+                });
+            }
+
+            if (Array.isArray(this.notifications)) {
+                this.notifications = this.notifications.map(n => {
+                    if (Number(n.sender_id) === Number(data.user_id)) {
+                        if (data.avatar_url !== undefined && data.avatar_url !== null) n.avatar_url = data.avatar_url;
+                        if (data.border_preview !== undefined && data.border_preview !== null) n.border_preview = data.border_preview;
+                    }
+                    return n;
+                });
+            }
+
+            if (this.activeChatFriend && Number(this.activeChatFriend.user_id) === Number(data.user_id)) {
+                if (data.avatar_url !== undefined && data.avatar_url !== null) this.activeChatFriend.avatar_url = data.avatar_url;
+                if (data.border_preview !== undefined && data.border_preview !== null) this.activeChatFriend.border_preview = data.border_preview;
+            }
+
             // Update searchResults
             this.searchResults = this.searchResults.map(user => {
                 if (Number(user.user_id) === Number(data.user_id)) {
-                    user.avatar_url = data.avatar_url || user.avatar_url;
-                    user.border_preview = data.border_preview || user.border_preview;
+                    if (data.avatar_url !== undefined && data.avatar_url !== null) user.avatar_url = data.avatar_url;
+                    if (data.border_preview !== undefined && data.border_preview !== null) user.border_preview = data.border_preview;
                 }
                 return user;
             });
@@ -2330,17 +2499,12 @@ function userDashboard() {
             // Real-time unfriend
             channel.bind('friend-removed', (data) => {
                 const removedId = Number(data.friend_id);
-                this.friends = this.friends.filter(
-                    f => Number(f.user_id || f.friend_id || f.id) !== removedId
+                const wasFriend = this.friends.some(
+                    f => Number(f.user_id || f.friend_id || f.id) === removedId
                 );
-                this.updateFriendsCount();
-                this.searchResults = this.searchResults.map(user => {
-                    if (Number(user.user_id) === removedId) {
-                        return { ...user, friend_status: null, requester_id: null };
-                    }
-                    return user;
-                });
-                if (window.showToast) {
+                this.applyFriendRemoved(removedId);
+                // Only toast for the other party (local unfriend already toasted)
+                if (wasFriend && window.showToast) {
                     window.showToast('A friendship was removed.', 'info');
                 }
             });
@@ -2362,6 +2526,9 @@ function userDashboard() {
 
             // Friend events
             channel.bind('friend_event', (data) => {
+                const avatarUrl = data.avatar_url || '';
+                const borderPreview = data.border_preview || '';
+
                 this.notifications = [
                     {
                         id: Date.now(),
@@ -2370,6 +2537,8 @@ function userDashboard() {
                         sender_name: data.sender_name,
                         message: data.message,
                         created_at: data.created_at,
+                        avatar_url: avatarUrl,
+                        border_preview: borderPreview,
                         is_read: 0
                     },
                     ...this.notifications
@@ -2377,13 +2546,29 @@ function userDashboard() {
                 this.unreadNotifCount++;
 
                 if (data.type === 'friend_request') {
-                    const alreadyExists = this.pendingRequests.some(r => r.user_id == data.sender_id);
+                    const alreadyExists = this.pendingRequests.some(r => Number(r.user_id) === Number(data.sender_id));
                     if (!alreadyExists) {
                         this.pendingRequests = [
-                            { user_id: data.sender_id, user_name: data.sender_name },
+                            {
+                                user_id: data.sender_id,
+                                user_name: data.sender_name,
+                                avatar_url: avatarUrl,
+                                border_preview: borderPreview
+                            },
                             ...this.pendingRequests
                         ];
+                    } else {
+                        this.pendingRequests = this.pendingRequests.map(req => {
+                            if (Number(req.user_id) !== Number(data.sender_id)) return req;
+                            return {
+                                ...req,
+                                avatar_url: avatarUrl || req.avatar_url,
+                                border_preview: borderPreview || req.border_preview
+                            };
+                        });
                     }
+                    // Keep pending list in sync with DB (covers any missed media fields)
+                    this.fetchFriends();
                 }
 
                 if (data.type === 'friend_accepted') {
@@ -2393,19 +2578,48 @@ function userDashboard() {
                     if (!friendExists) {
                         this.friends = [
                             ...this.friends,
-                            { user_id: acceptorId, user_name: acceptorName, unread_count: 0 }
+                            {
+                                user_id: acceptorId,
+                                user_name: acceptorName,
+                                avatar_url: avatarUrl,
+                                border_preview: borderPreview,
+                                unread_count: 0
+                            }
                         ];
                         this.subscribeToChatChannel(acceptorId);
+                        this.updateFriendsCount();
+                    } else {
+                        this.friends = this.friends.map(f => {
+                            if (Number(f.user_id) !== acceptorId) return f;
+                            return {
+                                ...f,
+                                avatar_url: avatarUrl || f.avatar_url,
+                                border_preview: borderPreview || f.border_preview
+                            };
+                        });
                     }
                     const userIndex = this.searchResults.findIndex(u => Number(u.user_id) === acceptorId);
                     if (userIndex !== -1) {
                         this.searchResults[userIndex].friend_status = 'accepted';
+                        this.searchResults[userIndex].avatar_url = avatarUrl || this.searchResults[userIndex].avatar_url;
+                        this.searchResults[userIndex].border_preview = borderPreview || this.searchResults[userIndex].border_preview;
                         this.searchResults = [...this.searchResults];
                     }
                     if (window.showToast) window.showToast(`${acceptorName} accepted your request!`, 'success');
+                    this.fetchFriends();
+                } else if (data.type === 'friend_rejected') {
+                    const declinerId = Number(data.sender_id);
+                    this.searchResults = this.searchResults.map(user => {
+                        if (Number(user.user_id) === declinerId) {
+                            return { ...user, friend_status: null, requester_id: null };
+                        }
+                        return user;
+                    });
+                    if (typeof window.showToast === 'function') {
+                        window.showToast(`${data.sender_name} ${data.message}`, 'error');
+                    }
                 } else if (typeof window.showToast === 'function') {
-                    const toastType = data.type === 'friend_rejected' ? 'error' : 'success';
-                    window.showToast(`${data.sender_name} ${data.message}`, toastType);
+                    window.showToast(`${data.sender_name} ${data.message}`, 'success');
                 }
                 this.fetchNotifications();
             });
@@ -2433,17 +2647,8 @@ function userDashboard() {
                 window.NEXUS_USER = { isGuest: true, username: 'Guest', email: '' };
             }
 
-            // 2. Update savedProfile and accountForm based on NEXUS_USER
-            if (!window.NEXUS_USER.isGuest) {
-                this.savedProfile = {
-                    username: window.NEXUS_USER.username || 'CurrentUser',
-                    email: window.NEXUS_USER.email || ''
-                };
-                this.accountForm = { ...this.savedProfile };
-            } else {
-                this.savedProfile = { username: 'Guest', email: '' };
-                this.accountForm = { ...this.savedProfile };
-            }
+            // 2. Update savedProfile / avatar / border instantly from boot payload
+            this.applyBootProfile(window.NEXUS_USER);
 
             // Source of truth is the DB via fetchUserProfile — drop stale local border cache
             localStorage.removeItem('activeBorder');
@@ -2464,6 +2669,7 @@ function userDashboard() {
                 await this.fetchMovies();
                 await this.fetchShopItems();
             } else {
+                // Profile media already visible from PHP boot; refresh inventory/points in background
                 await Promise.all([
                     this.fetchMovies(),
                     this.fetchWatchlist(),
@@ -3702,6 +3908,19 @@ window.handleLogout = async function() {
     }
 };
 function adminDashboard(userData = {}) {
+    const bootName = userData.user_name || 'Admin';
+    const bootAvatarRaw = userData.avatar_url || '';
+    const bootBorderPreview = userData.border_preview || '';
+    const resolveBootAdminAvatar = (url, name) => {
+        if (!url) {
+            return `https://ui-avatars.com/api/?name=${encodeURIComponent(name || 'Admin')}&background=ef4444&color=fff&bold=true`;
+        }
+        if (/^(https?:)?\/\//i.test(url) || url.startsWith('/') || url.startsWith('data:') || url.startsWith('blob:')) {
+            return url;
+        }
+        return '/uploads/avatars/' + String(url).replace(/^\/+/, '');
+    };
+
     return {
         // Merged the duplicate init() logic here so both GSAP and fetchMovies() run properly
 
@@ -3842,19 +4061,25 @@ function adminDashboard(userData = {}) {
         notifications: [],
         async fetchNotifications() {
             try {
-                const response = await fetch('/user_backend/get_notifications.php');
-                if (!response.ok) return;
-
-                const rawText = await response.text(); // Read raw text first
-                
-                try {
-                    const data = JSON.parse(rawText);
+                const response = await fetch('/backend/get_admin_notifications.php');
+                if (!response.ok) {
+                    // Fallback to shared notifications endpoint
+                    const fallback = await fetch('/user_backend/get_notifications.php');
+                    if (!fallback.ok) return;
+                    const data = await fallback.json();
                     if (data.success && Array.isArray(data.notifications)) {
                         this.notifications = data.notifications;
-                        this.unreadNotifCount = this.notifications.filter(n => Number(n.is_read) === 0).length;
+                        this.unreadNotifications = this.notifications.filter(n => Number(n.is_read) === 0).length;
+                        this.unreadNotifCount = this.unreadNotifications;
                     }
-                } catch (jsonErr) {
-                    console.error('Notification JSON Parse Error. Raw response:', rawText);
+                    return;
+                }
+
+                const data = await response.json();
+                if (data.success && Array.isArray(data.notifications)) {
+                    this.notifications = data.notifications;
+                    this.unreadNotifications = this.notifications.filter(n => Number(n.is_read) === 0).length;
+                    this.unreadNotifCount = this.unreadNotifications;
                 }
             } catch (err) {
                 console.error('Notification network error:', err);
@@ -4467,13 +4692,117 @@ function adminDashboard(userData = {}) {
         // Profile
         currentTab: 'dashboard',
         avatarModalOpen: false,
-        selectedBorder: null,
+        selectedBorder: bootBorderPreview || null,
+        hasCustomAvatar: !!bootAvatarRaw,
         deleteAccountModalOpen: false,
         deleteAccountPassword: '',
         deleteAccountError: '',
         
-        // Generates dynamic avatar based on user's name
-        selectedAvatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(userData.user_name || 'Admin')}&background=ef4444&color=fff&bold=true`,
+        // Booted from PHP so header shows avatar immediately
+        selectedAvatar: resolveBootAdminAvatar(bootAvatarRaw, bootName),
+
+        resolveAvatarUrl(url, name = 'Admin') {
+            if (!url) return this.getAvatarUrl(name);
+            if (/^(https?:)?\/\//i.test(url) || url.startsWith('/') || url.startsWith('data:') || url.startsWith('blob:')) {
+                return url;
+            }
+            return '/uploads/avatars/' + String(url).replace(/^\/+/, '');
+        },
+
+        getAvatarUrl(name, background = 'ef4444') {
+            return `https://ui-avatars.com/api/?name=${encodeURIComponent(name || 'Admin')}&background=${background}&color=fff&bold=true`;
+        },
+
+        async fetchAdminProfile() {
+            try {
+                const res = await fetch('/user_backend/get_user_profile.php');
+                const data = await res.json();
+                if (!data.success) return;
+                if (data.avatar_url) {
+                    this.selectedAvatar = this.resolveAvatarUrl(data.avatar_url, this.displayName);
+                    this.hasCustomAvatar = true;
+                } else {
+                    this.selectedAvatar = this.getAvatarUrl(this.displayName);
+                    this.hasCustomAvatar = false;
+                }
+                if (data.active_border_id) {
+                    const border = (this.shopItems || []).find(i => Number(i.id) === Number(data.active_border_id) && String(i.category || '').toLowerCase() === 'border');
+                    this.selectedBorder = border ? border.image : (data.border_preview || null);
+                } else {
+                    this.selectedBorder = null;
+                }
+                this.borders = [
+                    { id: 0, url: null },
+                    ...(this.shopItems || [])
+                        .filter(i => String(i.category || '').toLowerCase() === 'border')
+                        .map(i => ({ id: Number(i.id), url: i.image }))
+                ];
+            } catch (e) {
+                console.error('Failed to load admin profile media:', e);
+            }
+        },
+
+        async uploadAvatar(event) {
+            const file = event?.target?.files?.[0];
+            if (!file) return;
+            const formData = new FormData();
+            formData.append('avatar', file);
+            try {
+                const res = await fetch('/user_backend/upload_avatar.php', {
+                    method: 'POST',
+                    body: formData
+                });
+                const data = await res.json();
+                if (data.success) {
+                    this.selectedAvatar = this.resolveAvatarUrl(data.avatar_url, this.displayName);
+                    this.hasCustomAvatar = true;
+                    this.showToast('Profile picture updated!', 'success');
+                } else {
+                    this.showToast(data.message || 'Upload failed', 'error');
+                }
+            } catch (e) {
+                console.error('Admin avatar upload error:', e);
+                this.showToast('Network error uploading avatar', 'error');
+            } finally {
+                if (event?.target) event.target.value = '';
+            }
+        },
+
+        async removeAvatar() {
+            try {
+                const res = await fetch('/user_backend/remove_avatar.php', { method: 'POST' });
+                const data = await res.json();
+                if (data.success) {
+                    this.selectedAvatar = this.getAvatarUrl(this.displayName);
+                    this.hasCustomAvatar = false;
+                    this.showToast('Profile picture removed', 'success');
+                } else {
+                    this.showToast(data.message || 'Failed to remove avatar', 'error');
+                }
+            } catch (e) {
+                console.error('Admin remove avatar error:', e);
+                this.showToast('Network error removing avatar', 'error');
+            }
+        },
+
+        async applyAdminBorder(border) {
+            const borderId = Number(border?.id || 0);
+            this.selectedBorder = border?.url || null;
+            this.avatarModalOpen = false;
+            try {
+                const res = await fetch('/user_backend/update_active_border.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ border_id: borderId })
+                });
+                const data = await res.json();
+                if (!data.success && borderId !== 0) {
+                    this.showToast(data.message || 'Could not save border (must own it)', 'error');
+                }
+            } catch (e) {
+                console.error('Admin border save error:', e);
+            }
+        },
 
         notification: {
             show: false,
@@ -5045,7 +5374,7 @@ function adminDashboard(userData = {}) {
             return url;
         },
 
-         initDashboard() {
+         async initDashboard() {
             this.fetchReports();
             this.fetchStats();
             this.fetchMovies();
@@ -5053,7 +5382,8 @@ function adminDashboard(userData = {}) {
             this.fetchUsers();
             this.fetchNotifications();
             this.fetchRooms();
-            this.fetchShopItems(); 
+            await this.fetchShopItems();
+            await this.fetchAdminProfile();
             this.initPusher();
             this.fetchComments();
 
@@ -5107,6 +5437,31 @@ function adminDashboard(userData = {}) {
                 }
                 if (data.border_preview !== undefined && data.border_preview !== null) {
                     this.selectedReport.reported_border_preview = data.border_preview;
+                }
+            }
+
+            if (Array.isArray(this.notifications)) {
+                this.notifications = this.notifications.map(n => {
+                    if (Number(n.sender_id) === Number(data.user_id)) {
+                        if (data.avatar_url !== undefined && data.avatar_url !== null) n.avatar_url = data.avatar_url;
+                        if (data.border_preview !== undefined && data.border_preview !== null) n.border_preview = data.border_preview;
+                    }
+                    return n;
+                });
+            }
+
+            if (window.CURRENT_USER_ID && Number(data.user_id) === Number(window.CURRENT_USER_ID)) {
+                if (data.avatar_url !== undefined && data.avatar_url !== null) {
+                    if (data.avatar_url) {
+                        this.selectedAvatar = this.resolveAvatarUrl(data.avatar_url, this.displayName);
+                        this.hasCustomAvatar = true;
+                    } else {
+                        this.selectedAvatar = this.getAvatarUrl(this.displayName);
+                        this.hasCustomAvatar = false;
+                    }
+                }
+                if (data.border_preview !== undefined) {
+                    this.selectedBorder = data.border_preview || null;
                 }
             }
         },

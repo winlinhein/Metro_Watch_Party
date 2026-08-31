@@ -78,6 +78,23 @@ function getActiveBorderId(PDO $conn, int $userId): int
 }
 
 /**
+ * Avatar + border fields for a single user (for Pusher / API payloads).
+ */
+function getUserProfileMedia(PDO $conn, int $userId): array
+{
+    if ($userId <= 0) {
+        return ['avatar_url' => '', 'border_preview' => '', 'border_id' => 0];
+    }
+    $rows = attachProfileMedia($conn, [['user_id' => $userId]]);
+    $row = $rows[0] ?? [];
+    return [
+        'avatar_url' => $row['avatar_url'] ?? '',
+        'border_preview' => $row['border_preview'] ?? '',
+        'border_id' => (int)($row['border_id'] ?? 0),
+    ];
+}
+
+/**
  * Attach avatar_url + border_preview onto rows that contain user_id.
  * Mutates and returns the same array.
  */

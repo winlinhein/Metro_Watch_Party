@@ -9,13 +9,13 @@ if (empty($_SESSION['user_id'])) {
     exit();
 }
 
-require_once __DIR__ . '/../conn.php'; 
+require_once __DIR__ . '/../conn.php';
+require_once __DIR__ . '/../profile_media_helper.php';
 
 $currentUserId = (int)$_SESSION['user_id'];
 session_write_close();
 
 try {
-    // 1. Fetch Accepted Friends & Unread Message Count
     $friendsStmt = $conn->prepare("
         SELECT 
             u.user_id, 
@@ -40,18 +40,14 @@ try {
             u.is_premium, 
             uf.status
     ");
-    
-    // Bind all ID parameters to the current user
     $friendsStmt->execute([
-        'id1' => $currentUserId, 
-        'id2' => $currentUserId, 
+        'id1' => $currentUserId,
+        'id2' => $currentUserId,
         'id3' => $currentUserId,
-        'id4' => $currentUserId  // Used for m.receiver_id
+        'id4' => $currentUserId
     ]);
-    
-    $friends = $friendsStmt->fetchAll(PDO::FETCH_ASSOC);
+    $friends = attachProfileMedia($conn, $friendsStmt->fetchAll(PDO::FETCH_ASSOC));
 
-    // 2. Fetch Incoming Pending Friend Requests ("Users who added you")
     $pendingStmt = $conn->prepare("
         SELECT 
             u.user_id, 
@@ -63,13 +59,12 @@ try {
         WHERE uf.user_id_2 = :current_id AND uf.status = 'pending'
     ");
     $pendingStmt->execute(['current_id' => $currentUserId]);
-    $pendingRequests = $pendingStmt->fetchAll(PDO::FETCH_ASSOC);
+    $pendingRequests = attachProfileMedia($conn, $pendingStmt->fetchAll(PDO::FETCH_ASSOC));
 
     echo json_encode([
         'friends' => $friends,
         'pending_requests' => $pendingRequests
     ]);
-
 } catch (PDOException $e) {
     http_response_code(500);
     echo json_encode(['error' => $e->getMessage()]);

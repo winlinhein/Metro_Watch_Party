@@ -14,7 +14,14 @@
     <!-- Header info inside dropdown -->
     <div class="px-2 pb-2 pt-1 border-b border-white/5 mb-1 flex items-center gap-2">
         <template x-if="selectedProfileUser">
-            <img :src="`https://ui-avatars.com/api/?name=${encodeURIComponent(selectedProfileUser?.user_name || 'User')}&background=10b981&color=fff`" class="w-6 h-6 rounded-md">
+            <div class="relative w-6 h-6 shrink-0 overflow-visible" style="width: 1.5rem; height: 1.5rem;">
+                <div class="absolute inset-0 z-0 overflow-hidden rounded-md scale-[1.05]">
+                    <img :src="resolveAvatarUrl(selectedProfileUser?.avatar_url, selectedProfileUser?.user_name || 'User')" class="absolute inset-0 h-full w-full object-cover">
+                </div>
+                <template x-if="selectedProfileUser?.border_preview">
+                    <img :src="selectedProfileUser.border_preview" class="absolute inset-0 z-10 h-full w-full scale-[1.4] object-contain pointer-events-none" alt="">
+                </template>
+            </div>
         </template>
         <div class="min-w-0 flex-1">
             <p class="text-xs font-bold text-white truncate" x-text="selectedProfileUser?.user_name || 'User'"></p>

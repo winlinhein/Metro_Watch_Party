@@ -381,7 +381,7 @@
     <link rel="stylesheet" href="https://cdn.plyr.io/3.7.8/plyr.css" />
     <script src="https://cdn.plyr.io/3.7.8/plyr.polyfilled.js"></script>
     <script src="https://unpkg.com/htmx.org@1.9.10/dist/htmx.min.js" crossorigin="anonymous"></script>
-    <script src="/js/nexus_scripts.js?v=1788150001"></script>
+    <script src="/js/nexus_scripts.js?v=1788153000"></script>
 </head>
 <body data-barba="wrapper">
     <?php include __DIR__ . '/frontend/components/page_loader.php'; ?>

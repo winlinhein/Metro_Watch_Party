@@ -1,16 +1,16 @@
 <!-- Chat Modal UI (Animated via GSAP) -->
 <div x-show="showChatPanel" 
-     class="fixed inset-y-0 right-0 w-full sm:w-[400px] z-[999] flex flex-col pointer-events-none" 
+     class="fixed inset-0 z-[999] flex justify-end pointer-events-none" 
      style="display: none;">
      
-     <!-- Backdrop for mobile -->
-     <div class="fixed inset-0 bg-black/60 backdrop-blur-sm sm:hidden pointer-events-auto" 
+     <!-- Click-outside backdrop (desktop + mobile) — closes chat, not the friends drawer -->
+     <div class="fixed inset-0 bg-black/60 backdrop-blur-sm pointer-events-auto" 
           x-show="showChatPanel" 
           x-transition.opacity 
           @click="closeChat()"></div>
           
      <!-- Chat Panel Container -->
-     <div x-ref="chatPanel" class="chat-panel-container h-full w-full bg-[#050508]/90 backdrop-blur-2xl border-l border-white/10 flex flex-col pointer-events-auto shadow-[-20px_0_50px_rgba(0,0,0,0.5)] relative overflow-hidden">
+     <div x-ref="chatPanel" class="chat-panel-container relative h-full w-full sm:w-[400px] bg-[#050508]/90 backdrop-blur-2xl border-l border-white/10 flex flex-col pointer-events-auto shadow-[-20px_0_50px_rgba(0,0,0,0.5)] overflow-hidden">
         
         <!-- Animated Background Glows -->
         <div class="absolute -top-32 -right-32 w-64 h-64 bg-emerald-500/10 rounded-full blur-[80px]"></div>
@@ -20,10 +20,15 @@
         <div class="h-20 shrink-0 border-b border-white/10 flex items-center justify-between px-6 bg-white/[0.02] relative z-10">
             <template x-if="activeChatFriend">
                 <div class="flex items-center gap-4 cursor-pointer hover:opacity-80 transition-opacity" @click.stop="toggleDropdown(activeChatFriend, $event)">
-                    <div class="relative">
-                        <img :src="`https://ui-avatars.com/api/?name=${encodeURIComponent(activeChatFriend?.user_name || 'User')}&background=10b981&color=fff`"
-                             class="w-10 h-10 rounded-full border-2 border-emerald-500/30 shadow-[0_0_15px_rgba(16,185,129,0.2)]">
-                        <span class="absolute bottom-0 right-0 w-3 h-3 bg-emerald-500 border-2 border-[#050508] rounded-full"></span>
+                    <div class="relative w-10 h-10 overflow-visible" style="width: 2.5rem; height: 2.5rem;">
+                        <div class="absolute inset-0 z-0 overflow-hidden rounded-full scale-[1.15] border-2 border-emerald-500/30 shadow-[0_0_15px_rgba(16,185,129,0.2)]">
+                            <img :src="resolveAvatarUrl(activeChatFriend?.avatar_url, activeChatFriend?.user_name || 'User')"
+                                 class="absolute inset-0 h-full w-full object-cover">
+                        </div>
+                        <template x-if="activeChatFriend?.border_preview">
+                            <img :src="activeChatFriend.border_preview" class="absolute inset-0 z-10 h-full w-full scale-[1.4] object-contain pointer-events-none" alt="">
+                        </template>
+                        <span class="absolute bottom-0 right-0 w-3 h-3 bg-emerald-500 border-2 border-[#050508] rounded-full z-20"></span>
                     </div>
                     <div>
                         <h3 class="font-bold text-white tracking-wide" x-text="activeChatFriend?.user_name || 'User'"></h3>
@@ -45,7 +50,14 @@
                 <div class="chat-message-item flex flex-col" :class="msg.sender === 'me' ? 'items-end' : 'items-start'">
                     <div class="flex items-end gap-2 max-w-[85%]" :class="msg.sender === 'me' ? 'flex-row-reverse' : 'flex-row'">
                         <template x-if="msg.sender !== 'me'">
-                            <img :src="`https://ui-avatars.com/api/?name=${encodeURIComponent(activeChatFriend?.user_name || 'User')}&background=10b981&color=fff`" class="w-6 h-6 rounded-full opacity-70">
+                            <div class="relative w-6 h-6 shrink-0 overflow-visible" style="width: 1.5rem; height: 1.5rem;">
+                                <div class="absolute inset-0 z-0 overflow-hidden rounded-full scale-[1.1] opacity-90">
+                                    <img :src="resolveAvatarUrl(activeChatFriend?.avatar_url, activeChatFriend?.user_name || 'User')" class="absolute inset-0 h-full w-full object-cover">
+                                </div>
+                                <template x-if="activeChatFriend?.border_preview">
+                                    <img :src="activeChatFriend.border_preview" class="absolute inset-0 z-10 h-full w-full scale-[1.35] object-contain pointer-events-none" alt="">
+                                </template>
+                            </div>
                         </template>
                         <div class="p-2 rounded-2xl relative group overflow-hidden" 
                             :class="msg.sender === 'me' 

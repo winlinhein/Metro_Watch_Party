@@ -12,9 +12,30 @@ if (
     exit();
 }
 
-    $userName  = $_SESSION['user_name']  ?? 'Agent';
-    $userEmail = $_SESSION['user_email'] ?? '';
-    $userRole  = $_SESSION['user_role']  ?? 'user';
+$userName  = $_SESSION['user_name']  ?? 'Agent';
+$userEmail = $_SESSION['user_email'] ?? '';
+$userRole  = $_SESSION['user_role']  ?? 'user';
+$userId    = (int)($_SESSION['user_id'] ?? 0);
+
+$avatarUrl = '';
+$borderPreview = '';
+$activeBorderId = 0;
+if ($userId > 0) {
+    try {
+        require_once __DIR__ . '/../conn.php';
+        require_once __DIR__ . '/../profile_media_helper.php';
+        $media = getUserProfileMedia($conn, $userId);
+        $avatarUrl = $media['avatar_url'] ?? '';
+        $borderPreview = $media['border_preview'] ?? '';
+        $activeBorderId = (int)($media['border_id'] ?? 0);
+    } catch (Throwable $e) {
+        error_log('admin dashboard boot profile media: ' . $e->getMessage());
+    }
+}
+
+$bootAvatarSrc = $avatarUrl !== ''
+    ? $avatarUrl
+    : ('https://ui-avatars.com/api/?name=' . rawurlencode($userName) . '&background=ef4444&color=fff&bold=true');
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -140,7 +161,7 @@ if (
 
     <link rel="stylesheet" href="https://cdn.plyr.io/3.7.8/plyr.css" />
     <script src="https://cdn.plyr.io/3.7.8/plyr.polyfilled.js"></script>
-    <script src="../js/nexus_scripts.js?v=1788150001"></script>
+    <script src="../js/nexus_scripts.js?v=1788153000"></script>
     <script src="https://unpkg.com/htmx.org@1.9.10/dist/htmx.min.js" crossorigin="anonymous"></script>
 </head>
 <body class="h-screen w-screen flex relative selection:bg-red-500/30" data-barba="wrapper">
@@ -152,8 +173,11 @@ if (
      data-barba="container" 
      data-barba-namespace="admin_dashboard" 
      x-data="adminDashboard({ 
-         user_name: '<?= htmlspecialchars($userName, ENT_QUOTES) ?>', 
-         email: '<?= htmlspecialchars($userEmail, ENT_QUOTES) ?>' 
+         user_name: <?= json_encode($userName) ?>, 
+         email: <?= json_encode($userEmail) ?>,
+         avatar_url: <?= json_encode($avatarUrl) ?>,
+         border_preview: <?= json_encode($borderPreview) ?>,
+         active_border_id: <?= (int)$activeBorderId ?>
      })" 
      @view-comment="handleViewComment($event.detail)"
      x-init="initDashboard()">
@@ -234,13 +258,25 @@ if (
                         <div class="absolute inset-0 z-10 overflow-hidden rounded-full scale-[1.18] group-hover:shadow-[0_0_15px_rgba(239,68,68,0.3)] transition-all duration-300" :class="selectedBorder ? '' : 'ring-1 ring-white/20 group-hover:ring-red-500/50'">
                             <img :src="selectedAvatar" 
                                 :alt="displayName"
-                                src="https://ui-avatars.com/api/?name=<?= urlencode($userName) ?>&background=ef4444&color=fff&bold=true" 
+                                src="<?= htmlspecialchars($bootAvatarSrc, ENT_QUOTES, 'UTF-8') ?>" 
                                 class="absolute inset-0 h-full w-full object-cover"
                                 style="object-fit: cover;">
                         </div>
-                        <template x-if="selectedBorder">
-                            <img :src="selectedBorder" class="absolute inset-0 z-20 h-full w-full object-contain pointer-events-none scale-[1.38] drop-shadow-[0_0_15px_rgba(255,255,255,0.2)] mix-blend-screen opacity-90">
-                        </template>
+                        <?php if ($borderPreview !== ''): ?>
+                        <img src="<?= htmlspecialchars($borderPreview, ENT_QUOTES, 'UTF-8') ?>"
+                             :src="selectedBorder || '<?= htmlspecialchars($borderPreview, ENT_QUOTES, 'UTF-8') ?>'"
+                             class="absolute inset-0 z-20 h-full w-full object-contain pointer-events-none scale-[1.38] drop-shadow-[0_0_15px_rgba(255,255,255,0.2)] mix-blend-screen opacity-90"
+                             alt=""
+                             decoding="sync"
+                             fetchpriority="high"
+                             :class="selectedBorder ? '' : 'invisible'">
+                        <?php else: ?>
+                        <img x-show="!!selectedBorder"
+                             :src="selectedBorder"
+                             class="absolute inset-0 z-20 h-full w-full object-contain pointer-events-none scale-[1.38] drop-shadow-[0_0_15px_rgba(255,255,255,0.2)] mix-blend-screen opacity-90"
+                             style="display: none;"
+                             alt="">
+                        <?php endif; ?>
                         <div class="absolute -bottom-1 -right-1 w-3.5 h-3.5 bg-green-500 border-2 border-[#030305] rounded-full z-30"></div>
                     </div>
                 </div>

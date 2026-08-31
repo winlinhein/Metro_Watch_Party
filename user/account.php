@@ -77,8 +77,8 @@
                              :class="activeBorderId === 0 ? 'ring-2 ring-white/10' : ''">
                             <img :src="selectedAvatar || 'https://ui-avatars.com/api/?name=' + encodeURIComponent(savedProfile.username || 'User') + '&background=ef4444&color=fff&bold=true'" class="absolute inset-0 h-full w-full object-cover" style="object-fit: cover;">
                         </div>
-                        <template x-if="activeBorderId !== 0">
-                            <img :src="availableBorders.find(b => b.id === activeBorderId)?.preview" class="absolute inset-0 z-10 h-full w-full object-contain pointer-events-none scale-[1.38]">
+                        <template x-if="Number(activeBorderId) !== 0 && activeBorderPreview">
+                            <img :src="activeBorderPreview" class="absolute inset-0 z-10 h-full w-full object-contain pointer-events-none scale-[1.38]">
                         </template>
                     </div>
                     
