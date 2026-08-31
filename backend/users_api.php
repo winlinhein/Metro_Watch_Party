@@ -15,6 +15,7 @@ if (
 
 header('Content-Type: application/json');
 require_once __DIR__ . '/../conn.php';
+require_once __DIR__ . '/../profile_media_helper.php';
 
 $method = $_SERVER['REQUEST_METHOD'];
 
@@ -26,12 +27,14 @@ if ($method === 'GET') {
         $sql = "
             SELECT 
                 u.user_id AS id,
+                u.user_id,
                 u.user_name AS name,
                 u.email,
                 u.status,
                 u.is_premium,
                 u.points,
                 u.role_id,
+                u.avatar_url,
                 r.role AS role_name
             FROM users u
             LEFT JOIN roles r ON u.role_id = r.role_id
@@ -39,7 +42,7 @@ if ($method === 'GET') {
         ";
 
         $stmt = $conn->query($sql);
-        $rawUsers = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        $rawUsers = attachProfileMedia($conn, $stmt->fetchAll(PDO::FETCH_ASSOC), 'user_id');
 
         $users = array_map(function($u) {
             // Capitalize DB status ('active' -> 'Active', 'pending' -> 'Pending', 'banned' -> 'Banned')
@@ -56,12 +59,15 @@ if ($method === 'GET') {
             }
 
             return [
-                'id'     => (int) $u['id'],
-                'name'   => $u['name'],
-                'email'  => $u['email'],
-                'status' => $status,
-                'role'   => $role,
-                'points' => (int) ($u['points'] ?? 0)
+                'id'             => (int) $u['id'],
+                'name'           => $u['name'],
+                'email'          => $u['email'],
+                'status'         => $status,
+                'role'           => $role,
+                'points'         => (int) ($u['points'] ?? 0),
+                'avatar_url'     => $u['avatar_url'] ?? '',
+                'border_preview' => $u['border_preview'] ?? '',
+                'border_id'      => (int)($u['border_id'] ?? 0),
             ];
         }, $rawUsers);
 

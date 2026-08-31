@@ -117,16 +117,24 @@ function userDashboard() {
             return '/uploads/shop/' + image;
         },
 
+        resolveAvatarUrl(url, name = 'User') {
+            if (!url) return this.getAvatarUrl(name);
+            if (/^(https?:)?\/\//i.test(url) || url.startsWith('/') || url.startsWith('data:') || url.startsWith('blob:')) {
+                return url;
+            }
+            return '/uploads/avatars/' + url.replace(/^\/+/, '');
+        },
+
         buildAvailableBorders() {
-            const borderItems = this.shopItems.filter(item => item.category === 'border');
-            const ownedIds = new Set(this.userInventory);
+            const borderItems = this.shopItems.filter(item => String(item.category || '').toLowerCase() === 'border');
+            const ownedIds = new Set((this.userInventory || []).map(id => Number(id)));
             this.availableBorders = [
                 { id: 0, name: 'None', preview: '', owned: true },
                 ...borderItems.map(item => ({
-                    id: item.id,
+                    id: Number(item.id),
                     name: item.name,
                     preview: item.image,
-                    owned: ownedIds.has(item.id)
+                    owned: ownedIds.has(Number(item.id))
                 }))
             ];
         },
@@ -134,28 +142,35 @@ function userDashboard() {
        async fetchUserProfile() {
             try {
                 const res = await fetch('/user_backend/get_user_profile.php');
-                const data = await res.json();
+                const text = await res.text();
+                let data;
+                try {
+                    data = JSON.parse(text);
+                } catch (parseErr) {
+                    console.error('Failed to fetch profile: non-JSON response', text.slice(0, 200));
+                    return;
+                }
                 if (data.success) {
                     this.userPoints = data.points;
-                    this.userInventory = data.inventory;
-                    this.activeBorderId = data.active_border_id;
+                    this.userInventory = (data.inventory || []).map(id => Number(id));
+                    this.activeBorderId = Number(data.active_border_id) || 0;
+                    localStorage.removeItem('activeBorder');
                     if (data.avatar_url) {
-                        this.selectedAvatar = data.avatar_url;
-                        this.savedProfile.avatar_url = data.avatar_url;
+                        const avatar = this.resolveAvatarUrl(data.avatar_url, this.savedProfile.username);
+                        this.selectedAvatar = avatar;
+                        this.savedProfile.avatar_url = avatar;
                         this.hasCustomAvatar = true;
                     } else {
-                        // Fallback to generated avatar
                         this.selectedAvatar = this.getAvatarUrl(this.savedProfile.username);
                         this.savedProfile.avatar_url = '';
                         this.hasCustomAvatar = false;
                     }
                     this.buildAvailableBorders();
-                    
+
                     // Force reset if active border is not owned
-                    const currentBorder = this.availableBorders.find(b => b.id === this.activeBorderId);
-                    if (this.activeBorderId !== 0 && (!currentBorder || !currentBorder.owned)) {
+                    const owned = this.userInventory.includes(Number(this.activeBorderId));
+                    if (this.activeBorderId !== 0 && !owned) {
                         this.activeBorderId = 0;
-                        // Optionally persist the reset to backend
                         fetch('/user_backend/update_active_border.php', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
@@ -169,25 +184,34 @@ function userDashboard() {
         },
 
         async setActiveBorder(borderId) {
-            const border = this.availableBorders.find(b => b.id === borderId);
+            borderId = Number(borderId) || 0;
+            const border = this.availableBorders.find(b => Number(b.id) === borderId);
             if (!border || !border.owned) {
                 if (window.showToast) window.showToast('You do not own this border', 'error');
                 return;
             }
 
-            // Optimistic UI
+            const previous = this.activeBorderId;
             this.activeBorderId = borderId;
             if (window.showToast) window.showToast(`${border.name} border applied!`, 'success');
 
-            // Persist to backend
             try {
-                await fetch('/user_backend/update_active_border.php', {
+                const res = await fetch('/user_backend/update_active_border.php', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ border_id: borderId })
                 });
+                const data = await res.json();
+                if (!data.success) {
+                    this.activeBorderId = previous;
+                    if (window.showToast) window.showToast(data.message || 'Failed to save border', 'error');
+                    return;
+                }
+                localStorage.removeItem('activeBorder');
             } catch (e) {
+                this.activeBorderId = previous;
                 console.error('Failed to save border:', e);
+                if (window.showToast) window.showToast('Failed to save border', 'error');
             }
         },
 
@@ -205,9 +229,9 @@ function userDashboard() {
                 });
                 const data = await res.json();
                 if (data.success) {
-                    this.selectedAvatar = data.avatar_url;
-                    this.savedProfile.avatar_url = data.avatar_url;
-                    this.hasCustomAvatar = true;   // <-- add this
+                    this.selectedAvatar = this.resolveAvatarUrl(data.avatar_url, this.savedProfile.username);
+                    this.savedProfile.avatar_url = this.selectedAvatar;
+                    this.hasCustomAvatar = true;
                     if (window.showToast) window.showToast('Profile picture updated!', 'success');
                 } else {
                     if (window.showToast) window.showToast(data.message || 'Upload failed', 'error');
@@ -215,6 +239,8 @@ function userDashboard() {
             } catch (e) {
                 console.error('Avatar upload error:', e);
                 if (window.showToast) window.showToast('Network error', 'error');
+            } finally {
+                event.target.value = '';
             }
         },
 
@@ -223,7 +249,6 @@ function userDashboard() {
                 const res = await fetch('/user_backend/remove_avatar.php', { method: 'POST' });
                 const data = await res.json();
                 if (data.success) {
-                    // Fall back to generated avatar
                     this.selectedAvatar = this.getAvatarUrl(this.savedProfile.username);
                     this.savedProfile.avatar_url = '';
                     this.hasCustomAvatar = false;
@@ -2199,8 +2224,18 @@ function userDashboard() {
          handleProfileChanged(data) {
             // Update current user if it's them (e.g., another tab)
             if (window.CURRENT_USER_ID && Number(data.user_id) === Number(window.CURRENT_USER_ID)) {
-                if (data.avatar_url) this.selectedAvatar = data.avatar_url;
-                if (data.border_id !== undefined) this.activeBorderId = data.border_id;
+                if (data.avatar_url !== undefined && data.avatar_url !== null) {
+                    if (data.avatar_url) {
+                        this.selectedAvatar = this.resolveAvatarUrl(data.avatar_url, this.savedProfile.username);
+                        this.savedProfile.avatar_url = this.selectedAvatar;
+                        this.hasCustomAvatar = true;
+                    } else {
+                        this.selectedAvatar = this.getAvatarUrl(this.savedProfile.username);
+                        this.savedProfile.avatar_url = '';
+                        this.hasCustomAvatar = false;
+                    }
+                }
+                if (data.border_id !== undefined) this.activeBorderId = Number(data.border_id) || 0;
             }
 
             // Update comments (if any)
@@ -2410,8 +2445,8 @@ function userDashboard() {
                 this.accountForm = { ...this.savedProfile };
             }
 
-            const savedBorder = localStorage.getItem('activeBorder');
-            if (savedBorder) this.activeBorderId = parseInt(savedBorder, 10);
+            // Source of truth is the DB via fetchUserProfile — drop stale local border cache
+            localStorage.removeItem('activeBorder');
 
             if (typeof gsap !== 'undefined') gsap.config({ nullTargetWarn: false });
 
@@ -2688,10 +2723,7 @@ function watchParty() {
         showInviteMenu: false,
 
         async init() { 
-            const savedBorder = localStorage.getItem('activeBorder');
-            if (savedBorder) {
-                this.activeBorderId = parseInt(savedBorder, 10);
-            }
+            localStorage.removeItem('activeBorder');
             this.fetchRoomDetails();
             this.fetchFriends();
             this.startLocalMedia();
@@ -3948,10 +3980,7 @@ function adminDashboard(userData = {}) {
 
         // --- Initialization ---
         async init() { 
-            const savedBorder = localStorage.getItem('activeBorder');
-            if (savedBorder) {
-                this.activeBorderId = parseInt(savedBorder, 10);
-            }
+            localStorage.removeItem('activeBorder');
             await this.fetchMovies();
             await this.fetchGenres();
         },
@@ -5046,8 +5075,12 @@ function adminDashboard(userData = {}) {
             this.users = this.users.map(user => {
                 const userId = user.id || user.user_id;
                 if (Number(userId) === Number(data.user_id)) {
-                    user.avatar_url = data.avatar_url || user.avatar_url;
-                    user.border_preview = data.border_preview || user.border_preview;
+                    if (data.avatar_url !== undefined && data.avatar_url !== null) {
+                        user.avatar_url = data.avatar_url;
+                    }
+                    if (data.border_preview !== undefined && data.border_preview !== null) {
+                        user.border_preview = data.border_preview;
+                    }
                 }
                 return user;
             });
@@ -5056,8 +5089,12 @@ function adminDashboard(userData = {}) {
             if (this.comments) {
                 this.comments = this.comments.map(comment => {
                     if (Number(comment.user_id) === Number(data.user_id)) {
-                        comment.avatar_url = data.avatar_url || comment.avatar_url;
-                        comment.border_preview = data.border_preview || comment.border_preview;
+                        if (data.avatar_url !== undefined && data.avatar_url !== null) {
+                            comment.avatar_url = data.avatar_url;
+                        }
+                        if (data.border_preview !== undefined && data.border_preview !== null) {
+                            comment.border_preview = data.border_preview;
+                        }
                     }
                     return comment;
                 });
@@ -5065,8 +5102,12 @@ function adminDashboard(userData = {}) {
 
             // Update selected report if it shows the user
             if (this.selectedReport && Number(this.selectedReport.reported_user_id) === Number(data.user_id)) {
-                this.selectedReport.reported_avatar_url = data.avatar_url || this.selectedReport.reported_avatar_url;
-                this.selectedReport.reported_border_preview = data.border_preview || this.selectedReport.reported_border_preview;
+                if (data.avatar_url !== undefined && data.avatar_url !== null) {
+                    this.selectedReport.reported_avatar_url = data.avatar_url;
+                }
+                if (data.border_preview !== undefined && data.border_preview !== null) {
+                    this.selectedReport.reported_border_preview = data.border_preview;
+                }
             }
         },
 

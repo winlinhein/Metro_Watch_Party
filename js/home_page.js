@@ -17,12 +17,12 @@
 
     const FEATURED_ROOMS = [
         {
-            title: 'Dune: Part Two',
+            title: 'Dune',
             host: 'Alex',
             viewers: 24,
             tag: 'LIVE',
             line: 'Arrakis. Dune. Desert planet.',
-            img: 'https://images.unsplash.com/photo-1536440136628-849c177e76a1?auto=format&fit=crop&q=80&w=1200'
+            img: '/frontend/assets/home/dune-live.jpg'
         },
         {
             title: 'Interstellar',
@@ -30,17 +30,38 @@
             viewers: 18,
             tag: 'LIVE',
             line: 'We used to look up at the sky and wonder.',
-            img: 'https://images.unsplash.com/photo-1446776811953-b23d57bd21aa?auto=format&fit=crop&q=80&w=1200'
+            img: '/user_backend/get_poster.php?id=11'
         },
         {
-            title: 'Blade Runner 2049',
+            title: 'Inception',
             host: 'Kenji',
             viewers: 31,
             tag: 'SYNCED',
-            line: 'It is so dark in here.',
-            img: 'https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?auto=format&fit=crop&q=80&w=1200'
+            line: 'We need to go deeper.',
+            img: '/user_backend/get_poster.php?id=10'
         }
     ];
+
+    function movieStillFromList(list, needle) {
+        const n = String(needle || '').toLowerCase();
+        return (list || []).find((m) => String(m.title || '').toLowerCase().includes(n));
+    }
+
+    function roomsFromCatalog(list) {
+        return [
+            { needle: 'dune', i: 0 },
+            { needle: 'interstellar', i: 1 },
+            { needle: 'inception', i: 2 }
+        ].map(({ needle, i }) => {
+            const base = FEATURED_ROOMS[i];
+            const m = movieStillFromList(list, needle);
+            if (!m) return base;
+            // Keep curated stills for featured rooms; only sync the catalog title.
+            return Object.assign({}, base, {
+                title: m.title || base.title
+            });
+        });
+    }
 
     function gsapReady() {
         return typeof gsap !== 'undefined';
@@ -269,15 +290,17 @@
                         });
                     }
 
-                    gsap.set(container.querySelectorAll('.home-step'), { y: 36, autoAlpha: 0 });
+                    gsap.set(container.querySelectorAll('.home-step, .home-bento-card, .home-use-card, .home-plan-card'), { y: 40, autoAlpha: 0 });
                     if (typeof ScrollTrigger !== 'undefined') {
-                        ScrollTrigger.batch(container.querySelectorAll('.home-step'), {
+                        ScrollTrigger.batch(container.querySelectorAll('.home-step, .home-bento-card, .home-use-card, .home-plan-card'), {
                             start: 'top 88%',
+                            interval: 0.1,
+                            batchMax: 6,
                             onEnter: (batch) => gsap.to(batch, {
                                 y: 0,
                                 autoAlpha: 1,
-                                stagger: 0.1,
-                                duration: reduceMotion ? 0 : 0.7,
+                                stagger: 0.08,
+                                duration: reduceMotion ? 0 : 0.75,
                                 ease: 'power3.out',
                                 overwrite: true
                             })
@@ -286,9 +309,9 @@
 
                     const line = container.querySelector('.home-steps-line');
                     if (line && typeof ScrollTrigger !== 'undefined') {
-                        gsap.set(line, { scaleX: 0, transformOrigin: 'left center' });
+                        gsap.set(line, { scaleY: 0, transformOrigin: 'top center' });
                         gsap.to(line, {
-                            scaleX: 1,
+                            scaleY: 1,
                             ease: 'none',
                             scrollTrigger: {
                                 id: 'home-steps-line',
@@ -297,6 +320,74 @@
                                 end: 'bottom 55%',
                                 scrub: 1
                             }
+                        });
+                    }
+
+                    const syncBar = container.querySelector('.home-sync-bar');
+                    if (syncBar && typeof ScrollTrigger !== 'undefined') {
+                        gsap.fromTo(syncBar, { scaleX: 0.18 }, {
+                            scaleX: 0.72,
+                            ease: 'none',
+                            scrollTrigger: {
+                                id: 'home-sync-bar',
+                                trigger: container.querySelector('#showcase'),
+                                start: 'top 70%',
+                                end: 'bottom 40%',
+                                scrub: 1
+                            }
+                        });
+                    }
+
+                    const contactCard = container.querySelector('.home-contact-form-wrap');
+                    if (contactCard) {
+                        gsap.from(contactCard, {
+                            y: 48,
+                            autoAlpha: 0,
+                            duration: 0.9 * d,
+                            ease: 'power3.out',
+                            scrollTrigger: {
+                                id: 'home-contact-card',
+                                trigger: contactCard,
+                                start: 'top 88%'
+                            }
+                        });
+                    }
+
+                    const contactFields = container.querySelectorAll('.home-contact-form .home-field');
+                    if (contactFields.length) {
+                        gsap.from(contactFields, {
+                            y: 18,
+                            autoAlpha: 0,
+                            stagger: 0.08,
+                            duration: 0.55 * d,
+                            ease: 'power3.out',
+                            scrollTrigger: {
+                                id: 'home-contact-fields',
+                                trigger: container.querySelector('.home-contact-form'),
+                                start: 'top 90%'
+                            }
+                        });
+                    }
+
+                    const shine = container.querySelector('.home-submit-shine');
+                    if (shine && !reduceMotion) {
+                        gsap.to(shine, {
+                            xPercent: 220,
+                            duration: 1.8,
+                            ease: 'power2.inOut',
+                            repeat: -1,
+                            repeatDelay: 2.4
+                        });
+                    }
+
+                    if (isDesktop && !reduceMotion) {
+                        container.querySelectorAll('.home-bento-card, .home-use-card, .home-plan-card').forEach((card) => {
+                            card.addEventListener('mouseenter', () => {
+                                gsap.to(card, { y: -6, duration: 0.4, ease: 'power3.out', overwrite: 'auto' });
+                            });
+                            card.addEventListener('mouseleave', () => {
+                                gsap.to(card, { y: 0, duration: 0.45, ease: 'power3.out', overwrite: 'auto' });
+                            });
                         });
                     }
 
@@ -420,6 +511,10 @@
             movies: FALLBACK_MOVIES.slice(),
             hoveredMovie: null,
             faqOpen: null,
+            demoStep: 1,
+            contact: { name: '', email: '', topic: 'general', message: '', website: '' },
+            contactStatus: 'idle',
+            contactError: '',
             _featTimer: null,
             _scrollBound: null,
 
@@ -502,8 +597,10 @@
                                 genre: Array.isArray(m.genres) ? (m.genres[0] || 'Film') : (m.genre || 'Film'),
                                 viewers: Math.max(3, Math.floor(Math.random() * 48))
                             }));
+                            this.featuredRooms = roomsFromCatalog(list);
                             this.$nextTick(() => {
                                 if (typeof ScrollTrigger !== 'undefined') ScrollTrigger.refresh();
+                                window.crossfadeFeatured(this.$root, this.currentRoom);
                             });
                             return;
                         }
@@ -536,6 +633,77 @@
 
             toggleFaq(id) {
                 this.faqOpen = this.faqOpen === id ? null : id;
+            },
+
+            setDemoStep(step) {
+                this.demoStep = step;
+                this.$nextTick(() => {
+                    const panel = this.$root.querySelector('.home-demo-panel:not([style*="display: none"])')
+                        || this.$root.querySelector('.home-demo-visual');
+                    if (!panel || typeof gsap === 'undefined') return;
+                    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+                    gsap.fromTo(panel, { autoAlpha: 0.35, y: 12 }, {
+                        autoAlpha: 1,
+                        y: 0,
+                        duration: 0.45,
+                        ease: 'power3.out',
+                        overwrite: 'auto'
+                    });
+                });
+            },
+
+            resetContact() {
+                this.contact = { name: '', email: '', topic: 'general', message: '', website: '' };
+                this.contactStatus = 'idle';
+                this.contactError = '';
+            },
+
+            async sendContact() {
+                if (this.contactStatus === 'sending') return;
+                this.contactError = '';
+                if (!this.contact.name || this.contact.name.trim().length < 2) {
+                    this.contactError = 'Please enter your name.';
+                    return;
+                }
+                if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(this.contact.email || '')) {
+                    this.contactError = 'Please enter a valid email.';
+                    return;
+                }
+                if (!(this.contact.message || '').trim() || this.contact.message.trim().length < 10) {
+                    this.contactError = 'Please write a slightly longer message.';
+                    return;
+                }
+
+                this.contactStatus = 'sending';
+                try {
+                    const res = await fetch('/backend/contact.php', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(this.contact)
+                    });
+                    const data = await res.json().catch(() => ({}));
+                    if (!res.ok || !data.success) {
+                        this.contactStatus = 'idle';
+                        this.contactError = data.message || 'Could not send right now.';
+                        if (window.showToast) window.showToast(this.contactError, 'error');
+                        return;
+                    }
+                    this.contactStatus = 'sent';
+                    this.$nextTick(() => {
+                        const mark = this.$root.querySelector('.home-success-mark');
+                        const title = this.$root.querySelector('.home-success-title');
+                        if (typeof gsap !== 'undefined' && mark) {
+                            const tl = gsap.timeline();
+                            tl.from(mark, { scale: 0.4, autoAlpha: 0, duration: 0.55, ease: 'back.out(1.8)' });
+                            if (title) tl.from(title, { y: 16, autoAlpha: 0, duration: 0.45, ease: 'power3.out' }, '-=0.2');
+                        }
+                    });
+                    if (window.showToast) window.showToast(data.message || 'Signal received.', 'success');
+                } catch (e) {
+                    this.contactStatus = 'idle';
+                    this.contactError = 'Could not send right now. Try again in a moment.';
+                    if (window.showToast) window.showToast(this.contactError, 'error');
+                }
             }
         };
     };

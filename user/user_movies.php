@@ -305,10 +305,10 @@
                                                     <!-- Comment Profile Avatar & Border -->
                                                     <div class="relative w-8 h-8 shrink-0 overflow-visible" style="width: 2rem; height: 2rem;">
                                                         <div class="absolute inset-0 z-0 overflow-hidden rounded-full scale-[1.18]">
-                                                            <img :src="'https://ui-avatars.com/api/?name=' + encodeURIComponent(comment.user_name || 'User') + '&background=ef4444&color=fff&bold=true'" class="absolute inset-0 h-full w-full object-cover" style="object-fit: cover;">
+                                                            <img :src="resolveAvatarUrl(comment.avatar_url, comment.user_name || 'User')" class="absolute inset-0 h-full w-full object-cover" style="object-fit: cover;">
                                                         </div>
-                                                        <template x-if="comment.border_preview || (comment.user_name === '<?php echo htmlspecialchars($userName); ?>' && activeBorderId !== 0)">
-                                                            <img :src="comment.border_preview || availableBorders.find(b => b.id === activeBorderId)?.preview" class="absolute inset-0 z-10 h-full w-full scale-[1.38] object-contain pointer-events-none">
+                                                        <template x-if="comment.border_preview">
+                                                            <img :src="comment.border_preview" class="absolute inset-0 z-10 h-full w-full scale-[1.38] object-contain pointer-events-none">
                                                         </template>
                                                     </div>
                                                     <div>
@@ -390,10 +390,10 @@
                                                                 <!-- Reply Profile Avatar & Border -->
                                                                 <div class="relative w-6 h-6 shrink-0 overflow-visible" style="width: 1.5rem; height: 1.5rem;">
                                                                     <div class="absolute inset-0 z-0 overflow-hidden rounded-full scale-[1.18]">
-                                                                        <img :src="'https://ui-avatars.com/api/?name=' + encodeURIComponent(reply.user_name || 'User') + '&background=ef4444&color=fff&bold=true'" class="absolute inset-0 h-full w-full object-cover" style="object-fit: cover;">
+                                                                        <img :src="resolveAvatarUrl(reply.avatar_url, reply.user_name || 'User')" class="absolute inset-0 h-full w-full object-cover" style="object-fit: cover;">
                                                                     </div>
-                                                                    <template x-if="reply.border_preview || (reply.user_name === '<?php echo htmlspecialchars($userName); ?>' && activeBorderId !== 0)">
-                                                                        <img :src="reply.border_preview || availableBorders.find(b => b.id === activeBorderId)?.preview" class="absolute inset-0 z-10 h-full w-full scale-[1.38] object-contain pointer-events-none">
+                                                                    <template x-if="reply.border_preview">
+                                                                        <img :src="reply.border_preview" class="absolute inset-0 z-10 h-full w-full scale-[1.38] object-contain pointer-events-none">
                                                                     </template>
                                                                 </div>
                                                                 <span class="text-[11px] font-bold text-white/90" x-text="reply.user_name || 'User'"></span>

@@ -3,6 +3,7 @@ session_start();
 header('Content-Type: application/json');
 
 require_once __DIR__ . '/../conn.php';
+require_once __DIR__ . '/../profile_media_helper.php';
 
 // Admin authentication
 if (empty($_SESSION['authenticated']) || $_SESSION['user_role'] !== 'admin') {
@@ -50,7 +51,7 @@ if ($method === 'GET') {
         $stmt->bindParam(':movie_id', $movieId, PDO::PARAM_INT);
     }
     $stmt->execute();
-    $comments = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    $comments = attachProfileMedia($conn, $stmt->fetchAll(PDO::FETCH_ASSOC));
 
     echo json_encode(['success' => true, 'comments' => $comments]);
     exit;

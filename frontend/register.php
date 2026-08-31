@@ -31,7 +31,7 @@
 
 
 
-    <script src="../js/nexus_scripts.js?v=1787387210"></script>
+    <script src="../js/nexus_scripts.js?v=1788150001"></script>
 </head>
 
 <body class="bg-[#050505] text-white flex items-center justify-center font-sans antialiased relative overflow-hidden min-h-screen" data-barba="wrapper">

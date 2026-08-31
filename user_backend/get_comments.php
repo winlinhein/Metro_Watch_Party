@@ -3,6 +3,7 @@ session_start();
 header('Content-Type: application/json');
 
 require_once __DIR__ . '/../conn.php';
+require_once __DIR__ . '/../profile_media_helper.php';
 
 $movieId = intval($_GET['movie_id'] ?? 0);
 session_write_close();
@@ -31,7 +32,7 @@ $stmt = $conn->prepare("
     ORDER BY c.created_at ASC
 ");
 $stmt->execute([$_SESSION['user_id'] ?? 0, $movieId]);
-$flatComments = $stmt->fetchAll(PDO::FETCH_ASSOC);
+$flatComments = attachProfileMedia($conn, $stmt->fetchAll(PDO::FETCH_ASSOC));
 
 // Helper function to build a nested tree from flat DB rows
 function buildCommentTree(array &$elements, $parentId = null) {

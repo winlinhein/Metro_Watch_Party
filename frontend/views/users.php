@@ -137,14 +137,20 @@
                             <td class="p-5 flex items-center gap-4">
 
                                 <div class="relative">
-
-                                    <img
-                                        :src="`https://ui-avatars.com/api/?name=${encodeURIComponent(user.name)}&background=random&color=fff&bold=true`"
-                                        class="w-10 h-10 rounded-xl border border-white/10 group-hover:border-white/30 transition-colors"
-                                    >
+                                    <div class="relative w-10 h-10 overflow-visible" style="width: 2.5rem; height: 2.5rem;">
+                                        <div class="absolute inset-0 z-0 overflow-hidden rounded-xl scale-[1.05]">
+                                            <img
+                                                :src="user.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.name)}&background=random&color=fff&bold=true`"
+                                                class="w-full h-full object-cover border border-white/10 group-hover:border-white/30 transition-colors"
+                                            >
+                                        </div>
+                                        <template x-if="user.border_preview">
+                                            <img :src="user.border_preview" class="absolute inset-0 z-10 h-full w-full scale-[1.45] object-contain pointer-events-none">
+                                        </template>
+                                    </div>
 
                                     <div
-                                        class="absolute -bottom-1 -right-1 w-3.5 h-3.5 rounded-full border-2 border-[#030305] transition-colors"
+                                        class="absolute -bottom-1 -right-1 w-3.5 h-3.5 rounded-full border-2 border-[#030305] transition-colors z-20"
                                         :class="
                                             user.status === 'Active'
                                                 ? 'bg-green-500 group-hover:shadow-[0_0_8px_#22c55e]'
@@ -155,7 +161,6 @@
                                                 )
                                         "
                                     ></div>
-
                                 </div>
 
                                 <div>
@@ -391,10 +396,17 @@
 
                 <div class="bg-white/5 border border-white/10 rounded-xl p-4 mb-6 flex items-center gap-4">
 
-                    <img
-                        :src="`https://ui-avatars.com/api/?name=${encodeURIComponent(userToBan.name)}&background=random&color=fff&bold=true`"
-                        class="w-10 h-10 rounded-lg"
-                    >
+                    <div class="relative w-10 h-10 overflow-visible shrink-0" style="width: 2.5rem; height: 2.5rem;">
+                        <div class="absolute inset-0 z-0 overflow-hidden rounded-lg">
+                            <img
+                                :src="userToBan.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(userToBan.name)}&background=random&color=fff&bold=true`"
+                                class="w-full h-full object-cover"
+                            >
+                        </div>
+                        <template x-if="userToBan.border_preview">
+                            <img :src="userToBan.border_preview" class="absolute inset-0 z-10 h-full w-full scale-[1.4] object-contain pointer-events-none" alt="">
+                        </template>
+                    </div>
 
                     <div>
 

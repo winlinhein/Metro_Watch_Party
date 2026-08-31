@@ -168,8 +168,20 @@
                                     <span class="text-white font-medium" x-text="selectedReport.user"></span>
                                 </div>
                                 <div class="bg-red-500/5 border border-red-500/10 rounded-xl p-4">
-                                    <p class="text-red-400/60 text-[10px] uppercase tracking-wider mb-1 font-bold">Reported Target</p>
-                                    <span class="text-red-100 font-medium" x-text="selectedReport.reported_user || 'Unknown'"></span>
+                                    <p class="text-red-400/60 text-[10px] uppercase tracking-wider mb-2 font-bold">Reported Target</p>
+                                    <div class="flex items-center gap-2.5">
+                                        <div class="relative w-8 h-8 shrink-0 overflow-visible" style="width: 2rem; height: 2rem;">
+                                            <div class="absolute inset-0 z-0 overflow-hidden rounded-full scale-[1.15] bg-red-500/20">
+                                                <img x-show="selectedReport.reported_avatar_url" :src="selectedReport.reported_avatar_url" class="absolute inset-0 h-full w-full object-cover" alt="">
+                                                <div x-show="!selectedReport.reported_avatar_url" class="absolute inset-0 flex items-center justify-center text-[11px] font-bold text-red-100 uppercase"
+                                                     x-text="(selectedReport.reported_user || 'U').charAt(0)"></div>
+                                            </div>
+                                            <template x-if="selectedReport.reported_border_preview">
+                                                <img :src="selectedReport.reported_border_preview" class="absolute inset-0 z-10 h-full w-full scale-[1.4] object-contain pointer-events-none" alt="">
+                                            </template>
+                                        </div>
+                                        <span class="text-red-100 font-medium" x-text="selectedReport.reported_user || 'Unknown'"></span>
+                                    </div>
                                 </div>
                             </div>
 

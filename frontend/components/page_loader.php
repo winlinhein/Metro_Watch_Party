@@ -1,4 +1,4 @@
-<script src="/js/home_page.js?v=2"></script>
+<script src="/js/home_page.js?v=7"></script>
 <!-- Insane Page Loader -->
 <div id="nexus-page-loader" class="fixed inset-0 z-[99999] pointer-events-auto flex items-center justify-center overflow-hidden">
     <!-- Animated background panels -->
