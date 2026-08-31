@@ -204,7 +204,7 @@ $nexusUserBoot = [
 
     <link rel="stylesheet" href="https://cdn.plyr.io/3.7.8/plyr.css" />
     <script src="https://cdn.plyr.io/3.7.8/plyr.polyfilled.js"></script>
-    <script src="../js/nexus_scripts.js?v=1788153000"></script>
+    <script src="../js/nexus_scripts.js?v=1788155000"></script>
 </head>
 <body class="h-screen w-screen flex flex-col relative selection:bg-red-500/30" data-barba="wrapper">
     <?php include __DIR__ . '/../frontend/components/page_loader.php'; ?>
@@ -876,7 +876,7 @@ $nexusUserBoot = [
 <script src="https://unpkg.com/@barba/core@2.9.7/dist/barba.umd.js" crossorigin="anonymous"></script>
 <script src="../js/barba_setup.js?v=4"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js" onerror="window.gsap=window.gsap||{to:()=>({to:()=>({}),fromTo:()=>({})}),fromTo:()=>({}),from:()=>({}),set:()=>{},timeline:()=>({to:()=>({}),fromTo:()=>({}),add:()=>({}),set:()=>({})}),config:()=>{},killTweensOf:()=>{}}"></script>
-<script src="../js/nexus_scripts.js?v=1788153000"></script>
+<script src="../js/nexus_scripts.js?v=1788155000"></script>
 <!-- Include Socket.io globally -->
 <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
 

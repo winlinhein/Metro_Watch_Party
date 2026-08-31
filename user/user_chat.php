@@ -69,7 +69,7 @@
                             </template>
                             <!-- Image message -->
                             <template x-if="msg.message_type === 'image'">
-                                <img :src="msg.image_url" class="max-w-full max-h-64 rounded-lg cursor-pointer hover:opacity-90" @click="window.open(msg.image_url, '_blank')" />
+                                <img :src="resolveMediaUrl(msg.image_url)" class="max-w-full max-h-64 rounded-lg cursor-pointer hover:opacity-90" @click="window.open(resolveMediaUrl(msg.image_url), '_blank')" />
                             </template>
                         </div>
                     </div>

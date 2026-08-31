@@ -17,6 +17,7 @@ if (!$friendId) {
 }
 
 require_once __DIR__ . '/../conn.php';
+require_once __DIR__ . '/../media_store_helper.php';
 
 try {
     $stmt = $conn->prepare("
@@ -42,8 +43,10 @@ try {
 
     foreach ($messages as &$msg) {
         $msg['message_type'] = $msg['message_type'] ?? 'text';
-        $msg['image_url'] = $msg['image_url'] ?? null;
+        $img = $msg['image_url'] ?? null;
+        $msg['image_url'] = $img ? mediaServeUrlFromStored($img) : null;
     }
+    unset($msg);
 
     echo json_encode(['success' => true, 'messages' => $messages ?: []]);
 } catch (PDOException $e) {

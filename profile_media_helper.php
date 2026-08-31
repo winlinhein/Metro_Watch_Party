@@ -13,11 +13,20 @@ function normalizeAvatarUrl(?string $avatarUrl): string
     if (preg_match('#^(https?:)?//#i', $avatarUrl) || str_starts_with($avatarUrl, 'data:') || str_starts_with($avatarUrl, 'blob:')) {
         return $avatarUrl;
     }
+    // Already a shared media endpoint
+    if (str_starts_with($avatarUrl, '/user_backend/media.php')) {
+        return $avatarUrl;
+    }
     if (str_starts_with($avatarUrl, '/')) {
+        // Legacy disk paths → shared DB/media gateway (works across machines on one remote DB)
+        if (preg_match('#^/uploads/avatars/#', $avatarUrl)) {
+            return '/user_backend/media.php?path=' . rawurlencode($avatarUrl);
+        }
         return $avatarUrl;
     }
     // Legacy bare filenames stored without the uploads path
-    return '/uploads/avatars/' . ltrim($avatarUrl, '/');
+    $path = '/uploads/avatars/' . ltrim($avatarUrl, '/');
+    return '/user_backend/media.php?path=' . rawurlencode($path);
 }
 
 function upsertUserCustomization(PDO $conn, int $userId, int $borderId = 0, int $themeId = 0): void

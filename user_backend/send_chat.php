@@ -4,6 +4,7 @@ header('Content-Type: application/json');
 
 require_once __DIR__ . '/../conn.php';
 require_once __DIR__ . '/../pusher_helper.php';
+require_once __DIR__ . '/../media_store_helper.php';
 
 if (empty($_SESSION['authenticated']) || empty($_SESSION['user_id'])) {
     echo json_encode(['success' => false, 'message' => 'Unauthorized']);
@@ -24,36 +25,37 @@ $imageUrl = null;
 
 // Handle image upload if file is present
 if (isset($_FILES['image']) && $_FILES['image']['error'] === UPLOAD_ERR_OK) {
-    $allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
-    $fileType = mime_content_type($_FILES['image']['tmp_name']);
-    $fileSize = $_FILES['image']['size'];
+    $file = $_FILES['image'];
+    $fileSize = (int)($file['size'] ?? 0);
 
-    if (!in_array($fileType, $allowedTypes)) {
-        echo json_encode(['success' => false, 'message' => 'Invalid image type']);
-        exit();
-    }
-
-    if ($fileSize > 5 * 1024 * 1024) { // 5MB max
+    if ($fileSize > 5 * 1024 * 1024) {
         echo json_encode(['success' => false, 'message' => 'Image too large (max 5MB)']);
         exit();
     }
 
-    $uploadDir = __DIR__ . '/../uploads/chat_images/';
-    if (!file_exists($uploadDir)) {
-        mkdir($uploadDir, 0777, true);
-    }
-
-    $extension = pathinfo($_FILES['image']['name'], PATHINFO_EXTENSION);
-    $filename = uniqid('chat_', true) . '.' . $extension;
-    $destination = $uploadDir . $filename;
-
-    if (!move_uploaded_file($_FILES['image']['tmp_name'], $destination)) {
-        echo json_encode(['success' => false, 'message' => 'Failed to save image']);
+    $mime = detectUploadMime($file['tmp_name'], $file['type'] ?? '');
+    if (!isAllowedImageMime($mime)) {
+        echo json_encode(['success' => false, 'message' => 'Invalid image type']);
         exit();
     }
 
-    $imageUrl = '/uploads/chat_images/' . $filename;
-    $messageType = 'image';
+    try {
+        $extMap = [
+            'image/jpeg' => 'jpg',
+            'image/png' => 'png',
+            'image/gif' => 'gif',
+            'image/webp' => 'webp',
+        ];
+        $extension = $extMap[$mime] ?? strtolower(pathinfo($file['name'], PATHINFO_EXTENSION) ?: 'png');
+        $filename = uniqid('chat_', true) . '.' . $extension;
+        $stored = storeMediaFromUpload($conn, $file, 'chat_images', $filename, $senderId);
+        $imageUrl = $stored['serve_url'];
+        $messageType = 'image';
+    } catch (Throwable $e) {
+        error_log('send_chat image upload: ' . $e->getMessage());
+        echo json_encode(['success' => false, 'message' => 'Failed to save image']);
+        exit();
+    }
 }
 
 // Reject if neither text nor image

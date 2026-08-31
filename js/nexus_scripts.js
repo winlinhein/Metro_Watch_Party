@@ -32,10 +32,19 @@ function userDashboard() {
         if (!url) {
             return `https://ui-avatars.com/api/?name=${encodeURIComponent(name || 'User')}&background=ef4444&color=fff&bold=true`;
         }
-        if (/^(https?:)?\/\//i.test(url) || url.startsWith('/') || url.startsWith('data:') || url.startsWith('blob:')) {
+        if (/^(https?:)?\/\//i.test(url) || url.startsWith('data:') || url.startsWith('blob:')) {
             return url;
         }
-        return '/uploads/avatars/' + String(url).replace(/^\/+/, '');
+        if (url.startsWith('/user_backend/media.php')) {
+            return url;
+        }
+        if (url.startsWith('/uploads/avatars/') || url.startsWith('/uploads/chat_images/')) {
+            return '/user_backend/media.php?path=' + encodeURIComponent(url);
+        }
+        if (url.startsWith('/')) {
+            return url;
+        }
+        return '/user_backend/media.php?path=' + encodeURIComponent('/uploads/avatars/' + String(url).replace(/^\/+/, ''));
     };
     const bootAvatar = resolveBootAvatar(bootAvatarRaw, bootName);
 
@@ -144,10 +153,33 @@ function userDashboard() {
 
         resolveAvatarUrl(url, name = 'User') {
             if (!url) return this.getAvatarUrl(name);
-            if (/^(https?:)?\/\//i.test(url) || url.startsWith('/') || url.startsWith('data:') || url.startsWith('blob:')) {
+            if (/^(https?:)?\/\//i.test(url) || url.startsWith('data:') || url.startsWith('blob:')) {
                 return url;
             }
-            return '/uploads/avatars/' + url.replace(/^\/+/, '');
+            if (url.startsWith('/user_backend/media.php')) {
+                return url;
+            }
+            if (url.startsWith('/uploads/avatars/') || url.startsWith('/uploads/chat_images/')) {
+                return '/user_backend/media.php?path=' + encodeURIComponent(url);
+            }
+            if (url.startsWith('/')) {
+                return url;
+            }
+            return '/user_backend/media.php?path=' + encodeURIComponent('/uploads/avatars/' + url.replace(/^\/+/, ''));
+        },
+
+        resolveMediaUrl(url) {
+            if (!url) return '';
+            if (/^(https?:)?\/\//i.test(url) || url.startsWith('data:') || url.startsWith('blob:')) {
+                return url;
+            }
+            if (url.startsWith('/user_backend/media.php')) {
+                return url;
+            }
+            if (url.startsWith('/uploads/')) {
+                return '/user_backend/media.php?path=' + encodeURIComponent(url);
+            }
+            return url;
         },
 
         buildAvailableBorders() {
@@ -1356,7 +1388,7 @@ function userDashboard() {
                         sender: 'them',
                         text: data.message_text || '',
                         message_type: data.message_type || 'text',
-                        image_url: data.image_url || null,
+                        image_url: this.resolveMediaUrl(data.image_url || null),
                         time: this.formatTime(data.time)
                     }];
                     this.scrollToBottom();
@@ -1735,7 +1767,7 @@ function userDashboard() {
                         sender: Number(msg.sender_id) === Number(window.CURRENT_USER_ID) ? 'me' : 'them',
                         text: msg.message_text,
                         message_type: msg.message_type || 'text',
-                        image_url: msg.image_url || null,
+                        image_url: this.resolveMediaUrl(msg.image_url || null),
                         time: this.formatTime(msg.time || msg.created_at),
                         is_read: msg.is_read
                     }));
@@ -1798,7 +1830,7 @@ function userDashboard() {
                     // Replace temp image message with real URL
                     const tempMsg = this.chatMessages.find(m => m.id.startsWith('temp-img-'));
                     if (tempMsg) {
-                        tempMsg.image_url = data.data.image_url;
+                        tempMsg.image_url = this.resolveMediaUrl(data.data.image_url);
                         tempMsg.is_temp = false;
                     }
                 } else if (!data.success) {
@@ -3915,10 +3947,19 @@ function adminDashboard(userData = {}) {
         if (!url) {
             return `https://ui-avatars.com/api/?name=${encodeURIComponent(name || 'Admin')}&background=ef4444&color=fff&bold=true`;
         }
-        if (/^(https?:)?\/\//i.test(url) || url.startsWith('/') || url.startsWith('data:') || url.startsWith('blob:')) {
+        if (/^(https?:)?\/\//i.test(url) || url.startsWith('data:') || url.startsWith('blob:')) {
             return url;
         }
-        return '/uploads/avatars/' + String(url).replace(/^\/+/, '');
+        if (url.startsWith('/user_backend/media.php')) {
+            return url;
+        }
+        if (url.startsWith('/uploads/avatars/') || url.startsWith('/uploads/chat_images/')) {
+            return '/user_backend/media.php?path=' + encodeURIComponent(url);
+        }
+        if (url.startsWith('/')) {
+            return url;
+        }
+        return '/user_backend/media.php?path=' + encodeURIComponent('/uploads/avatars/' + String(url).replace(/^\/+/, ''));
     };
 
     return {
@@ -4703,10 +4744,19 @@ function adminDashboard(userData = {}) {
 
         resolveAvatarUrl(url, name = 'Admin') {
             if (!url) return this.getAvatarUrl(name);
-            if (/^(https?:)?\/\//i.test(url) || url.startsWith('/') || url.startsWith('data:') || url.startsWith('blob:')) {
+            if (/^(https?:)?\/\//i.test(url) || url.startsWith('data:') || url.startsWith('blob:')) {
                 return url;
             }
-            return '/uploads/avatars/' + String(url).replace(/^\/+/, '');
+            if (url.startsWith('/user_backend/media.php')) {
+                return url;
+            }
+            if (url.startsWith('/uploads/avatars/') || url.startsWith('/uploads/chat_images/')) {
+                return '/user_backend/media.php?path=' + encodeURIComponent(url);
+            }
+            if (url.startsWith('/')) {
+                return url;
+            }
+            return '/user_backend/media.php?path=' + encodeURIComponent('/uploads/avatars/' + String(url).replace(/^\/+/, ''));
         },
 
         getAvatarUrl(name, background = 'ef4444') {
