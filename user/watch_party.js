@@ -39,6 +39,8 @@ function watchParty() {
 
         friends: [],
         showInviteMenu: false,
+        showInviteSentModal: false,
+        inviteSentName: '',
 
         async init() {
             // Bind page unload listener to end room if host closes window/tab
@@ -208,27 +210,53 @@ function watchParty() {
             return url;
         },
 
-        inviteFriend(friendId) {
+        async inviteFriend(friendId, friendName = 'friend') {
             const urlParams = new URLSearchParams(window.location.search);
-            const roomId = urlParams.get('room_id');
-            
-            if (!this.socket || !this.socket.connected) {
-                if (window.showToast) window.showToast("Not connected to signaling server.", "error");
+            const roomId = urlParams.get('room_id') || this.roomId;
+            const targetId = Number(friendId);
+
+            if (!roomId || !targetId) {
+                if (window.showToast) window.showToast("Missing room or friend.", "error");
                 return;
             }
 
-            this.socket.emit('send-lobby-invite', {
-                targetUserId: friendId,
-                hostName: window.CURRENT_USER_NAME || window.USER_NAME || 'Someone',
-                roomId: roomId
-            });
-            
             this.showInviteMenu = false;
-            if (window.showToast) {
-                window.showToast("Invite sent!", "success");
-            } else {
-                alert("Invite sent!");
+
+            try {
+                const form = new FormData();
+                form.append('target_user_id', targetId);
+                form.append('room_id', roomId);
+                const res = await fetch('../user_backend/send_party_invite.php', {
+                    method: 'POST',
+                    body: form
+                });
+                const data = await res.json();
+                if (!data.success) {
+                    if (window.showToast) window.showToast(data.message || 'Invite failed.', 'error');
+                    return;
+                }
+            } catch (e) {
+                console.error(e);
+                if (window.showToast) window.showToast('Network error sending invite.', 'error');
+                return;
             }
+
+            // Live socket delivery while friend is online
+            if (this.socket && this.socket.connected) {
+                this.socket.emit('send-lobby-invite', {
+                    targetUserId: targetId,
+                    hostName: window.USER_NAME || window.CURRENT_USER_NAME || 'Someone',
+                    hostId: Number(window.CURRENT_USER_ID) || null,
+                    roomId: Number(roomId),
+                    room_id: Number(roomId),
+                    sender_id: Number(window.CURRENT_USER_ID) || null,
+                    sender_name: window.USER_NAME || 'Someone',
+                    message: 'invited you to a watch party.'
+                });
+            }
+
+            this.inviteSentName = friendName || 'friend';
+            this.showInviteSentModal = true;
         },
 
         // ==========================================
@@ -296,7 +324,7 @@ function watchParty() {
 
             this.socket.on('connect', () => {
                 console.log("Connected to signaling server with ID:", this.socket.id);
-                const myUserId = window.CURRENT_USER_ID;
+                const myUserId = Number(window.CURRENT_USER_ID);
 
                 if (myUserId) {
                     this.socket.emit('register-user', myUserId);
@@ -316,7 +344,16 @@ function watchParty() {
             });
 
             this.socket.on('receive-invite', (data) => {
-                window.dispatchEvent(new CustomEvent('incoming-party-invite', { detail: data }));
+                window.dispatchEvent(new CustomEvent('incoming-party-invite', {
+                    detail: {
+                        hostName: data.hostName,
+                        sender_name: data.hostName || data.sender_name,
+                        sender_id: data.hostId || data.sender_id,
+                        roomId: data.roomId || data.room_id,
+                        room_id: data.roomId || data.room_id,
+                        message: data.message || 'invited you to a watch party.'
+                    }
+                }));
             });
 
             // --- WebRTC peer events ---

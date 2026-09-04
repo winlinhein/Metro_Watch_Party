@@ -48,6 +48,13 @@ try {
         $n['avatar_url'] = $mediaByUser[$sid]['avatar_url'] ?? '';
         $n['border_preview'] = $mediaByUser[$sid]['border_preview'] ?? '';
         $n['border_id'] = (int)($mediaByUser[$sid]['border_id'] ?? 0);
+
+        // Extract room_id from party invite message suffix: "...|room:123"
+        $n['room_id'] = null;
+        if (($n['type'] ?? '') === 'party_invite' && preg_match('/\|room:(\d+)\s*$/', (string)$n['message'], $m)) {
+            $n['room_id'] = (int)$m[1];
+            $n['message'] = trim(preg_replace('/\|room:\d+\s*$/', '', (string)$n['message']));
+        }
     }
     unset($n);
 

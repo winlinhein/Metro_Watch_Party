@@ -13,17 +13,25 @@ io.on('connection', socket => {
     
     // User logs into the website and registers their socket
     socket.on('register-user', (userId) => {
-        socket.join(`user_channel_${userId}`); 
-        console.log(`User ${userId} is online and ready for invites.`);
+        const id = Number(userId);
+        if (!id) return;
+        socket.join(`user_channel_${id}`); 
+        console.log(`User ${id} is online and ready for invites.`);
     });
 
     // Host clicks "Invite" next to a friend's name
     socket.on('send-lobby-invite', (data) => {
-        console.log(`Invite sent to User ${data.targetUserId} for Room ${data.roomId}`);
-        // Emit only to the specific friend's personal channel
-        socket.to(`user_channel_${data.targetUserId}`).emit('receive-invite', {
-            hostName: data.hostName,
-            roomId: data.roomId
+        const targetUserId = Number(data.targetUserId);
+        console.log(`Invite sent to User ${targetUserId} for Room ${data.roomId || data.room_id}`);
+        if (!targetUserId) return;
+        socket.to(`user_channel_${targetUserId}`).emit('receive-invite', {
+            hostName: data.hostName || data.sender_name,
+            hostId: data.hostId || data.sender_id || null,
+            sender_name: data.hostName || data.sender_name,
+            sender_id: data.hostId || data.sender_id || null,
+            roomId: data.roomId || data.room_id,
+            room_id: data.roomId || data.room_id,
+            message: data.message || 'invited you to a watch party.'
         });
     });
 

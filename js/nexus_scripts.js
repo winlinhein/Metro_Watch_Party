@@ -1017,6 +1017,74 @@ function userDashboard() {
             }
         },
 
+        handleIncomingPartyInvite(detail = {}) {
+            const roomId = Number(detail.room_id || detail.roomId || 0);
+            const senderId = Number(detail.sender_id || detail.hostId || 0);
+            const senderName = detail.sender_name || detail.hostName || 'Someone';
+            if (!roomId) return;
+
+            const already = this.notifications.some(n =>
+                n.type === 'party_invite'
+                && Number(n.room_id) === roomId
+                && Number(n.sender_id) === senderId
+            );
+            if (already) {
+                this.showNotifications = true;
+                return;
+            }
+
+            this.notifications = [
+                {
+                    id: detail.id || `invite-${roomId}-${Date.now()}`,
+                    type: 'party_invite',
+                    sender_id: senderId || null,
+                    sender_name: senderName,
+                    message: detail.message || 'invited you to a watch party.',
+                    room_id: roomId,
+                    created_at: detail.created_at || 'Just now',
+                    avatar_url: detail.avatar_url || '',
+                    border_preview: detail.border_preview || '',
+                    is_read: 0
+                },
+                ...this.notifications
+            ];
+            this.unreadNotifCount++;
+            this.showNotifications = true;
+            if (window.showToast) {
+                window.showToast(`${senderName} invited you to a watch party`, 'info');
+            }
+        },
+
+        acceptPartyInvite(notif) {
+            const roomId = Number(notif?.room_id || 0);
+            if (!roomId) {
+                if (window.showToast) window.showToast('This invite is missing a room.', 'error');
+                return;
+            }
+            if (notif?.id) this.dismissNotification(notif.id);
+            window.location.href = `/user/watch_party.php?room_id=${encodeURIComponent(roomId)}`;
+        },
+
+        async declinePartyInvite(notif) {
+            if (notif?.id) await this.dismissNotification(notif.id);
+            this.notifications = this.notifications.filter(n => n.id !== notif.id);
+            this.unreadNotifCount = this.notifications.filter(n => Number(n.is_read) === 0).length;
+            if (window.showToast) window.showToast('Invite declined.', 'info');
+        },
+
+        async dismissNotification(notifId) {
+            if (!notifId || String(notifId).startsWith('invite-')) return;
+            try {
+                await fetch('/user_backend/delete_notification.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ notification_id: Number(notifId) })
+                });
+            } catch (e) {
+                console.warn('Failed to delete notification', e);
+            }
+        },
+
         respondToFriendRequest(userId, action) {
             const targetUserId = Number(userId);
 
@@ -2561,13 +2629,28 @@ function userDashboard() {
                 const avatarUrl = data.avatar_url || '';
                 const borderPreview = data.border_preview || '';
 
+                if (data.type === 'party_invite') {
+                    const roomId = Number(data.room_id || 0);
+                    const senderId = Number(data.sender_id || 0);
+                    const dup = this.notifications.some(n =>
+                        n.type === 'party_invite'
+                        && Number(n.room_id) === roomId
+                        && Number(n.sender_id) === senderId
+                    );
+                    if (dup) {
+                        this.showNotifications = true;
+                        return;
+                    }
+                }
+
                 this.notifications = [
                     {
-                        id: Date.now(),
+                        id: data.id || Date.now(),
                         type: data.type,
                         sender_id: data.sender_id,
                         sender_name: data.sender_name,
                         message: data.message,
+                        room_id: data.room_id || null,
                         created_at: data.created_at,
                         avatar_url: avatarUrl,
                         border_preview: borderPreview,
@@ -2576,6 +2659,13 @@ function userDashboard() {
                     ...this.notifications
                 ];
                 this.unreadNotifCount++;
+
+                if (data.type === 'party_invite') {
+                    this.showNotifications = true;
+                    if (window.showToast) {
+                        window.showToast(`${data.sender_name} invited you to a watch party`, 'info');
+                    }
+                }
 
                 if (data.type === 'friend_request') {
                     const alreadyExists = this.pendingRequests.some(r => Number(r.user_id) === Number(data.sender_id));
@@ -2687,7 +2777,10 @@ function userDashboard() {
 
             if (typeof gsap !== 'undefined') gsap.config({ nullTargetWarn: false });
 
-            this.initPusher();  
+            this.initPusher();
+
+            this._partyInviteHandler = (e) => this.handleIncomingPartyInvite(e.detail || {});
+            window.addEventListener('incoming-party-invite', this._partyInviteHandler);
             
             if (this.isGuest) {
                 this.statsLoading = false;
@@ -3036,18 +3129,20 @@ function watchParty() {
             
             // Use dynamic user name from PHP
             this.socket.emit('send-lobby-invite', {
-                targetUserId: friendId,
+                targetUserId: Number(friendId),
                 hostName: window.USER_NAME || 'Someone', 
-                roomId: roomId
+                hostId: Number(window.CURRENT_USER_ID) || null,
+                roomId: Number(roomId),
+                room_id: Number(roomId),
+                sender_id: Number(window.CURRENT_USER_ID) || null,
+                sender_name: window.USER_NAME || 'Someone',
+                message: 'invited you to a watch party.'
             });
             
             this.showInviteMenu = false;
             
-            // Optional: Trigger your custom toast here instead of an alert!
             if (window.showToast) {
                 window.showToast("Invite sent!", "success");
-            } else {
-                alert("Invite sent!"); 
             }
         },
 

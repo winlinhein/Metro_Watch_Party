@@ -55,7 +55,7 @@
                              }">
                             <img x-show="notif.avatar_url" :src="resolveAvatarUrl(notif.avatar_url, notif.sender_name || 'User')" class="absolute inset-0 h-full w-full object-cover" alt="">
                             <span x-show="!notif.avatar_url" class="material-symbols-outlined text-[18px]" 
-                                  x-text="notif.type === 'friend_request' ? 'person_add' : (notif.type === 'friend_accepted' ? 'how_to_reg' : 'notifications')"></span>
+                                  x-text="notif.type === 'friend_request' ? 'person_add' : (notif.type === 'friend_accepted' ? 'how_to_reg' : (notif.type === 'party_invite' ? 'movie' : 'notifications'))"></span>
                         </div>
                         <template x-if="notif.border_preview">
                             <img :src="notif.border_preview" class="absolute inset-0 z-10 h-full w-full scale-[1.4] object-contain pointer-events-none" alt="">
@@ -76,6 +76,21 @@
                                     Add Back
                                 </button>
                                 <button @click="respondToFriendRequest(notif.sender_id, 'decline')" 
+                                        class="px-3 py-1 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-white/50 hover:text-white text-[10px] font-bold uppercase transition-all">
+                                    Decline
+                                </button>
+                            </div>
+                        </template>
+
+                        <!-- Action buttons for party invites -->
+                        <template x-if="notif.type === 'party_invite'">
+                            <div class="flex items-center gap-2 mt-2">
+                                <button @click="acceptPartyInvite(notif)" 
+                                        class="px-3 py-1 rounded-lg bg-indigo-500/20 hover:bg-indigo-500/30 border border-indigo-500/30 text-indigo-300 text-[10px] font-bold uppercase transition-all flex items-center gap-1">
+                                    <span class="material-symbols-outlined text-[14px]">play_arrow</span>
+                                    Join Party
+                                </button>
+                                <button @click="declinePartyInvite(notif)" 
                                         class="px-3 py-1 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-white/50 hover:text-white text-[10px] font-bold uppercase transition-all">
                                     Decline
                                 </button>

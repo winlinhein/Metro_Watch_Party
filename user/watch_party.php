@@ -89,7 +89,7 @@ $userEmail = $_SESSION['user_email'] ?? '';
 <script src="https://unpkg.com/htmx.org@1.9.10/dist/htmx.min.js" crossorigin="anonymous"></script>
 
 <!-- 2. Your Custom Scripts Last -->
-<script src="../js/nexus_scripts.js?v=1788159000"></script>
+<script src="../js/nexus_scripts.js?v=1788162000"></script>
 <script src="watch_party.js?v=<?php echo time(); ?>"></script>
 </head>
 <body class="h-screen w-screen flex relative selection:bg-red-500/30" data-barba="wrapper">
@@ -156,7 +156,7 @@ $userEmail = $_SESSION['user_email'] ?? '';
                         <div class="w-8 h-8 rounded-full bg-gradient-to-tr from-indigo-500 to-red-600 flex items-center justify-center text-xs font-bold" x-text="friend.user_name.charAt(0)"></div>
                         <span class="text-sm font-medium" x-text="friend.user_name"></span>
                     </div>
-                    <button @click="inviteFriend(friend.user_id)" class="text-emerald-400 hover:text-white hover:bg-emerald-500 p-1.5 rounded-lg transition-all opacity-0 group-hover:opacity-100">
+                    <button @click="inviteFriend(friend.user_id, friend.user_name)" class="text-emerald-400 hover:text-white hover:bg-emerald-500 p-1.5 rounded-lg transition-all opacity-0 group-hover:opacity-100">
                         <span class="material-symbols-outlined text-[16px]">send</span>
                     </button>
                 </div>
@@ -527,9 +527,39 @@ $userEmail = $_SESSION['user_email'] ?? '';
             </div>
         </div>
     </div>
+
+    <!-- Invite sent success modal -->
+    <div x-show="showInviteSentModal"
+         class="fixed inset-0 z-[200] flex items-center justify-center p-4"
+         style="display: none;">
+        <div class="absolute inset-0 bg-black/75 backdrop-blur-sm"
+             @click="showInviteSentModal = false"
+             x-show="showInviteSentModal"
+             x-transition.opacity></div>
+        <div class="relative w-full max-w-sm bg-[#0a0a0f] border border-emerald-500/30 rounded-2xl p-6 shadow-[0_0_60px_rgba(16,185,129,0.2)] overflow-hidden"
+             x-show="showInviteSentModal"
+             x-transition:enter="transition ease-out duration-300"
+             x-transition:enter-start="opacity-0 scale-90 translate-y-4"
+             x-transition:enter-end="opacity-100 scale-100 translate-y-0">
+            <div class="absolute inset-0 bg-gradient-to-br from-emerald-500/10 via-transparent to-indigo-500/10 pointer-events-none"></div>
+            <div class="relative z-10 text-center">
+                <div class="w-14 h-14 mx-auto mb-4 rounded-2xl bg-emerald-500/15 border border-emerald-500/40 flex items-center justify-center shadow-[0_0_30px_rgba(16,185,129,0.35)]">
+                    <span class="material-symbols-outlined text-emerald-400 text-3xl">mark_email_read</span>
+                </div>
+                <h3 class="text-xl font-black text-white tracking-tight mb-1">Invite sent</h3>
+                <p class="text-sm text-white/55 mb-6">
+                    <span class="text-white font-semibold" x-text="inviteSentName"></span>
+                    will see it in their notifications.
+                </p>
+                <button type="button"
+                        @click="showInviteSentModal = false"
+                        class="w-full py-3 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-black font-black uppercase tracking-wider text-xs transition-colors">
+                    Got it
+                </button>
+            </div>
+        </div>
+    </div>
 </div>
-
-
 
     <script src="https://unpkg.com/@barba/core@2.9.7/dist/barba.umd.js" crossorigin="anonymous"></script>
 <!-- Your external script file loaded at the bottom of the body -->
