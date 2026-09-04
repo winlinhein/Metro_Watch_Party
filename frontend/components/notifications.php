@@ -20,31 +20,31 @@
     
     <!-- Render Notifications Dynamically -->
     <div class="flex-1 overflow-y-auto max-h-[400px] p-2 space-y-1 bg-[#0a0a0c]">
-        <template x-for="notification in notifications" :key="notification.id">
-            <div @click="notification.is_read = 1; notification.read = true" class="flex gap-4 p-3 rounded-xl hover:bg-white/[0.04] transition-all duration-300 cursor-pointer group relative overflow-hidden" :class="{'opacity-70 hover:opacity-100': Number(notification.is_read) === 1 || notification.read}">
-                <div class="absolute inset-0 bg-gradient-to-r opacity-0 group-hover:opacity-100 transition-opacity" :class="notification.gradientFrom"></div>
+        <template x-for="notif in notifications" :key="notif.id">
+            <div @click="notif.is_read = 1; notif.read = true" class="flex gap-4 p-3 rounded-xl hover:bg-white/[0.04] transition-all duration-300 cursor-pointer group relative overflow-hidden" :class="{'opacity-70 hover:opacity-100': Number(notif.is_read) === 1 || notif.read}">
+                <div class="absolute inset-0 bg-gradient-to-r opacity-0 group-hover:opacity-100 transition-opacity" :class="notif.gradientFrom"></div>
                 <div class="relative w-10 h-10 shrink-0 overflow-visible" style="width: 2.5rem; height: 2.5rem;">
                     <div class="absolute inset-0 z-0 overflow-hidden rounded-full scale-[1.1] flex items-center justify-center border transition-all group-hover:scale-110"
-                         :class="notification.avatar_url ? 'border-white/10 bg-white/5' : [notification.bgClass || 'bg-white/5', notification.borderClass || 'border-white/10']">
-                        <img x-show="notification.avatar_url" :src="resolveAvatarUrl ? resolveAvatarUrl(notification.avatar_url, notification.sender_name || 'User') : notification.avatar_url" class="absolute inset-0 h-full w-full object-cover" alt="">
-                        <span x-show="!notification.avatar_url" class="material-symbols-outlined text-[18px] transition-colors" :class="[notification.iconColorClass || 'text-white/70']" x-text="notification.icon || 'notifications'"></span>
+                         :class="notif.avatar_url ? 'border-white/10 bg-white/5' : [notif.bgClass || 'bg-white/5', notif.borderClass || 'border-white/10']">
+                        <img x-show="notif.avatar_url" :src="resolveAvatarUrl ? resolveAvatarUrl(notif.avatar_url, notif.sender_name || 'User') : notif.avatar_url" class="absolute inset-0 h-full w-full object-cover" alt="">
+                        <span x-show="!notif.avatar_url" class="material-symbols-outlined text-[18px] transition-colors" :class="[notif.iconColorClass || 'text-white/70']" x-text="notif.icon || 'notifications'"></span>
                     </div>
-                    <template x-if="notification.border_preview">
-                        <img :src="notification.border_preview" class="absolute inset-0 z-10 h-full w-full scale-[1.4] object-contain pointer-events-none" alt="">
+                    <template x-if="notif.border_preview">
+                        <img :src="notif.border_preview" class="absolute inset-0 z-10 h-full w-full scale-[1.4] object-contain pointer-events-none" alt="">
                     </template>
                 </div>
                 <div class="relative z-10 flex-1">
-                    <p class="text-sm leading-snug transition-colors" :class="(Number(notification.is_read) === 1 || notification.read) ? 'text-white/60 group-hover:text-white' : 'text-white/80 group-hover:text-white'">
-                        <span class="font-bold text-white" x-show="notification.sender_name" x-text="notification.sender_name"></span>
-                        <span x-text="(notification.sender_name ? ' ' : '') + (notification.message || '')"></span>
+                    <p class="text-sm leading-snug transition-colors" :class="(Number(notif.is_read) === 1 || notif.read) ? 'text-white/60 group-hover:text-white' : 'text-white/80 group-hover:text-white'">
+                        <span class="font-bold text-white" x-show="notif.sender_name" x-text="notif.sender_name"></span>
+                        <span x-text="(notif.sender_name ? ' ' : '') + (notif.message || '')"></span>
                     </p>
                     <span class="text-white/30 text-[10px] mono mt-1 flex items-center gap-1">
                         <span class="material-symbols-outlined text-[12px]">schedule</span>
-                        <span x-text="notification.time || notification.created_at"></span>
+                        <span x-text="notif.time || notif.created_at"></span>
                     </span>
                 </div>
-                <template x-if="Number(notification.is_read) === 0 && !notification.read">
-                    <div class="w-2 h-2 rounded-full mt-1 bg-red-500" :class="notification.indicatorClass"></div>
+                <template x-if="Number(notif.is_read) === 0 && !notif.read">
+                    <div class="w-2 h-2 rounded-full mt-1 bg-red-500" :class="notif.indicatorClass"></div>
                 </template>
             </div>
         </template>

@@ -1,11 +1,11 @@
 <?php
 session_start();
 
+$role = strtolower((string)($_SESSION['user_role'] ?? ''));
 if (
     empty($_SESSION['authenticated']) ||
     $_SESSION['authenticated'] !== true ||
-    empty($_SESSION['user_role']) ||
-    $_SESSION['user_role'] !== 'admin'
+    !in_array($role, ['admin', 'moderator'], true)
 ) {
     http_response_code(403);
     header('Content-Type: application/json');

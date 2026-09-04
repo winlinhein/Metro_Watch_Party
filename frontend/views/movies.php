@@ -228,7 +228,7 @@
                                             <div class="flex items-center gap-2">
                                                 <div class="relative w-8 h-8 shrink-0 overflow-visible" style="width: 2rem; height: 2rem;">
                                                     <div class="absolute inset-0 z-0 overflow-hidden rounded-full scale-[1.18] bg-gradient-to-tr from-red-500 to-indigo-600">
-                                                        <img x-show="comment.avatar_url" :src="comment.avatar_url" class="absolute inset-0 h-full w-full object-cover" alt="">
+                                                        <img x-show="comment.avatar_url" :src="resolveAvatarUrl ? resolveAvatarUrl(comment.avatar_url, comment.user_name || 'User') : comment.avatar_url" @error="$el.style.display='none'" class="absolute inset-0 h-full w-full object-cover" alt="">
                                                         <div x-show="!comment.avatar_url" class="absolute inset-0 flex items-center justify-center font-bold text-xs text-white uppercase"
                                                             x-text="comment.user_name ? comment.user_name.charAt(0) : 'U'"></div>
                                                     </div>
@@ -278,7 +278,7 @@
                                                         <div class="flex items-center gap-2">
                                                             <div class="relative w-6 h-6 shrink-0 overflow-visible" style="width: 1.5rem; height: 1.5rem;">
                                                                 <div class="absolute inset-0 z-0 overflow-hidden rounded-full scale-[1.18] bg-gradient-to-tr from-red-500 to-indigo-600">
-                                                                    <img x-show="reply.avatar_url" :src="reply.avatar_url" class="absolute inset-0 h-full w-full object-cover" alt="">
+                                                                    <img x-show="reply.avatar_url" :src="resolveAvatarUrl ? resolveAvatarUrl(reply.avatar_url, reply.user_name || 'User') : reply.avatar_url" @error="$el.style.display='none'" class="absolute inset-0 h-full w-full object-cover" alt="">
                                                                     <div x-show="!reply.avatar_url" class="absolute inset-0 flex items-center justify-center font-bold text-[10px] text-white uppercase"
                                                                         x-text="reply.user_name ? reply.user_name.charAt(0) : 'U'"></div>
                                                                 </div>

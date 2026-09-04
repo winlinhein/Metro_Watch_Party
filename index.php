@@ -201,7 +201,7 @@
         .home-feature-card { will-change: transform; }
 
         .home-feature-visual {
-            height: 220px;
+            height: 160px;
             position: relative;
             overflow: hidden;
         }
@@ -381,7 +381,7 @@
     <link rel="stylesheet" href="https://cdn.plyr.io/3.7.8/plyr.css" />
     <script src="https://cdn.plyr.io/3.7.8/plyr.polyfilled.js"></script>
     <script src="https://unpkg.com/htmx.org@1.9.10/dist/htmx.min.js" crossorigin="anonymous"></script>
-    <script src="/js/nexus_scripts.js?v=1788155000"></script>
+    <script src="/js/nexus_scripts.js?v=1788159000"></script>
 </head>
 <body data-barba="wrapper">
     <?php include __DIR__ . '/frontend/components/page_loader.php'; ?>
@@ -590,12 +590,12 @@
     </section>
 
     <!-- Poster marquee: HBO Max vertical panels / Netflix poster wall -->
-    <section class="home-marquee relative -mt-8 mb-8 overflow-hidden" aria-hidden="true">
+    <section class="home-marquee relative -mt-6 mb-4 overflow-hidden" aria-hidden="true">
         <div class="pointer-events-none absolute inset-y-0 left-0 w-24 bg-gradient-to-r from-[#030305] to-transparent z-10"></div>
         <div class="pointer-events-none absolute inset-y-0 right-0 w-24 bg-gradient-to-l from-[#030305] to-transparent z-10"></div>
-        <div class="home-marquee-track flex gap-4 w-max py-2">
+        <div class="home-marquee-track flex gap-3 w-max py-1">
             <template x-for="(movie, i) in marqueeMovies" :key="'m'+i+movie.title">
-                <div class="w-28 md:w-36 aspect-[2/3] rounded-xl overflow-hidden border border-white/10 shrink-0">
+                <div class="w-24 md:w-28 aspect-[2/3] rounded-lg overflow-hidden border border-white/10 shrink-0">
                     <img :src="movie.img" :alt="movie.title" class="w-full h-full object-cover" loading="lazy">
                 </div>
             </template>
@@ -603,74 +603,74 @@
     </section>
 
     <!-- Stats strip -->
-    <section class="relative py-8 border-y border-white/5">
-        <div class="max-w-7xl mx-auto px-6 grid grid-cols-3 gap-4 text-center">
+    <section class="relative py-5 border-y border-white/5">
+        <div class="max-w-7xl mx-auto px-6 grid grid-cols-3 gap-3 text-center">
             <div class="home-reveal">
-                <div class="text-2xl md:text-4xl font-bold tracking-tight"><span data-count="2400">0</span>+</div>
-                <div class="text-[10px] md:text-xs text-white/40 mono uppercase tracking-widest mt-1">Watching now</div>
+                <div class="text-xl md:text-3xl font-bold tracking-tight"><span data-count="2400">0</span>+</div>
+                <div class="text-[10px] md:text-xs text-white/40 mono uppercase tracking-widest mt-0.5">Watching now</div>
             </div>
             <div class="home-reveal">
-                <div class="text-2xl md:text-4xl font-bold tracking-tight"><span data-count="128">0</span></div>
-                <div class="text-[10px] md:text-xs text-white/40 mono uppercase tracking-widest mt-1">Live rooms</div>
+                <div class="text-xl md:text-3xl font-bold tracking-tight"><span data-count="128">0</span></div>
+                <div class="text-[10px] md:text-xs text-white/40 mono uppercase tracking-widest mt-0.5">Live rooms</div>
             </div>
             <div class="home-reveal">
-                <div class="text-2xl md:text-4xl font-bold tracking-tight">0ms</div>
-                <div class="text-[10px] md:text-xs text-white/40 mono uppercase tracking-widest mt-1">Sync target</div>
+                <div class="text-xl md:text-3xl font-bold tracking-tight">0ms</div>
+                <div class="text-[10px] md:text-xs text-white/40 mono uppercase tracking-widest mt-0.5">Sync target</div>
             </div>
         </div>
     </section>
 
     <!-- Features: TIDAL-style visual cards -->
-    <section id="features" class="py-28 relative overflow-hidden">
-        <div class="home-protocol-marquee absolute top-8 left-0 opacity-80 pointer-events-none">
+    <section id="features" class="py-14 md:py-16 relative overflow-hidden">
+        <div class="home-protocol-marquee absolute top-4 left-0 opacity-80 pointer-events-none">
             PROTOCOL&nbsp;&nbsp;CAPABILITIES&nbsp;&nbsp;PROTOCOL&nbsp;&nbsp;CAPABILITIES
         </div>
         <div class="max-w-7xl mx-auto px-6 relative z-10">
-            <div class="home-reveal mb-14 max-w-2xl">
-                <h2 class="text-sm font-bold text-red-500 tracking-widest uppercase mb-3 mono">Protocol Capabilities</h2>
-                <h3 class="text-3xl md:text-5xl font-bold tracking-tight">Built for watching together</h3>
+            <div class="home-reveal mb-8 max-w-2xl">
+                <h2 class="text-sm font-bold text-red-500 tracking-widest uppercase mb-2 mono">Protocol Capabilities</h2>
+                <h3 class="text-2xl md:text-4xl font-bold tracking-tight">Built for watching together</h3>
             </div>
 
-            <div class="grid md:grid-cols-3 gap-5">
-                <article class="home-feature-card glass-card rounded-3xl flex flex-col group">
+            <div class="grid md:grid-cols-3 gap-4">
+                <article class="home-feature-card glass-card rounded-2xl flex flex-col group">
                     <div class="home-feature-visual bg-gradient-to-br from-red-600/40 via-red-950/40 to-black">
                         <div class="absolute inset-0 opacity-40" style="background-image: radial-gradient(circle at 30% 40%, rgba(239,68,68,0.5), transparent 55%);"></div>
                         <div class="absolute inset-0 flex items-center justify-center">
-                            <span class="material-symbols-outlined text-7xl text-red-300/90">sync</span>
+                            <span class="material-symbols-outlined text-5xl text-red-300/90">sync</span>
                         </div>
-                        <span class="absolute bottom-4 left-5 text-[10px] mono tracking-[0.25em] text-red-200/80">SYNC ENGINE</span>
+                        <span class="absolute bottom-3 left-4 text-[9px] mono tracking-[0.25em] text-red-200/80">SYNC ENGINE</span>
                     </div>
-                    <div class="p-7 flex flex-col flex-1">
-                        <h4 class="text-xl font-bold mb-3">Perfect Sync</h4>
-                        <p class="text-sm text-white/50 leading-relaxed mb-6 flex-1">Everyone sees the same frame at the same time — millisecond playback lock across the room.</p>
+                    <div class="p-5 flex flex-col flex-1">
+                        <h4 class="text-lg font-bold mb-2">Perfect Sync</h4>
+                        <p class="text-sm text-white/50 leading-relaxed mb-4 flex-1">Everyone sees the same frame at the same time — millisecond playback lock across the room.</p>
                         <a href="#how-it-works" class="text-sm font-bold text-white/80 hover:text-red-400 transition-colors cursor-pointer">Learn more →</a>
                     </div>
                 </article>
 
-                <article class="home-feature-card glass-card rounded-3xl flex flex-col group">
+                <article class="home-feature-card glass-card rounded-2xl flex flex-col group">
                     <div class="home-feature-visual bg-gradient-to-br from-indigo-600/40 via-indigo-950/50 to-black">
                         <div class="absolute inset-0 flex items-center justify-center">
-                            <span class="material-symbols-outlined text-7xl text-indigo-300/90">record_voice_over</span>
+                            <span class="material-symbols-outlined text-5xl text-indigo-300/90">record_voice_over</span>
                         </div>
-                        <span class="absolute bottom-4 left-5 text-[10px] mono tracking-[0.25em] text-indigo-200/80">SPATIAL COMMS</span>
+                        <span class="absolute bottom-3 left-4 text-[9px] mono tracking-[0.25em] text-indigo-200/80">SPATIAL COMMS</span>
                     </div>
-                    <div class="p-7 flex flex-col flex-1">
-                        <h4 class="text-xl font-bold mb-3">Spatial Audio & Video</h4>
-                        <p class="text-sm text-white/50 leading-relaxed mb-6 flex-1">Voice and video that duck when dialogue hits, so you never miss a line or a reaction.</p>
+                    <div class="p-5 flex flex-col flex-1">
+                        <h4 class="text-lg font-bold mb-2">Spatial Audio & Video</h4>
+                        <p class="text-sm text-white/50 leading-relaxed mb-4 flex-1">Voice and video that duck when dialogue hits, so you never miss a line or a reaction.</p>
                         <a href="#how-it-works" class="text-sm font-bold text-white/80 hover:text-indigo-400 transition-colors cursor-pointer">Learn more →</a>
                     </div>
                 </article>
 
-                <article class="home-feature-card glass-card rounded-3xl flex flex-col group">
+                <article class="home-feature-card glass-card rounded-2xl flex flex-col group">
                     <div class="home-feature-visual bg-gradient-to-br from-emerald-600/30 via-emerald-950/50 to-black">
                         <div class="absolute inset-0 flex items-center justify-center">
-                            <span class="material-symbols-outlined text-7xl text-emerald-300/90">security</span>
+                            <span class="material-symbols-outlined text-5xl text-emerald-300/90">security</span>
                         </div>
-                        <span class="absolute bottom-4 left-5 text-[10px] mono tracking-[0.25em] text-emerald-200/80">SECURE UPLINK</span>
+                        <span class="absolute bottom-3 left-4 text-[9px] mono tracking-[0.25em] text-emerald-200/80">SECURE UPLINK</span>
                     </div>
-                    <div class="p-7 flex flex-col flex-1">
-                        <h4 class="text-xl font-bold mb-3">Secure Rooms</h4>
-                        <p class="text-sm text-white/50 leading-relaxed mb-6 flex-1">Invite-only links, host controls, and instant moderation. Your party stays yours.</p>
+                    <div class="p-5 flex flex-col flex-1">
+                        <h4 class="text-lg font-bold mb-2">Secure Rooms</h4>
+                        <p class="text-sm text-white/50 leading-relaxed mb-4 flex-1">Invite-only links, host controls, and instant moderation. Your party stays yours.</p>
                         <a href="frontend/register.php" class="text-sm font-bold text-white/80 hover:text-emerald-400 transition-colors cursor-pointer">Get started →</a>
                     </div>
                 </article>
@@ -679,12 +679,12 @@
     </section>
 
     <!-- Trending: Netflix-style horizontal row -->
-    <section id="movies" class="py-20 relative">
+    <section id="movies" class="py-12 relative">
         <div class="max-w-7xl mx-auto px-6">
-            <div class="home-reveal flex items-end justify-between mb-8 gap-4">
+            <div class="home-reveal flex items-end justify-between mb-5 gap-4">
                 <div>
-                    <h2 class="text-sm font-bold text-red-500 tracking-widest uppercase mb-2 mono">Trending Now</h2>
-                    <h3 class="text-3xl md:text-4xl font-bold tracking-tight">Popular Watch Parties</h3>
+                    <h2 class="text-sm font-bold text-red-500 tracking-widest uppercase mb-1.5 mono">Trending Now</h2>
+                    <h3 class="text-2xl md:text-3xl font-bold tracking-tight">Popular Watch Parties</h3>
                 </div>
                 <div class="flex items-center gap-2">
                     <button type="button" class="w-10 h-10 rounded-full border border-white/10 bg-white/5 hover:bg-white/10 flex items-center justify-center cursor-pointer" @click="scrollRow(-1)" aria-label="Previous">
@@ -701,7 +701,7 @@
             <div x-ref="movieRow" class="home-row-scroll flex gap-4 overflow-x-auto pb-4 snap-x snap-mandatory">
                 <template x-for="(movie, i) in movies" :key="movie.title + i">
                     <a href="backend/guest_login.php"
-                       class="home-movie-card glass-card rounded-2xl overflow-hidden group cursor-pointer snap-start shrink-0 w-[42vw] sm:w-44 md:w-52"
+                       class="home-movie-card glass-card rounded-xl overflow-hidden group cursor-pointer snap-start shrink-0 w-[38vw] sm:w-36 md:w-44"
                        @mouseenter="hoverMovie($el, true)"
                        @mouseleave="hoverMovie($el, false)">
                         <div class="aspect-[2/3] relative overflow-hidden">
@@ -726,12 +726,12 @@
     </section>
 
     <!-- Product showcase: inside a room -->
-    <section id="showcase" class="py-24 relative overflow-hidden">
+    <section id="showcase" class="py-12 md:py-14 relative overflow-hidden">
         <div class="max-w-7xl mx-auto px-6">
-            <div class="home-reveal mb-12 max-w-3xl">
-                <h2 class="text-sm font-bold text-red-500 tracking-widest uppercase mb-3 mono">Inside a room</h2>
-                <h3 class="text-3xl md:text-5xl font-bold tracking-tight mb-4">The same theatre. Different couches.</h3>
-                <p class="text-white/50 text-lg leading-relaxed">A Nexus room is a shared player, a live chat, and a lock on the same millisecond. Hosts control play, guests react, and nobody waits for “wait, where are you?”</p>
+            <div class="home-reveal mb-7 max-w-3xl">
+                <h2 class="text-sm font-bold text-red-500 tracking-widest uppercase mb-2 mono">Inside a room</h2>
+                <h3 class="text-2xl md:text-4xl font-bold tracking-tight mb-3">The same theatre. Different couches.</h3>
+                <p class="text-white/50 text-base leading-relaxed">A Nexus room is a shared player, a live chat, and a lock on the same millisecond. Hosts control play, guests react, and nobody waits for “wait, where are you?”</p>
             </div>
 
             <div class="home-room-shell home-bento-card relative">
@@ -810,51 +810,51 @@
     </section>
 
     <!-- Bento capabilities -->
-    <section class="pb-16 relative">
+    <section class="pb-10 relative">
         <div class="max-w-7xl mx-auto px-6">
-            <div class="home-reveal mb-10">
-                <h2 class="text-sm font-bold text-indigo-400 tracking-widest uppercase mb-2 mono">What you actually get</h2>
-                <h3 class="text-3xl md:text-4xl font-bold tracking-tight">Every surface of a night in.</h3>
+            <div class="home-reveal mb-6">
+                <h2 class="text-sm font-bold text-indigo-400 tracking-widest uppercase mb-1.5 mono">What you actually get</h2>
+                <h3 class="text-2xl md:text-3xl font-bold tracking-tight">Every surface of a night in.</h3>
             </div>
             <div class="home-bento">
-                <article class="home-bento-card glass-card rounded-3xl p-6 md:p-8">
+                <article class="home-bento-card glass-card rounded-2xl p-5 md:p-6">
                     <span class="text-[10px] mono tracking-[0.2em] text-red-400">01 · SYNC ENGINE</span>
-                    <h4 class="text-2xl font-bold mt-3 mb-3">Millisecond lock</h4>
-                    <p class="text-sm text-white/50 leading-relaxed mb-6">Pause, seek, or reconnect and the room catches up. Playback is a shared timeline — not four people guessing.</p>
-                    <div class="rounded-2xl bg-black/50 border border-white/8 p-4">
-                        <div class="flex items-center justify-between mb-3">
+                    <h4 class="text-xl font-bold mt-2 mb-2">Millisecond lock</h4>
+                    <p class="text-sm text-white/50 leading-relaxed mb-4">Pause, seek, or reconnect and the room catches up. Playback is a shared timeline — not four people guessing.</p>
+                    <div class="rounded-xl bg-black/50 border border-white/8 p-3.5">
+                        <div class="flex items-center justify-between mb-2.5">
                             <span class="text-[10px] mono text-white/40">OFFSET</span>
                             <span class="text-[10px] mono text-emerald-400">±0ms</span>
                         </div>
-                        <div class="h-10 flex items-end gap-1">
-                            <span class="flex-1 bg-red-500/70 rounded-sm h-3"></span>
-                            <span class="flex-1 bg-red-500/80 rounded-sm h-6"></span>
-                            <span class="flex-1 bg-indigo-500/80 rounded-sm h-8"></span>
-                            <span class="flex-1 bg-indigo-400 rounded-sm h-10"></span>
-                            <span class="flex-1 bg-emerald-400 rounded-sm h-7"></span>
-                            <span class="flex-1 bg-emerald-500/80 rounded-sm h-5"></span>
-                            <span class="flex-1 bg-white/20 rounded-sm h-4"></span>
+                        <div class="h-8 flex items-end gap-1">
+                            <span class="flex-1 bg-red-500/70 rounded-sm h-2.5"></span>
+                            <span class="flex-1 bg-red-500/80 rounded-sm h-5"></span>
+                            <span class="flex-1 bg-indigo-500/80 rounded-sm h-6"></span>
+                            <span class="flex-1 bg-indigo-400 rounded-sm h-8"></span>
+                            <span class="flex-1 bg-emerald-400 rounded-sm h-5"></span>
+                            <span class="flex-1 bg-emerald-500/80 rounded-sm h-4"></span>
+                            <span class="flex-1 bg-white/20 rounded-sm h-3"></span>
                         </div>
                     </div>
                 </article>
-                <article class="home-bento-card glass-card rounded-3xl p-6 md:p-8">
+                <article class="home-bento-card glass-card rounded-2xl p-5 md:p-6">
                     <span class="text-[10px] mono tracking-[0.2em] text-indigo-400">02 · UPLINK</span>
-                    <h4 class="text-2xl font-bold mt-3 mb-3">Invite in one link</h4>
-                    <p class="text-sm text-white/50 leading-relaxed mb-6">Share a private room URL. Friends join as guests or signed-in members. Hosts can rotate the invite any time.</p>
-                    <div class="rounded-2xl bg-black/50 border border-white/8 px-4 py-3 flex items-center gap-3">
+                    <h4 class="text-xl font-bold mt-2 mb-2">Invite in one link</h4>
+                    <p class="text-sm text-white/50 leading-relaxed mb-4">Share a private room URL. Friends join as guests or signed-in members. Hosts can rotate the invite any time.</p>
+                    <div class="rounded-xl bg-black/50 border border-white/8 px-3.5 py-2.5 flex items-center gap-3">
                         <span class="material-symbols-outlined text-indigo-400">link</span>
                         <span class="text-xs mono text-white/60 truncate">nexus.app/room/arrakis-204</span>
                         <span class="ml-auto text-[10px] font-bold text-white/80 bg-white/10 px-2 py-1 rounded">COPY</span>
                     </div>
                 </article>
-                <article class="home-bento-card glass-card rounded-3xl p-6">
+                <article class="home-bento-card glass-card rounded-2xl p-5">
                     <span class="text-[10px] mono tracking-[0.2em] text-emerald-400">03 · HOST</span>
-                    <h4 class="text-xl font-bold mt-3 mb-2">Host controls</h4>
+                    <h4 class="text-lg font-bold mt-2 mb-1.5">Host controls</h4>
                     <p class="text-sm text-white/50 leading-relaxed">Mute, kick, and lock play so the night stays yours.</p>
                 </article>
-                <article class="home-bento-card glass-card rounded-3xl p-6">
+                <article class="home-bento-card glass-card rounded-2xl p-5">
                     <span class="text-[10px] mono tracking-[0.2em] text-amber-400">04 · LIBRARY</span>
-                    <h4 class="text-xl font-bold mt-3 mb-2">Watchlist &amp; catalog</h4>
+                    <h4 class="text-lg font-bold mt-2 mb-1.5">Watchlist &amp; catalog</h4>
                     <p class="text-sm text-white/50 leading-relaxed">Save titles, pick from the library, and launch a room around them.</p>
                 </article>
             </div>
@@ -862,60 +862,60 @@
     </section>
 
     <!-- How it works: interactive sequence -->
-    <section id="how-it-works" class="home-steps py-28 relative">
+    <section id="how-it-works" class="home-steps py-14 md:py-16 relative">
         <div class="max-w-7xl mx-auto px-6">
-            <div class="home-reveal mb-12 md:flex md:items-end md:justify-between gap-8">
+            <div class="home-reveal mb-7 md:flex md:items-end md:justify-between gap-6">
                 <div>
-                    <h2 class="text-sm font-bold text-indigo-400 tracking-widest uppercase mb-2 mono">Deployment Sequence</h2>
-                    <h3 class="text-3xl md:text-5xl font-bold tracking-tight">Four steps to first light</h3>
+                    <h2 class="text-sm font-bold text-indigo-400 tracking-widest uppercase mb-1.5 mono">Deployment Sequence</h2>
+                    <h3 class="text-2xl md:text-4xl font-bold tracking-tight">Four steps to first light</h3>
                 </div>
-                <p class="text-white/45 max-w-md mt-4 md:mt-0">Click a step to preview the flow. This is the same path from guest drop-in to a locked, chatting room.</p>
+                <p class="text-white/45 max-w-md mt-3 md:mt-0 text-sm">Click a step to preview the flow. This is the same path from guest drop-in to a locked, chatting room.</p>
             </div>
 
-            <div class="grid lg:grid-cols-12 gap-8 items-start">
-                <div class="lg:col-span-5 space-y-3 relative">
+            <div class="grid lg:grid-cols-12 gap-5 items-start">
+                <div class="lg:col-span-5 space-y-2.5 relative">
                     <div class="home-steps-line hidden lg:block absolute top-8 bottom-8 left-[27px] w-px bg-gradient-to-b from-red-500 via-indigo-500 to-emerald-400 origin-top z-0"></div>
 
-                    <button type="button" class="home-step home-demo-step relative z-10 w-full text-left rounded-2xl p-5 bg-[#030305]" :class="demoStep === 1 && 'is-active'" @click="setDemoStep(1)">
-                        <div class="flex gap-4">
-                            <div class="w-14 h-14 rounded-2xl bg-red-500/10 border border-red-500/20 flex items-center justify-center shrink-0">
-                                <span class="text-xl font-bold mono text-red-400">01</span>
+                    <button type="button" class="home-step home-demo-step relative z-10 w-full text-left rounded-xl p-4 bg-[#030305]" :class="demoStep === 1 && 'is-active'" @click="setDemoStep(1)">
+                        <div class="flex gap-3.5">
+                            <div class="w-11 h-11 rounded-xl bg-red-500/10 border border-red-500/20 flex items-center justify-center shrink-0">
+                                <span class="text-base font-bold mono text-red-400">01</span>
                             </div>
                             <div>
-                                <h4 class="text-lg font-bold mb-1">Connect</h4>
+                                <h4 class="text-base font-bold mb-0.5">Connect</h4>
                                 <p class="text-sm text-white/50 leading-relaxed">Sign in, or drop in as a guest. The protocol boots instantly — no install, no plugin.</p>
                             </div>
                         </div>
                     </button>
-                    <button type="button" class="home-step home-demo-step relative z-10 w-full text-left rounded-2xl p-5 bg-[#030305]" :class="demoStep === 2 && 'is-active'" @click="setDemoStep(2)">
-                        <div class="flex gap-4">
-                            <div class="w-14 h-14 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center shrink-0">
-                                <span class="text-xl font-bold mono text-indigo-400">02</span>
+                    <button type="button" class="home-step home-demo-step relative z-10 w-full text-left rounded-xl p-4 bg-[#030305]" :class="demoStep === 2 && 'is-active'" @click="setDemoStep(2)">
+                        <div class="flex gap-3.5">
+                            <div class="w-11 h-11 rounded-xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center shrink-0">
+                                <span class="text-base font-bold mono text-indigo-400">02</span>
                             </div>
                             <div>
-                                <h4 class="text-lg font-bold mb-1">Select</h4>
+                                <h4 class="text-base font-bold mb-0.5">Select</h4>
                                 <p class="text-sm text-white/50 leading-relaxed">Pick a title from the library or your watchlist. That film becomes the room’s source.</p>
                             </div>
                         </div>
                     </button>
-                    <button type="button" class="home-step home-demo-step relative z-10 w-full text-left rounded-2xl p-5 bg-[#030305]" :class="demoStep === 3 && 'is-active'" @click="setDemoStep(3)">
-                        <div class="flex gap-4">
-                            <div class="w-14 h-14 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center shrink-0">
-                                <span class="text-xl font-bold mono text-emerald-400">03</span>
+                    <button type="button" class="home-step home-demo-step relative z-10 w-full text-left rounded-xl p-4 bg-[#030305]" :class="demoStep === 3 && 'is-active'" @click="setDemoStep(3)">
+                        <div class="flex gap-3.5">
+                            <div class="w-11 h-11 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center shrink-0">
+                                <span class="text-base font-bold mono text-emerald-400">03</span>
                             </div>
                             <div>
-                                <h4 class="text-lg font-bold mb-1">Uplink</h4>
+                                <h4 class="text-base font-bold mb-0.5">Uplink</h4>
                                 <p class="text-sm text-white/50 leading-relaxed">Spin a private room and fire the invite to your crew. They land in the same lobby.</p>
                             </div>
                         </div>
                     </button>
-                    <button type="button" class="home-step home-demo-step relative z-10 w-full text-left rounded-2xl p-5 bg-[#030305]" :class="demoStep === 4 && 'is-active'" @click="setDemoStep(4)">
-                        <div class="flex gap-4">
-                            <div class="w-14 h-14 rounded-2xl bg-white/5 border border-white/15 flex items-center justify-center shrink-0">
-                                <span class="text-xl font-bold mono text-white">04</span>
+                    <button type="button" class="home-step home-demo-step relative z-10 w-full text-left rounded-xl p-4 bg-[#030305]" :class="demoStep === 4 && 'is-active'" @click="setDemoStep(4)">
+                        <div class="flex gap-3.5">
+                            <div class="w-11 h-11 rounded-xl bg-white/5 border border-white/15 flex items-center justify-center shrink-0">
+                                <span class="text-base font-bold mono text-white">04</span>
                             </div>
                             <div>
-                                <h4 class="text-lg font-bold mb-1">Engage</h4>
+                                <h4 class="text-base font-bold mb-0.5">Engage</h4>
                                 <p class="text-sm text-white/50 leading-relaxed">Hit play. Chat, react, and stay locked on the same frame until the credits.</p>
                             </div>
                         </div>
@@ -923,7 +923,7 @@
                 </div>
 
                 <div class="lg:col-span-7">
-                    <div class="home-room-shell home-demo-visual p-5 md:p-7 min-h-[340px]">
+                    <div class="home-room-shell home-demo-visual p-4 md:p-6 min-h-[280px]">
                         <div x-show="demoStep === 1" x-cloak class="home-demo-panel space-y-4">
                             <p class="text-[10px] mono tracking-[0.25em] text-red-400">GATE · AUTH</p>
                             <h4 class="text-2xl font-bold">Drop in as guest or sign in</h4>
@@ -987,26 +987,26 @@
     </section>
 
     <!-- Use cases -->
-    <section class="pb-24">
+    <section class="pb-12">
         <div class="max-w-7xl mx-auto px-6">
-            <div class="home-reveal mb-10">
-                <h2 class="text-sm font-bold text-white/40 tracking-widest uppercase mb-2 mono">Who it’s for</h2>
-                <h3 class="text-3xl md:text-4xl font-bold tracking-tight">Built for the nights that used to be “maybe later.”</h3>
+            <div class="home-reveal mb-6">
+                <h2 class="text-sm font-bold text-white/40 tracking-widest uppercase mb-1.5 mono">Who it’s for</h2>
+                <h3 class="text-2xl md:text-3xl font-bold tracking-tight">Built for the nights that used to be “maybe later.”</h3>
             </div>
-            <div class="grid md:grid-cols-3 gap-5">
-                <article class="home-use-card glass-card rounded-3xl p-7">
-                    <span class="material-symbols-outlined text-red-400 text-3xl">favorite</span>
-                    <h4 class="text-xl font-bold mt-4 mb-2">Long-distance nights</h4>
+            <div class="grid md:grid-cols-3 gap-4">
+                <article class="home-use-card glass-card rounded-2xl p-5">
+                    <span class="material-symbols-outlined text-red-400 text-2xl">favorite</span>
+                    <h4 class="text-lg font-bold mt-3 mb-1.5">Long-distance nights</h4>
                     <p class="text-sm text-white/50 leading-relaxed">Same film, same jokes, same gasp — even when the couches are continents apart.</p>
                 </article>
-                <article class="home-use-card glass-card rounded-3xl p-7">
-                    <span class="material-symbols-outlined text-indigo-400 text-3xl">groups</span>
-                    <h4 class="text-xl font-bold mt-4 mb-2">Crew watch parties</h4>
+                <article class="home-use-card glass-card rounded-2xl p-5">
+                    <span class="material-symbols-outlined text-indigo-400 text-2xl">groups</span>
+                    <h4 class="text-lg font-bold mt-3 mb-1.5">Crew watch parties</h4>
                     <p class="text-sm text-white/50 leading-relaxed">Premiere a title with friends, keep chat on the side, and never lose the plot to lag.</p>
                 </article>
-                <article class="home-use-card glass-card rounded-3xl p-7">
-                    <span class="material-symbols-outlined text-emerald-400 text-3xl">school</span>
-                    <h4 class="text-xl font-bold mt-4 mb-2">Classrooms &amp; clubs</h4>
+                <article class="home-use-card glass-card rounded-2xl p-5">
+                    <span class="material-symbols-outlined text-emerald-400 text-2xl">school</span>
+                    <h4 class="text-lg font-bold mt-3 mb-1.5">Classrooms &amp; clubs</h4>
                     <p class="text-sm text-white/50 leading-relaxed">Host a screening with invite-only access, then pause together for discussion.</p>
                 </article>
             </div>
@@ -1014,68 +1014,68 @@
     </section>
 
     <!-- Premium plans -->
-    <section id="premium" class="home-plans pb-28 relative overflow-hidden">
+    <section id="premium" class="home-plans pb-14 relative overflow-hidden">
         <div class="absolute left-1/2 top-0 -translate-x-1/2 w-[640px] h-[640px] bg-indigo-600/15 rounded-full blur-[140px] pointer-events-none"></div>
         <div class="absolute right-1/4 bottom-0 w-[420px] h-[420px] bg-fuchsia-600/12 rounded-full blur-[120px] pointer-events-none"></div>
         <div class="max-w-7xl mx-auto px-6 relative z-10">
-            <div class="home-reveal text-center mb-14 max-w-2xl mx-auto">
-                <h2 class="text-sm font-bold text-indigo-400 tracking-widest uppercase mb-3 mono">Uplink Tiers</h2>
-                <h3 class="text-3xl md:text-5xl font-bold tracking-tight mb-4">Stay free. Or go Premium.</h3>
-                <p class="text-white/50 leading-relaxed">Guest rooms are open to everyone. Premium unlocks the full protocol — cosmetics, unlimited hosting, and a badge that says you run the night.</p>
+            <div class="home-reveal text-center mb-8 max-w-2xl mx-auto">
+                <h2 class="text-sm font-bold text-indigo-400 tracking-widest uppercase mb-2 mono">Uplink Tiers</h2>
+                <h3 class="text-2xl md:text-4xl font-bold tracking-tight mb-3">Stay free. Or go Premium.</h3>
+                <p class="text-white/50 leading-relaxed text-sm">Guest rooms are open to everyone. Premium unlocks the full protocol — cosmetics, unlimited hosting, and a badge that says you run the night.</p>
             </div>
 
-            <div class="grid md:grid-cols-2 gap-6 max-w-4xl mx-auto items-stretch">
-                <article class="home-plan-card glass-card rounded-[1.75rem] p-7 md:p-8 flex flex-col">
-                    <p class="text-[10px] mono tracking-[0.25em] text-white/40 uppercase mb-4">Signal</p>
-                    <h4 class="text-2xl font-bold mb-1">Free</h4>
-                    <p class="text-sm text-white/45 mb-6">Drop in, watch, chat. No card required.</p>
-                    <div class="flex items-end gap-1 mb-8">
-                        <span class="text-5xl font-black tracking-tighter">$0</span>
-                        <span class="text-sm text-white/40 mb-2 mono">/ forever</span>
+            <div class="grid md:grid-cols-2 gap-4 max-w-4xl mx-auto items-stretch">
+                <article class="home-plan-card glass-card rounded-2xl p-5 md:p-6 flex flex-col">
+                    <p class="text-[10px] mono tracking-[0.25em] text-white/40 uppercase mb-3">Signal</p>
+                    <h4 class="text-xl font-bold mb-1">Free</h4>
+                    <p class="text-sm text-white/45 mb-4">Drop in, watch, chat. No card required.</p>
+                    <div class="flex items-end gap-1 mb-5">
+                        <span class="text-4xl font-black tracking-tighter">$0</span>
+                        <span class="text-sm text-white/40 mb-1.5 mono">/ forever</span>
                     </div>
-                    <ul class="space-y-3 mb-8 flex-1 text-sm text-white/70">
+                    <ul class="space-y-2.5 mb-5 flex-1 text-sm text-white/70">
                         <li class="flex items-start gap-3"><span class="material-symbols-outlined text-emerald-400 text-[18px] mt-0.5">check</span>Guest or account join</li>
                         <li class="flex items-start gap-3"><span class="material-symbols-outlined text-emerald-400 text-[18px] mt-0.5">check</span>Millisecond sync playback</li>
                         <li class="flex items-start gap-3"><span class="material-symbols-outlined text-emerald-400 text-[18px] mt-0.5">check</span>Live room chat</li>
                         <li class="flex items-start gap-3"><span class="material-symbols-outlined text-emerald-400 text-[18px] mt-0.5">check</span>Invite-only rooms</li>
                         <li class="flex items-start gap-3"><span class="material-symbols-outlined text-white/25 text-[18px] mt-0.5">check</span><span class="text-white/35">Profile cosmetics locked</span></li>
                     </ul>
-                    <a href="backend/guest_login.php" class="home-magnetic w-full rounded-2xl border border-white/15 bg-white/5 hover:bg-white/10 py-3.5 text-center font-bold cursor-pointer transition-colors">Start for free</a>
+                    <a href="backend/guest_login.php" class="home-magnetic w-full rounded-xl border border-white/15 bg-white/5 hover:bg-white/10 py-3 text-center font-bold cursor-pointer transition-colors">Start for free</a>
                 </article>
 
-                <article class="home-plan-card home-plan-featured glass-card rounded-[1.75rem] p-7 md:p-8 flex flex-col relative overflow-hidden">
-                    <div class="absolute top-5 right-5 text-[10px] font-bold tracking-[0.2em] uppercase px-3 py-1 rounded-full bg-gradient-to-r from-indigo-500/30 to-fuchsia-500/30 border border-indigo-400/40 text-indigo-200">Most chosen</div>
-                    <p class="text-[10px] mono tracking-[0.25em] text-indigo-300 uppercase mb-4 inline-flex items-center gap-2">
+                <article class="home-plan-card home-plan-featured glass-card rounded-2xl p-5 md:p-6 flex flex-col relative overflow-hidden">
+                    <div class="absolute top-4 right-4 text-[9px] font-bold tracking-[0.2em] uppercase px-2.5 py-1 rounded-full bg-gradient-to-r from-indigo-500/30 to-fuchsia-500/30 border border-indigo-400/40 text-indigo-200">Most chosen</div>
+                    <p class="text-[10px] mono tracking-[0.25em] text-indigo-300 uppercase mb-3 inline-flex items-center gap-2">
                         <span class="material-symbols-outlined text-[16px]">stars</span>Nexus Premium
                     </p>
-                    <h4 class="text-2xl font-bold mb-1 text-transparent bg-clip-text bg-gradient-to-r from-indigo-300 via-fuchsia-300 to-indigo-300">Ascend</h4>
-                    <p class="text-sm text-white/50 mb-6">Ultimate fidelity, unlimited hosting, and a profile that stands out.</p>
-                    <div class="flex items-end gap-2 mb-8">
-                        <span class="text-5xl font-black tracking-tighter">$4.99</span>
-                        <span class="text-sm text-white/45 mb-2 mono">/ month</span>
+                    <h4 class="text-xl font-bold mb-1 text-transparent bg-clip-text bg-gradient-to-r from-indigo-300 via-fuchsia-300 to-indigo-300">Ascend</h4>
+                    <p class="text-sm text-white/50 mb-4">Ultimate fidelity, unlimited hosting, and a profile that stands out.</p>
+                    <div class="flex items-end gap-2 mb-5">
+                        <span class="text-4xl font-black tracking-tighter">$4.99</span>
+                        <span class="text-sm text-white/45 mb-1.5 mono">/ month</span>
                     </div>
-                    <ul class="space-y-3 mb-8 flex-1 text-sm text-white/80">
+                    <ul class="space-y-2.5 mb-5 flex-1 text-sm text-white/80">
                         <li class="flex items-start gap-3"><span class="material-symbols-outlined text-fuchsia-400 text-[18px] mt-0.5">check</span>Everything in Free</li>
                         <li class="flex items-start gap-3"><span class="material-symbols-outlined text-fuchsia-400 text-[18px] mt-0.5">check</span>Exclusive profile cosmetics &amp; borders</li>
                         <li class="flex items-start gap-3"><span class="material-symbols-outlined text-fuchsia-400 text-[18px] mt-0.5">check</span>Unlimited watch-party hosting</li>
                         <li class="flex items-start gap-3"><span class="material-symbols-outlined text-fuchsia-400 text-[18px] mt-0.5">check</span>Premium badge on your identity</li>
                         <li class="flex items-start gap-3"><span class="material-symbols-outlined text-fuchsia-400 text-[18px] mt-0.5">check</span>Priority uplink — no protocol limits</li>
                     </ul>
-                    <a href="frontend/register.php" class="home-magnetic w-full rounded-2xl bg-white text-black hover:shadow-[0_0_40px_rgba(255,255,255,0.28)] py-3.5 text-center font-black tracking-wide uppercase cursor-pointer inline-flex items-center justify-center gap-2">
+                    <a href="frontend/register.php" class="home-magnetic w-full rounded-xl bg-white text-black hover:shadow-[0_0_40px_rgba(255,255,255,0.28)] py-3 text-center font-black tracking-wide uppercase cursor-pointer inline-flex items-center justify-center gap-2">
                         Unlock Premium <span class="material-symbols-outlined text-[18px]">bolt</span>
                     </a>
-                    <p class="text-[11px] text-white/35 text-center mt-4">Billed monthly · cancel any time · 30-day cycle</p>
+                    <p class="text-[11px] text-white/35 text-center mt-3">Billed monthly · cancel any time · 30-day cycle</p>
                 </article>
             </div>
         </div>
     </section>
 
     <!-- FAQ -->
-    <section class="pb-20">
+    <section class="pb-12">
         <div class="max-w-3xl mx-auto px-6">
-            <div class="home-reveal text-center mb-10">
-                <h2 class="text-sm font-bold text-white/40 tracking-widest uppercase mb-2 mono">Signal Check</h2>
-                <h3 class="text-3xl font-bold tracking-tight">Questions, answered</h3>
+            <div class="home-reveal text-center mb-6">
+                <h2 class="text-sm font-bold text-white/40 tracking-widest uppercase mb-1.5 mono">Signal Check</h2>
+                <h3 class="text-2xl font-bold tracking-tight">Questions, answered</h3>
             </div>
             <div class="space-y-3">
                 <div class="glass-card rounded-2xl px-5 py-4 cursor-pointer" @click="toggleFaq(1)">
@@ -1137,21 +1137,21 @@
     </section>
 
     <!-- CTA band -->
-    <section class="home-cta-band relative py-24 overflow-hidden">
+    <section class="home-cta-band relative py-14 overflow-hidden">
         <div class="max-w-4xl mx-auto px-6 text-center home-reveal relative z-10">
-            <p class="text-xs mono tracking-[0.3em] text-red-400 mb-4 uppercase">Ready when you are</p>
-            <h3 class="text-4xl md:text-6xl font-bold tracking-tighter mb-6">Press play with your people.</h3>
-            <p class="text-white/50 mb-10 max-w-xl mx-auto">Open a room in seconds. No installs. Just a link, a film, and a crew on the same timeline.</p>
-            <div class="flex flex-wrap justify-center gap-4">
-                <a href="frontend/register.php" class="home-magnetic animated-border px-8 py-4 font-bold text-white inline-flex items-center gap-2 cursor-pointer">
+            <p class="text-xs mono tracking-[0.3em] text-red-400 mb-3 uppercase">Ready when you are</p>
+            <h3 class="text-3xl md:text-5xl font-bold tracking-tighter mb-4">Press play with your people.</h3>
+            <p class="text-white/50 mb-7 max-w-xl mx-auto text-sm">Open a room in seconds. No installs. Just a link, a film, and a crew on the same timeline.</p>
+            <div class="flex flex-wrap justify-center gap-3">
+                <a href="frontend/register.php" class="home-magnetic animated-border px-7 py-3.5 font-bold text-white inline-flex items-center gap-2 cursor-pointer">
                     Create your room <span class="material-symbols-outlined">rocket_launch</span>
                 </a>
-                <a href="frontend/login.php" class="px-8 py-4 rounded-full border border-white/15 bg-white/5 font-medium cursor-pointer hover:bg-white/10 transition-colors">Sign in</a>
+                <a href="frontend/login.php" class="px-7 py-3.5 rounded-full border border-white/15 bg-white/5 font-medium cursor-pointer hover:bg-white/10 transition-colors">Sign in</a>
             </div>
         </div>
     </section>
 
-    <footer id="contact" class="home-contact border-t border-white/10 pt-20 pb-8 relative overflow-hidden">
+    <footer id="contact" class="home-contact border-t border-white/10 pt-12 pb-8 relative overflow-hidden">
         <div class="home-contact-grid absolute inset-0 pointer-events-none opacity-60"></div>
         <div class="absolute -top-24 left-1/4 w-80 h-80 bg-red-600/20 rounded-full blur-[120px] pointer-events-none"></div>
         <div class="absolute bottom-0 right-1/5 w-72 h-72 bg-indigo-600/20 rounded-full blur-[110px] pointer-events-none"></div>

@@ -1,5 +1,5 @@
 <!-- Shop Tab -->
-<div class="absolute inset-0 w-full h-full overflow-y-auto p-6 md:p-10 tab-content scroll-smooth custom-scrollbar" 
+<div class="absolute inset-0 w-full h-full overflow-y-auto p-5 md:p-6 tab-content scroll-smooth custom-scrollbar" 
      x-show="currentTab === 'shop'"
      x-transition:enter="transition-all duration-500 delay-300 cubic-bezier(0.34, 1.56, 0.64, 1)"
      x-transition:enter-start="opacity-0 translate-y-8"
@@ -8,48 +8,48 @@
      x-transition:leave-start="opacity-100 translate-y-0"
      x-transition:leave-end="opacity-0 -translate-y-8 absolute w-full"
      style="display: none;">
-    <div class="max-w-[1400px] mx-auto space-y-8 pb-20">
+    <div class="max-w-[1400px] mx-auto space-y-5 pb-16">
         
         <!-- Header & Points -->
-        <div class="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-10 relative z-10">
+        <div class="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-4 relative z-10">
             <div>
-                <h2 class="text-4xl font-black tracking-tighter text-white flex items-center gap-4 mb-2 uppercase drop-shadow-[0_0_15px_rgba(255,255,255,0.3)]">
-                    <div class="w-14 h-14 bg-gradient-to-tr from-violet-600 to-fuchsia-600 rounded-2xl flex items-center justify-center shadow-[0_0_40px_rgba(139,92,246,0.5)] border border-white/20">
-                        <span class="material-symbols-outlined text-[32px] text-white">storefront</span>
+                <h2 class="text-2xl md:text-3xl font-black tracking-tighter text-white flex items-center gap-3 mb-1.5 uppercase drop-shadow-[0_0_15px_rgba(255,255,255,0.3)]">
+                    <div class="w-10 h-10 bg-gradient-to-tr from-violet-600 to-fuchsia-600 rounded-xl flex items-center justify-center shadow-[0_0_40px_rgba(139,92,246,0.5)] border border-white/20">
+                        <span class="material-symbols-outlined text-[22px] text-white">storefront</span>
                     </div>
                     Point Shop
                 </h2>
-                <p class="text-white/50 text-sm max-w-xl font-medium tracking-wide">Redeem your hard-earned points for exclusive profile cosmetics, avatars, and special badges to stand out in the network.</p>
+                <p class="text-white/50 text-xs max-w-xl font-medium tracking-wide">Redeem your hard-earned points for exclusive profile cosmetics, avatars, and special badges to stand out in the network.</p>
             </div>
 
-            <div class="flex items-center gap-4 bg-black/40 backdrop-blur-xl border border-white/10 rounded-2xl p-4 shadow-xl">
-                <div class="w-12 h-12 rounded-xl bg-yellow-500/20 border border-yellow-500/30 flex items-center justify-center">
-                    <span class="material-symbols-outlined text-yellow-400 text-3xl">toll</span>
+            <div class="flex items-center gap-3 bg-black/40 backdrop-blur-xl border border-white/10 rounded-xl p-3 shadow-xl">
+                <div class="w-9 h-9 rounded-lg bg-yellow-500/20 border border-yellow-500/30 flex items-center justify-center">
+                    <span class="material-symbols-outlined text-yellow-400 text-xl">toll</span>
                 </div>
                 <div>
-                    <p class="text-[10px] uppercase tracking-widest text-white/50 font-bold mb-1">Your Balance</p>
-                    <p class="text-3xl font-black text-yellow-400 tracking-tighter" x-ref="pointsDisplay">
+                    <p class="text-[9px] uppercase tracking-widest text-white/50 font-bold mb-0.5">Your Balance</p>
+                    <p class="text-xl font-black text-yellow-400 tracking-tighter" x-ref="pointsDisplay">
                         <span x-text="userPoints.toLocaleString()"></span> 
-                        <span class="text-sm font-bold text-yellow-500/50">PTS</span>
+                        <span class="text-xs font-bold text-yellow-500/50">PTS</span>
                     </p>
                 </div>
             </div>
         </div>
 
         <!-- Items Grid -->
-        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 lg:gap-8 relative z-10"
+        <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 md:gap-4 relative z-10"
              x-transition:enter="transition-all duration-500"
              x-transition:enter-start="opacity-0 scale-95"
              x-transition:enter-end="opacity-100 scale-100">
             <template x-for="item in shopItems" :key="item.id">
-                <div class="group relative bg-[#050508] rounded-[2rem] border border-white/[0.05] p-6 hover:border-white/20 transition-all duration-500 hover:-translate-y-2 shadow-2xl overflow-hidden cursor-pointer"
+                <div class="group relative bg-[#050508] rounded-2xl border border-white/[0.05] p-3.5 hover:border-white/20 transition-all duration-500 hover:-translate-y-1 shadow-xl overflow-hidden cursor-pointer"
                      @click="!userInventory.includes(item.id) ? (selectedItem = item, showConfirmModal = true) : null">
                     
                     <!-- Background Glow (generic) -->
                     <div class="absolute inset-0 bg-gradient-to-br from-indigo-500/10 to-purple-500/10 opacity-0 group-hover:opacity-20 transition-opacity duration-700 pointer-events-none"></div>
                     
                     <!-- Visual Asset -->
-                    <div class="w-full aspect-square rounded-2xl mb-6 relative bg-black/50 border border-white/5 flex items-center justify-center"
+                    <div class="w-full aspect-square rounded-xl mb-3 relative bg-black/50 border border-white/5 flex items-center justify-center"
                          :class="item.category === 'border' ? '' : 'overflow-hidden'">
                         <!-- Animated border preview (ring around an avatar) -->
                         <template x-if="item.category === 'border' && item.image">
@@ -68,29 +68,29 @@
                         <!-- No image fallback -->
                         <template x-if="!item.image">
                             <div class="w-full h-full flex items-center justify-center bg-gradient-to-br opacity-80">
-                                <span class="material-symbols-outlined text-[80px] text-white/50" x-text="item.category === 'badge' ? 'workspace_premium' : 'account_circle'"></span>
+                                <span class="material-symbols-outlined text-[48px] text-white/50" x-text="item.category === 'badge' ? 'workspace_premium' : 'account_circle'"></span>
                             </div>
                         </template>
                         
                         <!-- Purchased Overlay -->
                         <div x-show="userInventory.includes(item.id)" class="absolute inset-0 bg-black/80 backdrop-blur-sm flex flex-col items-center justify-center z-10">
-                            <div class="w-16 h-16 rounded-full bg-emerald-500/20 border border-emerald-500 flex items-center justify-center mb-2 shadow-[0_0_30px_rgba(16,185,129,0.5)]">
-                                <span class="material-symbols-outlined text-3xl text-emerald-400">check_circle</span>
+                            <div class="w-10 h-10 rounded-full bg-emerald-500/20 border border-emerald-500 flex items-center justify-center mb-1 shadow-[0_0_30px_rgba(16,185,129,0.5)]">
+                                <span class="material-symbols-outlined text-xl text-emerald-400">check_circle</span>
                             </div>
-                            <span class="text-emerald-400 font-bold uppercase tracking-widest text-xs">Owned</span>
+                            <span class="text-emerald-400 font-bold uppercase tracking-widest text-[10px]">Owned</span>
                         </div>
                     </div>
 
                     <!-- Info -->
-                    <div class="flex items-end justify-between gap-4">
-                        <div>
-                            <h3 class="text-xl font-bold text-white mb-1" x-text="item.name"></h3>
-                            <span class="text-xs font-mono uppercase text-white/40 tracking-wider" x-text="item.category"></span>
+                    <div class="flex items-end justify-between gap-2">
+                        <div class="min-w-0">
+                            <h3 class="text-sm font-bold text-white mb-0.5 truncate" x-text="item.name"></h3>
+                            <span class="text-[10px] font-mono uppercase text-white/40 tracking-wider" x-text="item.category"></span>
                         </div>
-                        <div class="flex items-center gap-1.5 bg-black/60 px-3 py-1.5 rounded-lg border border-white/10 group-hover:border-yellow-500/50 transition-colors"
+                        <div class="flex items-center gap-1 bg-black/60 px-2 py-1 rounded-md border border-white/10 group-hover:border-yellow-500/50 transition-colors shrink-0"
                              x-show="!userInventory.includes(item.id)">
-                            <span class="material-symbols-outlined text-yellow-500 text-lg">toll</span>
-                            <span class="text-yellow-400 font-bold" x-text="item.price"></span>
+                            <span class="material-symbols-outlined text-yellow-500 text-sm">toll</span>
+                            <span class="text-yellow-400 font-bold text-xs" x-text="item.price"></span>
                         </div>
                     </div>
 

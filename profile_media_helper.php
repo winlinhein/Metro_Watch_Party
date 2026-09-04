@@ -104,6 +104,63 @@ function getUserProfileMedia(PDO $conn, int $userId): array
 }
 
 /**
+ * Whether a stored avatar URL can actually be served (local file or media_files row).
+ * Prevents admin/user UIs from requesting dead /uploads paths and flooding 404s.
+ */
+function avatarUrlIsServable(PDO $conn, string $url): bool
+{
+    $url = trim($url);
+    if ($url === '') {
+        return false;
+    }
+    if (preg_match('#^(https?:)?//#i', $url) || str_starts_with($url, 'data:') || str_starts_with($url, 'blob:')) {
+        return true;
+    }
+
+    $mediaId = 0;
+    $publicPath = '';
+    if (preg_match('/[?&]id=(\d+)/', $url, $m)) {
+        $mediaId = (int)$m[1];
+    } elseif (preg_match('/[?&]path=([^&]+)/', $url, $m)) {
+        $publicPath = rawurldecode($m[1]);
+    } elseif (preg_match('#^/uploads/(avatars|chat_images)/#', $url)) {
+        $publicPath = $url;
+    } else {
+        // Non-upload relative paths (e.g. already a working gateway) — keep
+        return str_starts_with($url, '/');
+    }
+
+    if ($mediaId > 0) {
+        try {
+            $stmt = $conn->prepare('SELECT public_path FROM media_files WHERE id = ? LIMIT 1');
+            $stmt->execute([$mediaId]);
+            $publicPath = (string)($stmt->fetchColumn() ?: '');
+            if ($publicPath === '') {
+                return false;
+            }
+        } catch (Throwable $e) {
+            return false;
+        }
+    }
+
+    if ($publicPath !== '') {
+        $local = __DIR__ . str_replace('/', DIRECTORY_SEPARATOR, $publicPath);
+        if (is_file($local)) {
+            return true;
+        }
+        try {
+            $stmt = $conn->prepare('SELECT 1 FROM media_files WHERE public_path = ? LIMIT 1');
+            $stmt->execute([$publicPath]);
+            return (bool)$stmt->fetchColumn();
+        } catch (Throwable $e) {
+            return false;
+        }
+    }
+
+    return false;
+}
+
+/**
  * Attach avatar_url + border_preview onto rows that contain user_id.
  * Mutates and returns the same array.
  */
@@ -130,7 +187,11 @@ function attachProfileMedia(PDO $conn, array $rows, string $userIdKey = 'user_id
     $stmt->execute($ids);
     $avatars = [];
     foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $u) {
-        $avatars[(int)$u['user_id']] = normalizeAvatarUrl($u['avatar_url'] ?? '');
+        $uid = (int)$u['user_id'];
+        $normalized = normalizeAvatarUrl($u['avatar_url'] ?? '');
+        $avatars[$uid] = ($normalized !== '' && avatarUrlIsServable($conn, $normalized))
+            ? $normalized
+            : '';
     }
 
     $stmt = $conn->prepare("
@@ -165,8 +226,16 @@ function attachProfileMedia(PDO $conn, array $rows, string $userIdKey = 'user_id
         if ($bid > 0 && empty($owned[$uid][$bid])) {
             $bid = 0;
         }
-        $row['border_id'] = $bid;
-        $row['border_preview'] = $bid > 0 ? ($borders[$uid] ?? '') : '';
+        $preview = $bid > 0 ? ($borders[$uid] ?? '') : '';
+        // Drop borders whose shop image file is missing
+        if ($preview !== '' && str_starts_with($preview, '/')) {
+            $borderFile = __DIR__ . str_replace('/', DIRECTORY_SEPARATOR, $preview);
+            if (!is_file($borderFile)) {
+                $preview = '';
+            }
+        }
+        $row['border_id'] = $preview !== '' ? $bid : 0;
+        $row['border_preview'] = $preview;
     }
     unset($row);
 

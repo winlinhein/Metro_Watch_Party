@@ -161,7 +161,7 @@ $bootAvatarSrc = $avatarUrl !== ''
 
     <link rel="stylesheet" href="https://cdn.plyr.io/3.7.8/plyr.css" />
     <script src="https://cdn.plyr.io/3.7.8/plyr.polyfilled.js"></script>
-    <script src="../js/nexus_scripts.js?v=1788155000"></script>
+    <script src="../js/nexus_scripts.js?v=1788159100"></script>
     <script src="https://unpkg.com/htmx.org@1.9.10/dist/htmx.min.js" crossorigin="anonymous"></script>
 </head>
 <body class="h-screen w-screen flex relative selection:bg-red-500/30" data-barba="wrapper">
@@ -172,13 +172,13 @@ $bootAvatarSrc = $avatarUrl !== ''
      class="flex h-full w-full" 
      data-barba="container" 
      data-barba-namespace="admin_dashboard" 
-     x-data="adminDashboard({ 
-         user_name: <?= json_encode($userName) ?>, 
-         email: <?= json_encode($userEmail) ?>,
-         avatar_url: <?= json_encode($avatarUrl) ?>,
-         border_preview: <?= json_encode($borderPreview) ?>,
-         active_border_id: <?= (int)$activeBorderId ?>
-     })" 
+     x-data="adminDashboard(<?= htmlspecialchars(json_encode([
+         'user_name' => $userName,
+         'email' => $userEmail,
+         'avatar_url' => $avatarUrl,
+         'border_preview' => $borderPreview,
+         'active_border_id' => (int)$activeBorderId,
+     ], JSON_UNESCAPED_SLASHES), ENT_QUOTES, 'UTF-8') ?>)"
      @view-comment="handleViewComment($event.detail)"
      x-init="initDashboard()">
 
@@ -227,7 +227,7 @@ $bootAvatarSrc = $avatarUrl !== ''
             <div class="flex items-center gap-4 bg-white/[0.03] border border-white/10 rounded-2xl px-5 py-3 w-[400px] focus-within:border-red-500/50 focus-within:bg-white/[0.05] transition-all duration-300 shadow-inner gs-header-item group">
                 <span class="material-symbols-outlined text-white/40 group-focus-within:text-red-400 transition-colors">search</span>
                 <input type="text" placeholder="Search databases..." class="bg-transparent border-none outline-none text-white text-sm w-full placeholder-white/30 font-medium">
-                <div class="px-2 py-0.5 rounded bg-white/10 text-[10px] text-white/50 mono border border-white/5">😘</div>
+                <div class="px-2 py-0.5 rounded bg-white/10 text-[10px] text-white/50 mono border border-white/5">ðŸ˜˜</div>
             </div>
             
             <div class="flex items-center gap-6 relative">

@@ -5,7 +5,7 @@ require_once __DIR__ . '/../conn.php';
 
 header('Content-Type: application/json');
 
-if (empty($_SESSION['user_role']) || $_SESSION['user_role'] !== 'admin') {
+if (empty($_SESSION['user_role']) || !in_array(strtolower((string)$_SESSION['user_role']), ['admin', 'moderator'], true)) {
     echo json_encode(['success' => false, 'message' => 'Unauthorized']);
     exit;
 }

@@ -6,8 +6,9 @@ require_once __DIR__ . '/../profile_media_helper.php';
 
 header('Content-Type: application/json');
 
-// Ensure user is an admin
-if (empty($_SESSION['user_role']) || $_SESSION['user_role'] !== 'admin') {
+// Ensure user is an admin or moderator
+$role = strtolower((string)($_SESSION['user_role'] ?? ''));
+if (empty($_SESSION['user_role']) || !in_array($role, ['admin', 'moderator'], true)) {
     echo json_encode(['error' => 'Unauthorized access.']);
     exit;
 }

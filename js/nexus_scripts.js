@@ -4854,16 +4854,16 @@ function adminDashboard(userData = {}) {
             }
         },
 
-        notification: {
+        profileAlert: {
             show: false,
             type: 'error',
             message: ''
         },
 
         showNotification(message, type = 'error') {
-            this.notification.message = message;
-            this.notification.type = type;
-            this.notification.show = true;
+            this.profileAlert.message = message;
+            this.profileAlert.type = type;
+            this.profileAlert.show = true;
             window.scrollTo({ top: 0, behavior: 'smooth' });
         },
 
@@ -4881,7 +4881,7 @@ function adminDashboard(userData = {}) {
         },
 
         async saveProfile() {
-            this.notification.show = false;
+            this.profileAlert.show = false;
 
             // Run validation
             const errors = typeof window.validateProfileForm === 'function' 
@@ -4922,7 +4922,7 @@ function adminDashboard(userData = {}) {
         async confirmDeleteAccount() {
             // Reset previous errors
             this.deleteAccountError = '';
-            this.notification.show = false;
+            this.profileAlert.show = false;
 
             // 1. Client-side check: No password entered
             if (!this.deleteAccountPassword.trim()) {

@@ -172,7 +172,7 @@
                                     <div class="flex items-center gap-2.5">
                                         <div class="relative w-8 h-8 shrink-0 overflow-visible" style="width: 2rem; height: 2rem;">
                                             <div class="absolute inset-0 z-0 overflow-hidden rounded-full scale-[1.15] bg-red-500/20">
-                                                <img x-show="selectedReport.reported_avatar_url" :src="selectedReport.reported_avatar_url" class="absolute inset-0 h-full w-full object-cover" alt="">
+                                                <img x-show="selectedReport.reported_avatar_url" :src="resolveAvatarUrl ? resolveAvatarUrl(selectedReport.reported_avatar_url, selectedReport.reported_user_name || 'User') : selectedReport.reported_avatar_url" @error="$el.style.display='none'" class="absolute inset-0 h-full w-full object-cover" alt="">
                                                 <div x-show="!selectedReport.reported_avatar_url" class="absolute inset-0 flex items-center justify-center text-[11px] font-bold text-red-100 uppercase"
                                                      x-text="(selectedReport.reported_user || 'U').charAt(0)"></div>
                                             </div>

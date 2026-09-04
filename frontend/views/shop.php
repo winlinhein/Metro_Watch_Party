@@ -26,7 +26,7 @@
                         <div class="absolute inset-0 overflow-hidden rounded-full bg-[#111116] shadow-inner scale-[1.18]">
                             <span class="material-symbols-outlined text-white/10 text-3xl absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">person</span>
                         </div>
-                        <img :src="item.image" class="absolute inset-0 z-20 h-full w-full object-contain pointer-events-none scale-[1.38] mix-blend-screen drop-shadow-[0_0_15px_rgba(255,255,255,0.2)]">
+                        <img :src="item.image || 'https://via.placeholder.com/120x120/0d0d12/666666?text=No+Image'" @error="$el.src='https://via.placeholder.com/120x120/0d0d12/666666?text=No+Image'" class="absolute inset-0 z-20 h-full w-full object-contain pointer-events-none scale-[1.38] mix-blend-screen drop-shadow-[0_0_15px_rgba(255,255,255,0.2)]">
                     </div>
                 </div>
 

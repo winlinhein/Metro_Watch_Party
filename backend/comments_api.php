@@ -5,8 +5,9 @@ header('Content-Type: application/json');
 require_once __DIR__ . '/../conn.php';
 require_once __DIR__ . '/../profile_media_helper.php';
 
-// Admin authentication
-if (empty($_SESSION['authenticated']) || $_SESSION['user_role'] !== 'admin') {
+// Admin / moderator authentication
+$role = strtolower((string)($_SESSION['user_role'] ?? ''));
+if (empty($_SESSION['authenticated']) || !in_array($role, ['admin', 'moderator'], true)) {
     http_response_code(403);
     echo json_encode(['error' => 'Unauthorized']);
     exit;

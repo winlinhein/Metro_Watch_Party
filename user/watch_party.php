@@ -89,7 +89,7 @@ $userEmail = $_SESSION['user_email'] ?? '';
 <script src="https://unpkg.com/htmx.org@1.9.10/dist/htmx.min.js" crossorigin="anonymous"></script>
 
 <!-- 2. Your Custom Scripts Last -->
-<script src="../js/nexus_scripts.js?v=1788155000"></script>
+<script src="../js/nexus_scripts.js?v=1788159000"></script>
 <script src="watch_party.js?v=<?php echo time(); ?>"></script>
 </head>
 <body class="h-screen w-screen flex relative selection:bg-red-500/30" data-barba="wrapper">

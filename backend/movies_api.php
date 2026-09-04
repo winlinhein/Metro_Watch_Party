@@ -1,6 +1,7 @@
 <?php
 session_start();
-if (empty($_SESSION['authenticated']) || $_SESSION['user_role'] !== 'admin') {
+$role = strtolower((string)($_SESSION['user_role'] ?? ''));
+if (empty($_SESSION['authenticated']) || !in_array($role, ['admin', 'moderator'], true)) {
     http_response_code(403);
     echo json_encode(['error' => 'Unauthorized']);
     exit();
@@ -9,20 +10,14 @@ header('Content-Type: application/json');
 require_once __DIR__ . '/../conn.php';
 require_once __DIR__ . '/../poster_helper.php';
 
-// Session authentication check
-if (
-    empty($_SESSION['authenticated']) || 
-    $_SESSION['authenticated'] !== true || 
-    empty($_SESSION['user_role']) || 
-    $_SESSION['user_role'] !== 'admin'
-) {
+$method = $_SERVER['REQUEST_METHOD'];
+
+// Mutations require full admin
+if ($method !== 'GET' && $role !== 'admin') {
     http_response_code(403);
     echo json_encode(['error' => 'Access denied: Admin permissions required']);
     exit();
 }
-
-$method = $_SERVER['REQUEST_METHOD'];
-
 // -------------------------------------------------------------
 // GET: Fetch all movies along with ratings and combined genres
 // -------------------------------------------------------------

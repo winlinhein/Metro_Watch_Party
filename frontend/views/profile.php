@@ -1,39 +1,39 @@
 <!-- Profile View -->
 <div data-tab-panel="profile" style="display: none;" class="absolute inset-0 p-10 w-full min-h-full overflow-y-auto">
     <!-- Inline Notification Banner -->
-    <div x-show="notification.show" 
+    <div x-show="profileAlert.show" 
         x-transition:enter="transition ease-out duration-300"
         x-transition:enter-start="opacity-0 -translate-y-4"
         x-transition:enter-end="opacity-100 translate-y-0"
         x-transition:leave="transition ease-in duration-200"
         x-transition:leave-start="opacity-100 translate-y-0"
         x-transition:leave-end="opacity-0 -translate-y-4"
-        :class="notification.type === 'error' ? 'bg-red-500/10 border-red-500/30 text-red-300' : 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300'"
+        :class="profileAlert.type === 'error' ? 'bg-red-500/10 border-red-500/30 text-red-300' : 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300'"
         class="mb-6 p-4 rounded-2xl border backdrop-blur-md flex items-start justify-between gap-4 shadow-lg"
         style="display: none;">
         
         <div class="flex items-start gap-3">
             <!-- Icon -->
             <span class="material-symbols-outlined text-xl mt-0.5" 
-                x-text="notification.type === 'error' ? 'error' : 'check_circle'"></span>
+                x-text="profileAlert.type === 'error' ? 'error' : 'check_circle'"></span>
             
             <!-- Message Container (Handles single string or error array) -->
             <div class="text-xs font-medium space-y-1">
-                <template x-if="Array.isArray(notification.message)">
+                <template x-if="Array.isArray(profileAlert.message)">
                     <ul class="list-disc list-inside space-y-1">
-                        <template x-for="msg in notification.message" :key="msg">
+                        <template x-for="msg in profileAlert.message" :key="msg">
                             <li x-text="msg"></li>
                         </template>
                     </ul>
                 </template>
-                <template x-if="!Array.isArray(notification.message)">
-                    <p x-text="notification.message"></p>
+                <template x-if="!Array.isArray(profileAlert.message)">
+                    <p x-text="profileAlert.message"></p>
                 </template>
             </div>
         </div>
 
         <!-- Dismiss Button -->
-        <button @click="notification.show = false" class="text-white/40 hover:text-white transition-colors">
+        <button @click="profileAlert.show = false" class="text-white/40 hover:text-white transition-colors">
             <span class="material-symbols-outlined text-sm">close</span>
         </button>
     </div>

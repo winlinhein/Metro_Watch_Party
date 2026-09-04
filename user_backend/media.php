@@ -11,6 +11,16 @@ require_once __DIR__ . '/../media_store_helper.php';
 
 ensureMediaTable($conn);
 
+function mediaNotFoundImage(): void
+{
+    http_response_code(404);
+    $png = base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO5W2XQAAAAASUVORK5CYII=');
+    header('Content-Type: image/png');
+    header('Cache-Control: no-store');
+    echo $png;
+    exit;
+}
+
 $id = isset($_GET['id']) ? (int)$_GET['id'] : 0;
 $path = isset($_GET['path']) ? trim((string)$_GET['path']) : '';
 
@@ -21,10 +31,7 @@ if ($id > 0) {
     $row = $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
 } elseif ($path !== '') {
     if (!preg_match('#^/uploads/(avatars|chat_images)/[A-Za-z0-9._-]+$#', $path)) {
-        http_response_code(400);
-        header('Content-Type: text/plain');
-        echo 'Invalid path';
-        exit;
+        mediaNotFoundImage();
     }
     $stmt = $conn->prepare("SELECT id, public_path, mime_type, file_data FROM media_files WHERE public_path = ? LIMIT 1");
     $stmt->execute([$path]);
@@ -41,23 +48,14 @@ if ($id > 0) {
             readfile($local);
             exit;
         }
-        http_response_code(404);
-        header('Content-Type: text/plain');
-        echo 'Not found';
-        exit;
+        mediaNotFoundImage();
     }
 } else {
-    http_response_code(400);
-    header('Content-Type: text/plain');
-    echo 'Missing id or path';
-    exit;
+    mediaNotFoundImage();
 }
 
 if (!$row) {
-    http_response_code(404);
-    header('Content-Type: text/plain');
-    echo 'Not found';
-    exit;
+    mediaNotFoundImage();
 }
 
 $publicPath = $row['public_path'];
@@ -74,10 +72,7 @@ if (is_file($local)) {
 
 $data = $row['file_data'];
 if ($data === null || $data === '') {
-    http_response_code(404);
-    header('Content-Type: text/plain');
-    echo 'Not found';
-    exit;
+    mediaNotFoundImage();
 }
 
 // Warm local cache for this machine
