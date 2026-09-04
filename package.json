@@ -48,5 +48,12 @@
   "bugs": {
     "url": "https://github.com/winlinhein/Metro_Watch_Party/issues"
   },
-  "homepage": "https://github.com/winlinhein/Metro_Watch_Party#readme"
+  "homepage": "https://github.com/winlinhein/Metro_Watch_Party#readme",
+  "allowScripts": {
+    "@google/genai@2.21.0": true,
+    "esbuild@0.25.12": true,
+    "esbuild@0.28.2": true,
+    "protobufjs@7.6.6": true,
+    "puppeteer@25.10.0": true
+  }
 }

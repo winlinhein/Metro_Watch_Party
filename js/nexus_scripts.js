@@ -3075,7 +3075,11 @@ function watchParty() {
         },
 
        connectSignaling() {
-            this.socket = io(); 
+            const signalingUrl = window.NEXUS_SIGNALING_URL
+                || (location.port && location.port !== '3000'
+                    ? `${location.protocol}//${location.hostname}:3000`
+                    : undefined);
+            this.socket = signalingUrl ? io(signalingUrl) : io();
 
             this.socket.on('connect', () => {
                 console.log("Connected to signaling server with ID:", this.socket.id);
@@ -3086,6 +3090,10 @@ function watchParty() {
                 if (myUserId) {
                     this.socket.emit('register-user', myUserId);
                 }
+            });
+
+            this.socket.on('connect_error', (err) => {
+                console.warn("Signaling server connection error:", err.message);
             });
 
             this.socket.on('receive-invite', (data) => {

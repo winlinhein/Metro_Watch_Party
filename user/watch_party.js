@@ -286,9 +286,13 @@ function watchParty() {
         },
 
         connectSignaling() {
-            // Use same-origin auto-detection (works with Node dev server AND PHP/XAMPP setups)
-            // Do NOT hardcode 'http://localhost:3000' as that breaks non-localhost deployments
-            this.socket = io();
+            // PHP pages (e.g. :9000) don't serve Socket.io — use Node signaling on :3000 locally.
+            // Override with window.NEXUS_SIGNALING_URL when needed.
+            const signalingUrl = window.NEXUS_SIGNALING_URL
+                || (location.port && location.port !== '3000'
+                    ? `${location.protocol}//${location.hostname}:3000`
+                    : undefined);
+            this.socket = signalingUrl ? io(signalingUrl) : io();
 
             this.socket.on('connect', () => {
                 console.log("Connected to signaling server with ID:", this.socket.id);

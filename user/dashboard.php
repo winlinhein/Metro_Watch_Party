@@ -881,8 +881,12 @@ $nexusUserBoot = [
 <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
 
 <script>
-    // Initialize a global socket connection
-    const globalSocket = io('/'); 
+    // Initialize a global socket connection (Node signaling on :3000 when PHP serves the page)
+    const signalingUrl = window.NEXUS_SIGNALING_URL
+        || (location.port && location.port !== '3000'
+            ? `${location.protocol}//${location.hostname}:3000`
+            : undefined);
+    const globalSocket = signalingUrl ? io(signalingUrl) : io('/'); 
     
     // NOTE: This needs to be the actual logged-in user's ID
     const currentUserId = window.CURRENT_USER_ID; 
