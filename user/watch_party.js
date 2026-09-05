@@ -1,4 +1,7 @@
 function watchParty() {
+    const peerConnections = {};
+    const pendingCandidates = {};
+
     return {
 
         showMovieModal: false,
@@ -26,6 +29,10 @@ function watchParty() {
         isMuted: false,
         isVideoOn: true,
         localStream: null,
+        iceServers: [
+            { urls: 'stun:stun.l.google.com:19302' },
+            { urls: 'stun:stun1.l.google.com:19302' }
+        ],
         participants: [],
         messages: [],
         newMessage: '',
@@ -50,10 +57,10 @@ function watchParty() {
                 }
             });
 
-            this.fetchRoomDetails();
             this.fetchFriends();
             this.fetchMovies();
-            this.startLocalMedia();
+            await this.startLocalMedia();
+            await this.fetchRoomDetails();
             this.connectSignaling();
         },
 
@@ -77,6 +84,9 @@ function watchParty() {
                 // 1. Identify Host Status
                 this.isHost = (parseInt(room.host_id) === parseInt(window.CURRENT_USER_ID));
                 this.roomName = `Room #${room.room_code}`;
+                if (room.room_id) {
+                    this.roomId = String(room.room_id);
+                }
 
                 // 2. Set Movie / Media Source if assigned
                 if (movie) {
@@ -109,17 +119,7 @@ function watchParty() {
                 if (!confirmEnd) return;
             }
 
-            // Stop local media tracks so camera/mic light turns off
-            if (this.localStream) {
-                this.localStream.getTracks().forEach(track => track.stop());
-                this.localStream = null;
-            }
-
-            // Disconnect from signaling server
-            if (this.socket) {
-                this.socket.disconnect();
-                this.socket = null;
-            }
+            this.teardownMediaAndPeers();
 
             try {
                 const res = await fetch(`../user_backend/leave_room.php?${query}`, {
@@ -262,26 +262,74 @@ function watchParty() {
         // ==========================================
         // WEBRTC & LOCAL MEDIA
         // ==========================================
+        localPreviewStream() {
+            if (!this.localStream) return null;
+            const videoTracks = this.localStream.getVideoTracks();
+            // Preview must never include the mic track — that is what causes self-echo.
+            return videoTracks.length ? new MediaStream(videoTracks) : null;
+        },
+
+        upsertParticipant(peer) {
+            const idx = this.participants.findIndex(p =>
+                (peer.socketId && p.socketId === peer.socketId) ||
+                (p.id && peer.id && String(p.id) === String(peer.id) && !p.isSelf)
+            );
+            if (idx >= 0) {
+                const prev = this.participants[idx];
+                this.participants.splice(idx, 1, {
+                    ...prev,
+                    ...peer,
+                    stream: peer.stream || prev.stream
+                });
+            } else {
+                this.participants.push(peer);
+            }
+            this.participants = [...this.participants];
+        },
+
+        teardownMediaAndPeers() {
+            Object.keys(peerConnections).forEach(id => {
+                try { peerConnections[id].close(); } catch (e) { /* ignore */ }
+                delete peerConnections[id];
+            });
+            Object.keys(pendingCandidates).forEach(id => { delete pendingCandidates[id]; });
+
+            if (this.localStream) {
+                this.localStream.getTracks().forEach(track => track.stop());
+                this.localStream = null;
+            }
+
+            if (this.socket) {
+                this.socket.disconnect();
+                this.socket = null;
+            }
+        },
+
         async startLocalMedia() {
             try {
-                // Request camera and mic access
-                this.localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+                this.localStream = await navigator.mediaDevices.getUserMedia({
+                    video: true,
+                    audio: {
+                        echoCancellation: true,
+                        noiseSuppression: true,
+                        autoGainControl: true
+                    }
+                });
 
-                // Add yourself to the participants sidebar
-                this.participants.push({
+                this.upsertParticipant({
                     id: 'local',
+                    socketId: 'local',
                     name: window.USER_NAME || 'You',
-                    stream: this.localStream,
+                    stream: this.localPreviewStream(),
                     muted: this.isMuted,
                     videoOn: this.isVideoOn,
                     speaking: false,
-                    isSelf: true // Mutes your own video element so you don't hear an echo
+                    isSelf: true
                 });
 
             } catch (e) {
                 console.error("Camera/Mic access denied or unavailable.", e);
 
-                // Determine a friendly error message
                 let msg = "Camera/mic unavailable.";
                 if (e.name === 'NotAllowedError' || e.name === 'PermissionDeniedError') {
                     msg = "Camera/mic permission denied. Please allow access in your browser settings.";
@@ -293,16 +341,15 @@ function watchParty() {
                     msg = "Camera/mic constraints could not be satisfied.";
                 }
 
-                // Show toast if available, otherwise console warn
                 if (window.showToast) {
                     window.showToast(msg, 'error');
                 } else {
                     console.warn(msg);
                 }
 
-                // Still add a placeholder participant so the UI slot appears
-                this.participants.push({
+                this.upsertParticipant({
                     id: 'local',
+                    socketId: 'local',
                     name: window.USER_NAME || 'You',
                     stream: null,
                     muted: true,
@@ -311,6 +358,194 @@ function watchParty() {
                     isSelf: true
                 });
             }
+        },
+
+        normalizePeer(data) {
+            if (data && typeof data === 'object') {
+                return {
+                    socketId: data.socketId || data.fromSocketId || null,
+                    userId: data.userId,
+                    userName: data.userName || data.name || 'Guest'
+                };
+            }
+            return { socketId: null, userId: data, userName: 'Guest' };
+        },
+
+        createPeerConnection(peerSocketId, peerMeta = {}) {
+            if (!peerSocketId || peerSocketId === this.socket?.id) return null;
+            if (peerConnections[peerSocketId]) return peerConnections[peerSocketId];
+
+            const pc = new RTCPeerConnection({ iceServers: this.iceServers });
+            peerConnections[peerSocketId] = pc;
+
+            if (this.localStream) {
+                this.localStream.getTracks().forEach(track => {
+                    pc.addTrack(track, this.localStream);
+                });
+            }
+
+            pc.onicecandidate = (event) => {
+                if (event.candidate && this.socket) {
+                    this.socket.emit('ice-candidate', {
+                        targetSocketId: peerSocketId,
+                        candidate: event.candidate,
+                        fromSocketId: this.socket.id
+                    });
+                }
+            };
+
+            pc.ontrack = (event) => {
+                const stream = event.streams[0] || new MediaStream([event.track]);
+                this.upsertParticipant({
+                    id: peerMeta.userId || peerSocketId,
+                    socketId: peerSocketId,
+                    name: peerMeta.userName || 'Guest',
+                    stream,
+                    muted: false,
+                    videoOn: true,
+                    speaking: false,
+                    isSelf: false
+                });
+            };
+
+            pc.onconnectionstatechange = () => {
+                if (pc.connectionState === 'failed' || pc.connectionState === 'closed' || pc.connectionState === 'disconnected') {
+                    if (pc.connectionState !== 'disconnected') {
+                        this.removePeer({ socketId: peerSocketId });
+                    }
+                }
+            };
+
+            return pc;
+        },
+
+        async callPeer(peer) {
+            const { socketId, userId, userName } = this.normalizePeer(peer);
+            if (!socketId || !this.socket || socketId === this.socket.id) return;
+
+            this.upsertParticipant({
+                id: userId || socketId,
+                socketId,
+                name: userName || 'Guest',
+                stream: null,
+                muted: false,
+                videoOn: true,
+                speaking: false,
+                isSelf: false
+            });
+
+            const pc = this.createPeerConnection(socketId, { userId, userName });
+            if (!pc || pc.localDescription) return;
+
+            try {
+                const offer = await pc.createOffer();
+                await pc.setLocalDescription(offer);
+                this.socket.emit('offer', {
+                    targetSocketId: socketId,
+                    sdp: pc.localDescription,
+                    fromSocketId: this.socket.id,
+                    userId: Number(window.CURRENT_USER_ID) || null,
+                    userName: window.USER_NAME || 'You'
+                });
+            } catch (e) {
+                console.error('Failed to create offer for', socketId, e);
+            }
+        },
+
+        async handleOffer(data) {
+            const fromSocketId = data.fromSocketId;
+            if (!fromSocketId || fromSocketId === this.socket?.id) return;
+
+            this.upsertParticipant({
+                id: data.userId || fromSocketId,
+                socketId: fromSocketId,
+                name: data.userName || 'Guest',
+                stream: null,
+                muted: false,
+                videoOn: true,
+                speaking: false,
+                isSelf: false
+            });
+
+            const pc = this.createPeerConnection(fromSocketId, {
+                userId: data.userId,
+                userName: data.userName
+            });
+            if (!pc) return;
+
+            try {
+                await pc.setRemoteDescription(new RTCSessionDescription(data.sdp));
+                await this.flushPendingCandidates(fromSocketId);
+                const answer = await pc.createAnswer();
+                await pc.setLocalDescription(answer);
+                this.socket.emit('answer', {
+                    targetSocketId: fromSocketId,
+                    sdp: pc.localDescription,
+                    fromSocketId: this.socket.id,
+                    userId: Number(window.CURRENT_USER_ID) || null,
+                    userName: window.USER_NAME || 'You'
+                });
+            } catch (e) {
+                console.error('Failed to handle offer from', fromSocketId, e);
+            }
+        },
+
+        async handleAnswer(data) {
+            const fromSocketId = data.fromSocketId;
+            const pc = peerConnections[fromSocketId];
+            if (!pc) return;
+            try {
+                if (!pc.currentRemoteDescription) {
+                    await pc.setRemoteDescription(new RTCSessionDescription(data.sdp));
+                    await this.flushPendingCandidates(fromSocketId);
+                }
+            } catch (e) {
+                console.error('Failed to handle answer from', fromSocketId, e);
+            }
+        },
+
+        async handleIceCandidate(data) {
+            const fromSocketId = data.fromSocketId;
+            if (!fromSocketId || !data.candidate) return;
+            const pc = peerConnections[fromSocketId];
+            if (pc && pc.remoteDescription) {
+                try {
+                    await pc.addIceCandidate(new RTCIceCandidate(data.candidate));
+                } catch (e) {
+                    console.warn('Failed to add ICE candidate', e);
+                }
+                return;
+            }
+            if (!pendingCandidates[fromSocketId]) pendingCandidates[fromSocketId] = [];
+            pendingCandidates[fromSocketId].push(data.candidate);
+        },
+
+        async flushPendingCandidates(socketId) {
+            const pc = peerConnections[socketId];
+            const queued = pendingCandidates[socketId] || [];
+            pendingCandidates[socketId] = [];
+            for (const candidate of queued) {
+                try {
+                    await pc.addIceCandidate(new RTCIceCandidate(candidate));
+                } catch (e) {
+                    console.warn('Failed to flush ICE candidate', e);
+                }
+            }
+        },
+
+        removePeer(payload) {
+            const peer = this.normalizePeer(payload);
+            const socketId = peer.socketId;
+            if (socketId && peerConnections[socketId]) {
+                try { peerConnections[socketId].close(); } catch (e) { /* ignore */ }
+                delete peerConnections[socketId];
+            }
+            this.participants = this.participants.filter(p => {
+                if (p.isSelf) return true;
+                if (socketId && p.socketId === socketId) return false;
+                if (!socketId && peer.userId && String(p.id) === String(peer.userId)) return false;
+                return true;
+            });
         },
 
         connectSignaling() {
@@ -325,14 +560,14 @@ function watchParty() {
             this.socket.on('connect', () => {
                 console.log("Connected to signaling server with ID:", this.socket.id);
                 const myUserId = Number(window.CURRENT_USER_ID);
+                const myName = window.USER_NAME || 'You';
 
                 if (myUserId) {
                     this.socket.emit('register-user', myUserId);
                 }
 
-                // Join the watch party room for WebRTC signaling
                 if (this.roomId) {
-                    this.socket.emit('join-room', this.roomId, myUserId);
+                    this.socket.emit('join-room', String(this.roomId), myUserId, myName);
                 }
             });
 
@@ -356,15 +591,58 @@ function watchParty() {
                 }));
             });
 
-            // --- WebRTC peer events ---
-            this.socket.on('user-connected', (userId) => {
-                console.log("Peer joined room:", userId);
+            this.socket.on('existing-users', (users) => {
+                (users || []).forEach(peer => this.callPeer(peer));
             });
 
-            this.socket.on('user-disconnected', (userId) => {
-                console.log("Peer left room:", userId);
-                // Remove from participants list
-                this.participants = this.participants.filter(p => p.id !== userId);
+            this.socket.on('user-connected', (data) => {
+                const peer = this.normalizePeer(data);
+                console.log("Peer joined room:", peer);
+                this.upsertParticipant({
+                    id: peer.userId || peer.socketId,
+                    socketId: peer.socketId,
+                    name: peer.userName || 'Guest',
+                    stream: null,
+                    muted: false,
+                    videoOn: true,
+                    speaking: false,
+                    isSelf: false
+                });
+                this.createPeerConnection(peer.socketId, peer);
+            });
+
+            this.socket.on('user-disconnected', (data) => {
+                console.log("Peer left room:", data);
+                this.removePeer(data);
+            });
+
+            this.socket.on('offer', (data) => this.handleOffer(data));
+            this.socket.on('answer', (data) => this.handleAnswer(data));
+            this.socket.on('ice-candidate', (data) => this.handleIceCandidate(data));
+
+            this.socket.on('peer-mic-changed', ({ userId, socketId, isMuted }) => {
+                const p = this.participants.find(x => x.socketId === socketId || String(x.id) === String(userId));
+                if (p && !p.isSelf) {
+                    p.muted = isMuted;
+                    this.participants = [...this.participants];
+                }
+            });
+
+            this.socket.on('peer-video-changed', ({ userId, socketId, isVideoOn }) => {
+                const p = this.participants.find(x => x.socketId === socketId || String(x.id) === String(userId));
+                if (p && !p.isSelf) {
+                    p.videoOn = isVideoOn;
+                    this.participants = [...this.participants];
+                }
+            });
+
+            this.socket.on('new_message', (msg) => {
+                if (msg.senderId && Number(msg.senderId) === Number(window.CURRENT_USER_ID)) return;
+                this.messages.push({ ...msg, isSelf: false });
+                this.$nextTick(() => {
+                    const container = document.getElementById('chat-container');
+                    if (container) container.scrollTop = container.scrollHeight;
+                });
             });
         },
 
@@ -433,7 +711,8 @@ function watchParty() {
                 text: this.newMessage.trim(),
                 time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
                 avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(window.USER_NAME || 'You')}&background=random&color=fff`,
-                isSelf: true
+                isSelf: true,
+                senderId: Number(window.CURRENT_USER_ID) || null
             };
 
             this.messages.push(msg);
@@ -467,6 +746,7 @@ function watchParty() {
             const localParticipant = this.participants.find(p => p.id === 'local');
             if (localParticipant) {
                 localParticipant.muted = this.isMuted;
+                this.participants = [...this.participants];
             }
 
             if (this.socket && this.socket.connected) {
@@ -488,6 +768,7 @@ function watchParty() {
             const localParticipant = this.participants.find(p => p.id === 'local');
             if (localParticipant) {
                 localParticipant.videoOn = this.isVideoOn;
+                this.participants = [...this.participants];
             }
 
             if (this.socket && this.socket.connected) {

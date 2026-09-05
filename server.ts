@@ -24,8 +24,14 @@ io.on("connection", (socket) => {
   });
   
   socket.on("send_message", (data) => {
-    // broadcast to everyone in the room
-    io.to(data.room).emit("new_message", data);
+    const room = String(data?.room ?? (socket as any)._roomId ?? "");
+    if (!room) return;
+    socket.to(room).emit("new_message", {
+      ...data,
+      isSelf: false,
+      senderId: (socket as any)._userId ?? data?.senderId,
+      fromSocketId: socket.id
+    });
   });
 
   // --- Lobby & Invite Events ---
@@ -52,32 +58,69 @@ io.on("connection", (socket) => {
   });
 
   // --- Watch Party Room & WebRTC Signaling Events ---
-  socket.on('join-room', (roomId, userId) => {
-      socket.join(roomId);
-      console.log(`User ${userId} joined room ${roomId}`);
-      // Store roomId and userId on the socket for disconnect cleanup
-      (socket as any)._roomId = roomId;
+  socket.on('join-room', async (roomId, userId, userName) => {
+      const room = String(roomId ?? '');
+      if (!room) return;
+
+      const payload = {
+          socketId: socket.id,
+          userId,
+          userName: userName || 'Guest'
+      };
+
+      const existing: Array<{ socketId: string; userId: unknown; userName: string }> = [];
+      const roomSet = io.sockets.adapter.rooms.get(room);
+      if (roomSet) {
+          for (const id of roomSet) {
+              if (id === socket.id) continue;
+              const peer = io.sockets.sockets.get(id) as any;
+              existing.push({
+                  socketId: id,
+                  userId: peer?._userId,
+                  userName: peer?._userName || 'Guest'
+              });
+          }
+      }
+
+      await socket.join(room);
+      (socket as any)._roomId = room;
       (socket as any)._userId = userId;
-      socket.to(roomId).emit('user-connected', userId);
+      (socket as any)._userName = payload.userName;
+      console.log(`User ${userId} (${socket.id}) joined room ${room}`);
+
+      socket.emit('existing-users', existing);
+      socket.to(room).emit('user-connected', payload);
   });
 
   socket.on('offer', (data) => {
-      socket.to(data.targetSocketId).emit('offer', data);
+      if (!data?.targetSocketId) return;
+      io.to(data.targetSocketId).emit('offer', {
+          ...data,
+          fromSocketId: data.fromSocketId || socket.id
+      });
   });
 
   socket.on('answer', (data) => {
-      socket.to(data.targetSocketId).emit('answer', data);
+      if (!data?.targetSocketId) return;
+      io.to(data.targetSocketId).emit('answer', {
+          ...data,
+          fromSocketId: data.fromSocketId || socket.id
+      });
   });
 
   socket.on('ice-candidate', (data) => {
-      socket.to(data.targetSocketId).emit('ice-candidate', data);
+      if (!data?.targetSocketId) return;
+      io.to(data.targetSocketId).emit('ice-candidate', {
+          ...data,
+          fromSocketId: data.fromSocketId || socket.id
+      });
   });
 
   socket.on('toggle-mic', (isMuted) => {
       const roomId = (socket as any)._roomId;
       const userId = (socket as any)._userId;
       if (roomId) {
-          socket.to(roomId).emit('peer-mic-changed', { userId, isMuted });
+          socket.to(roomId).emit('peer-mic-changed', { userId, socketId: socket.id, isMuted });
       }
   });
 
@@ -85,15 +128,18 @@ io.on("connection", (socket) => {
       const roomId = (socket as any)._roomId;
       const userId = (socket as any)._userId;
       if (roomId) {
-          socket.to(roomId).emit('peer-video-changed', { userId, isVideoOn });
+          socket.to(roomId).emit('peer-video-changed', { userId, socketId: socket.id, isVideoOn });
       }
   });
 
   socket.on('disconnect', () => {
       const roomId = (socket as any)._roomId;
       const userId = (socket as any)._userId;
-      if (roomId && userId) {
-          socket.to(roomId).emit('user-disconnected', userId);
+      if (roomId) {
+          socket.to(roomId).emit('user-disconnected', {
+              userId,
+              socketId: socket.id
+          });
       }
       console.log(`User disconnected: ${socket.id}`);
   });

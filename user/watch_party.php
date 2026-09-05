@@ -284,11 +284,14 @@ $userEmail = $_SESSION['user_email'] ?? '';
 
                     <!-- Video Grid (Participants) -->
                     <div class="flex flex-col gap-3 origin-top pointer-events-auto overflow-y-auto custom-scrollbar pr-1 pb-4" x-show="showParticipants" x-transition:enter="transition ease-out duration-300" x-transition:enter-start="opacity-0 scale-y-90" x-transition:enter-end="opacity-100 scale-y-100" x-transition:leave="transition ease-in duration-200" x-transition:leave-start="opacity-100 scale-y-100" x-transition:leave-end="opacity-0 scale-y-90">
-                        <template x-for="(user, index) in participants" :key="index">
+                        <template x-for="user in participants" :key="user.socketId || user.id">
                             <div class="participant-card w-full aspect-video hover:scale-105 transition-transform duration-300 bg-white/5 rounded-xl border border-white/10 overflow-hidden relative group shadow-lg shrink-0">
                                 <!-- Live video feed (only when stream is available) -->
-                                <template x-if="user.stream">
-                                    <video x-init="$el.srcObject = user.stream" autoplay playsinline class="w-full h-full object-cover" :muted="user.isSelf"></video>
+                                <template x-if="user.stream && user.isSelf">
+                                    <video x-effect="$el.srcObject = user.stream; $el.muted = true; $el.volume = 0; $el.defaultMuted = true;" autoplay playsinline muted class="w-full h-full object-cover"></video>
+                                </template>
+                                <template x-if="user.stream && !user.isSelf">
+                                    <video x-effect="$el.srcObject = user.stream; $el.muted = false;" autoplay playsinline class="w-full h-full object-cover"></video>
                                 </template>
                                 <!-- Placeholder avatar (when no stream — camera denied/unavailable) -->
                                 <template x-if="!user.stream">
