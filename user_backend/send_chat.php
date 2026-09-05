@@ -5,6 +5,7 @@ header('Content-Type: application/json');
 require_once __DIR__ . '/../conn.php';
 require_once __DIR__ . '/../pusher_helper.php';
 require_once __DIR__ . '/../media_store_helper.php';
+require_once __DIR__ . '/mission_progress.php';
 
 if (empty($_SESSION['authenticated']) || empty($_SESSION['user_id'])) {
     echo json_encode(['success' => false, 'message' => 'Unauthorized']);
@@ -92,6 +93,13 @@ try {
     }
 
     triggerPusherEvent($channelName, "new_message", $payload);
+
+     try {
+        updateMissionProgress($senderId, 'send_chat_message', 1);
+    } catch (Throwable $e) {
+        error_log('send_chat mission update: ' . $e->getMessage());
+    }
+
 } catch (PDOException $e) {
     echo json_encode(['success' => false, 'message' => 'Database error']);
 }

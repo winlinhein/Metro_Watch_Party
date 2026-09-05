@@ -931,17 +931,23 @@ function userDashboard() {
                 const data = await response.json();
                 
                 if (data.success) {
-                    // Update Total Points in stats array
-                    this.stats[3].value = data.totalPoints;
+                    // Update Total Points in stats array (only if Quests stat exists, for regular users)
+                    const questStat = this.stats.find(s => s.label === 'Quests');
+                    if (questStat) {
+                        questStat.value = data.totalPoints;
+                    }
                     
                     // Populate daily, weekly, and monthly quests dynamically
                     ['daily', 'weekly', 'monthly'].forEach(type => {
                         this.quests[type] = (data.quests[type] || []).map(q => ({
-                            id: q.mission_id,
+                            id: q.id,                              // ✅ correct field
                             title: q.title,
-                            desc: `Reward: ${q.points_reward} Points`, // Fixed backticks
-                            points: q.points_reward,
-                            completed: Number(q.completed) === 1
+                            desc: q.desc,                          // ✅ preformatted by backend
+                            points: q.points,                      // ✅ correct field
+                            completed: Number(q.completed) === 1,
+                            claimed: Number(q.claimed) === 1,
+                            progress: q.progress,
+                            target: q.target
                         }));
                     });
                 }
@@ -949,6 +955,27 @@ function userDashboard() {
                 console.error('Failed to fetch missions:', err);
             } finally {
                 this.statsLoading = false;
+            }
+        },
+
+        async claimQuest(missionId) {
+            try {
+                const res = await fetch('/user_backend/claim_mission.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ mission_id: missionId })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    if (window.showToast) window.showToast(`Claimed ${data.points_added} points!`, 'success');
+                    // Refresh missions and user points
+                    await this.loadMissions();
+                    await this.fetchUserProfile();
+                } else {
+                    if (window.showToast) window.showToast(data.message || 'Claim failed', 'error');
+                }
+            } catch (e) {
+                console.error('Claim error:', e);
             }
         },
 
@@ -2745,6 +2772,12 @@ function userDashboard() {
                 }
                 this.fetchNotifications();
             });
+
+            channel.bind('missions_updated', () => {
+                if (window.NEXUS_USER?.role === 'user') {
+                    this.loadMissions();
+                }
+            });
         },
 
         async init() { 
@@ -2795,20 +2828,27 @@ function userDashboard() {
                 await this.fetchShopItems();
             } else {
                 // Profile media already visible from PHP boot; refresh inventory/points in background
-                await Promise.all([
+                const isRegularUser = window.NEXUS_USER?.role === 'user';
+                const promises = [
                     this.fetchMovies(),
                     this.fetchWatchlist(),
                     this.fetchFriends(),
                     this.fetchNotifications(),
-                    this.loadMissions(),
                     this.fetchReasons(),
-                    this.fetchShopItems(),             
-                    this.fetchUserProfile(),         
+                    this.fetchShopItems(),
+                    this.fetchUserProfile(),
                     (async () => {
                         await this.checkPaymentStatus();
                         await this.fetchPremiumStatus();
                     })()
-                ]);
+                ];
+                if (isRegularUser) {
+                    promises.push(this.loadMissions());
+                }
+                if (!isRegularUser) {
+                    this.stats = this.stats.filter(stat => stat.label !== 'Quests');
+                }
+                await Promise.all(promises);
                 this.searchUsers();
                 this.buildAvailableBorders(); 
 
@@ -2846,6 +2886,7 @@ function userDashboard() {
             if (!this.isGuest) {
                 this.$watch('showQuestsPanel', value => {
                     if (value && typeof gsap !== 'undefined') {
+                        this.loadMissions();
                         this.$nextTick(() => {
                             gsap.fromTo('.quest-item',
                                 { x: 100, opacity: 0, scale: 0.8, rotationY: 45 },

@@ -2,6 +2,7 @@
 session_start();
 require_once __DIR__ . '/../conn.php';
 require_once __DIR__ . '/../pusher_helper.php';   // needed for triggerPusherEvent
+require_once __DIR__ . '/mission_progress.php';
 
 header('Content-Type: application/json');
 
@@ -66,11 +67,17 @@ try {
     ];
     triggerPusherEvent("movie-{$movieId}", 'view_count_updated', $viewData);
 
+    // 5. Update mission progress for watching a movie
+    try {
+        updateMissionProgress($userId, 'watch_movie', 1);
+    } catch (Exception $e) {
+        error_log('Mission update failed: ' . $e->getMessage());
+    }
+
     echo json_encode([
         'success' => true,
         'view_count' => $newCount
     ]);
-
 } catch (Exception $e) {
     if ($conn->inTransaction()) {
         $conn->rollBack();

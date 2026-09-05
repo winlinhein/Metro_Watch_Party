@@ -293,18 +293,45 @@ $nexusUserBoot = [
                 
                 <!-- Quest List -->
                 <div class="flex-1 overflow-y-auto p-6 relative z-10 space-y-4">
-                    <template x-for="quest in quests[questActiveTab]" :key="quest.id">
+                   <template x-for="quest in quests[questActiveTab]" :key="quest.id">
                         <div class="bg-white/5 border border-white/10 rounded-xl p-4">
                             <div class="flex justify-between items-start mb-2">
                                 <div>
                                     <h4 class="text-sm font-bold text-white" x-text="quest.title"></h4>
                                     <p class="text-[11px] text-white/50" x-text="quest.desc"></p>
                                 </div>
-                                <span class="material-symbols-outlined text-[18px]" :class="quest.completed ? 'text-green-400' : 'text-white/30'" x-text="quest.completed ? 'check_circle' : 'hourglass_empty'"></span>
+                                <span class="material-symbols-outlined text-[18px]" 
+                                    :class="quest.completed ? 'text-green-400' : 'text-white/30'" 
+                                    x-text="quest.completed ? 'check_circle' : 'hourglass_empty'"></span>
                             </div>
-                            <div class="flex justify-between items-center mt-3">
-                                <span class="text-[10px] font-bold text-yellow-400 mono" x-text="quest.points + ' PTS'"></span>
-                                <button class="text-[10px] uppercase font-bold text-yellow-400 hover:underline" x-text="quest.completed ? 'Claimed' : 'Claim'"></button>
+
+                            <!-- Progress Bar -->
+                            <div class="mt-3">
+                                <div class="flex justify-between items-center mb-1">
+                                    <span class="text-[10px] font-bold text-white/60 mono">
+                                        Progress: <span x-text="quest.progress + '/' + quest.target"></span>
+                                    </span>
+                                    <span class="text-[10px] font-bold text-yellow-400 mono" x-text="quest.points + ' PTS'"></span>
+                                </div>
+                                <div class="w-full bg-white/10 rounded-full h-2 overflow-hidden">
+                                    <div class="h-full rounded-full transition-all duration-500"
+                                        :class="quest.completed ? 'bg-green-500' : 'bg-yellow-500'"
+                                        :style="`width: ${Math.min(100, (quest.progress / quest.target) * 100)}%`"></div>
+                                </div>
+                            </div>
+
+                            <!-- Claim Button -->
+                            <div class="flex justify-end mt-3">
+                                <button @click="claimQuest(quest.id)" 
+                                        :disabled="!quest.completed || quest.claimed"
+                                        class="text-[10px] uppercase font-bold tracking-wider px-3 py-1.5 rounded-lg transition-all"
+                                        :class="quest.claimed 
+                                            ? 'bg-green-500/20 text-green-400 border border-green-500/30 cursor-default' 
+                                            : (quest.completed 
+                                                ? 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/30 hover:bg-yellow-500/30 cursor-pointer' 
+                                                : 'bg-white/5 text-white/30 border border-white/10 cursor-default')"
+                                        x-text="quest.claimed ? 'Claimed' : (quest.completed ? 'Claim' : 'In Progress')">
+                                </button>
                             </div>
                         </div>
                     </template>

@@ -3,6 +3,7 @@ session_start();
 require_once __DIR__ . '/../conn.php';
 require_once __DIR__ . '/../pusher_helper.php';
 require_once __DIR__ . '/../profile_media_helper.php';
+require_once __DIR__ . '/mission_progress.php';
 
 header('Content-Type: application/json');
 
@@ -29,6 +30,12 @@ try {
             WHERE user_id_1 = :sender AND user_id_2 = :receiver AND status = 'pending'
         ");
         $stmt->execute([':sender' => $senderId, ':receiver' => $userId]);
+  
+        try {
+            updateMissionProgress($userId, 'add_friend', 1);
+        } catch (Throwable $e) {
+            error_log('add_friend mission update: ' . $e->getMessage());
+        }
 
         // Send acceptance notification to sender
         $notifStmt = $conn->prepare("
