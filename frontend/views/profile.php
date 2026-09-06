@@ -187,7 +187,7 @@
                         <span class="material-symbols-outlined text-white/20 text-2xl group-hover:text-white/40 transition-colors">block</span>
                     </template>
                     <template x-if="border.url">
-                        <img :src="border.url" class="absolute inset-0 w-full h-full object-cover">
+                        <img :src="border.url" loading="lazy" decoding="async" class="absolute inset-0 w-full h-full object-cover">
                     </template>
                     
                     <!-- Selected Indicator -->

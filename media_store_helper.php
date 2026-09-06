@@ -225,6 +225,81 @@ function deleteMediaByPublicPath(PDO $conn, string $publicPath): void
     $stmt->execute([$publicPath]);
 }
 
+function storedMediaPublicPath(?string $stored): string
+{
+    $stored = trim((string)$stored);
+    if ($stored === '') {
+        return '';
+    }
+    if (preg_match('/[?&]path=([^&]+)/', $stored, $m)) {
+        return rawurldecode($m[1]);
+    }
+    if (str_starts_with($stored, '/uploads/')) {
+        return $stored;
+    }
+    if (!str_contains($stored, '/')) {
+        return '/uploads/avatars/' . ltrim($stored, '/');
+    }
+    return '';
+}
+
+function deleteStoredMedia(PDO $conn, ?string $stored): void
+{
+    $stored = trim((string)$stored);
+    if ($stored === '') {
+        return;
+    }
+    ensureMediaTable($conn);
+
+    if (preg_match('/[?&]id=(\d+)/', $stored, $m)) {
+        $id = (int)$m[1];
+        $find = $conn->prepare('SELECT public_path FROM media_files WHERE id = ?');
+        $find->execute([$id]);
+        $path = (string)($find->fetchColumn() ?: '');
+        if ($path !== '') {
+            deleteMediaByPublicPath($conn, $path);
+        } else {
+            $del = $conn->prepare('DELETE FROM media_files WHERE id = ?');
+            $del->execute([$id]);
+        }
+        return;
+    }
+
+    $path = storedMediaPublicPath($stored);
+    if ($path !== '') {
+        deleteMediaByPublicPath($conn, $path);
+    }
+}
+
+function deletePreviousUserAvatars(PDO $conn, int $userId, ?string $keepPublicPath = null): void
+{
+    if ($userId <= 0) {
+        return;
+    }
+    ensureMediaTable($conn);
+
+    $stmt = $conn->prepare("SELECT public_path FROM media_files WHERE user_id = ? AND public_path LIKE '/uploads/avatars/%'");
+    $stmt->execute([$userId]);
+    foreach ($stmt->fetchAll(PDO::FETCH_COLUMN) as $path) {
+        if ($keepPublicPath && $path === $keepPublicPath) {
+            continue;
+        }
+        deleteMediaByPublicPath($conn, $path);
+    }
+
+    $dir = __DIR__ . DIRECTORY_SEPARATOR . 'uploads' . DIRECTORY_SEPARATOR . 'avatars' . DIRECTORY_SEPARATOR;
+    if (!is_dir($dir)) {
+        return;
+    }
+    foreach (glob($dir . 'user_' . $userId . '_*') ?: [] as $file) {
+        $public = '/uploads/avatars/' . basename($file);
+        if ($keepPublicPath && $public === $keepPublicPath) {
+            continue;
+        }
+        deleteMediaByPublicPath($conn, $public);
+    }
+}
+
 function mediaServeUrlFromStored(?string $stored): string
 {
     $stored = trim((string)$stored);
@@ -234,7 +309,7 @@ function mediaServeUrlFromStored(?string $stored): string
     if (str_starts_with($stored, '/user_backend/media.php')) {
         return $stored;
     }
-    if (preg_match('#^/uploads/(avatars|chat_images)/#', $stored)) {
+    if (preg_match('#^/uploads/(avatars|chat_images|shop)/#', $stored)) {
         return '/user_backend/media.php?path=' . rawurlencode($stored);
     }
     return $stored;

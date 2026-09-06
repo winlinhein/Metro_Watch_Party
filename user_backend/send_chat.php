@@ -5,9 +5,10 @@ header('Content-Type: application/json');
 require_once __DIR__ . '/../conn.php';
 require_once __DIR__ . '/../pusher_helper.php';
 require_once __DIR__ . '/../media_store_helper.php';
+require_once __DIR__ . '/../json_respond.php';
 require_once __DIR__ . '/mission_progress.php';
 
-if (empty($_SESSION['authenticated']) || empty($_SESSION['user_id'])) {
+if (empty($_SESSION['user_id'])) {
     echo json_encode(['success' => false, 'message' => 'Unauthorized']);
     exit();
 }
@@ -15,6 +16,7 @@ if (empty($_SESSION['authenticated']) || empty($_SESSION['user_id'])) {
 $senderId = (int)$_SESSION['user_id'];
 $receiverId = (int)($_POST['receiver_id'] ?? 0);
 $messageText = trim($_POST['message'] ?? '');
+session_write_close();
 
 if (!$receiverId) {
     echo json_encode(['success' => false, 'message' => 'Missing receiver ID']);
@@ -86,11 +88,7 @@ try {
         'time'         => $time
     ];
 
-    echo json_encode(['success' => true, 'data' => $payload]);
-
-    if (function_exists('fastcgi_finish_request')) {
-        fastcgi_finish_request();
-    }
+    jsonRespondAndContinue(['success' => true, 'data' => $payload]);
 
     triggerPusherEvent($channelName, "new_message", $payload);
 

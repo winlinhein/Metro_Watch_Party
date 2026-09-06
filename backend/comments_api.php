@@ -13,6 +13,8 @@ if (empty($_SESSION['authenticated']) || !in_array($role, ['admin', 'moderator']
     exit;
 }
 
+session_write_close();
+
 $method = $_SERVER['REQUEST_METHOD'];
 
 // -------------------------------------------------------------

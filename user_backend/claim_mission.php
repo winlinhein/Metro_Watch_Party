@@ -9,7 +9,17 @@ if (empty($_SESSION['user_id']) || ($_SESSION['user_role'] ?? '') !== 'user') {
 }
 
 $userId = (int)$_SESSION['user_id'];
-$missionId = (int)($_POST['mission_id'] ?? 0);
+$input = json_decode(file_get_contents('php://input'), true);
+if (!is_array($input)) {
+    $input = [];
+}
+$missionId = (int)($input['mission_id'] ?? $_POST['mission_id'] ?? 0);
+session_write_close();
+
+if ($missionId <= 0) {
+    echo json_encode(['success' => false, 'message' => 'Invalid mission']);
+    exit;
+}
 
 require_once __DIR__ . '/../conn.php';
 

@@ -48,6 +48,7 @@ $nexusUserBoot = [
     'active_border_id' => $activeBorderId,
     'border_preview' => $borderPreview,
 ];
+session_write_close();
 ?>
 <script src="https://js.pusher.com/8.2.0/pusher.min.js"></script>
 <script src="https://js.stripe.com/v3/"></script>
@@ -204,7 +205,7 @@ $nexusUserBoot = [
 
     <link rel="stylesheet" href="https://cdn.plyr.io/3.7.8/plyr.css" />
     <script src="https://cdn.plyr.io/3.7.8/plyr.polyfilled.js"></script>
-    <script src="../js/nexus_scripts.js?v=1788162000"></script>
+    <script src="../js/nexus_scripts.js?v=1788166000"></script>
 </head>
 <body class="h-screen w-screen flex flex-col relative selection:bg-red-500/30" data-barba="wrapper">
     <?php include __DIR__ . '/../frontend/components/page_loader.php'; ?>
@@ -268,7 +269,7 @@ $nexusUserBoot = [
         <template x-if="!isGuest">
             <div class="flex flex-col flex-1 min-h-0">
                 <!-- Header -->
-                <div class="p-6 border-b border-white/5 relative z-10 shrink-0">
+                <div class="quest-header p-6 border-b border-white/5 relative z-10 shrink-0">
                     <div class="flex items-center justify-between mb-6">
                         <div class="flex items-center gap-3">
                             <div class="w-10 h-10 rounded-xl bg-yellow-500/10 border border-yellow-500/20 flex items-center justify-center">
@@ -276,7 +277,7 @@ $nexusUserBoot = [
                             </div>
                             <div>
                                 <h2 class="text-xl font-bold text-white tracking-tight">Quests</h2>
-                                <p class="text-xs text-white/50 mono"><span x-text="stats[3].value"></span> PTS AVAILABLE</p>
+                                <p class="text-xs text-white/50 mono"><span x-text="questPointsAvailable"></span> PTS AVAILABLE</p>
                             </div>
                         </div>
                         <button @click="showQuestsPanel = false" class="w-8 h-8 rounded-lg bg-white/5 hover:bg-white/10 flex items-center justify-center text-white/50 hover:text-white">
@@ -293,8 +294,8 @@ $nexusUserBoot = [
                 
                 <!-- Quest List -->
                 <div class="flex-1 overflow-y-auto p-6 relative z-10 space-y-4">
-                   <template x-for="quest in quests[questActiveTab]" :key="quest.id">
-                        <div class="bg-white/5 border border-white/10 rounded-xl p-4">
+                   <template x-for="quest in (quests[questActiveTab] || [])" :key="quest.id">
+                        <div class="quest-item bg-white/5 border border-white/10 rounded-xl p-4">
                             <div class="flex justify-between items-start mb-2">
                                 <div>
                                     <h4 class="text-sm font-bold text-white" x-text="quest.title"></h4>
@@ -316,25 +317,29 @@ $nexusUserBoot = [
                                 <div class="w-full bg-white/10 rounded-full h-2 overflow-hidden">
                                     <div class="h-full rounded-full transition-all duration-500"
                                         :class="quest.completed ? 'bg-green-500' : 'bg-yellow-500'"
-                                        :style="`width: ${Math.min(100, (quest.progress / quest.target) * 100)}%`"></div>
+                                        :style="`width: ${quest.target > 0 ? Math.min(100, (quest.progress / quest.target) * 100) : 0}%`"></div>
                                 </div>
                             </div>
 
                             <!-- Claim Button -->
                             <div class="flex justify-end mt-3">
                                 <button @click="claimQuest(quest.id)" 
-                                        :disabled="!quest.completed || quest.claimed"
+                                        :disabled="!quest.completed || quest.claimed || claimingQuestId === quest.id"
                                         class="text-[10px] uppercase font-bold tracking-wider px-3 py-1.5 rounded-lg transition-all"
                                         :class="quest.claimed 
                                             ? 'bg-green-500/20 text-green-400 border border-green-500/30 cursor-default' 
                                             : (quest.completed 
                                                 ? 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/30 hover:bg-yellow-500/30 cursor-pointer' 
                                                 : 'bg-white/5 text-white/30 border border-white/10 cursor-default')"
-                                        x-text="quest.claimed ? 'Claimed' : (quest.completed ? 'Claim' : 'In Progress')">
+                                        x-text="quest.claimed ? 'Claimed' : (claimingQuestId === quest.id ? 'Claiming...' : (quest.completed ? 'Claim' : 'In Progress'))">
                                 </button>
                             </div>
                         </div>
                     </template>
+                    <div x-show="!(quests[questActiveTab] || []).length" class="py-12 text-center">
+                        <span class="material-symbols-outlined text-white/25 text-[28px]">task_alt</span>
+                        <p class="text-[11px] text-white/40 mt-2">No quests in this cycle yet.</p>
+                    </div>
                 </div>
             </div>
         </template>
@@ -903,46 +908,7 @@ $nexusUserBoot = [
 <script src="https://unpkg.com/@barba/core@2.9.7/dist/barba.umd.js" crossorigin="anonymous"></script>
 <script src="../js/barba_setup.js?v=4"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js" onerror="window.gsap=window.gsap||{to:()=>({to:()=>({}),fromTo:()=>({})}),fromTo:()=>({}),from:()=>({}),set:()=>{},timeline:()=>({to:()=>({}),fromTo:()=>({}),add:()=>({}),set:()=>({})}),config:()=>{},killTweensOf:()=>{}}"></script>
-<script src="../js/nexus_scripts.js?v=1788162000"></script>
-<!-- Include Socket.io globally -->
-<script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
-
-<script>
-    // Initialize a global socket connection (Node signaling on :3000 when PHP serves the page)
-    const signalingUrl = window.NEXUS_SIGNALING_URL
-        || (location.port && location.port !== '3000'
-            ? `${location.protocol}//${location.hostname}:3000`
-            : undefined);
-    const globalSocket = signalingUrl ? io(signalingUrl) : io('/'); 
-    
-    // NOTE: This needs to be the actual logged-in user's ID
-    const currentUserId = window.CURRENT_USER_ID; 
-
-    if (currentUserId) {
-        globalSocket.on('connect', () => {
-            // Register the user to receive invites across the whole site
-            globalSocket.emit('register-user', currentUserId);
-        });
-    }
-
-    globalSocket.on('receive-invite', (data) => {
-        // Instead of an alert, we dispatch a custom browser event
-        // This allows our UI components (like Alpine.js) to catch it
-        window.dispatchEvent(new CustomEvent('incoming-party-invite', {
-            detail: {
-                hostName: data.hostName,
-                sender_name: data.hostName || data.sender_name,
-                sender_id: data.hostId || data.sender_id,
-                roomId: data.roomId || data.room_id,
-                room_id: data.roomId || data.room_id,
-                message: data.message || 'invited you to a watch party.'
-            }
-        }));
-        
-        // Optional: Play a notification sound
-        // new Audio('/sounds/invite-ping.mp3').play();
-    });
-</script>
+<script src="../js/nexus_scripts.js?v=1788166000"></script>
 
 </body>
 </html>

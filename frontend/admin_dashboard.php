@@ -36,7 +36,13 @@ if ($userId > 0) {
 $bootAvatarSrc = $avatarUrl !== ''
     ? $avatarUrl
     : ('https://ui-avatars.com/api/?name=' . rawurlencode($userName) . '&background=ef4444&color=fff&bold=true');
+
+session_write_close();
 ?>
+<script src="https://js.pusher.com/8.2.0/pusher.min.js"></script>
+<script>
+    window.CURRENT_USER_ID = <?= json_encode($userId) ?>;
+</script>
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -161,7 +167,7 @@ $bootAvatarSrc = $avatarUrl !== ''
 
     <link rel="stylesheet" href="https://cdn.plyr.io/3.7.8/plyr.css" />
     <script src="https://cdn.plyr.io/3.7.8/plyr.polyfilled.js"></script>
-    <script src="../js/nexus_scripts.js?v=1788159100"></script>
+    <script src="../js/nexus_scripts.js?v=1788173600"></script>
     <script src="https://unpkg.com/htmx.org@1.9.10/dist/htmx.min.js" crossorigin="anonymous"></script>
 </head>
 <body class="h-screen w-screen flex relative selection:bg-red-500/30" data-barba="wrapper">
@@ -211,7 +217,7 @@ $bootAvatarSrc = $avatarUrl !== ''
         </nav>
         
         <div class="p-6">
-            <button onclick="handleLogout()" 
+            <button type="button" onclick="handleLogout()"
                     class="flex items-center gap-3 py-2 px-4 text-white/50 hover:text-red-400 transition-colors rounded-xl hover:bg-red-500/10 gs-nav-item w-full text-left cursor-pointer">
                 <span class="material-symbols-outlined text-[20px]">logout</span>
                 <span class="text-sm font-medium">Terminate Session</span>

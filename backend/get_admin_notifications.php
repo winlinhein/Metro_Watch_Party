@@ -11,6 +11,7 @@ if (empty($_SESSION['user_id']) || !in_array(strtolower((string)$role), ['admin'
 }
 
 $admin_id = (int)$_SESSION['user_id'];
+session_write_close();
 
 try {
     $stmt = $conn->prepare("

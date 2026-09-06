@@ -16,6 +16,7 @@ if (
 }
 
 header('Content-Type: application/json');
+session_write_close();
 require_once __DIR__ . '/../conn.php';
 require_once __DIR__ . '/../profile_media_helper.php';
 

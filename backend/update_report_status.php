@@ -10,6 +10,8 @@ if (empty($_SESSION['user_role']) || !in_array(strtolower((string)$_SESSION['use
     exit;
 }
 
+session_write_close();
+
 $data = json_decode(file_get_contents('php://input'), true);
 $report_id = $data['report_id'] ?? null;
 

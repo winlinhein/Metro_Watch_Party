@@ -7,6 +7,7 @@ if (empty($_SESSION['authenticated']) || !in_array($role, ['admin', 'moderator']
     exit();
 }
 header('Content-Type: application/json');
+session_write_close();
 require_once __DIR__ . '/../conn.php';
 require_once __DIR__ . '/../poster_helper.php';
 
@@ -22,7 +23,6 @@ if ($method !== 'GET' && $role !== 'admin') {
 // GET: Fetch all movies along with ratings and combined genres
 // -------------------------------------------------------------
 if ($method === 'GET') {
-    session_write_close();
     try {
         $sql = "
             SELECT 

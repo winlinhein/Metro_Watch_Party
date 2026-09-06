@@ -19,12 +19,18 @@ if (ini_get("session.use_cookies")) {
 
 session_destroy();
 
-// Return JSON response for JavaScript
-header('Content-Type: application/json');
-echo json_encode([
-    'success' => true,
-    'message' => 'Signed out successfully.',
-    'redirect' => '../frontend/login.php?success=' . urlencode("You have been signed out.")
-]);
+$loginUrl = '/frontend/login.php?success=' . urlencode('You have been signed out.');
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    header('Content-Type: application/json');
+    echo json_encode([
+        'success' => true,
+        'message' => 'Signed out successfully.',
+        'redirect' => $loginUrl
+    ]);
+    exit();
+}
+
+header('Location: ' . $loginUrl);
 exit();
 ?>

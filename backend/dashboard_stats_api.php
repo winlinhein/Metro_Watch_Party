@@ -14,6 +14,7 @@ if (
 }
 
 header('Content-Type: application/json');
+session_write_close();
 require_once __DIR__ . '/../conn.php';
 
 function formatChange(float $current, float $previous): string

@@ -3,6 +3,7 @@ session_start();
 require_once __DIR__ . '/../conn.php';
 require_once __DIR__ . '/../pusher_helper.php';
 require_once __DIR__ . '/../shop_image_helper.php';
+require_once __DIR__ . '/../media_store_helper.php';
 
 header('Content-Type: application/json');
 
@@ -17,6 +18,8 @@ if (
     echo json_encode(['success' => false, 'error' => 'Unauthorized']);
     exit;
 }
+
+session_write_close();
 
 $action = $_GET['action'] ?? $_POST['action'] ?? '';
 
@@ -52,16 +55,13 @@ switch ($action) {
 
         $imageUrl = '';
         if (isset($_FILES['image']) && $_FILES['image']['error'] === UPLOAD_ERR_OK) {
-            $uploadDir = __DIR__ . '/../uploads/shop/';
-            if (!is_dir($uploadDir)) {
-                mkdir($uploadDir, 0755, true);
-            }
-            $ext = pathinfo($_FILES['image']['name'], PATHINFO_EXTENSION);
-            $filename = uniqid('shop_') . '.' . $ext;
-            $destination = $uploadDir . $filename;
-            if (move_uploaded_file($_FILES['image']['tmp_name'], $destination)) {
-                $imageUrl = '/uploads/shop/' . $filename;
-            } else {
+            try {
+                $ext = preg_replace('/[^a-zA-Z0-9]/', '', (string)pathinfo($_FILES['image']['name'], PATHINFO_EXTENSION));
+                $filename = uniqid('shop_') . ($ext !== '' ? '.' . $ext : '');
+                $stored = storeMediaFromUpload($conn, $_FILES['image'], 'shop', $filename);
+                $imageUrl = $stored['public_path'];
+            } catch (Throwable $e) {
+                error_log('shop create upload: ' . $e->getMessage());
                 http_response_code(500);
                 echo json_encode(['success' => false, 'error' => 'Failed to upload image']);
                 exit;
@@ -113,16 +113,16 @@ switch ($action) {
 
         // Handle new image upload
         if (isset($_FILES['image']) && $_FILES['image']['error'] === UPLOAD_ERR_OK) {
-            $uploadDir = __DIR__ . '/../uploads/shop/';
-            if (!is_dir($uploadDir)) mkdir($uploadDir, 0755, true);
-            if ($imageUrl && file_exists(__DIR__ . '/..' . $imageUrl)) {
-                unlink(__DIR__ . '/..' . $imageUrl);
-            }
-            $ext = pathinfo($_FILES['image']['name'], PATHINFO_EXTENSION);
-            $filename = uniqid('shop_') . '.' . $ext;
-            $destination = $uploadDir . $filename;
-            if (move_uploaded_file($_FILES['image']['tmp_name'], $destination)) {
-                $imageUrl = '/uploads/shop/' . $filename;
+            try {
+                if ($imageUrl) {
+                    deleteMediaByPublicPath($conn, $imageUrl);
+                }
+                $ext = preg_replace('/[^a-zA-Z0-9]/', '', (string)pathinfo($_FILES['image']['name'], PATHINFO_EXTENSION));
+                $filename = uniqid('shop_') . ($ext !== '' ? '.' . $ext : '');
+                $stored = storeMediaFromUpload($conn, $_FILES['image'], 'shop', $filename);
+                $imageUrl = $stored['public_path'];
+            } catch (Throwable $e) {
+                error_log('shop update upload: ' . $e->getMessage());
             }
         }
 
@@ -159,8 +159,8 @@ switch ($action) {
         $stmt = $conn->prepare("SELECT image_url FROM shop_items WHERE item_id = ?");
         $stmt->execute([$id]);
         $imageUrl = $stmt->fetchColumn();
-        if ($imageUrl && file_exists(__DIR__ . '/..' . $imageUrl)) {
-            unlink(__DIR__ . '/..' . $imageUrl);
+        if ($imageUrl) {
+            deleteMediaByPublicPath($conn, $imageUrl);
         }
 
         $stmt = $conn->prepare("DELETE FROM shop_items WHERE item_id = ?");

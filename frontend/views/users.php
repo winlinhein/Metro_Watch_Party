@@ -141,12 +141,14 @@
                                         <div class="absolute inset-0 z-0 overflow-hidden rounded-xl scale-[1.05]">
                                             <img
                                                 :src="(resolveAvatarUrl ? resolveAvatarUrl(user.avatar_url, user.name) : user.avatar_url) || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.name)}&background=random&color=fff&bold=true`"
+                                                loading="lazy"
+                                                decoding="async"
                                                 @error="$el.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(user.name)}&background=random&color=fff&bold=true`"
                                                 class="w-full h-full object-cover border border-white/10 group-hover:border-white/30 transition-colors"
                                             >
                                         </div>
                                         <template x-if="user.border_preview">
-                                            <img :src="user.border_preview" class="absolute inset-0 z-10 h-full w-full scale-[1.45] object-contain pointer-events-none">
+                                            <img :src="user.border_preview" loading="lazy" decoding="async" class="absolute inset-0 z-10 h-full w-full scale-[1.45] object-contain pointer-events-none">
                                         </template>
                                     </div>
 

@@ -18,6 +18,7 @@ if (empty($_SESSION['user_id']) || ($_SESSION['user_role'] ?? '') !== 'user') {
 }
 
 $userId = (int)$_SESSION['user_id'];
+session_write_close();
 
 require_once __DIR__ . '/../conn.php';
 require_once __DIR__ . '/mission_progress.php'; // helper functions

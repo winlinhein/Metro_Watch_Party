@@ -7,6 +7,7 @@ if (empty($_SESSION['authenticated']) || !in_array($role, ['admin', 'moderator']
     exit();
 }
 header('Content-Type: application/json');
+session_write_close();
 require_once __DIR__ . '/../conn.php';
 
 $method = $_SERVER['REQUEST_METHOD'];

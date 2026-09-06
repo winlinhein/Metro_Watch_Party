@@ -35,16 +35,13 @@ function userDashboard() {
         if (/^(https?:)?\/\//i.test(url) || url.startsWith('data:') || url.startsWith('blob:')) {
             return url;
         }
-        if (url.startsWith('/user_backend/media.php')) {
+        if (url.startsWith('/user_backend/media.php') || url.startsWith('/uploads/')) {
             return url;
-        }
-        if (url.startsWith('/uploads/avatars/') || url.startsWith('/uploads/chat_images/')) {
-            return '/user_backend/media.php?path=' + encodeURIComponent(url);
         }
         if (url.startsWith('/')) {
             return url;
         }
-        return '/user_backend/media.php?path=' + encodeURIComponent('/uploads/avatars/' + String(url).replace(/^\/+/, ''));
+        return '/uploads/avatars/' + String(url).replace(/^\/+/, '');
     };
     const bootAvatar = resolveBootAvatar(bootAvatarRaw, bootName);
 
@@ -156,16 +153,13 @@ function userDashboard() {
             if (/^(https?:)?\/\//i.test(url) || url.startsWith('data:') || url.startsWith('blob:')) {
                 return url;
             }
-            if (url.startsWith('/user_backend/media.php')) {
+            if (url.startsWith('/user_backend/media.php') || url.startsWith('/uploads/')) {
                 return url;
-            }
-            if (url.startsWith('/uploads/avatars/') || url.startsWith('/uploads/chat_images/')) {
-                return '/user_backend/media.php?path=' + encodeURIComponent(url);
             }
             if (url.startsWith('/')) {
                 return url;
             }
-            return '/user_backend/media.php?path=' + encodeURIComponent('/uploads/avatars/' + url.replace(/^\/+/, ''));
+            return '/uploads/avatars/' + url.replace(/^\/+/, '');
         },
 
         resolveMediaUrl(url) {
@@ -235,6 +229,7 @@ function userDashboard() {
                         window.NEXUS_USER.border_preview = this.activeBorderPreview;
                     }
                     this.buildAvailableBorders();
+                    this.cacheOwnMedia();
 
                     // Force reset if active border is not owned
                     const owned = this.userInventory.includes(Number(this.activeBorderId));
@@ -311,6 +306,10 @@ function userDashboard() {
                     this.savedProfile.avatar_url = this.selectedAvatar;
                     this.hasCustomAvatar = true;
                     if (window.NEXUS_USER) window.NEXUS_USER.avatar_url = this.selectedAvatar;
+                    this.forceSetCachedMedia(window.CURRENT_USER_ID, {
+                        avatar_url: this.selectedAvatar,
+                        border_preview: this.activeBorderPreview || ''
+                    });
                     if (window.showToast) window.showToast('Profile picture updated!', 'success');
                 } else {
                     if (window.showToast) window.showToast(data.message || 'Upload failed', 'error');
@@ -332,6 +331,10 @@ function userDashboard() {
                     this.savedProfile.avatar_url = '';
                     this.hasCustomAvatar = false;
                     if (window.NEXUS_USER) window.NEXUS_USER.avatar_url = '';
+                    this.forceSetCachedMedia(window.CURRENT_USER_ID, {
+                        avatar_url: '',
+                        border_preview: this.activeBorderPreview || ''
+                    });
                     if (window.showToast) window.showToast('Profile picture removed', 'success');
                 } else {
                     if (window.showToast) window.showToast(data.message || 'Failed to remove avatar', 'error');
@@ -874,6 +877,8 @@ function userDashboard() {
         // Data Lists
         friends: [],
         pendingRequests: [],
+        avatarCache: {},
+        chatHistoryCache: {},
         notifications: [],
         searchResults: [],
         unreadNotifCount: 0,
@@ -924,8 +929,14 @@ function userDashboard() {
             { day: 'Sun', reqs: 4600, height: 88 }
         ],
 
+        claimingQuestId: null,
+
+        get questPointsAvailable() {
+            const questStat = this.stats.find(s => s.label === 'Quests');
+            return questStat ? questStat.value : 0;
+        },
+
         async loadMissions() {
-            this.statsLoading = true;
             try {
                 const response = await fetch('/user_backend/mission.php');
                 const data = await response.json();
@@ -940,25 +951,25 @@ function userDashboard() {
                     // Populate daily, weekly, and monthly quests dynamically
                     ['daily', 'weekly', 'monthly'].forEach(type => {
                         this.quests[type] = (data.quests[type] || []).map(q => ({
-                            id: q.id,                              // ✅ correct field
+                            id: q.id,
                             title: q.title,
-                            desc: q.desc,                          // ✅ preformatted by backend
-                            points: q.points,                      // ✅ correct field
+                            desc: q.desc,
+                            points: q.points,
                             completed: Number(q.completed) === 1,
                             claimed: Number(q.claimed) === 1,
-                            progress: q.progress,
-                            target: q.target
+                            progress: Number(q.progress) || 0,
+                            target: Number(q.target) || 0
                         }));
                     });
                 }
             } catch (err) {
                 console.error('Failed to fetch missions:', err);
-            } finally {
-                this.statsLoading = false;
             }
         },
 
         async claimQuest(missionId) {
+            if (!missionId || this.claimingQuestId) return;
+            this.claimingQuestId = missionId;
             try {
                 const res = await fetch('/user_backend/claim_mission.php', {
                     method: 'POST',
@@ -968,7 +979,16 @@ function userDashboard() {
                 const data = await res.json();
                 if (data.success) {
                     if (window.showToast) window.showToast(`Claimed ${data.points_added} points!`, 'success');
-                    // Refresh missions and user points
+                    const questStat = this.stats.find(s => s.label === 'Quests');
+                    if (questStat) {
+                        questStat.value = Math.max(0, Number(questStat.value) - Number(data.points_added || 0));
+                    }
+                    ['daily', 'weekly', 'monthly'].forEach(type => {
+                        this.quests[type] = (this.quests[type] || []).map(q =>
+                            Number(q.id) === Number(missionId) ? { ...q, claimed: true } : q
+                        );
+                    });
+                    this.userPoints = Number(this.userPoints || 0) + Number(data.points_added || 0);
                     await this.loadMissions();
                     await this.fetchUserProfile();
                 } else {
@@ -976,13 +996,103 @@ function userDashboard() {
                 }
             } catch (e) {
                 console.error('Claim error:', e);
+                if (window.showToast) window.showToast('Could not claim mission. Please try again.', 'error');
+            } finally {
+                this.claimingQuestId = null;
             }
+        },
+
+        mediaFileKey(url) {
+            if (!url) return '';
+            const raw = String(url);
+            const pathMatch = raw.match(/[?&]path=([^&]+)/);
+            if (pathMatch) {
+                try { return decodeURIComponent(pathMatch[1]); } catch (e) { return pathMatch[1]; }
+            }
+            return raw;
+        },
+
+        loadMediaCaches() {
+            try {
+                this.avatarCache = JSON.parse(sessionStorage.getItem('nexus_avatar_cache') || '{}');
+            } catch (e) {
+                this.avatarCache = {};
+            }
+            try {
+                this.chatHistoryCache = JSON.parse(sessionStorage.getItem('nexus_chat_cache') || '{}');
+            } catch (e) {
+                this.chatHistoryCache = {};
+            }
+        },
+
+        persistAvatarCache() {
+            try { sessionStorage.setItem('nexus_avatar_cache', JSON.stringify(this.avatarCache)); } catch (e) {}
+        },
+
+        persistChatCache() {
+            try { sessionStorage.setItem('nexus_chat_cache', JSON.stringify(this.chatHistoryCache)); } catch (e) {}
+        },
+
+        applyCachedMedia(row, userIdKey = 'user_id') {
+            if (!row || typeof row !== 'object') return row;
+            const id = Number(row[userIdKey] || row.user_id || row.sender_id || 0);
+            if (!id) return row;
+            const cached = this.avatarCache[id] || {};
+            const incomingAvatar = row.avatar_url || '';
+            const incomingBorder = row.border_preview || '';
+            const cachedAvatar = cached.avatar_url || '';
+            const cachedBorder = cached.border_preview || '';
+
+            if (cachedAvatar && (!incomingAvatar || this.mediaFileKey(cachedAvatar) === this.mediaFileKey(incomingAvatar))) {
+                row.avatar_url = cachedAvatar;
+            } else if (incomingAvatar) {
+                this.avatarCache[id] = { ...cached, avatar_url: incomingAvatar };
+                row.avatar_url = incomingAvatar;
+            }
+
+            if (cachedBorder && (!incomingBorder || this.mediaFileKey(cachedBorder) === this.mediaFileKey(incomingBorder))) {
+                row.border_preview = cachedBorder;
+            } else if (incomingBorder) {
+                this.avatarCache[id] = { ...(this.avatarCache[id] || {}), border_preview: incomingBorder };
+                row.border_preview = incomingBorder;
+            }
+
+            if (Array.isArray(row.replies)) {
+                row.replies = row.replies.map(r => this.applyCachedMedia(r, userIdKey));
+            }
+            return row;
+        },
+
+        cacheOwnMedia() {
+            const id = Number(window.CURRENT_USER_ID);
+            if (!id) return;
+            this.forceSetCachedMedia(id, {
+                avatar_url: this.savedProfile?.avatar_url || this.selectedAvatar || '',
+                border_preview: this.activeBorderPreview || ''
+            });
+        },
+
+        forceSetCachedMedia(userId, media = {}) {
+            const id = Number(userId);
+            if (!id) return;
+            const prev = this.avatarCache[id] || {};
+            this.avatarCache[id] = {
+                avatar_url: media.avatar_url !== undefined && media.avatar_url !== null
+                    ? media.avatar_url
+                    : (prev.avatar_url || ''),
+                border_preview: media.border_preview !== undefined && media.border_preview !== null
+                    ? media.border_preview
+                    : (prev.border_preview || '')
+            };
+            this.persistAvatarCache();
         },
 
         // Fetch Friends & Incoming Pending Requests
         async fetchFriends(retries = 1) {
             try {
-                const response = await fetch('/user_backend/get_friends.php');
+                const response = await fetch('/user_backend/get_friends.php', {
+                    signal: AbortSignal.timeout ? AbortSignal.timeout(8000) : undefined
+                });
                 if (response.status === 401) {
                     if (this.isGuest) {
                         if (window.showToast) window.showToast('Unable to load movies. Please try again.', 'error');
@@ -996,8 +1106,9 @@ function userDashboard() {
                 const data = await response.json();
                 
                 if (data && !data.error) {
-                    this.friends = data.friends || [];
-                    this.pendingRequests = data.pending_requests || [];
+                    this.friends = (data.friends || []).map(f => this.applyCachedMedia(f));
+                    this.pendingRequests = (data.pending_requests || []).map(r => this.applyCachedMedia(r));
+                    this.persistAvatarCache();
                     this.updateFriendsCount();
                     this.initAllChatSubscriptions();
                 }
@@ -1019,7 +1130,8 @@ function userDashboard() {
 
                 const data = await response.json();
                 if (data.success && Array.isArray(data.notifications)) {
-                    this.notifications = data.notifications;
+                    this.notifications = data.notifications.map(n => this.applyCachedMedia(n, 'sender_id'));
+                    this.persistAvatarCache();
                     this.unreadNotifCount = this.notifications.filter(n => Number(n.is_read) === 0).length;
                 }
             } catch (err) {
@@ -1314,6 +1426,13 @@ function userDashboard() {
             if (this.currentTab === tabId) return;
             const oldTab = this.currentTab;
             this.currentTab = tabId;
+            if (tabId === 'movies' && !this.movies.length) this.fetchMovies();
+            if (tabId === 'watchlist') this.fetchWatchlist();
+            if (tabId === 'shop' || tabId === 'account') {
+                if (!this.shopItems.length) {
+                    this.fetchShopItems().then(() => this.buildAvailableBorders());
+                }
+            }
             const oldPanel = document.querySelector(`[data-tab-panel="${oldTab}"]`);
             const newPanel = document.querySelector(`[data-tab-panel="${tabId}"]`);
             if (oldPanel && newPanel && typeof window.gsap !== 'undefined') {
@@ -1486,6 +1605,8 @@ function userDashboard() {
                         image_url: this.resolveMediaUrl(data.image_url || null),
                         time: this.formatTime(data.time)
                     }];
+                    this.chatHistoryCache[senderId] = this.chatMessages.filter(m => !String(m.image_url || '').startsWith('data:')).slice(-80);
+                    this.persistChatCache();
                     this.scrollToBottom();
 
                     fetch('/user_backend/mark_as_read.php', {
@@ -1532,8 +1653,9 @@ function userDashboard() {
             const friendId = Number(friend.user_id || friend.friend_id || friend.id);
             if (!friendId) return;
 
-            this.activeChatFriend = { ...friend, user_id: friendId, unread_count: 0 };
-            this.chatMessages = [];
+            this.activeChatFriend = this.applyCachedMedia({ ...friend, user_id: friendId, unread_count: 0 });
+            const cachedMessages = this.chatHistoryCache[friendId];
+            this.chatMessages = Array.isArray(cachedMessages) ? cachedMessages : [];
             this.showChatPanel = true;
             this.clearFriendUnread(friendId);
 
@@ -1822,20 +1944,18 @@ function userDashboard() {
 
         // 4. Updated closeChat Method
         closeChat() {
-            if (typeof gsap !== 'undefined') {
+            this.showChatPanel = false;
+            if (typeof gsap !== 'undefined' && this.$refs.chatPanel) {
                 gsap.to(this.$refs.chatPanel, {
                     x: '100%',
                     opacity: 0,
                     duration: 0.3,
                     ease: 'power2.in',
                     onComplete: () => {
-                        this.showChatPanel = false;
                         this.activeChatFriend = null;
-                        // gsap.set(".chat-panel-container", { clearProps: "all" });
                     }
                 });
             } else {
-                this.showChatPanel = false;
                 this.activeChatFriend = null;
             }
         },
@@ -1866,6 +1986,8 @@ function userDashboard() {
                         time: this.formatTime(msg.time || msg.created_at),
                         is_read: msg.is_read
                     }));
+                    this.chatHistoryCache[friendId] = this.chatMessages.filter(m => !String(m.image_url || '').startsWith('data:')).slice(-80);
+                    this.persistChatCache();
                     this.scrollToBottom();
                 } else {
                     console.error("Backend error loading chats:", data.message);
@@ -2035,7 +2157,8 @@ function userDashboard() {
                         });
                     };
                     applyLikes(data.comments);
-                    this.selectedMovie.comments = data.comments;
+                    this.selectedMovie.comments = data.comments.map(c => this.applyCachedMedia(c));
+                    this.persistAvatarCache();
                 }
             } catch (e) { 
                 console.error("Failed to load comments:", e); 
@@ -2147,7 +2270,19 @@ function userDashboard() {
                     if (!commentData.success) {
                         throw new Error(commentData.message || 'Comment submission failed');
                     }
-                    await this.fetchMovieComments(movieId);
+                    const posted = this.applyCachedMedia({
+                        ...(commentData.comment || {}),
+                        user_id: Number(window.CURRENT_USER_ID),
+                        comment: commentText,
+                        comment_text: commentText,
+                        replies: [],
+                        avatar_url: this.savedProfile?.avatar_url || this.selectedAvatar || '',
+                        border_preview: this.activeBorderPreview || ''
+                    });
+                    const currentComments = this.selectedMovie.comments || [];
+                    if (!currentComments.some(c => Number(c.id) === Number(posted.id))) {
+                        this.selectedMovie.comments = [posted, ...currentComments];
+                    }
                 }
 
                 // If we reach here, both succeeded
@@ -2187,8 +2322,19 @@ function userDashboard() {
                     const data = JSON.parse(rawText); // Try to parse it
                     if (!data.success && window.showToast) {
                         window.showToast(data.message || 'Failed to post reply', 'error');
-                    } else {
-                        await this.fetchMovieComments(this.selectedMovie.id);
+                    } else if (data.success) {
+                        const reply = this.applyCachedMedia({
+                            ...(data.reply || {}),
+                            user_id: Number(window.CURRENT_USER_ID),
+                            avatar_url: this.savedProfile?.avatar_url || this.selectedAvatar || '',
+                            border_preview: this.activeBorderPreview || ''
+                        });
+                        this.selectedMovie.comments = (this.selectedMovie.comments || []).map(comment => {
+                            if (Number(comment.id) !== Number(parentCommentId)) return comment;
+                            const replies = comment.replies || [];
+                            if (replies.some(r => Number(r.id) === Number(reply.id))) return comment;
+                            return { ...comment, replies: [...replies, reply] };
+                        });
                     }
                 } catch (parseError) {
                     console.error("Server returned non-JSON response:", rawText);
@@ -2392,8 +2538,8 @@ function userDashboard() {
                 if (!this.selectedMovie || Number(this.getMovieId(this.selectedMovie)) !== Number(data.movie_id)) return;
 
                 const currentComments = this.selectedMovie.comments || [];
-                // Push onto the array
-                this.selectedMovie.comments = [data, ...currentComments];
+                if (currentComments.some(c => Number(c.id) === Number(data.id))) return;
+                this.selectedMovie.comments = [this.applyCachedMedia(data), ...currentComments];
             });
 
             // 3. Live Reply Update
@@ -2407,7 +2553,7 @@ function userDashboard() {
                         const replyExists = currentReplies.some(r => Number(r.id) === Number(data.id));
 
                         if (!replyExists) {
-                            return { ...comment, replies: [...currentReplies, data] };
+                            return { ...comment, replies: [...currentReplies, this.applyCachedMedia(data)] };
                         }
                     }
                     return comment;
@@ -2492,8 +2638,14 @@ function userDashboard() {
         },
 
          handleProfileChanged(data) {
+            const uid = Number(data.user_id);
+            this.forceSetCachedMedia(uid, {
+                avatar_url: data.avatar_url,
+                border_preview: data.border_preview
+            });
+
             // Update current user if it's them (e.g., another tab)
-            if (window.CURRENT_USER_ID && Number(data.user_id) === Number(window.CURRENT_USER_ID)) {
+            if (window.CURRENT_USER_ID && uid === Number(window.CURRENT_USER_ID)) {
                 if (data.avatar_url !== undefined && data.avatar_url !== null) {
                     if (data.avatar_url) {
                         this.selectedAvatar = this.resolveAvatarUrl(data.avatar_url, this.savedProfile.username);
@@ -2509,15 +2661,21 @@ function userDashboard() {
                 if (data.border_preview !== undefined) this.activeBorderPreview = data.border_preview || '';
             }
 
-            // Update comments (if any)
-            if (this.selectedMovie && this.selectedMovie.comments) {
-                this.selectedMovie.comments = this.selectedMovie.comments.map(comment => {
-                    if (Number(comment.user_id) === Number(data.user_id)) {
-                        comment.avatar_url = data.avatar_url || comment.avatar_url;
-                        comment.border_preview = data.border_preview || comment.border_preview;
+            const patchTree = (list) => {
+                if (!Array.isArray(list)) return list;
+                return list.map(node => {
+                    if (Number(node.user_id) === uid) {
+                        if (data.avatar_url !== undefined) node.avatar_url = data.avatar_url || '';
+                        if (data.border_preview !== undefined) node.border_preview = data.border_preview || '';
                     }
-                    return comment;
+                    if (node.replies) node.replies = patchTree(node.replies);
+                    return { ...node };
                 });
+            };
+
+            // Update comments (if any), including replies
+            if (this.selectedMovie && this.selectedMovie.comments) {
+                this.selectedMovie.comments = patchTree(this.selectedMovie.comments);
             }
 
             // Update friends list
@@ -2655,6 +2813,12 @@ function userDashboard() {
             channel.bind('friend_event', (data) => {
                 const avatarUrl = data.avatar_url || '';
                 const borderPreview = data.border_preview || '';
+                if (data.sender_id) {
+                    this.forceSetCachedMedia(data.sender_id, {
+                        avatar_url: avatarUrl,
+                        border_preview: borderPreview
+                    });
+                }
 
                 if (data.type === 'party_invite') {
                     const roomId = Number(data.room_id || 0);
@@ -2811,6 +2975,9 @@ function userDashboard() {
             if (typeof gsap !== 'undefined') gsap.config({ nullTargetWarn: false });
 
             this.initPusher();
+            this.loadMediaCaches();
+            this.cacheOwnMedia();
+            this.fetchMovies();
 
             this._partyInviteHandler = (e) => this.handleIncomingPartyInvite(e.detail || {});
             window.addEventListener('incoming-party-invite', this._partyInviteHandler);
@@ -2824,38 +2991,34 @@ function userDashboard() {
                 this.watchlist = [];
                 this.notifications = [];
                 this.unreadNotifCount = 0;
-                await this.fetchMovies();
-                await this.fetchShopItems();
             } else {
-                // Profile media already visible from PHP boot; refresh inventory/points in background
                 const isRegularUser = window.NEXUS_USER?.role === 'user';
-                const promises = [
-                    this.fetchMovies(),
-                    this.fetchWatchlist(),
-                    this.fetchFriends(),
-                    this.fetchNotifications(),
-                    this.fetchReasons(),
-                    this.fetchShopItems(),
-                    this.fetchUserProfile(),
-                    (async () => {
-                        await this.checkPaymentStatus();
-                        await this.fetchPremiumStatus();
-                    })()
-                ];
-                if (isRegularUser) {
-                    promises.push(this.loadMissions());
-                }
                 if (!isRegularUser) {
                     this.stats = this.stats.filter(stat => stat.label !== 'Quests');
                 }
-                await Promise.all(promises);
-                this.searchUsers();
-                this.buildAvailableBorders(); 
 
-                if (this.justPaid) {
-                    this.showPremiumModal = true;
-                    this.justPaid = false;
+                const loadingSafety = setTimeout(() => { this.statsLoading = false; }, 4000);
+                try {
+                    await Promise.allSettled([
+                        this.fetchFriends(),
+                        this.fetchUserProfile(),
+                        isRegularUser ? this.loadMissions() : Promise.resolve(),
+                        this.fetchNotifications()
+                    ]);
+                } finally {
+                    clearTimeout(loadingSafety);
+                    this.statsLoading = false;
                 }
+
+                this.fetchReasons();
+                this.checkPaymentStatus().then(() => this.fetchPremiumStatus()).then(() => {
+                    if (this.justPaid) {
+                        this.showPremiumModal = true;
+                        this.justPaid = false;
+                    }
+                });
+                this.searchUsers();
+                this.buildAvailableBorders();
             }
 
             // Watchers remain the same, but guard quests watchers to avoid GSAP errors
@@ -4061,27 +4224,13 @@ window.otpForm = function() {
     }
 };
 
-window.handleLogout = async function() {
+window.handleLogout = function() {
     try {
-        const response = await fetch('/backend/logout.php', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' }
-        });
-        const data = await response.json();
-        if (data.success) {
-            if (typeof barba !== 'undefined') {
-                barba.go(data.redirect);
-            } else {
-                window.location.href = data.redirect;
-            }
-        } else {
-            console.error('Logout failed');
-            if (typeof window.hidePageLoader === 'function') window.hidePageLoader();
+        if (typeof window.hidePageLoader === 'function') {
+            window.hidePageLoader();
         }
-    } catch (err) {
-        console.error('Logout error:', err);
-        if (typeof window.hidePageLoader === 'function') window.hidePageLoader();
-    }
+    } catch (e) { /* ignore */ }
+    window.location.href = '/backend/logout.php';
 };
 function adminDashboard(userData = {}) {
     const bootName = userData.user_name || 'Admin';
@@ -4094,16 +4243,13 @@ function adminDashboard(userData = {}) {
         if (/^(https?:)?\/\//i.test(url) || url.startsWith('data:') || url.startsWith('blob:')) {
             return url;
         }
-        if (url.startsWith('/user_backend/media.php')) {
+        if (url.startsWith('/user_backend/media.php') || url.startsWith('/uploads/')) {
             return url;
-        }
-        if (url.startsWith('/uploads/avatars/') || url.startsWith('/uploads/chat_images/')) {
-            return '/user_backend/media.php?path=' + encodeURIComponent(url);
         }
         if (url.startsWith('/')) {
             return url;
         }
-        return '/user_backend/media.php?path=' + encodeURIComponent('/uploads/avatars/' + String(url).replace(/^\/+/, ''));
+        return '/uploads/avatars/' + String(url).replace(/^\/+/, '');
     };
 
     return {
@@ -4116,6 +4262,103 @@ function adminDashboard(userData = {}) {
             }
             return '/uploads/shop/' + image;
         },
+
+        avatarCache: {},
+        mediaFileKey(url) {
+            if (!url) return '';
+            const raw = String(url);
+            const pathMatch = raw.match(/[?&]path=([^&]+)/);
+            if (pathMatch) {
+                try { return decodeURIComponent(pathMatch[1]); } catch (e) { return pathMatch[1]; }
+            }
+            return raw.split('?')[0];
+        },
+        loadMediaCaches() {
+            try {
+                this.avatarCache = JSON.parse(sessionStorage.getItem('nexus_avatar_cache') || '{}');
+            } catch (e) {
+                this.avatarCache = {};
+            }
+        },
+        persistAvatarCache() {
+            try { sessionStorage.setItem('nexus_avatar_cache', JSON.stringify(this.avatarCache)); } catch (e) {}
+        },
+        applyCachedMedia(row, userIdKey = 'user_id') {
+            if (!row || typeof row !== 'object') return row;
+            const id = Number(row[userIdKey] || row.user_id || row.sender_id || row.id || 0);
+            if (!id) return row;
+            const cached = this.avatarCache[id] || {};
+            const incomingAvatar = row.avatar_url || '';
+            const incomingBorder = row.border_preview || '';
+            const cachedAvatar = cached.avatar_url || '';
+            const cachedBorder = cached.border_preview || '';
+
+            if (cachedAvatar && (!incomingAvatar || this.mediaFileKey(cachedAvatar) === this.mediaFileKey(incomingAvatar))) {
+                row.avatar_url = cachedAvatar;
+            } else if (incomingAvatar) {
+                this.avatarCache[id] = { ...cached, avatar_url: incomingAvatar };
+                row.avatar_url = incomingAvatar;
+            }
+
+            if (cachedBorder && (!incomingBorder || this.mediaFileKey(cachedBorder) === this.mediaFileKey(incomingBorder))) {
+                row.border_preview = cachedBorder;
+            } else if (incomingBorder) {
+                this.avatarCache[id] = { ...(this.avatarCache[id] || {}), border_preview: incomingBorder };
+                row.border_preview = incomingBorder;
+            }
+
+            if (Array.isArray(row.replies)) {
+                row.replies = row.replies.map(r => this.applyCachedMedia(r, userIdKey));
+            }
+            return row;
+        },
+        forceSetCachedMedia(userId, media = {}) {
+            const id = Number(userId);
+            if (!id) return;
+            const prev = this.avatarCache[id] || {};
+            this.avatarCache[id] = {
+                avatar_url: media.avatar_url !== undefined && media.avatar_url !== null
+                    ? media.avatar_url
+                    : (prev.avatar_url || ''),
+                border_preview: media.border_preview !== undefined && media.border_preview !== null
+                    ? media.border_preview
+                    : (prev.border_preview || '')
+            };
+            this.persistAvatarCache();
+        },
+        cacheOwnAdminMedia() {
+            const id = Number(window.CURRENT_USER_ID);
+            if (!id) return;
+            const avatar = this.selectedAvatar && !String(this.selectedAvatar).includes('ui-avatars.com')
+                ? this.selectedAvatar
+                : '';
+            this.forceSetCachedMedia(id, {
+                avatar_url: avatar,
+                border_preview: this.selectedBorder || ''
+            });
+        },
+        applyCachedReportMedia(report) {
+            if (!report) return report;
+            const reportedId = Number(report.reported_user_id || 0);
+            if (reportedId) {
+                const row = this.applyCachedMedia({
+                    user_id: reportedId,
+                    avatar_url: report.reported_avatar_url || '',
+                    border_preview: report.reported_border_preview || ''
+                });
+                report.reported_avatar_url = row.avatar_url;
+                report.reported_border_preview = row.border_preview;
+            }
+            return report;
+        },
+        keepExistingMediaUrl(current, incoming) {
+            if (!incoming) return current || incoming;
+            if (!current) return incoming;
+            return this.mediaFileKey(current) === this.mediaFileKey(incoming) ? current : incoming;
+        },
+
+        pusherClient: null,
+        _adminPusherBound: false,
 
         //comments
         comments: [],
@@ -4180,8 +4423,9 @@ function adminDashboard(userData = {}) {
             try {
                 const res = await fetch('/backend/comments_api.php');
                 const data = await res.json();
-                if (data.success) {
-                    this.comments = data.comments;
+                    if (data.success) {
+                    this.comments = (data.comments || []).map(c => this.applyCachedMedia(c));
+                    this.persistAvatarCache();
                 } else {
                     this.commentError = data.error || 'Failed to load comments';
                 }
@@ -4198,7 +4442,8 @@ function adminDashboard(userData = {}) {
                 const res = await fetch(`/backend/comments_api.php?movie_id=${movieId}`);
                 const data = await res.json();
                 if (data.success) {
-                    this.movieComments = data.comments;
+                    this.movieComments = (data.comments || []).map(c => this.applyCachedMedia(c));
+                    this.persistAvatarCache();
                 }
             } catch (e) {
                 console.error('Failed to load movie comments:', e);
@@ -4253,18 +4498,20 @@ function adminDashboard(userData = {}) {
                     if (!fallback.ok) return;
                     const data = await fallback.json();
                     if (data.success && Array.isArray(data.notifications)) {
-                        this.notifications = data.notifications;
+                        this.notifications = data.notifications.map(n => this.applyCachedMedia(n, 'sender_id'));
                         this.unreadNotifications = this.notifications.filter(n => Number(n.is_read) === 0).length;
                         this.unreadNotifCount = this.unreadNotifications;
+                        this.persistAvatarCache();
                     }
                     return;
                 }
 
                 const data = await response.json();
                 if (data.success && Array.isArray(data.notifications)) {
-                    this.notifications = data.notifications;
+                    this.notifications = data.notifications.map(n => this.applyCachedMedia(n, 'sender_id'));
                     this.unreadNotifications = this.notifications.filter(n => Number(n.is_read) === 0).length;
                     this.unreadNotifCount = this.unreadNotifications;
+                    this.persistAvatarCache();
                 }
             } catch (err) {
                 console.error('Notification network error:', err);
@@ -4355,7 +4602,8 @@ function adminDashboard(userData = {}) {
                 try {
                     const data = JSON.parse(text);
                     if (response.ok) {
-                        this.users = data;
+                        this.users = (Array.isArray(data) ? data : []).map(u => this.applyCachedMedia(u, 'id'));
+                        this.persistAvatarCache();
                     } else {
                         this.errorMessage = data.error || 'Failed to load user directory.';
                     }
@@ -4388,11 +4636,35 @@ function adminDashboard(userData = {}) {
             genre_ids: []  
         },
 
-        // --- Initialization ---
-        async init() { 
+        init() {
             localStorage.removeItem('activeBorder');
-            await this.fetchMovies();
-            await this.fetchGenres();
+            this.loadMediaCaches();
+            this.cacheOwnAdminMedia();
+        },
+
+        ensureAdminTabData(tabId) {
+            if (tabId === 'users' && !(this.users || []).length) {
+                this.fetchUsers();
+            }
+            if (tabId === 'movies') {
+                if (!(this.movies || []).length) this.fetchMovies();
+                if (!(this.availableGenres || []).length) this.fetchGenres();
+            }
+            if (tabId === 'sessions' && !(this.rooms || []).length) {
+                this.fetchRooms();
+            }
+            if ((tabId === 'shop' || tabId === 'profile') && !(this.shopItems || []).length) {
+                this.fetchShopItems();
+            }
+            if (tabId === 'profile') {
+                this.fetchAdminProfile();
+            }
+            if (tabId === 'reports' && !(this.reportsList || []).length) {
+                this.fetchReports();
+            }
+            if (tabId === 'comments' && !(this.comments || []).length) {
+                this.fetchComments();
+            }
         },
 
         // --- Fetch API Methods ---
@@ -4681,9 +4953,9 @@ function adminDashboard(userData = {}) {
                 const data = await response.json();
                 
                 if (data.success) {
-                    this.reportsList = data.reports;
+                    this.reportsList = (data.reports || []).map(r => this.applyCachedReportMedia(r));
+                    this.persistAvatarCache();
                     this.updateReportStats();
-                    this.preloadReportComments();
                 }
             } catch (error) {
                 console.error("Error fetching reports:", error);
@@ -4785,14 +5057,18 @@ function adminDashboard(userData = {}) {
                 const res = await fetch('/backend/shop_items_api.php?action=list');
                 const data = await res.json();
                 if (data.success) {
-                    this.shopItems = data.items.map(item => ({
-                        id: item.id,
-                        name: item.name,
-                        price: item.price,
-                        rarity: item.rarity,
-                        image: this.resolveShopImage(item.image),
-                        category: item.category
-                    }));
+                    this.shopItems = data.items.map(item => {
+                        const image = this.resolveShopImage(item.image);
+                        const prev = (this.shopItems || []).find(existing => Number(existing.id) === Number(item.id));
+                        return {
+                            id: item.id,
+                            name: item.name,
+                            price: item.price,
+                            rarity: item.rarity,
+                            image: prev ? this.keepExistingMediaUrl(prev.image, image) : image,
+                            category: item.category
+                        };
+                    });
                 } else {
                     this.showToast(data.error || 'Failed to load shop items', 'error');
                 }
@@ -4891,16 +5167,13 @@ function adminDashboard(userData = {}) {
             if (/^(https?:)?\/\//i.test(url) || url.startsWith('data:') || url.startsWith('blob:')) {
                 return url;
             }
-            if (url.startsWith('/user_backend/media.php')) {
+            if (url.startsWith('/user_backend/media.php') || url.startsWith('/uploads/')) {
                 return url;
-            }
-            if (url.startsWith('/uploads/avatars/') || url.startsWith('/uploads/chat_images/')) {
-                return '/user_backend/media.php?path=' + encodeURIComponent(url);
             }
             if (url.startsWith('/')) {
                 return url;
             }
-            return '/user_backend/media.php?path=' + encodeURIComponent('/uploads/avatars/' + String(url).replace(/^\/+/, ''));
+            return '/uploads/avatars/' + String(url).replace(/^\/+/, '');
         },
 
         getAvatarUrl(name, background = 'ef4444') {
@@ -4913,18 +5186,23 @@ function adminDashboard(userData = {}) {
                 const data = await res.json();
                 if (!data.success) return;
                 if (data.avatar_url) {
-                    this.selectedAvatar = this.resolveAvatarUrl(data.avatar_url, this.displayName);
+                    const nextAvatar = this.resolveAvatarUrl(data.avatar_url, this.displayName);
+                    this.selectedAvatar = this.keepExistingMediaUrl(this.selectedAvatar, nextAvatar);
                     this.hasCustomAvatar = true;
-                } else {
+                } else if (!this.hasCustomAvatar) {
                     this.selectedAvatar = this.getAvatarUrl(this.displayName);
-                    this.hasCustomAvatar = false;
                 }
                 if (data.active_border_id) {
                     const border = (this.shopItems || []).find(i => Number(i.id) === Number(data.active_border_id) && String(i.category || '').toLowerCase() === 'border');
-                    this.selectedBorder = border ? border.image : (data.border_preview || null);
-                } else {
+                    const nextBorder = border ? border.image : (data.border_preview || null);
+                    this.selectedBorder = this.keepExistingMediaUrl(this.selectedBorder, nextBorder);
+                } else if (!this.selectedBorder) {
                     this.selectedBorder = null;
                 }
+                this.forceSetCachedMedia(window.CURRENT_USER_ID, {
+                    avatar_url: this.hasCustomAvatar ? this.selectedAvatar : '',
+                    border_preview: this.selectedBorder || ''
+                });
                 this.borders = [
                     { id: 0, url: null },
                     ...(this.shopItems || [])
@@ -4950,6 +5228,10 @@ function adminDashboard(userData = {}) {
                 if (data.success) {
                     this.selectedAvatar = this.resolveAvatarUrl(data.avatar_url, this.displayName);
                     this.hasCustomAvatar = true;
+                    this.forceSetCachedMedia(window.CURRENT_USER_ID, {
+                        avatar_url: this.selectedAvatar,
+                        border_preview: this.selectedBorder || ''
+                    });
                     this.showToast('Profile picture updated!', 'success');
                 } else {
                     this.showToast(data.message || 'Upload failed', 'error');
@@ -4969,6 +5251,10 @@ function adminDashboard(userData = {}) {
                 if (data.success) {
                     this.selectedAvatar = this.getAvatarUrl(this.displayName);
                     this.hasCustomAvatar = false;
+                    this.forceSetCachedMedia(window.CURRENT_USER_ID, {
+                        avatar_url: '',
+                        border_preview: this.selectedBorder || ''
+                    });
                     this.showToast('Profile picture removed', 'success');
                 } else {
                     this.showToast(data.message || 'Failed to remove avatar', 'error');
@@ -5104,6 +5390,7 @@ function adminDashboard(userData = {}) {
             if (this.currentTab === tabId) return;
             const oldTab = this.currentTab;
             this.currentTab = tabId;
+            this.ensureAdminTabData(tabId);
             const oldPanel = document.querySelector(`[data-tab-panel="${oldTab}"]`);
             const newPanel = document.querySelector(`[data-tab-panel="${tabId}"]`);
             
@@ -5569,19 +5856,36 @@ function adminDashboard(userData = {}) {
         },
 
          async initDashboard() {
-            this.fetchReports();
-            this.fetchStats();
-            this.fetchMovies();
-            this.fetchGenres();
-            this.fetchUsers();
-            this.fetchNotifications();
-            this.fetchRooms();
-            await this.fetchShopItems();
-            await this.fetchAdminProfile();
+            this.loadMediaCaches();
+            this.cacheOwnAdminMedia();
             this.initPusher();
-            this.fetchComments();
 
-            
+            const loadingSafety = setTimeout(() => {
+                this.statsLoading = false;
+                this.isLoading = false;
+                this.commentsLoading = false;
+            }, 4000);
+
+            try {
+                await Promise.allSettled([
+                    this.fetchStats(),
+                    this.fetchNotifications(),
+                    this.fetchRooms(),
+                    this.fetchMovies(),
+                    this.fetchGenres(),
+                    this.fetchUsers(),
+                    this.fetchShopItems(),
+                    this.fetchAdminProfile(),
+                    this.fetchReports(),
+                    this.fetchComments()
+                ]);
+            } finally {
+                clearTimeout(loadingSafety);
+                this.statsLoading = false;
+                this.isLoading = false;
+                this.commentsLoading = false;
+            }
+
             this.$watch('movieModalOpen', (isOpen) => {
                 if (!isOpen) {
                     this.currentMovieId = null;
@@ -5595,6 +5899,11 @@ function adminDashboard(userData = {}) {
         },
 
         handleProfileChanged(data) {
+            this.forceSetCachedMedia(data.user_id, {
+                avatar_url: data.avatar_url !== undefined ? this.resolveAvatarUrl(data.avatar_url || '', 'User') : undefined,
+                border_preview: data.border_preview
+            });
+
             // Update users list (admin user management)
             this.users = this.users.map(user => {
                 const userId = user.id || user.user_id;
@@ -5661,8 +5970,8 @@ function adminDashboard(userData = {}) {
         },
 
        initPusher() {
-            // Only run if Pusher library is available
             if (typeof Pusher === 'undefined') return;
+            if (this._adminPusherBound) return;
 
             if (!this.pusherClient) {
                 this.pusherClient = new Pusher('f4b5637ef4b8952b6eb8', {
@@ -5670,6 +5979,15 @@ function adminDashboard(userData = {}) {
                     encrypted: true
                 });
             }
+
+            this.pusherClient.connection.bind('connected', () => {
+                console.log('Admin Pusher connected');
+            });
+            this.pusherClient.connection.bind('error', (err) => {
+                console.error('Admin Pusher connection error:', err);
+            });
+
+            this._adminPusherBound = true;
 
             // ---- PUBLIC CHANNELS (always subscribe) ----
 
@@ -5737,6 +6055,20 @@ function adminDashboard(userData = {}) {
                 this.handleProfileChanged(data);
             });
 
+            const moderationChannel = this.pusherClient.subscribe('admin-moderation-channel');
+            moderationChannel.bind('new-report-event', (data) => {
+                if (this.currentTab === 'reports' || (this.reportsList || []).length) {
+                    this.fetchReports();
+                }
+                if (data && data.notification) {
+                    this.notifications.unshift(data.notification);
+                    this.unreadNotifications = this.notifications.filter(n => Number(n.is_read) === 0).length;
+                    this.unreadNotifCount = this.unreadNotifications;
+                } else {
+                    this.fetchNotifications();
+                }
+            });
+
             // ---- USER-SPECIFIC CHANNEL (only if logged in) ----
             if (!window.CURRENT_USER_ID) return;
 
@@ -5746,8 +6078,6 @@ function adminDashboard(userData = {}) {
                 alert(data.message || 'Your account has been banned.');
                 window.location.href = '/backend/logout.php';
             });
-
-            // You can add other personal events (e.g., notifications) here if needed
         }
     };
 }

@@ -1,5 +1,6 @@
 <?php
 session_start();
+session_write_close();
 require_once __DIR__ . '/../conn.php';
 require_once __DIR__ . '/../shop_image_helper.php';
 header('Content-Type: application/json');

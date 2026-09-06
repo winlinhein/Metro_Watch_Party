@@ -9,6 +9,7 @@ if (empty($_SESSION['user_id'])) {
 }
 
 $userId = $_SESSION['user_id'];
+session_write_close();
 
 $stmt = $conn->prepare("SELECT points FROM users WHERE user_id = ?");
 $stmt->execute([$userId]);

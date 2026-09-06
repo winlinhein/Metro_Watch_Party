@@ -14,6 +14,7 @@ try {
     }
 
     $userId = (int)$_SESSION['user_id'];
+    session_write_close();
 
     if (!isset($_FILES['avatar']) || $_FILES['avatar']['error'] !== UPLOAD_ERR_OK) {
         echo json_encode(['success' => false, 'message' => 'No file uploaded']);
@@ -32,25 +33,10 @@ try {
         exit;
     }
 
-    // Remove previous avatar (local + shared DB)
     $oldStmt = $conn->prepare("SELECT avatar_url FROM users WHERE user_id = ?");
     $oldStmt->execute([$userId]);
     $oldUrl = (string)($oldStmt->fetchColumn() ?: '');
-    $oldNormalized = normalizeAvatarUrl($oldUrl);
-    if ($oldNormalized !== '' && str_starts_with($oldNormalized, '/uploads/avatars/')) {
-        deleteMediaByPublicPath($conn, $oldNormalized);
-    } elseif (preg_match('/[?&]id=(\d+)/', $oldUrl, $m)) {
-        ensureMediaTable($conn);
-        $find = $conn->prepare("SELECT public_path FROM media_files WHERE id = ?");
-        $find->execute([(int)$m[1]]);
-        $oldPath = (string)($find->fetchColumn() ?: '');
-        if ($oldPath !== '') {
-            deleteMediaByPublicPath($conn, $oldPath);
-        } else {
-            $del = $conn->prepare("DELETE FROM media_files WHERE id = ?");
-            $del->execute([(int)$m[1]]);
-        }
-    }
+    deleteStoredMedia($conn, $oldUrl);
 
     $extMap = [
         'image/jpeg' => 'jpg',
@@ -63,6 +49,7 @@ try {
 
     $stored = storeMediaFromUpload($conn, $file, 'avatars', $filename, $userId);
     $avatarUrl = $stored['serve_url'];
+    deletePreviousUserAvatars($conn, $userId, $stored['public_path']);
 
     $stmt = $conn->prepare("UPDATE users SET avatar_url = ? WHERE user_id = ?");
     $stmt->execute([$avatarUrl, $userId]);

@@ -12,6 +12,7 @@ try {
     }
 
     $userId = (int)$_SESSION['user_id'];
+    session_write_close();
 
     $stmt = $conn->prepare("SELECT user_name, email, avatar_url, points FROM users WHERE user_id = ?");
     $stmt->execute([$userId]);

@@ -18,14 +18,21 @@ function normalizeAvatarUrl(?string $avatarUrl): string
         return $avatarUrl;
     }
     if (str_starts_with($avatarUrl, '/')) {
-        // Legacy disk paths → shared DB/media gateway (works across machines on one remote DB)
         if (preg_match('#^/uploads/avatars/#', $avatarUrl)) {
+            $local = __DIR__ . str_replace('/', DIRECTORY_SEPARATOR, $avatarUrl);
+            if (is_file($local)) {
+                return $avatarUrl;
+            }
             return '/user_backend/media.php?path=' . rawurlencode($avatarUrl);
         }
         return $avatarUrl;
     }
     // Legacy bare filenames stored without the uploads path
     $path = '/uploads/avatars/' . ltrim($avatarUrl, '/');
+    $local = __DIR__ . str_replace('/', DIRECTORY_SEPARATOR, $path);
+    if (is_file($local)) {
+        return $path;
+    }
     return '/user_backend/media.php?path=' . rawurlencode($path);
 }
 
@@ -188,10 +195,7 @@ function attachProfileMedia(PDO $conn, array $rows, string $userIdKey = 'user_id
     $avatars = [];
     foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $u) {
         $uid = (int)$u['user_id'];
-        $normalized = normalizeAvatarUrl($u['avatar_url'] ?? '');
-        $avatars[$uid] = ($normalized !== '' && avatarUrlIsServable($conn, $normalized))
-            ? $normalized
-            : '';
+        $avatars[$uid] = normalizeAvatarUrl($u['avatar_url'] ?? '');
     }
 
     $stmt = $conn->prepare("
@@ -227,13 +231,6 @@ function attachProfileMedia(PDO $conn, array $rows, string $userIdKey = 'user_id
             $bid = 0;
         }
         $preview = $bid > 0 ? ($borders[$uid] ?? '') : '';
-        // Drop borders whose shop image file is missing
-        if ($preview !== '' && str_starts_with($preview, '/')) {
-            $borderFile = __DIR__ . str_replace('/', DIRECTORY_SEPARATOR, $preview);
-            if (!is_file($borderFile)) {
-                $preview = '';
-            }
-        }
         $row['border_id'] = $preview !== '' ? $bid : 0;
         $row['border_preview'] = $preview;
     }

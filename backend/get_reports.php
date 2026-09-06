@@ -13,6 +13,8 @@ if (empty($_SESSION['user_role']) || !in_array($role, ['admin', 'moderator'], tr
     exit;
 }
 
+session_write_close();
+
 try {
     // Incorporating your corrected query with the many-to-many relationship
     $stmt = $conn->query("

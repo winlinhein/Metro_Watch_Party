@@ -5,11 +5,41 @@
  *   /user_backend/media.php?id=123
  *   /user_backend/media.php?path=/uploads/avatars/file.png
  */
-session_start();
+if (session_status() === PHP_SESSION_ACTIVE) {
+    session_write_close();
+}
 require_once __DIR__ . '/../conn.php';
 require_once __DIR__ . '/../media_store_helper.php';
 
 ensureMediaTable($conn);
+
+function isAllowedMediaPublicPath(string $path): bool
+{
+    if ($path === '' || str_contains($path, '..') || str_contains($path, "\\")) {
+        return false;
+    }
+    if (!preg_match('#^/uploads/(avatars|chat_images|shop)/#', $path)) {
+        return false;
+    }
+    $filename = preg_replace('#^/uploads/(avatars|chat_images|shop)/#', '', $path);
+    return $filename !== '' && !str_contains($filename, '/');
+}
+
+function sendCachedMediaFile(string $local, string $mime): void
+{
+    $mtime = (int)@filemtime($local);
+    $size = (int)@filesize($local);
+    $etag = '"' . dechex($mtime) . '-' . dechex($size) . '"';
+    header('Content-Type: ' . $mime);
+    header('ETag: ' . $etag);
+    header('Cache-Control: public, max-age=604800, immutable');
+    if (isset($_SERVER['HTTP_IF_NONE_MATCH']) && trim((string)$_SERVER['HTTP_IF_NONE_MATCH']) === $etag) {
+        http_response_code(304);
+        exit;
+    }
+    header('Content-Length: ' . $size);
+    readfile($local);
+}
 
 function mediaNotFoundImage(): void
 {
@@ -30,7 +60,7 @@ if ($id > 0) {
     $stmt->execute([$id]);
     $row = $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
 } elseif ($path !== '') {
-    if (!preg_match('#^/uploads/(avatars|chat_images)/[A-Za-z0-9._-]+$#', $path)) {
+    if (!isAllowedMediaPublicPath($path)) {
         mediaNotFoundImage();
     }
     $stmt = $conn->prepare("SELECT id, public_path, mime_type, file_data FROM media_files WHERE public_path = ? LIMIT 1");
@@ -42,10 +72,7 @@ if ($id > 0) {
         $local = dirname(__DIR__) . str_replace('/', DIRECTORY_SEPARATOR, $path);
         if (is_file($local)) {
             $mime = detectUploadMime($local, 'application/octet-stream');
-            header('Content-Type: ' . $mime);
-            header('Content-Length: ' . filesize($local));
-            header('Cache-Control: public, max-age=86400');
-            readfile($local);
+            sendCachedMediaFile($local, $mime);
             exit;
         }
         mediaNotFoundImage();
@@ -63,10 +90,7 @@ $local = dirname(__DIR__) . str_replace('/', DIRECTORY_SEPARATOR, $publicPath);
 
 // Prefer local cache when present
 if (is_file($local)) {
-    header('Content-Type: ' . ($row['mime_type'] ?: detectUploadMime($local)));
-    header('Content-Length: ' . filesize($local));
-    header('Cache-Control: public, max-age=86400');
-    readfile($local);
+    sendCachedMediaFile($local, $row['mime_type'] ?: detectUploadMime($local));
     exit;
 }
 
@@ -86,5 +110,5 @@ if (is_dir($dir) && !is_file($local)) {
 
 header('Content-Type: ' . ($row['mime_type'] ?: 'application/octet-stream'));
 header('Content-Length: ' . strlen($data));
-header('Cache-Control: public, max-age=86400');
+header('Cache-Control: public, max-age=604800, immutable');
 echo $data;

@@ -26,7 +26,7 @@
                                  class="absolute inset-0 h-full w-full object-cover">
                         </div>
                         <template x-if="activeChatFriend?.border_preview">
-                            <img :src="activeChatFriend.border_preview" class="absolute inset-0 z-10 h-full w-full scale-[1.4] object-contain pointer-events-none" alt="">
+                            <img :src="activeChatFriend?.border_preview || ''" class="absolute inset-0 z-10 h-full w-full scale-[1.4] object-contain pointer-events-none" alt="">
                         </template>
                         <span class="absolute bottom-0 right-0 w-3 h-3 bg-emerald-500 border-2 border-[#050508] rounded-full z-20"></span>
                     </div>
@@ -55,7 +55,7 @@
                                     <img :src="resolveAvatarUrl(activeChatFriend?.avatar_url, activeChatFriend?.user_name || 'User')" class="absolute inset-0 h-full w-full object-cover">
                                 </div>
                                 <template x-if="activeChatFriend?.border_preview">
-                                    <img :src="activeChatFriend.border_preview" class="absolute inset-0 z-10 h-full w-full scale-[1.35] object-contain pointer-events-none" alt="">
+                                    <img :src="activeChatFriend?.border_preview || ''" class="absolute inset-0 z-10 h-full w-full scale-[1.35] object-contain pointer-events-none" alt="">
                                 </template>
                             </div>
                         </template>
