@@ -22,6 +22,7 @@ if ($roomId <= 0 || $movieId <= 0) {
 try {
     require_once __DIR__ . '/../conn.php';
     require_once __DIR__ . '/../poster_helper.php';
+    require_once __DIR__ . '/../pusher_helper.php';
 
     $roomStmt = $conn->prepare("SELECT room_id, host_id, status FROM rooms WHERE room_id = :id LIMIT 1");
     $roomStmt->execute(['id' => $roomId]);
@@ -65,6 +66,13 @@ try {
     $movie['trailer'] = $movie['video_url'];
     $movie['stream_url'] = $movie['actual_video_url'] ?: $movie['video_url'];
     $movie['id'] = (int)$movie['movie_id'];
+
+    triggerPusherEvent("watch-party-{$roomId}", 'movie-changed', [
+        'movie' => $movie,
+        'movieId' => $movieId,
+        'videoUrl' => $movie['stream_url'],
+        'fromUserId' => $userId,
+    ]);
 
     echo json_encode([
         'success' => true,

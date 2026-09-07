@@ -31,7 +31,8 @@ function watchParty() {
         localStream: null,
         iceServers: [
             { urls: 'stun:stun.l.google.com:19302' },
-            { urls: 'stun:stun1.l.google.com:19302' }
+            { urls: 'stun:stun1.l.google.com:19302' },
+            { urls: 'stun:stun2.l.google.com:19302' }
         ],
         participants: [],
         messages: [],
@@ -49,33 +50,47 @@ function watchParty() {
         showInviteSentModal: false,
         inviteSentName: '',
         socket: null,
+        pusherClient: null,
+        roomChannel: null,
         applyingRemotePlayback: false,
+        liveStatus: 'Connecting…',
+        peerId: (window.crypto && crypto.randomUUID)
+            ? crypto.randomUUID()
+            : ('peer-' + Date.now() + '-' + Math.random().toString(16).slice(2)),
+        roomSyncTimer: null,
 
         async init() {
-            // Bind page unload listener to end room if host closes window/tab
             window.addEventListener('beforeunload', () => {
-                if (this.isHost && this.roomId) {
-                    navigator.sendBeacon(`../user_backend/leave_room.php?room_id=${encodeURIComponent(this.roomId)}`);
-                }
+                if (!this.roomId) return;
+                const qs = `room_id=${encodeURIComponent(this.roomId)}&peer_id=${encodeURIComponent(this.peerId)}`;
+                navigator.sendBeacon(`../user_backend/leave_room.php?${qs}`);
             });
+            document.addEventListener('click', () => {
+                document.querySelectorAll('video').forEach((el) => {
+                    el.play().catch(() => {});
+                });
+            }, { once: true });
 
             this.fetchFriends();
             this.fetchMovies();
             await this.startLocalMedia();
             await this.fetchRoomDetails();
-            this.connectSignaling();
+            await this.connectSignaling();
+            await this.announcePresence();
+            this.startRoomSync();
         },
 
         // Fetch room metadata & enforce host permissions / room active status
-        async fetchRoomDetails() {
+        async fetchRoomDetails({ quiet = false } = {}) {
             if (!this.roomId) return;
-            this.isLoading = true;
+            if (!quiet) this.isLoading = true;
 
             try {
                 const res = await fetch(`../user_backend/get_room_details.php?room_id=${encodeURIComponent(this.roomId)}`);
                 const result = await res.json();
 
                 if (!result.success) {
+                    if (quiet) return;
                     alert(result.message || "Unable to join room.");
                     window.location.href = 'dashboard.php';
                     return;
@@ -98,7 +113,7 @@ function watchParty() {
             } catch (e) {
                 console.error("Error fetching room details:", e);
             } finally {
-                this.isLoading = false;
+                if (!quiet) this.isLoading = false;
             }
         },
 
@@ -247,7 +262,9 @@ function watchParty() {
 
         applyMovie(movie) {
             this.currentMovie = movie || null;
-            this.videoUrl = this.movieStreamUrl(movie);
+            const nextUrl = this.movieStreamUrl(movie);
+            if (nextUrl && nextUrl === this.videoUrl) return;
+            this.videoUrl = nextUrl;
             this.showMovieModal = false;
             this.isPlaying = !!(this.videoUrl && !this.isYouTubeUrl(this.videoUrl));
             if (this.videoUrl && !this.isYouTubeUrl(this.videoUrl)) {
@@ -321,17 +338,74 @@ function watchParty() {
             return videoTracks.length ? new MediaStream(videoTracks) : null;
         },
 
+        resolveAvatarUrl(url, name = 'User') {
+            if (!url) {
+                return `https://ui-avatars.com/api/?name=${encodeURIComponent(name || 'User')}&background=ef4444&color=fff&bold=true`;
+            }
+            if (/^(https?:)?\/\//i.test(url) || url.startsWith('data:') || url.startsWith('blob:')) return url;
+            if (url.startsWith('/user_backend/media.php') || url.startsWith('/uploads/') || url.startsWith('/')) return url;
+            return '/uploads/avatars/' + String(url).replace(/^\/+/, '');
+        },
+
+        selfAvatar() {
+            return this.resolveAvatarUrl(window.USER_AVATAR || '', window.USER_NAME || 'You');
+        },
+
+        selfBorder() {
+            return window.USER_BORDER || '';
+        },
+
+        withPeerMedia(peer) {
+            const name = peer.name || peer.userName || 'User';
+            const uid = Number(peer.userId || (peer.isSelf ? window.CURRENT_USER_ID : peer.id));
+            let avatar = peer.avatar || '';
+            let border = peer.border || peer.border_preview || '';
+            if (!avatar) {
+                if (peer.avatar_url) {
+                    avatar = this.resolveAvatarUrl(peer.avatar_url, name);
+                } else if (peer.isSelf || uid === Number(window.CURRENT_USER_ID)) {
+                    avatar = this.selfAvatar();
+                    border = border || this.selfBorder();
+                } else {
+                    const friend = (this.friends || []).find(f => Number(f.user_id) === uid);
+                    if (friend) {
+                        avatar = this.resolveAvatarUrl(friend.avatar_url, friend.user_name);
+                        border = border || friend.border_preview || '';
+                    } else {
+                        avatar = this.resolveAvatarUrl('', name);
+                    }
+                }
+            }
+            return { ...peer, name, avatar, border };
+        },
+
+        mapRoomPeer(peer) {
+            return {
+                peerId: peer.peer_id || peer.peerId,
+                userId: peer.user_id || peer.userId,
+                userName: peer.user_name || peer.userName,
+                avatar_url: peer.avatar_url,
+                border_preview: peer.border_preview
+            };
+        },
+
         upsertParticipant(peer) {
-            const idx = this.participants.findIndex(p =>
-                (peer.socketId && p.socketId === peer.socketId) ||
-                (p.id && peer.id && String(p.id) === String(peer.id) && !p.isSelf)
-            );
+            peer = this.withPeerMedia(peer);
+            const idx = this.participants.findIndex(p => {
+                if (p.isSelf && peer.isSelf) return true;
+                if (peer.peerId && p.peerId && p.peerId === peer.peerId) return true;
+                if (peer.socketId && p.socketId && p.socketId === peer.socketId) return true;
+                if (p.id && peer.id && String(p.id) === String(peer.id) && !p.isSelf && !peer.isSelf) return true;
+                return false;
+            });
             if (idx >= 0) {
                 const prev = this.participants[idx];
                 this.participants.splice(idx, 1, {
                     ...prev,
                     ...peer,
-                    stream: peer.stream || prev.stream
+                    stream: peer.stream || prev.stream,
+                    avatar: peer.avatar || prev.avatar,
+                    border: peer.border || prev.border
                 });
             } else {
                 this.participants.push(peer);
@@ -371,7 +445,10 @@ function watchParty() {
                 this.upsertParticipant({
                     id: 'local',
                     socketId: 'local',
+                    peerId: this.peerId,
                     name: window.USER_NAME || 'You',
+                    avatar: this.selfAvatar(),
+                    border: this.selfBorder(),
                     stream: this.localPreviewStream(),
                     muted: this.isMuted,
                     videoOn: this.isVideoOn,
@@ -402,7 +479,10 @@ function watchParty() {
                 this.upsertParticipant({
                     id: 'local',
                     socketId: 'local',
+                    peerId: this.peerId,
                     name: window.USER_NAME || 'You',
+                    avatar: this.selfAvatar(),
+                    border: this.selfBorder(),
                     stream: null,
                     muted: true,
                     videoOn: false,
@@ -414,21 +494,47 @@ function watchParty() {
 
         normalizePeer(data) {
             if (data && typeof data === 'object') {
+                const peerId = data.peerId || data.fromPeerId || data.socketId || data.fromSocketId || null;
                 return {
-                    socketId: data.socketId || data.fromSocketId || null,
-                    userId: data.userId,
-                    userName: data.userName || data.name || 'Guest'
+                    peerId,
+                    socketId: data.socketId || data.fromSocketId || peerId,
+                    userId: data.userId || data.fromUserId,
+                    userName: data.userName || data.name || 'Guest',
+                    avatar_url: data.avatar_url,
+                    border_preview: data.border_preview
                 };
             }
-            return { socketId: null, userId: data, userName: 'Guest' };
+            return { peerId: null, socketId: null, userId: data, userName: 'Guest' };
         },
 
-        createPeerConnection(peerSocketId, peerMeta = {}) {
-            if (!peerSocketId || peerSocketId === this.socket?.id) return null;
-            if (peerConnections[peerSocketId]) return peerConnections[peerSocketId];
+        peerKey(peer) {
+            return peer?.peerId || peer?.socketId || null;
+        },
 
-            const pc = new RTCPeerConnection({ iceServers: this.iceServers });
-            peerConnections[peerSocketId] = pc;
+        waitForIce(pc) {
+            if (!pc || pc.iceGatheringState === 'complete') return Promise.resolve();
+            return new Promise((resolve) => {
+                const finish = () => {
+                    pc.removeEventListener('icegatheringstatechange', onState);
+                    resolve();
+                };
+                const onState = () => {
+                    if (pc.iceGatheringState === 'complete') finish();
+                };
+                pc.addEventListener('icegatheringstatechange', onState);
+                setTimeout(finish, 2500);
+            });
+        },
+
+        createPeerConnection(peerKey, peerMeta = {}) {
+            if (!peerKey || peerKey === this.peerId || peerKey === this.socket?.id) return null;
+            if (peerConnections[peerKey]) return peerConnections[peerKey];
+
+            const pc = new RTCPeerConnection({
+                iceServers: this.iceServers,
+                iceCandidatePoolSize: 4
+            });
+            peerConnections[peerKey] = pc;
 
             if (this.localStream) {
                 this.localStream.getTracks().forEach(track => {
@@ -437,21 +543,26 @@ function watchParty() {
             }
 
             pc.onicecandidate = (event) => {
-                if (event.candidate && this.socket) {
-                    this.socket.emit('ice-candidate', {
-                        targetSocketId: peerSocketId,
-                        candidate: event.candidate,
-                        fromSocketId: this.socket.id
-                    });
-                }
+                if (!event.candidate) return;
+                this.signal('ice-candidate', {
+                    targetPeerId: peerKey,
+                    targetSocketId: peerMeta.socketId || peerKey,
+                    candidate: event.candidate,
+                    fromPeerId: this.peerId,
+                    fromSocketId: this.socket?.id
+                });
             };
 
             pc.ontrack = (event) => {
                 const stream = event.streams[0] || new MediaStream([event.track]);
                 this.upsertParticipant({
-                    id: peerMeta.userId || peerSocketId,
-                    socketId: peerSocketId,
+                    id: peerMeta.userId || peerKey,
+                    peerId: peerKey,
+                    socketId: peerMeta.socketId || peerKey,
+                    userId: peerMeta.userId,
                     name: peerMeta.userName || 'Guest',
+                    avatar_url: peerMeta.avatar_url,
+                    border_preview: peerMeta.border_preview,
                     stream,
                     muted: false,
                     videoOn: true,
@@ -461,10 +572,8 @@ function watchParty() {
             };
 
             pc.onconnectionstatechange = () => {
-                if (pc.connectionState === 'failed' || pc.connectionState === 'closed' || pc.connectionState === 'disconnected') {
-                    if (pc.connectionState !== 'disconnected') {
-                        this.removePeer({ socketId: peerSocketId });
-                    }
+                if (pc.connectionState === 'failed' || pc.connectionState === 'closed') {
+                    this.removePeer({ peerId: peerKey, socketId: peerKey });
                 }
             };
 
@@ -472,13 +581,18 @@ function watchParty() {
         },
 
         async callPeer(peer) {
-            const { socketId, userId, userName } = this.normalizePeer(peer);
-            if (!socketId || !this.socket || socketId === this.socket.id) return;
+            const normalized = this.normalizePeer(peer);
+            const key = this.peerKey(normalized);
+            if (!key || key === this.peerId || key === this.socket?.id) return;
 
             this.upsertParticipant({
-                id: userId || socketId,
-                socketId,
-                name: userName || 'Guest',
+                id: normalized.userId || key,
+                peerId: key,
+                socketId: normalized.socketId || key,
+                userId: normalized.userId,
+                name: normalized.userName || 'Guest',
+                avatar_url: normalized.avatar_url,
+                border_preview: normalized.border_preview,
                 stream: null,
                 muted: false,
                 videoOn: true,
@@ -486,32 +600,43 @@ function watchParty() {
                 isSelf: false
             });
 
-            const pc = this.createPeerConnection(socketId, { userId, userName });
+            const pc = this.createPeerConnection(key, normalized);
             if (!pc || pc.localDescription) return;
 
             try {
                 const offer = await pc.createOffer();
                 await pc.setLocalDescription(offer);
-                this.socket.emit('offer', {
-                    targetSocketId: socketId,
+                await this.waitForIce(pc);
+                this.signal('offer', {
+                    targetPeerId: key,
+                    targetSocketId: normalized.socketId || key,
                     sdp: pc.localDescription,
-                    fromSocketId: this.socket.id,
+                    fromPeerId: this.peerId,
+                    fromSocketId: this.socket?.id,
                     userId: Number(window.CURRENT_USER_ID) || null,
-                    userName: window.USER_NAME || 'You'
+                    userName: window.USER_NAME || 'You',
+                    avatar_url: window.USER_AVATAR || '',
+                    border_preview: window.USER_BORDER || ''
                 });
             } catch (e) {
-                console.error('Failed to create offer for', socketId, e);
+                console.error('Failed to create offer for', key, e);
             }
         },
 
         async handleOffer(data) {
-            const fromSocketId = data.fromSocketId;
-            if (!fromSocketId || fromSocketId === this.socket?.id) return;
+            const from = this.normalizePeer(data);
+            const fromKey = this.peerKey(from);
+            if (!fromKey || fromKey === this.peerId) return;
+            if (data.targetPeerId && data.targetPeerId !== this.peerId && data.targetSocketId !== this.socket?.id) return;
 
             this.upsertParticipant({
-                id: data.userId || fromSocketId,
-                socketId: fromSocketId,
-                name: data.userName || 'Guest',
+                id: from.userId || fromKey,
+                peerId: fromKey,
+                socketId: from.socketId || fromKey,
+                userId: from.userId,
+                name: from.userName || 'Guest',
+                avatar_url: from.avatar_url,
+                border_preview: from.border_preview,
                 stream: null,
                 muted: false,
                 videoOn: true,
@@ -519,47 +644,57 @@ function watchParty() {
                 isSelf: false
             });
 
-            const pc = this.createPeerConnection(fromSocketId, {
-                userId: data.userId,
-                userName: data.userName
-            });
+            const pc = this.createPeerConnection(fromKey, from);
             if (!pc) return;
 
             try {
+                if (pc.signalingState === 'have-local-offer') {
+                    try { await pc.setLocalDescription({ type: 'rollback' }); } catch (e) { /* ignore */ }
+                }
+                if (pc.signalingState !== 'stable' && pc.currentRemoteDescription) return;
                 await pc.setRemoteDescription(new RTCSessionDescription(data.sdp));
-                await this.flushPendingCandidates(fromSocketId);
+                await this.flushPendingCandidates(fromKey);
                 const answer = await pc.createAnswer();
                 await pc.setLocalDescription(answer);
-                this.socket.emit('answer', {
-                    targetSocketId: fromSocketId,
+                await this.waitForIce(pc);
+                this.signal('answer', {
+                    targetPeerId: fromKey,
+                    targetSocketId: from.socketId || fromKey,
                     sdp: pc.localDescription,
-                    fromSocketId: this.socket.id,
+                    fromPeerId: this.peerId,
+                    fromSocketId: this.socket?.id,
                     userId: Number(window.CURRENT_USER_ID) || null,
-                    userName: window.USER_NAME || 'You'
+                    userName: window.USER_NAME || 'You',
+                    avatar_url: window.USER_AVATAR || '',
+                    border_preview: window.USER_BORDER || ''
                 });
             } catch (e) {
-                console.error('Failed to handle offer from', fromSocketId, e);
+                console.error('Failed to handle offer from', fromKey, e);
             }
         },
 
         async handleAnswer(data) {
-            const fromSocketId = data.fromSocketId;
-            const pc = peerConnections[fromSocketId];
+            const from = this.normalizePeer(data);
+            const fromKey = this.peerKey(from);
+            if (data.targetPeerId && data.targetPeerId !== this.peerId && data.targetSocketId !== this.socket?.id) return;
+            const pc = peerConnections[fromKey];
             if (!pc) return;
             try {
                 if (!pc.currentRemoteDescription) {
                     await pc.setRemoteDescription(new RTCSessionDescription(data.sdp));
-                    await this.flushPendingCandidates(fromSocketId);
+                    await this.flushPendingCandidates(fromKey);
                 }
             } catch (e) {
-                console.error('Failed to handle answer from', fromSocketId, e);
+                console.error('Failed to handle answer from', fromKey, e);
             }
         },
 
         async handleIceCandidate(data) {
-            const fromSocketId = data.fromSocketId;
-            if (!fromSocketId || !data.candidate) return;
-            const pc = peerConnections[fromSocketId];
+            const from = this.normalizePeer(data);
+            const fromKey = this.peerKey(from);
+            if (!fromKey || !data.candidate) return;
+            if (data.targetPeerId && data.targetPeerId !== this.peerId && data.targetSocketId !== this.socket?.id) return;
+            const pc = peerConnections[fromKey];
             if (pc && pc.remoteDescription) {
                 try {
                     await pc.addIceCandidate(new RTCIceCandidate(data.candidate));
@@ -568,14 +703,15 @@ function watchParty() {
                 }
                 return;
             }
-            if (!pendingCandidates[fromSocketId]) pendingCandidates[fromSocketId] = [];
-            pendingCandidates[fromSocketId].push(data.candidate);
+            if (!pendingCandidates[fromKey]) pendingCandidates[fromKey] = [];
+            pendingCandidates[fromKey].push(data.candidate);
         },
 
-        async flushPendingCandidates(socketId) {
-            const pc = peerConnections[socketId];
-            const queued = pendingCandidates[socketId] || [];
-            pendingCandidates[socketId] = [];
+        async flushPendingCandidates(peerKey) {
+            const pc = peerConnections[peerKey];
+            const queued = pendingCandidates[peerKey] || [];
+            pendingCandidates[peerKey] = [];
+            if (!pc) return;
             for (const candidate of queued) {
                 try {
                     await pc.addIceCandidate(new RTCIceCandidate(candidate));
@@ -587,17 +723,193 @@ function watchParty() {
 
         removePeer(payload) {
             const peer = this.normalizePeer(payload);
-            const socketId = peer.socketId;
-            if (socketId && peerConnections[socketId]) {
-                try { peerConnections[socketId].close(); } catch (e) { /* ignore */ }
-                delete peerConnections[socketId];
+            const key = this.peerKey(peer);
+            if (key && peerConnections[key]) {
+                try { peerConnections[key].close(); } catch (e) { /* ignore */ }
+                delete peerConnections[key];
             }
             this.participants = this.participants.filter(p => {
                 if (p.isSelf) return true;
-                if (socketId && p.socketId === socketId) return false;
-                if (!socketId && peer.userId && String(p.id) === String(peer.userId)) return false;
+                if (key && (p.peerId === key || p.socketId === key)) return false;
+                if (!key && peer.userId && String(p.id) === String(peer.userId)) return false;
                 return true;
             });
+        },
+
+        signal(event, data) {
+            if (this.socket && this.socket.connected && (event === 'offer' || event === 'answer' || event === 'ice-candidate' || event === 'send_message' || event === 'toggle-mic' || event === 'toggle-video' || event === 'movie-changed' || event === 'playback-sync')) {
+                this.socket.emit(event, data);
+            }
+            this.sendPusherSignal(event, data);
+        },
+
+        sendPusherSignal(event, data) {
+            if (!this.roomId) return;
+            const mapped = event === 'send_message' ? 'new_message' : event;
+            const allowed = {
+                offer: true,
+                answer: true,
+                'ice-candidate': true,
+                'peer-leave': true,
+                new_message: true,
+                'playback-sync': true,
+                'toggle-mic': true,
+                'toggle-video': true
+            };
+            if (!allowed[mapped]) return;
+            const form = new FormData();
+            form.append('room_id', this.roomId);
+            form.append('event', mapped);
+            form.append('payload', JSON.stringify({
+                ...data,
+                fromPeerId: this.peerId
+            }));
+            fetch('../user_backend/room_signal.php', { method: 'POST', body: form }).catch(() => {});
+        },
+
+        onRoomEvent(event, data) {
+            if (!data) return;
+            if (data.fromPeerId && data.fromPeerId === this.peerId) return;
+            if (data.fromSocketId && this.socket?.id && data.fromSocketId === this.socket.id) return;
+            if (event === 'offer' || event === 'answer') {
+                const key = event + ':' + (data.fromPeerId || data.fromSocketId || '') + ':' + String(data.sdp && data.sdp.sdp || '').slice(0, 64);
+                this._seenSignals = this._seenSignals || {};
+                if (this._seenSignals[key]) return;
+                this._seenSignals[key] = true;
+            }
+
+            if (event === 'peer-join' || event === 'user-connected') {
+                const peer = this.normalizePeer(data);
+                const key = this.peerKey(peer);
+                if (!key || key === this.peerId) return;
+                this.upsertParticipant({
+                    id: peer.userId || key,
+                    peerId: key,
+                    socketId: peer.socketId || key,
+                    userId: peer.userId,
+                    name: peer.userName || 'Guest',
+                    avatar_url: data.avatar_url,
+                    border_preview: data.border_preview,
+                    stream: null,
+                    muted: false,
+                    videoOn: true,
+                    speaking: false,
+                    isSelf: false
+                });
+                this.createPeerConnection(key, peer);
+                if (String(this.peerId) > String(key)) this.callPeer(peer);
+                return;
+            }
+            if (event === 'peer-leave' || event === 'user-disconnected') {
+                this.removePeer(data);
+                return;
+            }
+            if (event === 'existing-users') {
+                (data || []).forEach(peer => this.callPeer(peer));
+                return;
+            }
+            if (event === 'offer') return this.handleOffer(data);
+            if (event === 'answer') return this.handleAnswer(data);
+            if (event === 'ice-candidate') return this.handleIceCandidate(data);
+            if (event === 'new_message') {
+                if (data.senderId && Number(data.senderId) === Number(window.CURRENT_USER_ID)) return;
+                const mk = 'msg:' + (data.senderId || '') + ':' + (data.text || '') + ':' + (data.time || '');
+                this._seenSignals = this._seenSignals || {};
+                if (this._seenSignals[mk]) return;
+                this._seenSignals[mk] = true;
+                this.messages.push({ ...data, isSelf: false });
+                this.$nextTick(() => {
+                    const container = document.getElementById('chat-container');
+                    if (container) container.scrollTop = container.scrollHeight;
+                });
+                return;
+            }
+            if (event === 'movie-changed') {
+                const movie = data.movie || { actual_video_url: data.videoUrl, title: data.title };
+                if (!movie.actual_video_url && data.videoUrl) movie.actual_video_url = data.videoUrl;
+                this.applyMovie(movie);
+                return;
+            }
+            if (event === 'playback-sync') {
+                this.applyRemotePlayback(data);
+                return;
+            }
+            if (event === 'toggle-mic' || event === 'peer-mic-changed') {
+                const p = this.participants.find(x => x.peerId === data.fromPeerId || x.socketId === data.socketId || String(x.id) === String(data.userId));
+                if (p && !p.isSelf) {
+                    p.muted = data.isMuted;
+                    this.participants = [...this.participants];
+                }
+                return;
+            }
+            if (event === 'toggle-video' || event === 'peer-video-changed') {
+                const p = this.participants.find(x => x.peerId === data.fromPeerId || x.socketId === data.socketId || String(x.id) === String(data.userId));
+                if (p && !p.isSelf) {
+                    p.videoOn = data.isVideoOn;
+                    this.participants = [...this.participants];
+                }
+            }
+        },
+
+        bindPusherRoom() {
+            if (typeof Pusher === 'undefined' || !this.roomId) return false;
+            if (!this.pusherClient) {
+                this.pusherClient = new Pusher(window.PUSHER_KEY || 'f4b5637ef4b8952b6eb8', {
+                    cluster: window.PUSHER_CLUSTER || 'ap1',
+                    encrypted: true
+                });
+            }
+            const channelName = `watch-party-${this.roomId}`;
+            this.roomChannel = this.pusherClient.subscribe(channelName);
+            [
+                'peer-join', 'peer-leave', 'offer', 'answer', 'ice-candidate',
+                'new_message', 'movie-changed', 'playback-sync', 'toggle-mic', 'toggle-video'
+            ].forEach(event => {
+                this.roomChannel.bind(event, (data) => this.onRoomEvent(event, data));
+            });
+            this.liveStatus = 'Live';
+            return true;
+        },
+
+        async announcePresence() {
+            if (!this.roomId || !this.peerId) return;
+            try {
+                const form = new FormData();
+                form.append('room_id', this.roomId);
+                form.append('peer_id', this.peerId);
+                const res = await fetch('../user_backend/join_room.php', { method: 'POST', body: form });
+                const data = await res.json();
+                if (data.success && Array.isArray(data.peers)) {
+                    data.peers.forEach(peer => this.callPeer(this.mapRoomPeer(peer)));
+                }
+            } catch (e) {
+                console.error('Failed to announce presence', e);
+            }
+        },
+
+        startRoomSync() {
+            if (this.roomSyncTimer) clearInterval(this.roomSyncTimer);
+            this.roomSyncTimer = setInterval(() => {
+                this.fetchRoomDetails({ quiet: true });
+                if (!this.roomId || !this.peerId) return;
+                const form = new FormData();
+                form.append('room_id', this.roomId);
+                form.append('peer_id', this.peerId);
+                form.append('heartbeat', '1');
+                fetch('../user_backend/join_room.php', { method: 'POST', body: form })
+                    .then(r => r.json())
+                    .then(data => {
+                        if (!data.success || !Array.isArray(data.peers)) return;
+                        data.peers.forEach(peer => {
+                            const key = peer.peer_id || peer.peerId;
+                            if (!key) return;
+                            const pc = peerConnections[key];
+                            if (pc && (pc.localDescription || pc.remoteDescription)) return;
+                            this.callPeer(this.mapRoomPeer(peer));
+                        });
+                    })
+                    .catch(() => {});
+            }, 4000);
         },
 
         ensureSocketIo() {
@@ -630,12 +942,15 @@ function watchParty() {
         },
 
         async connectSignaling() {
-            // PHP pages (e.g. :8000) don't serve Socket.io — use Node signaling on :3000 locally.
+            const pusherOk = this.bindPusherRoom();
+            if (!pusherOk && window.showToast) {
+                window.showToast('Live sync is limited. Check your connection.', 'error');
+            }
+
             const ioClient = await this.ensureSocketIo();
             if (!ioClient) {
-                console.error('Socket.io client is not available.');
-                if (window.showToast) {
-                    window.showToast('Real-time features unavailable. Refresh, or start the signaling server on port 3000.', 'error');
+                if (!pusherOk && window.showToast) {
+                    window.showToast('Could not start live room connection.', 'error');
                 }
                 return;
             }
@@ -644,109 +959,39 @@ function watchParty() {
                 || (location.port && location.port !== '3000'
                     ? `${location.protocol}//${location.hostname}:3000`
                     : undefined);
-            this.socket = signalingUrl ? ioClient(signalingUrl) : ioClient();
+            this.socket = signalingUrl
+                ? ioClient(signalingUrl, { transports: ['websocket', 'polling'] })
+                : ioClient({ transports: ['websocket', 'polling'] });
 
             this.socket.on('connect', () => {
-                console.log("Connected to signaling server with ID:", this.socket.id);
+                console.log('Connected to signaling server with ID:', this.socket.id);
                 const myUserId = Number(window.CURRENT_USER_ID);
                 const myName = window.USER_NAME || 'You';
-
-                if (myUserId) {
-                    this.socket.emit('register-user', myUserId);
-                }
-
-                if (this.roomId) {
-                    this.socket.emit('join-room', String(this.roomId), myUserId, myName);
-                }
+                if (myUserId) this.socket.emit('register-user', myUserId);
+                if (this.roomId) this.socket.emit('join-room', String(this.roomId), myUserId, myName);
+                if (this.liveStatus !== 'Live') this.liveStatus = 'Live';
             });
 
             this.socket.on('connect_error', (err) => {
-                console.warn("Signaling server connection error:", err.message);
-                if (window.showToast) {
-                    window.showToast("Could not connect to signaling server. Real-time features may be limited.", 'error');
-                }
+                console.warn('Signaling server connection error:', err.message);
+                if (!this.roomChannel) this.liveStatus = 'Connecting…';
             });
 
             this.socket.on('receive-invite', (data) => {
-                window.dispatchEvent(new CustomEvent('incoming-party-invite', {
-                    detail: {
-                        hostName: data.hostName,
-                        sender_name: data.hostName || data.sender_name,
-                        sender_id: data.hostId || data.sender_id,
-                        roomId: data.roomId || data.room_id,
-                        room_id: data.roomId || data.room_id,
-                        message: data.message || 'invited you to a watch party.'
-                    }
-                }));
+                window.dispatchEvent(new CustomEvent('incoming-party-invite', { detail: data }));
             });
 
-            this.socket.on('existing-users', (users) => {
-                (users || []).forEach(peer => this.callPeer(peer));
-            });
-
-            this.socket.on('user-connected', (data) => {
-                const peer = this.normalizePeer(data);
-                console.log("Peer joined room:", peer);
-                this.upsertParticipant({
-                    id: peer.userId || peer.socketId,
-                    socketId: peer.socketId,
-                    name: peer.userName || 'Guest',
-                    stream: null,
-                    muted: false,
-                    videoOn: true,
-                    speaking: false,
-                    isSelf: false
-                });
-                this.createPeerConnection(peer.socketId, peer);
-            });
-
-            this.socket.on('user-disconnected', (data) => {
-                console.log("Peer left room:", data);
-                this.removePeer(data);
-            });
-
-            this.socket.on('offer', (data) => this.handleOffer(data));
-            this.socket.on('answer', (data) => this.handleAnswer(data));
-            this.socket.on('ice-candidate', (data) => this.handleIceCandidate(data));
-
-            this.socket.on('peer-mic-changed', ({ userId, socketId, isMuted }) => {
-                const p = this.participants.find(x => x.socketId === socketId || String(x.id) === String(userId));
-                if (p && !p.isSelf) {
-                    p.muted = isMuted;
-                    this.participants = [...this.participants];
-                }
-            });
-
-            this.socket.on('peer-video-changed', ({ userId, socketId, isVideoOn }) => {
-                const p = this.participants.find(x => x.socketId === socketId || String(x.id) === String(userId));
-                if (p && !p.isSelf) {
-                    p.videoOn = isVideoOn;
-                    this.participants = [...this.participants];
-                }
-            });
-
-            this.socket.on('new_message', (msg) => {
-                if (msg.senderId && Number(msg.senderId) === Number(window.CURRENT_USER_ID)) return;
-                this.messages.push({ ...msg, isSelf: false });
-                this.$nextTick(() => {
-                    const container = document.getElementById('chat-container');
-                    if (container) container.scrollTop = container.scrollHeight;
-                });
-            });
-
-            this.socket.on('movie-changed', (data) => {
-                if (data?.fromSocketId && data.fromSocketId === this.socket.id) return;
-                const movie = data?.movie || { actual_video_url: data?.videoUrl, title: data?.title };
-                if (movie && (movie.actual_video_url || movie.stream_url || movie.trailer || movie.video_url || data?.videoUrl)) {
-                    if (!movie.actual_video_url && data?.videoUrl) movie.actual_video_url = data.videoUrl;
-                    this.applyMovie(movie);
-                }
-            });
-
-            this.socket.on('playback-sync', (data) => {
-                if (!data || (data.fromSocketId && data.fromSocketId === this.socket.id)) return;
-                this.applyRemotePlayback(data);
-            });
+            this.socket.on('existing-users', (users) => this.onRoomEvent('existing-users', users));
+            this.socket.on('user-connected', (data) => this.onRoomEvent('user-connected', data));
+            this.socket.on('user-disconnected', (data) => this.onRoomEvent('user-disconnected', data));
+            this.socket.on('offer', (data) => this.onRoomEvent('offer', data));
+            this.socket.on('answer', (data) => this.onRoomEvent('answer', data));
+            this.socket.on('ice-candidate', (data) => this.onRoomEvent('ice-candidate', data));
+            this.socket.on('peer-mic-changed', (data) => this.onRoomEvent('peer-mic-changed', data));
+            this.socket.on('peer-video-changed', (data) => this.onRoomEvent('peer-video-changed', data));
+            this.socket.on('new_message', (data) => this.onRoomEvent('new_message', data));
+            this.socket.on('movie-changed', (data) => this.onRoomEvent('movie-changed', data));
+            this.socket.on('playback-sync', (data) => this.onRoomEvent('playback-sync', data));
         },
 
         applyRemotePlayback(data) {
@@ -768,9 +1013,9 @@ function watchParty() {
         },
 
         emitPlaybackSync() {
-            if (this.applyingRemotePlayback || !this.socket || !this.socket.connected) return;
+            if (this.applyingRemotePlayback) return;
             const player = this.$refs.videoPlayer;
-            this.socket.emit('playback-sync', {
+            this.signal('playback-sync', {
                 isPlaying: this.isPlaying,
                 currentTime: player ? player.currentTime : (this.currentTime || 0)
             });
@@ -845,15 +1090,15 @@ function watchParty() {
                 name: window.USER_NAME || 'You',
                 text: this.newMessage.trim(),
                 time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-                avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(window.USER_NAME || 'You')}&background=random&color=fff`,
+                avatar: this.selfAvatar(),
                 isSelf: true,
                 senderId: Number(window.CURRENT_USER_ID) || null
             };
 
             this.messages.push(msg);
 
-            if (this.socket && this.socket.connected && this.roomId) {
-                this.socket.emit('send_message', {
+            if (this.roomId) {
+                this.signal('send_message', {
                     room: this.roomId,
                     ...msg
                 });
@@ -884,9 +1129,7 @@ function watchParty() {
                 this.participants = [...this.participants];
             }
 
-            if (this.socket && this.socket.connected) {
-                this.socket.emit('toggle-mic', this.isMuted);
-            }
+            this.signal('toggle-mic', { isMuted: this.isMuted, socketId: this.socket?.id, userId: Number(window.CURRENT_USER_ID) || null });
         },
 
         toggleVideo() {
@@ -906,9 +1149,7 @@ function watchParty() {
                 this.participants = [...this.participants];
             }
 
-            if (this.socket && this.socket.connected) {
-                this.socket.emit('toggle-video', this.isVideoOn);
-            }
+            this.signal('toggle-video', { isVideoOn: this.isVideoOn, socketId: this.socket?.id, userId: Number(window.CURRENT_USER_ID) || null });
         }
     }
 }

@@ -1,10 +1,14 @@
+import { createServer } from 'http';
 import { Server } from 'socket.io';
 
-const io = new Server(3000, {
-    cors: { origin: "*" }
+const httpServer = createServer();
+const io = new Server(httpServer, {
+    cors: { origin: '*' }
 });
 
-console.log("WebSocket Server is running on port 3000...");
+httpServer.listen(3000, '0.0.0.0', () => {
+    console.log('WebSocket Server is running on 0.0.0.0:3000...');
+});
 
 io.on('connection', socket => {
     console.log(`New connection: ${socket.id}`);
@@ -55,6 +59,7 @@ io.on('connection', socket => {
 
         const payload = {
             socketId: socket.id,
+            peerId: socket.id,
             userId,
             userName: userName || 'Guest'
         };
@@ -67,6 +72,7 @@ io.on('connection', socket => {
                 const peer = io.sockets.sockets.get(id);
                 existing.push({
                     socketId: id,
+                    peerId: peer?._peerId || id,
                     userId: peer?._userId,
                     userName: peer?._userName || 'Guest'
                 });
@@ -75,6 +81,7 @@ io.on('connection', socket => {
 
         await socket.join(room);
         socket._roomId = room;
+        socket._peerId = payload.peerId;
         socket._userId = userId;
         socket._userName = payload.userName;
         console.log(`User ${userId} (${socket.id}) joined room ${room}`);
@@ -126,21 +133,23 @@ io.on('connection', socket => {
     });
 
     socket.on('toggle-mic', (isMuted) => {
+        const muted = (isMuted && typeof isMuted === 'object') ? !!isMuted.isMuted : !!isMuted;
         if (socket._roomId) {
             socket.to(socket._roomId).emit('peer-mic-changed', {
                 userId: socket._userId,
                 socketId: socket.id,
-                isMuted
+                isMuted: muted
             });
         }
     });
 
     socket.on('toggle-video', (isVideoOn) => {
+        const on = (isVideoOn && typeof isVideoOn === 'object') ? !!isVideoOn.isVideoOn : !!isVideoOn;
         if (socket._roomId) {
             socket.to(socket._roomId).emit('peer-video-changed', {
                 userId: socket._userId,
                 socketId: socket.id,
-                isVideoOn
+                isVideoOn: on
             });
         }
     });

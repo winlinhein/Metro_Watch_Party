@@ -9,6 +9,17 @@ if (empty($_SESSION['authenticated']) || empty($_SESSION['user_id'])) {
 $userId = $_SESSION['user_id'] ?? 0;
 $userName = $_SESSION['user_name'] ?? 'Agent';
 $userEmail = $_SESSION['user_email'] ?? '';
+$userAvatar = '';
+$userBorder = '';
+try {
+    require_once __DIR__ . '/../conn.php';
+    require_once __DIR__ . '/../profile_media_helper.php';
+    $media = getUserProfileMedia($conn, (int)$userId);
+    $userAvatar = $media['avatar_url'] ?? '';
+    $userBorder = $media['border_preview'] ?? '';
+} catch (Throwable $e) {
+    error_log('watch_party profile media: ' . $e->getMessage());
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -20,7 +31,10 @@ $userEmail = $_SESSION['user_email'] ?? '';
     <script>
         window.CURRENT_USER_ID = <?php echo json_encode($userId); ?>;
         window.USER_NAME = <?php echo json_encode($userName); ?>;
-        window.USER_EMAIL = <?php echo json_encode($userEmail); ?>;
+        window.USER_AVATAR = <?php echo json_encode($userAvatar); ?>;
+        window.USER_BORDER = <?php echo json_encode($userBorder); ?>;
+        window.PUSHER_KEY = 'f4b5637ef4b8952b6eb8';
+        window.PUSHER_CLUSTER = 'ap1';
         window.NEXUS_SIGNALING_URL = window.NEXUS_SIGNALING_URL || (
             (location.port && location.port !== '3000')
                 ? (location.protocol + '//' + location.hostname + ':3000')
@@ -90,6 +104,7 @@ $userEmail = $_SESSION['user_email'] ?? '';
 
 
    <!-- 1. Third-Party Libraries First -->
+<script src="https://js.pusher.com/8.2.0/pusher.min.js"></script>
 <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
 <script>
     if (typeof io !== 'function') {
@@ -121,17 +136,22 @@ $userEmail = $_SESSION['user_email'] ?? '';
             <span class="material-symbols-outlined text-white font-bold">arrow_back</span>
         </a>
         <div class="w-8 h-[2px] bg-white/10 rounded-full my-2"></div>
-        <div class="flex-1 w-full flex flex-col items-center gap-3 overflow-y-auto custom-scrollbar">
-            <!-- Mock other parties/servers -->
-            <template x-for="i in 3">
-                <div class="w-12 h-12 rounded-[24px] bg-white/5 hover:bg-white/10 hover:rounded-[16px] flex items-center justify-center transition-all duration-300 cursor-pointer relative group">
-                    <img :src="`https://ui-avatars.com/api/?name=U${i}&background=random&color=fff`" class="w-full h-full object-cover rounded-[inherit]">
-                    <div class="absolute left-0 w-1 bg-white rounded-r-full transition-all duration-300 h-0 group-hover:h-6 top-1/2 -translate-y-1/2"></div>
+        <div class="flex-1 w-full flex flex-col items-center gap-4 overflow-y-auto custom-scrollbar py-2 px-1">
+            <template x-for="user in participants" :key="user.peerId || user.socketId || user.id">
+                <div class="w-12 h-12 rounded-[24px] hover:rounded-[16px] flex items-center justify-center transition-all duration-300 relative group overflow-visible"
+                     :title="user.name">
+                    <div class="absolute inset-0 z-0 overflow-hidden rounded-[inherit] scale-[1.05] bg-white/5 border border-white/10">
+                        <img :src="user.avatar" class="absolute inset-0 h-full w-full object-cover" alt="">
+                    </div>
+                    <template x-if="user.border">
+                        <img :src="user.border" class="absolute inset-0 z-10 h-full w-full scale-[1.45] object-contain pointer-events-none" alt="">
+                    </template>
+                    <div class="absolute left-0 w-1 bg-white rounded-r-full transition-all duration-300 h-0 group-hover:h-6 top-1/2 -translate-y-1/2 z-20"></div>
                 </div>
             </template>
-            <div class="w-12 h-12 rounded-[24px] bg-white/5 hover:bg-emerald-500 hover:text-white text-emerald-400 hover:rounded-[16px] flex items-center justify-center transition-all duration-300 cursor-pointer relative group shadow-[0_0_15px_rgba(16,185,129,0.1)] hover:shadow-[0_0_20px_rgba(16,185,129,0.4)]">
+            <button type="button" @click="showInviteMenu = true" class="w-12 h-12 rounded-[24px] bg-white/5 hover:bg-emerald-500 hover:text-white text-emerald-400 hover:rounded-[16px] flex items-center justify-center transition-all duration-300 relative group shadow-[0_0_15px_rgba(16,185,129,0.1)] hover:shadow-[0_0_20px_rgba(16,185,129,0.4)]" title="Invite a friend">
                 <span class="material-symbols-outlined">add</span>
-            </div>
+            </button>
         </div>
     </div>
 
@@ -147,6 +167,8 @@ $userEmail = $_SESSION['user_email'] ?? '';
                     <p class="text-xs text-white/50 mono flex items-center gap-2">
                         <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
                         <span x-text="participants.length + ' online'"></span>
+                        <span class="text-white/30">·</span>
+                        <span x-text="liveStatus"></span>
                     </p>
                 </div>
             </div>
@@ -164,9 +186,16 @@ $userEmail = $_SESSION['user_email'] ?? '';
         <div class="max-h-60 overflow-y-auto custom-scrollbar flex flex-col gap-1">
             <template x-for="friend in friends" :key="friend.user_id">
                 <div class="flex items-center justify-between p-2 rounded-lg hover:bg-white/5 transition-colors group">
-                    <div class="flex items-center gap-2">
-                        <div class="w-8 h-8 rounded-full bg-gradient-to-tr from-indigo-500 to-red-600 flex items-center justify-center text-xs font-bold" x-text="friend.user_name.charAt(0)"></div>
-                        <span class="text-sm font-medium" x-text="friend.user_name"></span>
+                    <div class="flex items-center gap-2 min-w-0">
+                        <div class="relative shrink-0 w-9 h-9 overflow-visible">
+                            <div class="absolute inset-0 z-0 overflow-hidden rounded-full scale-[1.1] border border-white/10">
+                                <img :src="resolveAvatarUrl(friend.avatar_url, friend.user_name)" class="absolute inset-0 h-full w-full object-cover" alt="">
+                            </div>
+                            <template x-if="friend.border_preview">
+                                <img :src="friend.border_preview" class="absolute inset-0 z-10 h-full w-full scale-[1.45] object-contain pointer-events-none" alt="">
+                            </template>
+                        </div>
+                        <span class="text-sm font-medium truncate" x-text="friend.user_name"></span>
                     </div>
                     <button @click="inviteFriend(friend.user_id, friend.user_name)" class="text-emerald-400 hover:text-white hover:bg-emerald-500 p-1.5 rounded-lg transition-all opacity-0 group-hover:opacity-100">
                         <span class="material-symbols-outlined text-[16px]">send</span>
@@ -299,22 +328,37 @@ $userEmail = $_SESSION['user_email'] ?? '';
 
                     <!-- Video Grid (Participants) -->
                     <div class="flex flex-col gap-3 origin-top pointer-events-auto overflow-y-auto custom-scrollbar pr-1 pb-4" x-show="showParticipants" x-transition:enter="transition ease-out duration-300" x-transition:enter-start="opacity-0 scale-y-90" x-transition:enter-end="opacity-100 scale-y-100" x-transition:leave="transition ease-in duration-200" x-transition:leave-start="opacity-100 scale-y-100" x-transition:leave-end="opacity-0 scale-y-90">
-                        <template x-for="user in participants" :key="user.socketId || user.id">
+                        <template x-for="user in participants" :key="user.peerId || user.socketId || user.id">
                             <div class="participant-card w-full aspect-video hover:scale-105 transition-transform duration-300 bg-white/5 rounded-xl border border-white/10 overflow-hidden relative group shadow-lg shrink-0">
                                 <!-- Live video feed (only when stream is available) -->
                                 <template x-if="user.stream && user.isSelf">
-                                    <video x-effect="$el.srcObject = user.stream; $el.muted = true; $el.volume = 0; $el.defaultMuted = true;" autoplay playsinline muted class="w-full h-full object-cover"></video>
+                                    <video x-effect="$el.srcObject = user.stream; $el.muted = true; $el.volume = 0; $el.defaultMuted = true; $el.play && $el.play().catch(()=>{});" autoplay playsinline muted class="w-full h-full object-cover"></video>
                                 </template>
                                 <template x-if="user.stream && !user.isSelf">
-                                    <video x-effect="$el.srcObject = user.stream; $el.muted = false;" autoplay playsinline class="w-full h-full object-cover"></video>
+                                    <video x-effect="$el.srcObject = user.stream; $el.muted = false; $el.play && $el.play().catch(()=>{});" autoplay playsinline class="w-full h-full object-cover"></video>
                                 </template>
                                 <!-- Placeholder avatar (when no stream — camera denied/unavailable) -->
                                 <template x-if="!user.stream">
                                     <div class="w-full h-full flex items-center justify-center bg-[#0a0a0f]">
-                                        <div class="w-12 h-12 rounded-full bg-gradient-to-tr from-indigo-500 to-red-600 flex items-center justify-center text-white font-bold text-lg select-none" x-text="(user.name || 'U').charAt(0).toUpperCase()"></div>
+                                        <div class="relative w-14 h-14 overflow-visible">
+                                            <div class="absolute inset-0 z-0 overflow-hidden rounded-full scale-[1.1] border border-white/10">
+                                                <img :src="user.avatar" class="absolute inset-0 h-full w-full object-cover" alt="">
+                                            </div>
+                                            <template x-if="user.border">
+                                                <img :src="user.border" class="absolute inset-0 z-10 h-full w-full scale-[1.45] object-contain pointer-events-none" alt="">
+                                            </template>
+                                        </div>
                                     </div>
                                 </template>
                                 <div class="absolute bottom-1 left-1 bg-black/60 backdrop-blur px-1.5 py-0.5 rounded text-[9px] font-bold text-white flex items-center gap-1 border border-white/10">
+                                    <div class="relative w-4 h-4 overflow-visible shrink-0">
+                                        <div class="absolute inset-0 z-0 overflow-hidden rounded-full">
+                                            <img :src="user.avatar" class="absolute inset-0 h-full w-full object-cover" alt="">
+                                        </div>
+                                        <template x-if="user.border">
+                                            <img :src="user.border" class="absolute inset-0 z-10 h-full w-full scale-[1.5] object-contain pointer-events-none" alt="">
+                                        </template>
+                                    </div>
                                     <span class="truncate max-w-[60px]" x-text="user.name"></span>
                                     <span class="material-symbols-outlined text-[10px]" :class="user.muted ? 'text-red-500' : 'text-green-500'" x-text="user.muted ? 'mic_off' : 'mic'"></span>
                                     <span class="material-symbols-outlined text-[10px]" :class="!user.videoOn ? 'text-red-500' : 'text-green-500'" x-text="!user.videoOn ? 'videocam_off' : 'videocam'"></span>

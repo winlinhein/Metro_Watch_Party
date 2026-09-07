@@ -58,6 +58,14 @@ if ($roomCode) {
         echo json_encode(['success' => true, 'message' => 'Participant left']);
     }
 
+    try {
+        require_once __DIR__ . '/../pusher_helper.php';
+        triggerPusherEvent('watch-party-' . $room['room_id'], 'peer-leave', [
+            'userId' => (int)$userId,
+            'peerId' => (string)($_REQUEST['peer_id'] ?? ''),
+        ]);
+    } catch (Throwable $ignore) {}
+
 } catch (Exception $e) {
     http_response_code(500);
     echo json_encode(['success' => false, 'message' => 'Database update error: ' . $e->getMessage()]);
