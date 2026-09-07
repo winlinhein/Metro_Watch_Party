@@ -1,10 +1,12 @@
 // Barba.js Initialization
 if (typeof barba !== 'undefined') {
     barba.init({
-        prevent: ({ el }) => {
-            if (el.hasAttribute('data-barba-prevent')) return true;
-            if (el.getAttribute('href') && el.getAttribute('href').startsWith('#')) return true;
-            if (el.href && el.href.includes('backend/')) return true;
+        prevent: ({ el, href }) => {
+            if (el && el.hasAttribute('data-barba-prevent')) return true;
+            if (el && el.getAttribute('href') && el.getAttribute('href').startsWith('#')) return true;
+            if (el && el.href && el.href.includes('backend/')) return true;
+            const url = href || (el && el.href) || '';
+            if (String(url).includes('watch_party.php')) return true;
             return false;
         },
         views: [{
@@ -179,6 +181,15 @@ if (typeof barba !== 'undefined') {
                 }
             }
         }]
+    });
+
+    barba.hooks.before((data) => {
+        const nextUrl = data?.next?.url;
+        const href = typeof nextUrl === 'string' ? nextUrl : (nextUrl?.href || '');
+        if (href.includes('watch_party.php')) {
+            window.location.assign(href);
+            throw new Error('Hard navigation to watch party');
+        }
     });
 }
 

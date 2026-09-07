@@ -107,6 +107,24 @@ io.on('connection', socket => {
         });
     });
 
+    socket.on('movie-changed', (data) => {
+        if (!socket._roomId) return;
+        socket.to(socket._roomId).emit('movie-changed', {
+            ...data,
+            fromSocketId: socket.id,
+            userId: socket._userId
+        });
+    });
+
+    socket.on('playback-sync', (data) => {
+        if (!socket._roomId) return;
+        socket.to(socket._roomId).emit('playback-sync', {
+            ...data,
+            fromSocketId: socket.id,
+            userId: socket._userId
+        });
+    });
+
     socket.on('toggle-mic', (isMuted) => {
         if (socket._roomId) {
             socket.to(socket._roomId).emit('peer-mic-changed', {

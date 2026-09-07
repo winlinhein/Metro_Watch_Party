@@ -3169,7 +3169,7 @@ function userDashboard() {
     };
 }
 
-function watchParty() {
+function __legacyWatchPartyStub() {
     return {
         isYouTubeUrl(url) {
             if (!url) return false;
@@ -6126,11 +6126,9 @@ window.createParty = async function(movieId = null) {
         
         if (data.success) {
             console.log(`Room created successfully using path ${successfulPath}! Code: ${data.room_code}`);
-            if (typeof barba !== 'undefined' && barba.go) {
-                barba.go(`watch_party.php?room_id=${data.room_id}`);
-            } else {
-                window.location.href = `watch_party.php?room_id=${data.room_id}`;
-            }
+            // Full page load is required so socket.io + watch_party.js initialize Alpine.
+            // Barba swaps the container without those scripts, which breaks video call and movie share.
+            window.location.href = `/user/watch_party.php?room_id=${encodeURIComponent(data.room_id)}`;
         } else {
             console.error("Room creation failed:", data.error);
             if (typeof window.showToast === 'function') {

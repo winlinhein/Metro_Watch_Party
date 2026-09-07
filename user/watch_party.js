@@ -48,6 +48,8 @@ function watchParty() {
         showInviteMenu: false,
         showInviteSentModal: false,
         inviteSentName: '',
+        socket: null,
+        applyingRemotePlayback: false,
 
         async init() {
             // Bind page unload listener to end room if host closes window/tab
@@ -90,11 +92,7 @@ function watchParty() {
 
                 // 2. Set Movie / Media Source if assigned
                 if (movie) {
-                    this.currentMovie = movie;
-                    this.videoUrl = movie.stream_url || '';
-                    if (this.$refs.videoPlayer && this.videoUrl) {
-                        this.$refs.videoPlayer.src = this.videoUrl;
-                    }
+                    this.applyMovie(movie);
                 }
 
             } catch (e) {
@@ -167,19 +165,33 @@ function watchParty() {
             }
         },
 
-        selectMovie(movie) {
-            this.videoUrl = movie.actual_video_url || movie.trailer || movie.video_url || '';
-            this.currentMovie = movie;
-            this.showMovieModal = false;
-            setTimeout(() => {
-                if (this.$refs.videoPlayer) {
-                    this.$refs.videoPlayer.onloadedmetadata = () => {
-                        this.duration = this.$refs.videoPlayer.duration;
-                    };
-                    this.isPlaying = true;
-                    this.$refs.videoPlayer.play();
+        async selectMovie(movie) {
+            if (!movie) return;
+            this.applyMovie(movie);
+
+            const movieId = movie.id || movie.movie_id;
+            if (this.roomId && movieId) {
+                try {
+                    const form = new FormData();
+                    form.append('room_id', this.roomId);
+                    form.append('movie_id', movieId);
+                    await fetch('../user_backend/set_room_movie.php', {
+                        method: 'POST',
+                        body: form
+                    });
+                } catch (e) {
+                    console.error('Failed to persist shared movie:', e);
                 }
-            }, 100);
+            }
+
+            if (this.socket && this.socket.connected) {
+                this.socket.emit('movie-changed', {
+                    movieId,
+                    videoUrl: this.videoUrl,
+                    title: movie.title || '',
+                    movie
+                });
+            }
         },
 
         isYouTubeUrl(url) {
@@ -208,6 +220,46 @@ function watchParty() {
                 return `https://www.youtube.com/embed/${videoId}?${params.toString()}`;
             }
             return url;
+        },
+
+        getYouTubeWatchEmbed(url) {
+            if (!url) return '';
+            const match = url.match(/^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/);
+            if (match && match[2].length === 11) {
+                const videoId = match[2];
+                const params = new URLSearchParams({
+                    autoplay: '1',
+                    mute: '0',
+                    controls: '1',
+                    rel: '0',
+                    modestbranding: '1',
+                    playsinline: '1'
+                });
+                return `https://www.youtube.com/embed/${videoId}?${params.toString()}`;
+            }
+            return url;
+        },
+
+        movieStreamUrl(movie) {
+            if (!movie) return '';
+            return movie.actual_video_url || movie.stream_url || movie.trailer || movie.video_url || '';
+        },
+
+        applyMovie(movie) {
+            this.currentMovie = movie || null;
+            this.videoUrl = this.movieStreamUrl(movie);
+            this.showMovieModal = false;
+            this.isPlaying = !!(this.videoUrl && !this.isYouTubeUrl(this.videoUrl));
+            if (this.videoUrl && !this.isYouTubeUrl(this.videoUrl)) {
+                this.$nextTick(() => {
+                    if (this.$refs.videoPlayer) {
+                        this.$refs.videoPlayer.onloadedmetadata = () => {
+                            this.duration = this.$refs.videoPlayer.duration;
+                        };
+                        this.$refs.videoPlayer.play().catch(() => {});
+                    }
+                });
+            }
         },
 
         async inviteFriend(friendId, friendName = 'friend') {
@@ -548,14 +600,51 @@ function watchParty() {
             });
         },
 
-        connectSignaling() {
-            // PHP pages (e.g. :9000) don't serve Socket.io — use Node signaling on :3000 locally.
-            // Override with window.NEXUS_SIGNALING_URL when needed.
+        ensureSocketIo() {
+            if (typeof io === 'function') return Promise.resolve(io);
+
+            const signalingBase = window.NEXUS_SIGNALING_URL
+                || ((location.port && location.port !== '3000')
+                    ? `${location.protocol}//${location.hostname}:3000`
+                    : `${location.protocol}//${location.host}`);
+
+            const urls = [
+                `${signalingBase}/socket.io/socket.io.js`,
+                'https://cdn.jsdelivr.net/npm/socket.io-client@4.7.5/dist/socket.io.min.js',
+                'https://cdn.socket.io/4.7.5/socket.io.min.js'
+            ];
+
+            return new Promise((resolve) => {
+                const tryLoad = (index) => {
+                    if (typeof io === 'function') return resolve(io);
+                    if (index >= urls.length) return resolve(null);
+                    const script = document.createElement('script');
+                    script.src = urls[index];
+                    script.async = true;
+                    script.onload = () => resolve(typeof io === 'function' ? io : null);
+                    script.onerror = () => tryLoad(index + 1);
+                    document.head.appendChild(script);
+                };
+                tryLoad(0);
+            });
+        },
+
+        async connectSignaling() {
+            // PHP pages (e.g. :8000) don't serve Socket.io — use Node signaling on :3000 locally.
+            const ioClient = await this.ensureSocketIo();
+            if (!ioClient) {
+                console.error('Socket.io client is not available.');
+                if (window.showToast) {
+                    window.showToast('Real-time features unavailable. Refresh, or start the signaling server on port 3000.', 'error');
+                }
+                return;
+            }
+
             const signalingUrl = window.NEXUS_SIGNALING_URL
                 || (location.port && location.port !== '3000'
                     ? `${location.protocol}//${location.hostname}:3000`
                     : undefined);
-            this.socket = signalingUrl ? io(signalingUrl) : io();
+            this.socket = signalingUrl ? ioClient(signalingUrl) : ioClient();
 
             this.socket.on('connect', () => {
                 console.log("Connected to signaling server with ID:", this.socket.id);
@@ -644,23 +733,67 @@ function watchParty() {
                     if (container) container.scrollTop = container.scrollHeight;
                 });
             });
+
+            this.socket.on('movie-changed', (data) => {
+                if (data?.fromSocketId && data.fromSocketId === this.socket.id) return;
+                const movie = data?.movie || { actual_video_url: data?.videoUrl, title: data?.title };
+                if (movie && (movie.actual_video_url || movie.stream_url || movie.trailer || movie.video_url || data?.videoUrl)) {
+                    if (!movie.actual_video_url && data?.videoUrl) movie.actual_video_url = data.videoUrl;
+                    this.applyMovie(movie);
+                }
+            });
+
+            this.socket.on('playback-sync', (data) => {
+                if (!data || (data.fromSocketId && data.fromSocketId === this.socket.id)) return;
+                this.applyRemotePlayback(data);
+            });
+        },
+
+        applyRemotePlayback(data) {
+            const player = this.$refs.videoPlayer;
+            if (!player) return;
+            this.applyingRemotePlayback = true;
+            this.isPlaying = !!data.isPlaying;
+            if (typeof data.currentTime === 'number' && Math.abs((player.currentTime || 0) - data.currentTime) > 1.25) {
+                player.currentTime = data.currentTime;
+            }
+            if (this.isPlaying) {
+                player.play().catch(() => {});
+            } else {
+                player.pause();
+            }
+            this.$nextTick(() => {
+                this.applyingRemotePlayback = false;
+            });
+        },
+
+        emitPlaybackSync() {
+            if (this.applyingRemotePlayback || !this.socket || !this.socket.connected) return;
+            const player = this.$refs.videoPlayer;
+            this.socket.emit('playback-sync', {
+                isPlaying: this.isPlaying,
+                currentTime: player ? player.currentTime : (this.currentTime || 0)
+            });
         },
 
         // ==========================================
         // VIDEO PLAYER CONTROLS
         // ==========================================
         togglePlay() {
+            if (!this.$refs.videoPlayer) return;
             this.isPlaying = !this.isPlaying;
             if (this.isPlaying) {
                 this.$refs.videoPlayer.play();
             } else {
                 this.$refs.videoPlayer.pause();
             }
+            this.emitPlaybackSync();
         },
 
         updateProgress() {
+            if (!this.$refs.videoPlayer) return;
             this.currentTime = this.$refs.videoPlayer.currentTime;
-            this.progressPercent = (this.currentTime / this.duration) * 100;
+            this.progressPercent = this.duration ? (this.currentTime / this.duration) * 100 : 0;
             
             if (this.$refs.videoPlayer.buffered.length > 0) {
                 this.bufferPercent = (this.$refs.videoPlayer.buffered.end(0) / this.duration) * 100;
@@ -668,9 +801,11 @@ function watchParty() {
         },
 
         seek(e) {
+            if (!this.$refs.videoPlayer || !this.$refs.progressBar) return;
             const rect = this.$refs.progressBar.getBoundingClientRect();
             const pos = (e.clientX - rect.left) / rect.width;
             this.$refs.videoPlayer.currentTime = pos * this.duration;
+            this.emitPlaybackSync();
         },
 
         updateVolume() {

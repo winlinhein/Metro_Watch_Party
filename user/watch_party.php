@@ -21,6 +21,11 @@ $userEmail = $_SESSION['user_email'] ?? '';
         window.CURRENT_USER_ID = <?php echo json_encode($userId); ?>;
         window.USER_NAME = <?php echo json_encode($userName); ?>;
         window.USER_EMAIL = <?php echo json_encode($userEmail); ?>;
+        window.NEXUS_SIGNALING_URL = window.NEXUS_SIGNALING_URL || (
+            (location.port && location.port !== '3000')
+                ? (location.protocol + '//' + location.hostname + ':3000')
+                : ''
+        );
     </script>
     
     <script src="https://cdn.tailwindcss.com/3.4.17"></script>
@@ -86,10 +91,17 @@ $userEmail = $_SESSION['user_email'] ?? '';
 
    <!-- 1. Third-Party Libraries First -->
 <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+<script>
+    if (typeof io !== 'function') {
+        document.write('<script src="' + (window.NEXUS_SIGNALING_URL || (location.protocol + '//' + location.hostname + ':3000')) + '/socket.io/socket.io.js"><\/script>');
+    }
+    if (typeof io !== 'function') {
+        document.write('<script src="https://cdn.jsdelivr.net/npm/socket.io-client@4.7.5/dist/socket.io.min.js"><\/script>');
+    }
+</script>
 <script src="https://unpkg.com/htmx.org@1.9.10/dist/htmx.min.js" crossorigin="anonymous"></script>
 
 <!-- 2. Your Custom Scripts Last -->
-<script src="../js/nexus_scripts.js?v=1788162000"></script>
 <script src="watch_party.js?v=<?php echo time(); ?>"></script>
 </head>
 <body class="h-screen w-screen flex relative selection:bg-red-500/30" data-barba="wrapper">
@@ -176,7 +188,10 @@ $userEmail = $_SESSION['user_email'] ?? '';
             <!-- Main Movie Player Background -->
             <div class="absolute inset-0 bg-black overflow-hidden group video-container z-0" @mousemove="showControls = true; clearTimeout(controlsTimeout); controlsTimeout = setTimeout(() => { if (isPlaying) showControls = false }, 2500)" @mouseleave="if (isPlaying) showControls = false">
                     
-                    <template x-if="videoUrl">
+                    <template x-if="videoUrl && isYouTubeUrl(videoUrl)">
+                        <iframe class="w-full h-full bg-black" :src="getYouTubeWatchEmbed(videoUrl)" title="Watch party movie" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe>
+                    </template>
+                    <template x-if="videoUrl && !isYouTubeUrl(videoUrl)">
                         <video id="main-player" class="w-full h-full object-contain bg-black cursor-pointer" x-ref="videoPlayer" @click="togglePlay" @timeupdate="updateProgress" @ended="isPlaying = false" :src="videoUrl" playsinline preload="metadata" poster="https://images.unsplash.com/photo-1536440136628-849c177e76a1?auto=format&fit=crop&q=80&w=1600&h=900"></video>
                     </template>
                     
@@ -205,14 +220,14 @@ $userEmail = $_SESSION['user_email'] ?? '';
                     </div>
 
                     <!-- Giant Play Button Overlay (when paused) -->
-                    <div class="absolute inset-0 bg-black/40 flex items-center justify-center z-10 transition-opacity duration-300 cursor-pointer" x-show="videoUrl && !isPlaying && !isLoading" @click="togglePlay" x-transition.opacity>
+                    <div class="absolute inset-0 bg-black/40 flex items-center justify-center z-10 transition-opacity duration-300 cursor-pointer" x-show="videoUrl && !isYouTubeUrl(videoUrl) && !isPlaying && !isLoading" @click="togglePlay" x-transition.opacity>
                         <div class="w-24 h-24 bg-red-500/90 rounded-full flex items-center justify-center shadow-[0_0_40px_rgba(239,68,68,0.6)] backdrop-blur-md transform transition-transform hover:scale-110">
                             <span class="material-symbols-outlined text-[48px] text-white ml-2">play_arrow</span>
                         </div>
                     </div>
 
                     <!-- Player Controls Overlay -->
-                    <div class="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent flex flex-col justify-end p-6 z-20 transition-opacity duration-500 pointer-events-none" :class="(showControls && videoUrl) ? 'opacity-100' : 'opacity-0'" x-show="videoUrl">
+                    <div class="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent flex flex-col justify-end p-6 z-20 transition-opacity duration-500 pointer-events-none" :class="(showControls && videoUrl && !isYouTubeUrl(videoUrl)) ? 'opacity-100' : 'opacity-0'" x-show="videoUrl && !isYouTubeUrl(videoUrl)">
                         
                         <!-- Progress Bar -->
                         <div class="w-full h-1.5 bg-white/20 rounded-full mb-6 cursor-pointer relative group/progress pointer-events-auto" @click="seek" x-ref="progressBar">
@@ -568,7 +583,7 @@ $userEmail = $_SESSION['user_email'] ?? '';
 <!-- Your external script file loaded at the bottom of the body -->
 
     
-    <script src="../js/barba_setup.js?v=4"></script>
+    <script src="../js/barba_setup.js?v=5"></script>
    
 
 
