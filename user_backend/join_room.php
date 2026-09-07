@@ -31,7 +31,7 @@ try {
     $room = $roomStmt->fetch(PDO::FETCH_ASSOC);
     if (!$room || ($room['status'] ?? '') === 'ended') {
         http_response_code(404);
-        echo json_encode(['success' => false, 'message' => 'Room not found']);
+        echo json_encode(['success' => false, 'message' => 'This watch party has ended.', 'is_ended' => true]);
         exit;
     }
 
@@ -41,9 +41,31 @@ try {
         user_name VARCHAR(191) NOT NULL DEFAULT '',
         peer_id VARCHAR(64) NOT NULL,
         last_seen DATETIME NOT NULL,
+        forced_muted TINYINT(1) NOT NULL DEFAULT 0,
         PRIMARY KEY (peer_id),
         KEY room_seen (room_id, last_seen)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
+    foreach (['forced_muted', 'forced_video_off', 'chat_banned'] as $col) {
+        try {
+            $conn->exec("ALTER TABLE room_participants ADD COLUMN {$col} TINYINT(1) NOT NULL DEFAULT 0");
+        } catch (Throwable $ignore) {}
+    }
+
+    $conn->exec("CREATE TABLE IF NOT EXISTS room_kicks (
+        room_id INT NOT NULL,
+        user_id INT NOT NULL,
+        kicked_at DATETIME NOT NULL,
+        PRIMARY KEY (room_id, user_id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
+    $kickStmt = $conn->prepare("SELECT 1 FROM room_kicks WHERE room_id = :room_id AND user_id = :user_id LIMIT 1");
+    $kickStmt->execute(['room_id' => $roomId, 'user_id' => $userId]);
+    if ($kickStmt->fetchColumn()) {
+        http_response_code(403);
+        echo json_encode(['success' => false, 'message' => 'The host removed you from the room.', 'is_kicked' => true]);
+        exit;
+    }
 
     $conn->prepare("
         DELETE FROM room_participants
@@ -75,8 +97,15 @@ try {
         'peer_id' => $peerId,
     ]);
 
+    $selfFlagStmt = $conn->prepare("SELECT forced_muted, forced_video_off, chat_banned FROM room_participants WHERE peer_id = :peer_id LIMIT 1");
+    $selfFlagStmt->execute(['peer_id' => $peerId]);
+    $selfFlags = $selfFlagStmt->fetch(PDO::FETCH_ASSOC) ?: [];
+    $forcedMuted = (int)($selfFlags['forced_muted'] ?? 0) === 1;
+    $forcedVideoOff = (int)($selfFlags['forced_video_off'] ?? 0) === 1;
+    $chatBanned = (int)($selfFlags['chat_banned'] ?? 0) === 1;
+
     $peerStmt = $conn->prepare("
-        SELECT user_id, user_name, peer_id
+        SELECT user_id, user_name, peer_id, forced_muted, forced_video_off, chat_banned
         FROM room_participants
         WHERE room_id = :room_id
           AND peer_id <> :peer_id
@@ -93,6 +122,9 @@ try {
         'socketId' => $peerId,
         'avatar_url' => $selfMedia['avatar_url'] ?? '',
         'border_preview' => $selfMedia['border_preview'] ?? '',
+        'forced_muted' => $forcedMuted,
+        'forced_video_off' => $forcedVideoOff,
+        'chat_banned' => $chatBanned,
     ];
 
     if (!$heartbeat || !$alreadyThere) {

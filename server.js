@@ -53,13 +53,13 @@ io.on('connection', socket => {
 
     // --- 2. Watch Party Room & WebRTC Signaling Events ---
 
-    socket.on('join-room', async (roomId, userId, userName) => {
+    socket.on('join-room', async (roomId, userId, userName, peerId) => {
         const room = String(roomId ?? '');
         if (!room) return;
 
         const payload = {
             socketId: socket.id,
-            peerId: socket.id,
+            peerId: peerId || socket.id,
             userId,
             userName: userName || 'Guest'
         };
@@ -154,11 +154,71 @@ io.on('connection', socket => {
         }
     });
 
+    socket.on('room-ended', (data) => {
+        if (!socket._roomId) return;
+        socket.to(socket._roomId).emit('room-ended', {
+            ...(data || {}),
+            fromSocketId: socket.id,
+            fromUserId: socket._userId,
+            is_ended: true,
+            message: (data && data.message) || 'The host ended this watch party.'
+        });
+    });
+
+    socket.on('force-leave', (data) => {
+        if (!socket._roomId) return;
+        socket.to(socket._roomId).emit('force-leave', {
+            ...(data || {}),
+            fromSocketId: socket.id,
+            fromUserId: socket._userId
+        });
+    });
+
+    socket.on('force-mute', (data) => {
+        if (!socket._roomId) return;
+        socket.to(socket._roomId).emit('force-mute', {
+            ...(data || {}),
+            fromSocketId: socket.id,
+            fromUserId: socket._userId
+        });
+    });
+
+    socket.on('force-video', (data) => {
+        if (!socket._roomId) return;
+        socket.to(socket._roomId).emit('force-video', {
+            ...(data || {}),
+            fromSocketId: socket.id,
+            fromUserId: socket._userId
+        });
+    });
+
+    socket.on('force-chat-ban', (data) => {
+        if (!socket._roomId) return;
+        socket.to(socket._roomId).emit('force-chat-ban', {
+            ...(data || {}),
+            fromSocketId: socket.id,
+            fromUserId: socket._userId
+        });
+    });
+
+    socket.on('peer-leave', (data) => {
+        if (!socket._roomId) return;
+        socket.to(socket._roomId).emit('peer-leave', {
+            ...(data || {}),
+            userId: (data && data.userId) || socket._userId,
+            peerId: (data && data.peerId) || socket._peerId,
+            socketId: socket.id,
+            fromSocketId: socket.id,
+            fromUserId: socket._userId
+        });
+    });
+
     socket.on('disconnect', () => {
         if (socket._roomId) {
             socket.to(socket._roomId).emit('user-disconnected', {
                 userId: socket._userId,
-                socketId: socket.id
+                socketId: socket.id,
+                peerId: socket._peerId || socket.id
             });
         }
         console.log(`User disconnected: ${socket.id}`);

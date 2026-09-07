@@ -29,42 +29,55 @@ if ($roomCode) {
     $room = $stmt->fetch(PDO::FETCH_ASSOC);
 
     if (!$room) {
-        echo json_encode(['success' => false, 'message' => 'Room not found']);
+        echo json_encode(['success' => false, 'message' => 'This watch party has ended.', 'is_ended' => true]);
         exit;
     }
 
-    // If user is the host, DELETE the room entirely
+    require_once __DIR__ . '/../pusher_helper.php';
+    $channel = 'watch-party-' . $room['room_id'];
+
+    // If user is the host, tell everyone the party is over, then delete the room.
     if ((int)$room['host_id'] === (int)$userId) {
-        // Also clean up participants first (if table exists)
+        try {
+            triggerPusherEvent($channel, 'room-ended', [
+                'fromUserId' => (int)$userId,
+                'is_ended' => true,
+                'message' => 'The host ended this watch party.',
+            ]);
+        } catch (Throwable $ignore) {}
+
         try {
             $conn->prepare("DELETE FROM room_participants WHERE room_id = :room_id")
+                 ->execute(['room_id' => $room['room_id']]);
+        } catch (Exception $ignore) {}
+
+        try {
+            $conn->prepare("DELETE FROM room_kicks WHERE room_id = :room_id")
                  ->execute(['room_id' => $room['room_id']]);
         } catch (Exception $ignore) {}
 
         $deleteStmt = $conn->prepare("DELETE FROM rooms WHERE room_id = :room_id");
         $deleteStmt->execute(['room_id' => $room['room_id']]);
 
-        echo json_encode(['success' => true, 'message' => 'Room deleted']);
-
-    } else {
-        // Participant leaves — remove from room_participants if that table exists
-        try {
-            $delStmt = $conn->prepare("DELETE FROM room_participants WHERE room_id = :room_id AND user_id = :user_id");
-            $delStmt->execute(['room_id' => $room['room_id'], 'user_id' => $userId]);
-        } catch (Exception $ignore) {
-            // If room_participants table doesn't exist, silently skip
-        }
-
-        echo json_encode(['success' => true, 'message' => 'Participant left']);
+        echo json_encode(['success' => true, 'message' => 'Room deleted', 'is_ended' => true]);
+        exit;
     }
 
     try {
-        require_once __DIR__ . '/../pusher_helper.php';
-        triggerPusherEvent('watch-party-' . $room['room_id'], 'peer-leave', [
+        $delStmt = $conn->prepare("DELETE FROM room_participants WHERE room_id = :room_id AND user_id = :user_id");
+        $delStmt->execute(['room_id' => $room['room_id'], 'user_id' => $userId]);
+    } catch (Exception $ignore) {}
+
+    try {
+        triggerPusherEvent($channel, 'peer-leave', [
             'userId' => (int)$userId,
+            'fromUserId' => (int)$userId,
             'peerId' => (string)($_REQUEST['peer_id'] ?? ''),
+            'socketId' => (string)($_REQUEST['peer_id'] ?? ''),
         ]);
     } catch (Throwable $ignore) {}
+
+    echo json_encode(['success' => true, 'message' => 'Participant left']);
 
 } catch (Exception $e) {
     http_response_code(500);

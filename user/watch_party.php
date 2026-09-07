@@ -132,9 +132,9 @@ try {
 
     <!-- Sidebar / Server List (Discord style) -->
     <div class="w-20 shrink-0 h-full bg-[#030305]/90 backdrop-blur-xl border-r border-white/5 flex flex-col items-center py-6 gap-4 z-20 relative">
-        <a href="dashboard.php" class="w-12 h-12 rounded-[16px] bg-gradient-to-tr from-indigo-500 to-red-600 flex items-center justify-center shadow-[0_0_20px_rgba(239,68,68,0.3)] hover:scale-105 hover:rounded-[12px] transition-all duration-300 cursor-pointer">
+        <button type="button" @click="leaveRoom()" class="w-12 h-12 rounded-[16px] bg-gradient-to-tr from-indigo-500 to-red-600 flex items-center justify-center shadow-[0_0_20px_rgba(239,68,68,0.3)] hover:scale-105 hover:rounded-[12px] transition-all duration-300 cursor-pointer" title="Leave room">
             <span class="material-symbols-outlined text-white font-bold">arrow_back</span>
-        </a>
+        </button>
         <div class="w-8 h-[2px] bg-white/10 rounded-full my-2"></div>
         <div class="flex-1 w-full flex flex-col items-center gap-4 overflow-y-auto custom-scrollbar py-2 px-1">
             <template x-for="user in participants" :key="user.peerId || user.socketId || user.id">
@@ -329,28 +329,24 @@ try {
                     <!-- Video Grid (Participants) -->
                     <div class="flex flex-col gap-3 origin-top pointer-events-auto overflow-y-auto custom-scrollbar pr-1 pb-4" x-show="showParticipants" x-transition:enter="transition ease-out duration-300" x-transition:enter-start="opacity-0 scale-y-90" x-transition:enter-end="opacity-100 scale-y-100" x-transition:leave="transition ease-in duration-200" x-transition:leave-start="opacity-100 scale-y-100" x-transition:leave-end="opacity-0 scale-y-90">
                         <template x-for="user in participants" :key="user.peerId || user.socketId || user.id">
-                            <div class="participant-card w-full aspect-video hover:scale-105 transition-transform duration-300 bg-white/5 rounded-xl border border-white/10 overflow-hidden relative group shadow-lg shrink-0">
-                                <!-- Live video feed (only when stream is available) -->
+                            <div class="participant-card w-full aspect-video hover:scale-105 transition-transform duration-300 bg-[#0a0a0f] rounded-xl border border-white/10 overflow-hidden relative group shadow-lg shrink-0">
                                 <template x-if="user.stream && user.isSelf">
-                                    <video x-effect="$el.srcObject = user.stream; $el.muted = true; $el.volume = 0; $el.defaultMuted = true; $el.play && $el.play().catch(()=>{});" autoplay playsinline muted class="w-full h-full object-cover"></video>
+                                    <video x-show="user.videoOn !== false" x-effect="$el.srcObject = user.stream; $el.muted = true; $el.volume = 0; $el.defaultMuted = true; $el.play && $el.play().catch(()=>{});" autoplay playsinline muted class="absolute inset-0 w-full h-full object-cover"></video>
                                 </template>
                                 <template x-if="user.stream && !user.isSelf">
-                                    <video x-effect="$el.srcObject = user.stream; $el.muted = false; $el.play && $el.play().catch(()=>{});" autoplay playsinline class="w-full h-full object-cover"></video>
+                                    <video x-show="user.videoOn !== false" x-effect="$el.srcObject = user.stream; $el.muted = !!user.muted; $el.play && $el.play().catch(()=>{});" autoplay playsinline class="absolute inset-0 w-full h-full object-cover"></video>
                                 </template>
-                                <!-- Placeholder avatar (when no stream — camera denied/unavailable) -->
-                                <template x-if="!user.stream">
-                                    <div class="w-full h-full flex items-center justify-center bg-[#0a0a0f]">
-                                        <div class="relative w-14 h-14 overflow-visible">
-                                            <div class="absolute inset-0 z-0 overflow-hidden rounded-full scale-[1.1] border border-white/10">
-                                                <img :src="user.avatar" class="absolute inset-0 h-full w-full object-cover" alt="">
-                                            </div>
-                                            <template x-if="user.border">
-                                                <img :src="user.border" class="absolute inset-0 z-10 h-full w-full scale-[1.45] object-contain pointer-events-none" alt="">
-                                            </template>
+                                <div x-show="!user.stream || user.videoOn === false" class="absolute inset-0 z-[5] flex items-center justify-center bg-[#0a0a0f]">
+                                    <div class="relative w-14 h-14 overflow-visible">
+                                        <div class="absolute inset-0 z-0 overflow-hidden rounded-full scale-[1.1] border border-white/10">
+                                            <img :src="user.avatar" class="absolute inset-0 h-full w-full object-cover" alt="">
                                         </div>
+                                        <template x-if="user.border">
+                                            <img :src="user.border" class="absolute inset-0 z-10 h-full w-full scale-[1.45] object-contain pointer-events-none" alt="">
+                                        </template>
                                     </div>
-                                </template>
-                                <div class="absolute bottom-1 left-1 bg-black/60 backdrop-blur px-1.5 py-0.5 rounded text-[9px] font-bold text-white flex items-center gap-1 border border-white/10">
+                                </div>
+                                <div class="absolute bottom-1 left-1 z-20 bg-black/60 backdrop-blur px-1.5 py-0.5 rounded text-[9px] font-bold text-white flex items-center gap-1 border border-white/10">
                                     <div class="relative w-4 h-4 overflow-visible shrink-0">
                                         <div class="absolute inset-0 z-0 overflow-hidden rounded-full">
                                             <img :src="user.avatar" class="absolute inset-0 h-full w-full object-cover" alt="">
@@ -359,12 +355,27 @@ try {
                                             <img :src="user.border" class="absolute inset-0 z-10 h-full w-full scale-[1.5] object-contain pointer-events-none" alt="">
                                         </template>
                                     </div>
-                                    <span class="truncate max-w-[60px]" x-text="user.name"></span>
+                                    <span class="truncate max-w-[52px]" x-text="user.name"></span>
+                                    <span x-show="user.isHost || (user.isSelf && isHost)" class="text-[8px] text-amber-400 uppercase tracking-wider">Host</span>
                                     <span class="material-symbols-outlined text-[10px]" :class="user.muted ? 'text-red-500' : 'text-green-500'" x-text="user.muted ? 'mic_off' : 'mic'"></span>
-                                    <span class="material-symbols-outlined text-[10px]" :class="!user.videoOn ? 'text-red-500' : 'text-green-500'" x-text="!user.videoOn ? 'videocam_off' : 'videocam'"></span>
+                                    <span class="material-symbols-outlined text-[10px]" :class="user.videoOn === false ? 'text-red-500' : 'text-green-500'" x-text="user.videoOn === false ? 'videocam_off' : 'videocam'"></span>
+                                    <span x-show="user.chatBanned" class="material-symbols-outlined text-[10px] text-red-400">comments_disabled</span>
                                 </div>
-                                <!-- Speaking indicator -->
-                                <div class="absolute inset-0 border-[1.5px] border-emerald-500 rounded-xl opacity-0 transition-opacity" :class="{'opacity-100': user.speaking}"></div>
+                                <div x-show="isHost && !user.isSelf" class="absolute top-1 right-1 z-30 grid grid-cols-2 gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                    <button type="button" @click.stop="hostMuteMember(user)" class="w-7 h-7 rounded-lg bg-black/70 border border-white/15 text-white hover:bg-red-500 hover:border-red-400 flex items-center justify-center" :title="user.muted ? 'Unmute member' : 'Mute member'">
+                                        <span class="material-symbols-outlined text-[15px]" x-text="user.muted ? 'mic_off' : 'mic'"></span>
+                                    </button>
+                                    <button type="button" @click.stop="hostVideoMember(user)" class="w-7 h-7 rounded-lg bg-black/70 border border-white/15 text-white hover:bg-red-500 hover:border-red-400 flex items-center justify-center" :title="user.videoOn === false ? 'Turn camera on' : 'Turn camera off'">
+                                        <span class="material-symbols-outlined text-[15px]" x-text="user.videoOn === false ? 'videocam_off' : 'videocam'"></span>
+                                    </button>
+                                    <button type="button" @click.stop="hostBanChat(user)" class="w-7 h-7 rounded-lg bg-black/70 border border-white/15 text-white hover:bg-red-500 hover:border-red-400 flex items-center justify-center" :title="user.chatBanned ? 'Allow chat' : 'Ban from chat'">
+                                        <span class="material-symbols-outlined text-[15px]" x-text="user.chatBanned ? 'comments_disabled' : 'chat'"></span>
+                                    </button>
+                                    <button type="button" @click.stop="kickMember(user)" class="w-7 h-7 rounded-lg bg-black/70 border border-white/15 text-white hover:bg-red-600 hover:border-red-400 flex items-center justify-center" title="Remove from room">
+                                        <span class="material-symbols-outlined text-[15px]">person_remove</span>
+                                    </button>
+                                </div>
+                                <div class="absolute inset-0 border-[1.5px] border-emerald-500 rounded-xl opacity-0 transition-opacity pointer-events-none z-10" :class="{'opacity-100': user.speaking}"></div>
                             </div>
                         </template>
                     </div>
@@ -404,8 +415,15 @@ try {
                 <!-- Messages -->
                 <div class="flex-1 overflow-y-auto custom-scrollbar p-4 flex flex-col gap-4" id="chat-container">
                     <template x-for="(msg, i) in messages" :key="i">
-                        <div class="flex gap-3 chat-msg-item">
-                            <img :src="msg.avatar" class="w-8 h-8 rounded-full border border-white/10 shrink-0">
+                        <div class="flex gap-3 chat-msg-item py-1">
+                            <div class="relative w-8 h-8 shrink-0 overflow-visible mt-0.5">
+                                <div class="absolute inset-0 z-0 overflow-hidden rounded-full scale-[1.1] border border-white/10">
+                                    <img :src="msg.avatar" class="absolute inset-0 h-full w-full object-cover" alt="">
+                                </div>
+                                <template x-if="msg.border">
+                                    <img :src="msg.border" class="absolute inset-0 z-10 h-full w-full scale-[1.45] object-contain pointer-events-none" alt="">
+                                </template>
+                            </div>
                             <div>
                                 <div class="flex items-baseline gap-2 mb-0.5">
                                     <span class="text-xs font-bold" :class="msg.isSelf ? 'text-red-400' : 'text-white'" x-text="msg.name"></span>
@@ -423,7 +441,7 @@ try {
                         <button class="w-8 h-8 flex items-center justify-center text-white/40 hover:text-white transition-colors">
                             <span class="material-symbols-outlined text-[18px]">add_circle</span>
                         </button>
-                        <input type="text" x-model="newMessage" @keydown.enter="sendMessage" placeholder="Message room..." class="flex-1 bg-transparent border-none outline-none text-sm text-white px-2 placeholder-white/30">
+                        <input type="text" x-model="newMessage" @keydown.enter="sendMessage" :disabled="chatBanned" :placeholder="chatBanned ? 'The host banned you from chat' : 'Message room...'" class="flex-1 bg-transparent border-none outline-none text-sm text-white px-2 placeholder-white/30 disabled:opacity-50">
                         <button class="w-8 h-8 flex items-center justify-center text-white/40 hover:text-white transition-colors">
                             <span class="material-symbols-outlined text-[18px]">mood</span>
                         </button>
@@ -434,10 +452,10 @@ try {
 
         <!-- Bottom Controls (Voice/Video toggles) -->
         <div class="h-20 border-t border-white/5 bg-[#050508]/90 backdrop-blur-xl flex items-center justify-center gap-4 px-6 relative z-30 gs-controls">
-            <button @click="toggleMic($event)" class="w-12 h-12 rounded-xl flex items-center justify-center transition-all duration-300 shadow-lg border" :class="isMuted ? 'bg-red-500/10 border-red-500/20 text-red-500 hover:bg-red-500/20' : 'bg-white/10 border-white/10 text-white hover:bg-white/20'">
+            <button @click="toggleMic($event)" class="w-12 h-12 rounded-xl flex items-center justify-center transition-all duration-300 shadow-lg border" :class="isMuted ? 'bg-red-500/10 border-red-500/20 text-red-500 hover:bg-red-500/20' : 'bg-white/10 border-white/10 text-white hover:bg-white/20'" :title="forcedMuted ? 'The host muted your microphone' : (isMuted ? 'Unmute' : 'Mute')">
                 <span class="material-symbols-outlined" x-text="isMuted ? 'mic_off' : 'mic'"></span>
             </button>
-            <button @click="toggleVideo($event)" class="w-12 h-12 rounded-xl flex items-center justify-center transition-all duration-300 shadow-lg border" :class="!isVideoOn ? 'bg-red-500/10 border-red-500/20 text-red-500 hover:bg-red-500/20' : 'bg-white/10 border-white/10 text-white hover:bg-white/20'">
+            <button @click="toggleVideo($event)" class="w-12 h-12 rounded-xl flex items-center justify-center transition-all duration-300 shadow-lg border" :class="!isVideoOn ? 'bg-red-500/10 border-red-500/20 text-red-500 hover:bg-red-500/20' : 'bg-white/10 border-white/10 text-white hover:bg-white/20'" :title="forcedVideoOff ? 'The host turned off your camera' : (isVideoOn ? 'Turn camera off' : 'Turn camera on')">
                 <span class="material-symbols-outlined" x-text="!isVideoOn ? 'videocam_off' : 'videocam'"></span>
             </button>
             <button @click="showMovieModal = true" class="w-12 h-12 rounded-xl bg-indigo-500/10 border-indigo-500/20 text-indigo-400 hover:bg-indigo-500/20 flex items-center justify-center transition-all duration-300 shadow-lg border">

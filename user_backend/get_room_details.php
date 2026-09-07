@@ -25,7 +25,7 @@ try {
     $room = $stmt->fetch(PDO::FETCH_ASSOC);
 
     if (!$room) {
-        echo json_encode(['success' => false, 'message' => 'Room not found']);
+        echo json_encode(['success' => false, 'message' => 'This watch party has ended.', 'is_ended' => true]);
         exit;
     }
 

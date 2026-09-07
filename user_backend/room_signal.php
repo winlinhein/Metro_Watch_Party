@@ -40,6 +40,19 @@ $payload['fromUserId'] = $userId;
 $payload['roomId'] = $roomId;
 
 try {
+    if ($event === 'new_message') {
+        require_once __DIR__ . '/../conn.php';
+        try {
+            $banStmt = $conn->prepare("SELECT chat_banned FROM room_participants WHERE room_id = :room_id AND user_id = :user_id LIMIT 1");
+            $banStmt->execute(['room_id' => $roomId, 'user_id' => $userId]);
+            if ((int)$banStmt->fetchColumn() === 1) {
+                http_response_code(403);
+                echo json_encode(['success' => false, 'message' => 'The host banned you from room chat.', 'chat_banned' => true]);
+                exit;
+            }
+        } catch (Throwable $ignore) {}
+    }
+
     require_once __DIR__ . '/../pusher_helper.php';
     triggerPusherEvent("watch-party-{$roomId}", $event, $payload);
     echo json_encode(['success' => true]);
