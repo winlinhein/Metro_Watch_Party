@@ -906,11 +906,9 @@ function userDashboard() {
         ],
 
         // Watch Party Sessions, Watchlist & Activity Feed
-        upcomingParties: [
-            { title: "Dune: Part Two", time: "TODAY 20:00", genre: "SCI-FI", host: "You", members: 8, img: "https://images.unsplash.com/photo-1536440136628-849c177e76a1?auto=format&fit=crop&q=80&w=400&h=200" },
-            { title: "Interstellar", time: "TMRW 21:00", genre: "SCI-FI", host: "Sarah J.", members: 12, img: "https://images.unsplash.com/photo-1614730321146-b6fa6a46bcb4?auto=format&fit=crop&q=80&w=400&h=200" },
-            { title: "Cyberpunk Edgerunners", time: "FRI 22:00", genre: "ANIME", host: "David W.", members: 15, img: "https://images.unsplash.com/photo-1578632767115-351597cf2477?auto=format&fit=crop&q=80&w=400&h=200" }
-        ],
+        upcomingParties: [],
+        friendRooms: [],
+        friendRoomsLoading: false,
         watchlist: [],
         networkTraffic: [
             { day: 'Mon', reqs: 1250, height: 40 },
@@ -1209,6 +1207,79 @@ function userDashboard() {
             this.notifications = this.notifications.filter(n => n.id !== notif.id);
             this.unreadNotifCount = this.notifications.filter(n => Number(n.is_read) === 0).length;
             if (window.showToast) window.showToast('Invite declined.', 'info');
+        },
+
+        async fetchFriendRooms() {
+            if (this.isGuest) {
+                this.friendRooms = [];
+                this.friendRoomsLoading = false;
+                return;
+            }
+            this.friendRoomsLoading = true;
+            try {
+                const res = await fetch('/user_backend/get_friend_rooms.php');
+                const data = await res.json();
+                if (data.success) {
+                    this.friendRooms = data.rooms || [];
+                }
+            } catch (e) {
+                console.error('fetchFriendRooms', e);
+            } finally {
+                this.friendRoomsLoading = false;
+            }
+        },
+
+        enterFriendRoom(party) {
+            const roomId = Number(party?.room_id || 0);
+            if (!roomId) return;
+            window.location.href = `/user/watch_party.php?room_id=${encodeURIComponent(roomId)}`;
+        },
+
+        async requestJoinRoom(party) {
+            if (!party || party.request_status === 'pending') return;
+            if (party.in_room || party.request_status === 'accepted') {
+                this.enterFriendRoom(party);
+                return;
+            }
+            try {
+                const form = new FormData();
+                form.append('room_id', String(party.room_id));
+                const res = await fetch('/user_backend/request_join.php', { method: 'POST', body: form });
+                const data = await res.json();
+                if (!data.success) {
+                    if (window.showToast) window.showToast(data.message || 'Could not send join request.', 'error');
+                    return;
+                }
+                party.request_status = 'pending';
+                this.friendRooms = [...this.friendRooms];
+                if (window.showToast) window.showToast('Join request sent to the host.', 'success');
+            } catch (e) {
+                if (window.showToast) window.showToast('Could not send join request.', 'error');
+            }
+        },
+
+        async respondJoinRequest(notif, action) {
+            try {
+                const form = new FormData();
+                form.append('action', action);
+                if (notif.request_id) form.append('request_id', String(notif.request_id));
+                if (notif.room_id) form.append('room_id', String(notif.room_id));
+                if (notif.sender_id) form.append('requester_id', String(notif.sender_id));
+                const res = await fetch('/user_backend/respond_join.php', { method: 'POST', body: form });
+                const data = await res.json();
+                if (!data.success) {
+                    if (window.showToast) window.showToast(data.message || 'Could not respond.', 'error');
+                    return;
+                }
+                if (notif?.id) await this.dismissNotification(notif.id);
+                this.notifications = this.notifications.filter(n => n.id !== notif.id);
+                this.unreadNotifCount = this.notifications.filter(n => Number(n.is_read) === 0).length;
+                if (window.showToast) {
+                    window.showToast(action === 'accept' ? 'Join request accepted.' : 'Join request declined.', 'info');
+                }
+            } catch (e) {
+                if (window.showToast) window.showToast('Could not respond.', 'error');
+            }
         },
 
         async dismissNotification(notifId) {
@@ -2834,6 +2905,23 @@ function userDashboard() {
                     }
                 }
 
+                if (data.type === 'join_request') {
+                    const roomId = Number(data.room_id || 0);
+                    const senderId = Number(data.sender_id || 0);
+                    const dupJoin = this.notifications.some(n =>
+                        n.type === 'join_request'
+                        && Number(n.room_id) === roomId
+                        && Number(n.sender_id) === senderId
+                    );
+                    if (dupJoin) {
+                        this.showNotifications = true;
+                        if (window.showToast) {
+                            window.showToast(`${data.sender_name} wants to join your watch party`, 'info');
+                        }
+                        return;
+                    }
+                }
+
                 this.notifications = [
                     {
                         id: data.id || Date.now(),
@@ -2842,6 +2930,7 @@ function userDashboard() {
                         sender_name: data.sender_name,
                         message: data.message,
                         room_id: data.room_id || null,
+                        request_id: data.request_id || null,
                         created_at: data.created_at,
                         avatar_url: avatarUrl,
                         border_preview: borderPreview,
@@ -2855,6 +2944,34 @@ function userDashboard() {
                     this.showNotifications = true;
                     if (window.showToast) {
                         window.showToast(`${data.sender_name} invited you to a watch party`, 'info');
+                    }
+                }
+
+                if (data.type === 'join_request') {
+                    this.showNotifications = true;
+                    if (window.showToast) {
+                        window.showToast(`${data.sender_name} wants to join your watch party`, 'info');
+                    }
+                }
+
+                if (data.type === 'join_request_accepted') {
+                    this.showNotifications = true;
+                    this.friendRooms = (this.friendRooms || []).map((room) => {
+                        if (Number(room.room_id) !== Number(data.room_id)) return room;
+                        return { ...room, request_status: 'accepted' };
+                    });
+                    if (window.showToast) {
+                        window.showToast(`${data.sender_name} accepted your join request`, 'success');
+                    }
+                }
+
+                if (data.type === 'join_request_declined') {
+                    this.friendRooms = (this.friendRooms || []).map((room) => {
+                        if (Number(room.room_id) !== Number(data.room_id)) return room;
+                        return { ...room, request_status: null };
+                    });
+                    if (window.showToast) {
+                        window.showToast(`${data.sender_name} declined your join request`, 'info');
                     }
                 }
 
@@ -3003,8 +3120,11 @@ function userDashboard() {
                         this.fetchFriends(),
                         this.fetchUserProfile(),
                         isRegularUser ? this.loadMissions() : Promise.resolve(),
-                        this.fetchNotifications()
+                        this.fetchNotifications(),
+                        this.fetchFriendRooms()
                     ]);
+                    if (this._friendRoomsTimer) clearInterval(this._friendRoomsTimer);
+                    this._friendRoomsTimer = setInterval(() => this.fetchFriendRooms(), 12000);
                 } finally {
                     clearTimeout(loadingSafety);
                     this.statsLoading = false;

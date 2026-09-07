@@ -49,11 +49,18 @@ try {
         $n['border_preview'] = $mediaByUser[$sid]['border_preview'] ?? '';
         $n['border_id'] = (int)($mediaByUser[$sid]['border_id'] ?? 0);
 
-        // Extract room_id from party invite message suffix: "...|room:123"
+        // Extract room_id from party/join messages: "...|room:123" or "...|room:123|req:45"
         $n['room_id'] = null;
-        if (($n['type'] ?? '') === 'party_invite' && preg_match('/\|room:(\d+)\s*$/', (string)$n['message'], $m)) {
-            $n['room_id'] = (int)$m[1];
-            $n['message'] = trim(preg_replace('/\|room:\d+\s*$/', '', (string)$n['message']));
+        $n['request_id'] = null;
+        $typesWithRoom = ['party_invite', 'join_request', 'join_request_accepted', 'join_request_declined'];
+        if (in_array(($n['type'] ?? ''), $typesWithRoom, true)) {
+            if (preg_match('/\|req:(\d+)/', (string)$n['message'], $rm)) {
+                $n['request_id'] = (int)$rm[1];
+            }
+            if (preg_match('/\|room:(\d+)/', (string)$n['message'], $m)) {
+                $n['room_id'] = (int)$m[1];
+            }
+            $n['message'] = trim(preg_replace('/\|room:\d+(\|req:\d+)?\s*$/', '', (string)$n['message']));
         }
     }
     unset($n);

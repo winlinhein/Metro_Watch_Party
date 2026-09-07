@@ -113,7 +113,7 @@ session_write_close();
             cursor: none;
         }
 
-        .mono { font-family: 'JetBrains Mono', monospace; }
+        [x-cloak] { display: none !important; }
         
         .glass-panel {
             background: rgba(255, 255, 255, 0.015);
@@ -205,7 +205,7 @@ session_write_close();
 
     <link rel="stylesheet" href="https://cdn.plyr.io/3.7.8/plyr.css" />
     <script src="https://cdn.plyr.io/3.7.8/plyr.polyfilled.js"></script>
-    <script src="../js/nexus_scripts.js?v=1788179000"></script>
+    <script src="../js/nexus_scripts.js?v=1788180500"></script>
 </head>
 <body class="h-screen w-screen flex flex-col relative selection:bg-red-500/30" data-barba="wrapper">
     <?php include __DIR__ . '/../frontend/components/page_loader.php'; ?>
@@ -768,44 +768,84 @@ session_write_close();
                 </div>
 
                 <div class="grid grid-cols-1 xl:grid-cols-3 gap-8">
-                    <!-- Demo Active Directives / Stream Rooms -->
-                    <div class="xl:col-span-2 space-y-6">
+                    <!-- Active Directives / Stream Rooms -->
+                    <div class="xl:col-span-2 space-y-6 flex flex-col">
                         <div class="flex items-center justify-between">
                             <h2 class="text-xl font-bold tracking-wide uppercase flex items-center gap-2">
-                                <span class="w-2 h-2 rounded-full bg-red-500 shadow-[0_0_10px_#ef4444]"></span>
+                                <span class="w-2 h-2 rounded-full"
+                                      :class="friendRooms.length ? 'bg-red-500 shadow-[0_0_10px_#ef4444]' : 'bg-white/20'"></span>
                                 Active Directives (Stream Rooms)
                             </h2>
-                            <button class="text-xs text-red-400 hover:text-white uppercase tracking-widest font-bold mono">View All</button>
+                            <button type="button" @click="fetchFriendRooms()" class="text-xs text-red-400 hover:text-white uppercase tracking-widest font-bold mono">Refresh</button>
                         </div>
                         
-                        <div class="space-y-4">
-                            <template x-for="(party, index) in upcomingParties" :key="index">
-                                <div class="glass-card hover-glow animated-gradient-border rounded-2xl p-5 flex flex-col sm:flex-row gap-6 items-center group cursor-pointer">
+                        <div class="space-y-4" x-show="friendRooms.length > 0">
+                            <template x-for="party in friendRooms" :key="party.room_id">
+                                <div class="glass-card hover-glow animated-gradient-border rounded-2xl p-5 flex flex-col sm:flex-row gap-6 items-center group">
                                     <div class="w-full sm:w-48 h-32 rounded-xl overflow-hidden relative shrink-0">
                                         <img :src="party.img" class="w-full h-full object-cover group-hover:scale-110 transition-all duration-500" alt="Cover">
                                         <div class="absolute bottom-2 left-2 z-20 flex items-center gap-1 bg-black/60 backdrop-blur-md px-2 py-1 rounded-md border border-white/10">
-                                            <span class="material-symbols-outlined text-red-500 text-[12px]">schedule</span>
-                                            <span class="text-[10px] font-bold mono" x-text="party.time"></span>
+                                            <span class="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse"></span>
+                                            <span class="text-[10px] font-bold mono" x-text="party.time || 'LIVE'"></span>
                                         </div>
                                     </div>
                                     
                                     <div class="flex-1 w-full min-w-0">
                                         <div class="flex items-center gap-2 mb-2">
-                                            <span class="px-2 py-0.5 rounded text-[10px] font-bold tracking-wider uppercase border border-red-500/30 text-red-400 bg-red-500/10" x-text="party.genre"></span>
+                                            <span class="px-2 py-0.5 rounded text-[10px] font-bold tracking-wider uppercase border border-red-500/30 text-red-400 bg-red-500/10" x-text="party.genre || 'ORIGINAL'"></span>
                                         </div>
-                                        <h3 class="text-2xl font-bold text-white mb-2 truncate group-hover:text-red-400 transition-colors" x-text="party.title"></h3>
-                                        <p class="text-sm text-white/50 mb-4">Hosted by <span class="text-white font-medium" x-text="party.host"></span></p>
+                                        <h3 class="text-2xl font-bold text-white mb-2 truncate group-hover:text-red-400 transition-colors" x-text="party.title || 'Original'"></h3>
+                                        <p class="text-sm text-white/50 mb-4 flex items-center gap-2">
+                                            Hosted by
+                                            <span class="relative inline-flex w-6 h-6 overflow-visible shrink-0">
+                                                <span class="absolute inset-0 z-0 overflow-hidden rounded-full scale-[1.1] border border-white/10">
+                                                    <img :src="resolveAvatarUrl(party.host_avatar, party.host)" class="absolute inset-0 h-full w-full object-cover" alt="">
+                                                </span>
+                                                <template x-if="party.host_border">
+                                                    <img :src="party.host_border" class="absolute inset-0 z-10 h-full w-full scale-[1.45] object-contain pointer-events-none" alt="">
+                                                </template>
+                                            </span>
+                                            <span class="text-white font-medium" x-text="party.host"></span>
+                                        </p>
                                         
-                                        <div class="flex items-center justify-between">
-                                            <span class="text-xs text-white/60 mono" x-text="party.members + ' Members Active'"></span>
-                                            <button class="px-5 py-2 bg-white/5 hover:bg-white/10 border border-white/10 text-white font-bold tracking-wide rounded-xl transition-all flex items-center gap-2">
-                                                Enter Room
-                                                <span class="material-symbols-outlined text-[18px]">arrow_forward</span>
+                                        <div class="flex items-center justify-between gap-3">
+                                            <span class="text-xs text-white/60 mono" x-text="(party.members || 0) + ' Members Active'"></span>
+                                            <button type="button"
+                                                    @click="party.in_room || party.request_status === 'accepted' ? enterFriendRoom(party) : requestJoinRoom(party)"
+                                                    class="px-5 py-2 border text-white font-bold tracking-wide rounded-xl transition-all flex items-center gap-2"
+                                                    :class="party.request_status === 'pending'
+                                                        ? 'bg-white/5 border-white/10 text-white/50 cursor-default'
+                                                        : 'bg-white/5 hover:bg-white/10 border-white/10'">
+                                                <span x-text="party.in_room || party.request_status === 'accepted' ? 'Enter Room' : (party.request_status === 'pending' ? 'Requested' : 'Request to Join')"></span>
+                                                <span class="material-symbols-outlined text-[18px]" x-text="party.request_status === 'pending' ? 'hourglass_top' : 'arrow_forward'"></span>
                                             </button>
                                         </div>
                                     </div>
                                 </div>
                             </template>
+                        </div>
+
+                        <div class="glass-card rounded-2xl flex-1 min-h-[280px] p-8 flex flex-col items-center justify-center text-center relative overflow-hidden"
+                             x-show="friendRooms.length === 0"
+                             x-cloak>
+                            <div class="absolute inset-0 bg-gradient-to-br from-red-500/5 via-transparent to-indigo-500/5 pointer-events-none"></div>
+                            <div class="absolute inset-6 rounded-xl border border-dashed border-white/10 pointer-events-none"></div>
+
+                            <div class="relative z-10 w-20 h-20 rounded-full border border-white/10 flex items-center justify-center mb-5 shadow-[0_0_40px_rgba(239,68,68,0.08)]">
+                                <div class="absolute inset-0 rounded-full border-t border-white/20 animate-spin" style="animation-duration: 6s;"></div>
+                                <span class="material-symbols-outlined text-[32px] text-white/35">sensors_off</span>
+                            </div>
+
+                            <p class="relative z-10 text-[10px] font-bold tracking-[0.28em] uppercase text-white/40 mono mb-2">Signal offline</p>
+                            <h3 class="relative z-10 text-2xl font-black tracking-wide uppercase text-white mb-2">Nobody is hosting</h3>
+                            <p class="relative z-10 text-sm text-white/45 max-w-sm mb-6">None of your friends have a live watch party right now. Start one and invite them in.</p>
+
+                            <button type="button"
+                                    @click="createParty()"
+                                    class="relative z-10 px-6 py-2.5 rounded-xl bg-nexus-red hover:bg-red-400 text-white font-bold tracking-wide flex items-center gap-2 shadow-[0_0_20px_rgba(239,68,68,0.35)] transition-all hover:-translate-y-0.5">
+                                <span class="material-symbols-outlined text-[18px]">add</span>
+                                Host a Party
+                            </button>
                         </div>
                     </div>
 
@@ -908,7 +948,7 @@ session_write_close();
 <script src="https://unpkg.com/@barba/core@2.9.7/dist/barba.umd.js" crossorigin="anonymous"></script>
 <script src="../js/barba_setup.js?v=5"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js" onerror="window.gsap=window.gsap||{to:()=>({to:()=>({}),fromTo:()=>({})}),fromTo:()=>({}),from:()=>({}),set:()=>{},timeline:()=>({to:()=>({}),fromTo:()=>({}),add:()=>({}),set:()=>({})}),config:()=>{},killTweensOf:()=>{}}"></script>
-<script src="../js/nexus_scripts.js?v=1788179000"></script>
+<script src="../js/nexus_scripts.js?v=1788180500"></script>
 
 </body>
 </html>

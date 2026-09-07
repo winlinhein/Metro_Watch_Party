@@ -608,7 +608,43 @@ try {
         </div>
     </div>
 
-    <!-- Invite sent success modal -->
+    <!-- Join request (host) -->
+    <div x-show="isHost && currentJoinRequest"
+         class="fixed inset-0 z-[210] flex items-center justify-center p-4"
+         style="display: none;">
+        <div class="absolute inset-0 bg-black/75 backdrop-blur-sm"></div>
+        <div class="relative w-full max-w-sm bg-[#0a0a0f] border border-indigo-500/30 rounded-2xl p-6 shadow-[0_0_60px_rgba(99,102,241,0.25)] overflow-hidden"
+             x-show="isHost && currentJoinRequest"
+             x-transition:enter="transition ease-out duration-300"
+             x-transition:enter-start="opacity-0 scale-90 translate-y-4"
+             x-transition:enter-end="opacity-100 scale-100 translate-y-0">
+            <div class="absolute inset-0 bg-gradient-to-br from-indigo-500/10 via-transparent to-red-500/10 pointer-events-none"></div>
+            <div class="relative z-10 text-center">
+                <div class="relative w-16 h-16 mx-auto mb-4 overflow-visible">
+                    <div class="absolute inset-0 z-0 overflow-hidden rounded-full scale-[1.1] border border-white/10 bg-white/5">
+                        <img :src="resolveAvatarUrl(currentJoinRequest?.avatar_url, currentJoinRequest?.sender_name)" class="absolute inset-0 h-full w-full object-cover" alt="">
+                    </div>
+                    <template x-if="currentJoinRequest?.border_preview">
+                        <img :src="currentJoinRequest.border_preview" class="absolute inset-0 z-10 h-full w-full scale-[1.45] object-contain pointer-events-none" alt="">
+                    </template>
+                </div>
+                <h3 class="text-xl font-black text-white tracking-tight mb-1">Join request</h3>
+                <p class="text-sm text-white/55 mb-6">
+                    <span class="text-white font-semibold" x-text="currentJoinRequest?.sender_name"></span>
+                    wants to join your watch party.
+                </p>
+                <div class="flex gap-2">
+                    <button type="button" @click="respondJoinRequest('decline')" class="flex-1 py-3 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-white/70 font-black uppercase tracking-wider text-xs">
+                        Decline
+                    </button>
+                    <button type="button" @click="respondJoinRequest('accept')" class="flex-1 py-3 rounded-xl bg-indigo-500 hover:bg-indigo-400 text-white font-black uppercase tracking-wider text-xs">
+                        Accept
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <div x-show="showInviteSentModal"
          class="fixed inset-0 z-[200] flex items-center justify-center p-4"
          style="display: none;">

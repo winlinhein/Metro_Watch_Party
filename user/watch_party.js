@@ -53,6 +53,7 @@ function watchParty() {
         friends: [],
         showInviteMenu: false,
         showInviteSentModal: false,
+        joinRequests: [],
         inviteSentName: '',
         socket: null,
         pusherClient: null,
@@ -83,6 +84,7 @@ function watchParty() {
             await this.connectSignaling();
             await this.announcePresence();
             this.startRoomSync();
+            this.fetchJoinRequests();
         },
 
         // Fetch room metadata & enforce host permissions / room active status
@@ -379,6 +381,74 @@ function watchParty() {
             } catch (e) {
                 console.error(e);
                 if (window.showToast) window.showToast('Could not update chat ban.', 'error');
+            }
+        },
+
+        get currentJoinRequest() {
+            return (this.joinRequests && this.joinRequests[0]) || null;
+        },
+
+        queueJoinRequest(data, { silent = false } = {}) {
+            if (!this.isHost || !data) return;
+            const requestId = Number(data.request_id || data.id || 0);
+            const senderId = Number(data.sender_id || 0);
+            const exists = (this.joinRequests || []).some((r) =>
+                (requestId && Number(r.request_id || r.id) === requestId)
+                || (senderId && Number(r.sender_id) === senderId)
+            );
+            if (exists) return;
+            this.joinRequests = [
+                ...(this.joinRequests || []),
+                {
+                    id: requestId || Date.now(),
+                    request_id: requestId,
+                    room_id: Number(data.room_id || this.roomId),
+                    sender_id: senderId,
+                    sender_name: data.sender_name || 'A friend',
+                    message: data.message || 'wants to join your watch party.',
+                    avatar_url: data.avatar_url || '',
+                    border_preview: data.border_preview || ''
+                }
+            ];
+            if (!silent && window.showToast) {
+                window.showToast(`${data.sender_name || 'A friend'} wants to join your watch party`, 'info');
+            }
+        },
+
+        async fetchJoinRequests() {
+            if (!this.isHost || !this.roomId) return;
+            try {
+                const res = await fetch(`../user_backend/get_pending_join_requests.php?room_id=${encodeURIComponent(this.roomId)}`);
+                const data = await res.json();
+                if (data.success && Array.isArray(data.requests)) {
+                    data.requests.forEach((req) => this.queueJoinRequest(req, { silent: true }));
+                }
+            } catch (e) {
+                console.error('fetchJoinRequests', e);
+            }
+        },
+
+        async respondJoinRequest(action) {
+            const req = this.currentJoinRequest;
+            if (!req || !this.isHost) return;
+            try {
+                const form = new FormData();
+                form.append('action', action);
+                form.append('request_id', String(req.request_id || req.id || ''));
+                form.append('room_id', String(req.room_id || this.roomId));
+                form.append('requester_id', String(req.sender_id || ''));
+                const res = await fetch('../user_backend/respond_join.php', { method: 'POST', body: form });
+                const data = await res.json();
+                if (!data || !data.success) {
+                    if (window.showToast) window.showToast((data && data.message) || 'Could not respond.', 'error');
+                    return;
+                }
+                this.joinRequests = (this.joinRequests || []).slice(1);
+                if (window.showToast) {
+                    window.showToast(action === 'accept' ? 'They can join the room now.' : 'Join request declined.', 'info');
+                }
+            } catch (e) {
+                if (window.showToast) window.showToast('Could not respond.', 'error');
             }
         },
 
@@ -1071,6 +1141,20 @@ function watchParty() {
         },
 
         onRoomEvent(event, data) {
+            if (event === 'join-request') {
+                this.queueJoinRequest(data);
+                return;
+            }
+            if (event === 'join-request-resolved') {
+                const rid = Number((data && (data.request_id || data.id)) || 0);
+                const uid = Number((data && data.requester_id) || 0);
+                this.joinRequests = (this.joinRequests || []).filter((r) => {
+                    if (rid && Number(r.request_id || r.id) === rid) return false;
+                    if (uid && Number(r.sender_id) === uid) return false;
+                    return true;
+                });
+                return;
+            }
             if (event === 'peer-leave' || event === 'user-disconnected') {
                 const leavingMe = data && (
                     (data.peerId && String(data.peerId) === String(this.peerId))
@@ -1223,7 +1307,8 @@ function watchParty() {
             [
                 'peer-join', 'peer-leave', 'offer', 'answer', 'ice-candidate',
                 'new_message', 'movie-changed', 'playback-sync', 'toggle-mic', 'toggle-video',
-                'room-ended', 'force-leave', 'force-mute', 'force-video', 'force-chat-ban'
+                'room-ended', 'force-leave', 'force-mute', 'force-video', 'force-chat-ban',
+                'join-request', 'join-request-resolved'
             ].forEach(event => {
                 this.roomChannel.bind(event, (data) => this.onRoomEvent(event, data));
             });
