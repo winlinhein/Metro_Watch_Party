@@ -107,16 +107,25 @@ try {
         'id' => $notifId,
         'type' => 'join_request',
         'sender_id' => $requesterId,
+        'senderId' => $requesterId,
         'sender_name' => $requesterName,
-        'message' => 'wants to join your watch party.',
+        'name' => $requesterName,
+        'message' => 'wants to join the watch party.',
+        'text' => 'wants to join the watch party.',
         'room_id' => $roomId,
         'request_id' => $requestId,
+        'request_status' => 'pending',
+        'time' => date('h:i A'),
+        'avatar' => $media['avatar_url'] ?? '',
+        'border' => $media['border_preview'] ?? '',
         'created_at' => date('Y-m-d H:i:s'),
         'is_read' => 0,
+        'isSelf' => false,
     ], $media);
 
     triggerPusherEvent("user-{$hostId}", 'friend_event', $payload);
     triggerPusherEvent("watch-party-{$roomId}", 'join-request', $payload);
+    triggerPusherEvent("watch-party-{$roomId}", 'new_message', $payload);
 
     echo json_encode(['success' => true, 'request_id' => $requestId, 'status' => 'pending']);
 } catch (Throwable $e) {

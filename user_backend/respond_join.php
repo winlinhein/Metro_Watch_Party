@@ -91,12 +91,16 @@ try {
     ], $media);
 
     triggerPusherEvent("user-{$targetId}", 'friend_event', $payload);
-    triggerPusherEvent("watch-party-{$roomId}", 'join-request-resolved', [
+    $resolved = [
         'request_id' => (int)$request['id'],
         'requester_id' => $targetId,
+        'sender_id' => $targetId,
         'status' => $status,
+        'request_status' => $status,
         'room_id' => $roomId,
-    ]);
+        'type' => 'join_request',
+    ];
+    triggerPusherEvent("watch-party-{$roomId}", 'join-request-resolved', $resolved);
 
     echo json_encode(['success' => true, 'status' => $status, 'room_id' => $roomId]);
 } catch (Throwable $e) {

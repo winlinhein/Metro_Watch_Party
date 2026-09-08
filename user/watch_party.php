@@ -391,6 +391,8 @@ try {
                     x-transition:enter-start="opacity-0 translate-x-4"
                     x-transition:enter-end="opacity-100 translate-x-0">
                 <span class="material-symbols-outlined">chevron_left</span>
+                <span x-show="isHost && currentJoinRequest"
+                      class="absolute top-1 left-1 w-2 h-2 rounded-full bg-indigo-400 shadow-[0_0_8px_#818cf8] animate-pulse"></span>
             </button>
 
             <!-- Right: Chat & Activities -->
@@ -406,6 +408,10 @@ try {
                 <div class="h-14 border-b border-white/5 flex items-center justify-between px-4 gap-2 text-sm font-bold text-white/90">
                     <div class="flex items-center gap-2">
                         <span class="material-symbols-outlined text-[18px]">chat</span> Room Chat
+                        <span x-show="isHost && currentJoinRequest"
+                              class="px-1.5 py-0.5 rounded bg-indigo-500/20 border border-indigo-500/30 text-indigo-300 text-[9px] font-black uppercase tracking-wider">
+                            Request
+                        </span>
                     </div>
                     <button @click="showChat = false" class="text-white/50 hover:text-white transition-colors bg-white/5 hover:bg-white/10 rounded-lg p-1 flex items-center justify-center">
                         <span class="material-symbols-outlined text-[18px]">chevron_right</span>
@@ -414,7 +420,7 @@ try {
                 
                 <!-- Messages -->
                 <div class="flex-1 overflow-y-auto custom-scrollbar p-4 flex flex-col gap-4" id="chat-container">
-                    <template x-for="(msg, i) in messages" :key="i">
+                    <template x-for="(msg, i) in messages" :key="msg.id || msg.request_id || i">
                         <div class="flex gap-3 chat-msg-item py-1">
                             <div class="relative w-8 h-8 shrink-0 overflow-visible mt-0.5">
                                 <div class="absolute inset-0 z-0 overflow-hidden rounded-full scale-[1.1] border border-white/10">
@@ -424,12 +430,36 @@ try {
                                     <img :src="msg.border" class="absolute inset-0 z-10 h-full w-full scale-[1.45] object-contain pointer-events-none" alt="">
                                 </template>
                             </div>
-                            <div>
+                            <div class="min-w-0 flex-1">
                                 <div class="flex items-baseline gap-2 mb-0.5">
                                     <span class="text-xs font-bold" :class="msg.isSelf ? 'text-red-400' : 'text-white'" x-text="msg.name"></span>
                                     <span class="text-[9px] text-white/40 mono" x-text="msg.time"></span>
                                 </div>
-                                <p class="text-sm text-white/70 leading-relaxed" x-text="msg.text"></p>
+                                <template x-if="msg.type === 'join_request'">
+                                    <div class="rounded-xl border border-indigo-500/25 bg-indigo-500/10 px-3 py-2.5 mt-1">
+                                        <p class="text-[10px] font-bold uppercase tracking-widest text-indigo-300 mb-1">Join request</p>
+                                        <p class="text-sm text-white/80 leading-relaxed" x-text="msg.text || 'wants to join the watch party.'"></p>
+                                        <div class="flex gap-2 mt-3" x-show="isHost && (msg.request_status || 'pending') === 'pending'">
+                                            <button type="button"
+                                                    @click="respondJoinRequest('decline', msg)"
+                                                    class="flex-1 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-white/70 text-[10px] font-black uppercase tracking-wider">
+                                                Decline
+                                            </button>
+                                            <button type="button"
+                                                    @click="respondJoinRequest('accept', msg)"
+                                                    class="flex-1 py-1.5 rounded-lg bg-indigo-500 hover:bg-indigo-400 text-white text-[10px] font-black uppercase tracking-wider">
+                                                Accept
+                                            </button>
+                                        </div>
+                                        <p class="text-[11px] font-bold uppercase tracking-wider mt-2 text-emerald-400"
+                                           x-show="msg.request_status === 'accepted'">Accepted</p>
+                                        <p class="text-[11px] font-bold uppercase tracking-wider mt-2 text-white/35"
+                                           x-show="msg.request_status === 'declined'">Declined</p>
+                                    </div>
+                                </template>
+                                <template x-if="msg.type !== 'join_request'">
+                                    <p class="text-sm text-white/70 leading-relaxed" x-text="msg.text"></p>
+                                </template>
                             </div>
                         </div>
                     </template>
@@ -603,43 +633,6 @@ try {
                             </div>
                         </div>
                     </template>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Join request (host) -->
-    <div x-show="isHost && currentJoinRequest"
-         class="fixed inset-0 z-[210] flex items-center justify-center p-4"
-         style="display: none;">
-        <div class="absolute inset-0 bg-black/75 backdrop-blur-sm"></div>
-        <div class="relative w-full max-w-sm bg-[#0a0a0f] border border-indigo-500/30 rounded-2xl p-6 shadow-[0_0_60px_rgba(99,102,241,0.25)] overflow-hidden"
-             x-show="isHost && currentJoinRequest"
-             x-transition:enter="transition ease-out duration-300"
-             x-transition:enter-start="opacity-0 scale-90 translate-y-4"
-             x-transition:enter-end="opacity-100 scale-100 translate-y-0">
-            <div class="absolute inset-0 bg-gradient-to-br from-indigo-500/10 via-transparent to-red-500/10 pointer-events-none"></div>
-            <div class="relative z-10 text-center">
-                <div class="relative w-16 h-16 mx-auto mb-4 overflow-visible">
-                    <div class="absolute inset-0 z-0 overflow-hidden rounded-full scale-[1.1] border border-white/10 bg-white/5">
-                        <img :src="resolveAvatarUrl(currentJoinRequest?.avatar_url, currentJoinRequest?.sender_name)" class="absolute inset-0 h-full w-full object-cover" alt="">
-                    </div>
-                    <template x-if="currentJoinRequest?.border_preview">
-                        <img :src="currentJoinRequest.border_preview" class="absolute inset-0 z-10 h-full w-full scale-[1.45] object-contain pointer-events-none" alt="">
-                    </template>
-                </div>
-                <h3 class="text-xl font-black text-white tracking-tight mb-1">Join request</h3>
-                <p class="text-sm text-white/55 mb-6">
-                    <span class="text-white font-semibold" x-text="currentJoinRequest?.sender_name"></span>
-                    wants to join your watch party.
-                </p>
-                <div class="flex gap-2">
-                    <button type="button" @click="respondJoinRequest('decline')" class="flex-1 py-3 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-white/70 font-black uppercase tracking-wider text-xs">
-                        Decline
-                    </button>
-                    <button type="button" @click="respondJoinRequest('accept')" class="flex-1 py-3 rounded-xl bg-indigo-500 hover:bg-indigo-400 text-white font-black uppercase tracking-wider text-xs">
-                        Accept
-                    </button>
                 </div>
             </div>
         </div>

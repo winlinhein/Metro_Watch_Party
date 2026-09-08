@@ -385,34 +385,111 @@ function watchParty() {
         },
 
         get currentJoinRequest() {
-            return (this.joinRequests && this.joinRequests[0]) || null;
+            const pending = (this.messages || []).find((m) =>
+                m.type === 'join_request' && (m.request_status || 'pending') === 'pending'
+            );
+            return pending || (this.joinRequests && this.joinRequests[0]) || null;
         },
 
-        queueJoinRequest(data, { silent = false } = {}) {
-            if (!this.isHost || !data) return;
+        joinRequestKey(data) {
+            const requestId = Number((data && (data.request_id || data.id)) || 0);
+            const senderId = Number((data && (data.sender_id || data.senderId)) || 0);
+            return requestId ? ('jr-' + requestId) : (senderId ? ('jr-user-' + senderId) : '');
+        },
+
+        upsertJoinRequestMessage(data, { silent = false } = {}) {
+            if (!data) return;
             const requestId = Number(data.request_id || data.id || 0);
-            const senderId = Number(data.sender_id || 0);
-            const exists = (this.joinRequests || []).some((r) =>
-                (requestId && Number(r.request_id || r.id) === requestId)
-                || (senderId && Number(r.sender_id) === senderId)
+            const senderId = Number(data.sender_id || data.senderId || 0);
+            const status = data.request_status || data.status || 'pending';
+            const key = this.joinRequestKey(data);
+            const msg = this.enrichChatMessage({
+                id: key || ('jr-' + Date.now()),
+                type: 'join_request',
+                name: data.sender_name || data.name || 'A friend',
+                text: data.message || data.text || 'wants to join the watch party.',
+                time: data.time || new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                avatar: data.avatar_url || data.avatar || '',
+                border: data.border_preview || data.border || '',
+                senderId,
+                request_id: requestId,
+                room_id: Number(data.room_id || this.roomId),
+                request_status: status,
+                isSelf: false
+            });
+
+            const idx = (this.messages || []).findIndex((m) =>
+                m.type === 'join_request' && (
+                    (key && m.id === key) ||
+                    (requestId && Number(m.request_id) === requestId) ||
+                    (senderId && Number(m.senderId) === senderId && (m.request_status || 'pending') === 'pending')
+                )
             );
-            if (exists) return;
-            this.joinRequests = [
-                ...(this.joinRequests || []),
-                {
-                    id: requestId || Date.now(),
-                    request_id: requestId,
-                    room_id: Number(data.room_id || this.roomId),
-                    sender_id: senderId,
-                    sender_name: data.sender_name || 'A friend',
-                    message: data.message || 'wants to join your watch party.',
-                    avatar_url: data.avatar_url || '',
-                    border_preview: data.border_preview || ''
+
+            if (idx >= 0) {
+                const prev = this.messages[idx];
+                if ((prev.request_status || 'pending') === status) return;
+                const next = [...this.messages];
+                next[idx] = { ...prev, ...msg, time: prev.time, id: prev.id };
+                this.messages = next;
+            } else if (status === 'pending' || status === 'accepted' || status === 'declined') {
+                this.messages = [...(this.messages || []), msg];
+                this.showChat = true;
+                this.$nextTick(() => {
+                    const container = document.getElementById('chat-container');
+                    if (container) container.scrollTop = container.scrollHeight;
+                });
+                if (!silent && this.isHost && status === 'pending' && window.showToast) {
+                    window.showToast(`${msg.name} wants to join the watch party`, 'info');
                 }
-            ];
-            if (!silent && window.showToast) {
-                window.showToast(`${data.sender_name || 'A friend'} wants to join your watch party`, 'info');
             }
+
+            if (status === 'pending') {
+                const exists = (this.joinRequests || []).some((r) =>
+                    (requestId && Number(r.request_id || r.id) === requestId)
+                    || (senderId && Number(r.sender_id) === senderId)
+                );
+                if (!exists) {
+                    this.joinRequests = [
+                        ...(this.joinRequests || []),
+                        {
+                            id: requestId || Date.now(),
+                            request_id: requestId,
+                            room_id: Number(data.room_id || this.roomId),
+                            sender_id: senderId,
+                            sender_name: msg.name,
+                            message: msg.text,
+                            avatar_url: msg.avatar,
+                            border_preview: msg.border
+                        }
+                    ];
+                }
+            } else {
+                this.joinRequests = (this.joinRequests || []).filter((r) => {
+                    if (requestId && Number(r.request_id || r.id) === requestId) return false;
+                    if (senderId && Number(r.sender_id) === senderId) return false;
+                    return true;
+                });
+            }
+        },
+
+        resolveJoinRequestMessage(data) {
+            const requestId = Number((data && (data.request_id || data.id)) || 0);
+            const senderId = Number((data && (data.requester_id || data.sender_id || data.senderId)) || 0);
+            const status = (data && (data.request_status || data.status)) || 'declined';
+            this.messages = (this.messages || []).map((m) => {
+                if (m.type !== 'join_request') return m;
+                if (requestId && Number(m.request_id) === requestId) return { ...m, request_status: status };
+                if (senderId && Number(m.senderId) === senderId && (m.request_status || 'pending') === 'pending') {
+                    return { ...m, request_status: status };
+                }
+                return m;
+            });
+            this.joinRequests = (this.joinRequests || []).filter((r) => {
+                if (requestId && Number(r.request_id || r.id) === requestId) return false;
+                if (senderId && Number(r.sender_id) === senderId) return false;
+                return true;
+            });
         },
 
         async fetchJoinRequests() {
@@ -421,29 +498,33 @@ function watchParty() {
                 const res = await fetch(`../user_backend/get_pending_join_requests.php?room_id=${encodeURIComponent(this.roomId)}`);
                 const data = await res.json();
                 if (data.success && Array.isArray(data.requests)) {
-                    data.requests.forEach((req) => this.queueJoinRequest(req, { silent: true }));
+                    data.requests.forEach((req) => this.upsertJoinRequestMessage(req, { silent: true }));
                 }
             } catch (e) {
                 console.error('fetchJoinRequests', e);
             }
         },
 
-        async respondJoinRequest(action) {
-            const req = this.currentJoinRequest;
+        async respondJoinRequest(action, req) {
+            req = req || this.currentJoinRequest;
             if (!req || !this.isHost) return;
             try {
                 const form = new FormData();
                 form.append('action', action);
                 form.append('request_id', String(req.request_id || req.id || ''));
                 form.append('room_id', String(req.room_id || this.roomId));
-                form.append('requester_id', String(req.sender_id || ''));
+                form.append('requester_id', String(req.sender_id || req.senderId || ''));
                 const res = await fetch('../user_backend/respond_join.php', { method: 'POST', body: form });
                 const data = await res.json();
                 if (!data || !data.success) {
                     if (window.showToast) window.showToast((data && data.message) || 'Could not respond.', 'error');
                     return;
                 }
-                this.joinRequests = (this.joinRequests || []).slice(1);
+                this.resolveJoinRequestMessage({
+                    request_id: req.request_id || req.id,
+                    sender_id: req.sender_id || req.senderId,
+                    status: action === 'accept' ? 'accepted' : 'declined'
+                });
                 if (window.showToast) {
                     window.showToast(action === 'accept' ? 'They can join the room now.' : 'Join request declined.', 'info');
                 }
@@ -1142,17 +1223,11 @@ function watchParty() {
 
         onRoomEvent(event, data) {
             if (event === 'join-request') {
-                this.queueJoinRequest(data);
+                this.upsertJoinRequestMessage(data);
                 return;
             }
             if (event === 'join-request-resolved') {
-                const rid = Number((data && (data.request_id || data.id)) || 0);
-                const uid = Number((data && data.requester_id) || 0);
-                this.joinRequests = (this.joinRequests || []).filter((r) => {
-                    if (rid && Number(r.request_id || r.id) === rid) return false;
-                    if (uid && Number(r.sender_id) === uid) return false;
-                    return true;
-                });
+                this.resolveJoinRequestMessage(data);
                 return;
             }
             if (event === 'peer-leave' || event === 'user-disconnected') {
@@ -1255,6 +1330,10 @@ function watchParty() {
             if (event === 'answer') return this.handleAnswer(data);
             if (event === 'ice-candidate') return this.handleIceCandidate(data);
             if (event === 'new_message') {
+                if (data && data.type === 'join_request') {
+                    this.upsertJoinRequestMessage(data);
+                    return;
+                }
                 if (data.senderId && Number(data.senderId) === Number(window.CURRENT_USER_ID)) return;
                 const mk = 'msg:' + (data.senderId || '') + ':' + (data.text || '') + ':' + (data.time || '');
                 this._seenSignals = this._seenSignals || {};
@@ -1356,6 +1435,7 @@ function watchParty() {
                             return;
                         }
                         this.applyPresenceFlags(data.you);
+                        if (this.isHost) this.fetchJoinRequests();
                         if (!data.success || !Array.isArray(data.peers)) return;
                         this.syncPresence(data.peers);
                         data.peers.forEach(peer => {
