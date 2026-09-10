@@ -23,31 +23,10 @@ session_write_close();
 require_once __DIR__ . '/../conn.php';
 require_once __DIR__ . '/mission_progress.php'; // helper functions
 
-// ---------- RESET MISSIONS FOR CURRENT CYCLE ----------
-resetMissionProgressIfNeeded($conn, $userId, 'daily');
-resetMissionProgressIfNeeded($conn, $userId, 'weekly');
-resetMissionProgressIfNeeded($conn, $userId, 'monthly');
+resetAllMissionCyclesIfNeeded($conn, $userId);
 
-// ---------- FETCH TOTAL CLAIMABLE POINTS ----------
-$totalPoints = 0;
-try {
-    $stmt = $conn->prepare("
-        SELECT SUM(m.points_reward)
-        FROM user_missions um
-        JOIN missions m ON um.mission_id = m.mission_id
-        WHERE um.user_id = ? 
-          AND um.done_status = 1 
-          AND um.claimed_at IS NULL
-    ");
-    $stmt->execute([$userId]);
-    $totalPoints = (int)$stmt->fetchColumn();
-} catch (PDOException $e) {
-    error_log('Error fetching total points: ' . $e->getMessage());
-    $totalPoints = 0;
-}
-
-// ---------- FETCH MISSIONS GROUPED BY CYCLE ----------
 $quests = ['daily' => [], 'weekly' => [], 'monthly' => []];
+$totalPoints = 0;
 
 try {
     $stmt = $conn->prepare("
@@ -76,13 +55,20 @@ try {
             $cycle = 'daily';
         }
 
+        $completed = (int)$m['completed'];
+        $claimed = (int)$m['claimed'];
+        $points = (int)$m['points_reward'];
+        if ($completed === 1 && $claimed === 0) {
+            $totalPoints += $points;
+        }
+
         $quests[$cycle][] = [
             'id'            => (int)$m['mission_id'],
             'title'         => $m['title'],
             'desc'          => "Progress: {$m['progress']}/{$m['target_count']}",
-            'points'        => (int)$m['points_reward'],
-            'completed'     => (int)$m['completed'],
-            'claimed'       => (int)$m['claimed'],
+            'points'        => $points,
+            'completed'     => $completed,
+            'claimed'       => $claimed,
             'progress'      => (int)$m['progress'],
             'target'        => (int)$m['target_count'],
             'mission_type'  => $m['mission_type']

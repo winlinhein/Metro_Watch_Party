@@ -546,6 +546,34 @@ function userDashboard() {
         },
 
         // API Fetching
+        hydrateLocalCaches() {
+            try {
+                const movies = JSON.parse(sessionStorage.getItem('nexus_movies_cache') || 'null');
+                if (Array.isArray(movies) && movies.length && !(this.movies || []).length) {
+                    this.movies = movies.map(m => this._normalizeMovie(m));
+                    this.syncWatchlistState();
+                }
+            } catch (e) {}
+            try {
+                const friends = JSON.parse(sessionStorage.getItem('nexus_friends_cache') || 'null');
+                if (friends && Array.isArray(friends.friends) && !(this.friends || []).length) {
+                    this.friends = friends.friends;
+                    this.pendingRequests = friends.pending_requests || [];
+                    this.updateFriendsCount();
+                }
+            } catch (e) {}
+            try {
+                const rooms = JSON.parse(sessionStorage.getItem('nexus_friend_rooms_cache') || 'null');
+                if (Array.isArray(rooms) && rooms.length && !(this.friendRooms || []).length) {
+                    this.friendRooms = rooms;
+                }
+            } catch (e) {}
+        },
+
+        persistMoviesCache() {
+            try { sessionStorage.setItem('nexus_movies_cache', JSON.stringify(this.movies || [])); } catch (e) {}
+        },
+
         async fetchMovies() {
             try {
                 const response = await fetch('/user_backend/movies_api.php');
@@ -576,6 +604,7 @@ function userDashboard() {
 
                 this.movies = rawMovies.map(m => this._normalizeMovie(m));
                 this.syncWatchlistState();
+                this.persistMoviesCache();
             } catch (e) {
                 console.error("Failed to load movies from database:", e);
                 this.movieError = "Failed to load movies. Please try again.";
@@ -899,10 +928,10 @@ function userDashboard() {
 
         // Command Center Metrics
         statsLoading: true, stats: [
-            { label: 'Total Watch Time', value: 124, suffix: 'H', icon: 'timer', colorClass: 'bg-red-500/10 text-red-500 border border-red-500/20 group-hover:bg-red-500/20 group-hover:shadow-[0_0_20px_rgba(239,68,68,0.3)]', trendClass: 'text-green-400 border-green-400/20', trend: '+12%', desc: 'vs last week' },
-            { label: 'Sessions Hosted', value: 28, suffix: '', icon: 'cell_tower', colorClass: 'bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 group-hover:bg-indigo-500/20 group-hover:shadow-[0_0_20px_rgba(79,70,229,0.3)]', trendClass: 'text-green-400 border-green-400/20', trend: '+3', desc: 'new this week' },
+            { label: 'Total Watch Time', value: 0, suffix: 'H', icon: 'timer', colorClass: 'bg-red-500/10 text-red-500 border border-red-500/20 group-hover:bg-red-500/20 group-hover:shadow-[0_0_20px_rgba(239,68,68,0.3)]', trendClass: 'text-green-400 border-green-400/20', trend: '+12%', desc: 'vs last week' },
+            { label: 'Sessions Hosted', value: 0, suffix: '', icon: 'cell_tower', colorClass: 'bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 group-hover:bg-indigo-500/20 group-hover:shadow-[0_0_20px_rgba(79,70,229,0.3)]', trendClass: 'text-green-400 border-green-400/20', trend: '+3', desc: 'new this week' },
             { label: 'Friends', value: 0, suffix: '', icon: 'group', colorClass: 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 group-hover:bg-emerald-500/20 group-hover:shadow-[0_0_20px_rgba(16,185,129,0.3)]', trendClass: 'text-emerald-400 border-emerald-400/20', trend: 'Online', desc: 'active', action: 'showFriendsPanel = true' },
-            { label: 'Quests', value: 1250, suffix: ' PTS', icon: 'stars', colorClass: 'bg-yellow-500/10 text-yellow-400 border border-yellow-500/20 group-hover:bg-yellow-500/20 group-hover:shadow-[0_0_20px_rgba(234,179,8,0.3)]', trendClass: 'text-yellow-400 border-yellow-400/20', trend: 'Available', desc: 'Daily quests', action: 'showQuestsPanel = true' }
+            { label: 'Quests', value: 0, suffix: ' PTS', icon: 'stars', colorClass: 'bg-yellow-500/10 text-yellow-400 border border-yellow-500/20 group-hover:bg-yellow-500/20 group-hover:shadow-[0_0_20px_rgba(234,179,8,0.3)]', trendClass: 'text-yellow-400 border-yellow-400/20', trend: 'Available', desc: 'Daily quests', action: 'showQuestsPanel = true' }
         ],
 
         // Watch Party Sessions, Watchlist & Activity Feed
@@ -1110,6 +1139,12 @@ function userDashboard() {
                     this.persistAvatarCache();
                     this.updateFriendsCount();
                     this.initAllChatSubscriptions();
+                    try {
+                        sessionStorage.setItem('nexus_friends_cache', JSON.stringify({
+                            friends: this.friends,
+                            pending_requests: this.pendingRequests
+                        }));
+                    } catch (e) {}
                 }
             } catch (err) {
                 if (err.name === 'AbortError') return;
@@ -1128,6 +1163,10 @@ function userDashboard() {
 
         get onlineFriendsCount() {
             return (this.friends || []).filter(f => this.isUserOnline(f)).length;
+        },
+
+        createParty(movieId = null) {
+            return window.createParty(movieId);
         },
 
         applyOnlineIds(ids) {
@@ -1199,13 +1238,13 @@ function userDashboard() {
             if (this.isGuest) return;
             this.bindPresenceChannel();
             this.bindPresenceLifecycle();
-            const tick = async () => {
-                await this.touchPresence();
-                await this.refreshOnlineStatus();
+            const tick = () => {
+                this.touchPresence();
+                this.refreshOnlineStatus();
             };
             tick();
             if (this._presenceTimer) clearInterval(this._presenceTimer);
-            this._presenceTimer = setInterval(tick, 25000);
+            this._presenceTimer = setInterval(tick, 12000);
         },
 
         // Fetch Notifications
@@ -1432,18 +1471,19 @@ function userDashboard() {
             if (window.showToast) window.showToast('Invite declined.', 'info');
         },
 
-        async fetchFriendRooms() {
+        async fetchFriendRooms({ quiet = false } = {}) {
             if (this.isGuest) {
                 this.friendRooms = [];
                 this.friendRoomsLoading = false;
                 return;
             }
-            this.friendRoomsLoading = true;
+            if (!quiet && !(this.friendRooms || []).length) this.friendRoomsLoading = true;
             try {
                 const res = await fetch('/user_backend/get_friend_rooms.php');
                 const data = await res.json();
                 if (data.success) {
                     this.friendRooms = data.rooms || [];
+                    try { sessionStorage.setItem('nexus_friend_rooms_cache', JSON.stringify(this.friendRooms)); } catch (e) {}
                 }
             } catch (e) {
                 console.error('fetchFriendRooms', e);
@@ -1455,6 +1495,7 @@ function userDashboard() {
         enterFriendRoom(party) {
             const roomId = Number(party?.room_id || 0);
             if (!roomId) return;
+            if (typeof window.showPageLoader === 'function') window.showPageLoader();
             window.location.href = `/user/watch_party.php?room_id=${encodeURIComponent(roomId)}`;
         },
 
@@ -3335,6 +3376,7 @@ function userDashboard() {
             this.initPusher();
             this.loadMediaCaches();
             this.cacheOwnMedia();
+            this.hydrateLocalCaches();
             this.fetchMovies();
 
             this._partyInviteHandler = (e) => this.handleIncomingPartyInvite(e.detail || {});
@@ -3355,22 +3397,19 @@ function userDashboard() {
                     this.stats = this.stats.filter(stat => stat.label !== 'Quests');
                 }
 
-                const loadingSafety = setTimeout(() => { this.statsLoading = false; }, 4000);
-                try {
-                    await Promise.allSettled([
-                        this.fetchFriends(),
-                        this.fetchUserProfile(),
-                        isRegularUser ? this.loadMissions() : Promise.resolve(),
-                        this.fetchNotifications(),
-                        this.fetchFriendRooms()
-                    ]);
-                    if (this._friendRoomsTimer) clearInterval(this._friendRoomsTimer);
-                    this._friendRoomsTimer = setInterval(() => this.fetchFriendRooms(), 12000);
-                    this.startPresenceHeartbeat();
-                } finally {
-                    clearTimeout(loadingSafety);
+                this.statsLoading = true;
+                const statsJobs = [this.fetchFriends()];
+                if (isRegularUser) statsJobs.push(this.loadMissions());
+                this.fetchUserProfile();
+                Promise.allSettled(statsJobs).finally(() => {
                     this.statsLoading = false;
-                }
+                });
+
+                this.fetchNotifications();
+                this.fetchFriendRooms();
+                this.startPresenceHeartbeat();
+                if (this._friendRoomsTimer) clearInterval(this._friendRoomsTimer);
+                this._friendRoomsTimer = setInterval(() => this.fetchFriendRooms({ quiet: true }), 12000);
 
                 this.fetchReasons();
                 this.checkPaymentStatus().then(() => this.fetchPremiumStatus()).then(() => {
@@ -3379,7 +3418,6 @@ function userDashboard() {
                         this.justPaid = false;
                     }
                 });
-                this.searchUsers();
                 this.buildAvailableBorders();
             }
 
@@ -5128,13 +5166,13 @@ function adminDashboard(userData = {}) {
         startPresenceHeartbeat() {
             this.bindPresenceChannel();
             this.bindPresenceLifecycle();
-            const tick = async () => {
-                await this.touchPresence();
-                await this.refreshOnlineStatus();
+            const tick = () => {
+                this.touchPresence();
+                this.refreshOnlineStatus();
             };
             tick();
             if (this._presenceTimer) clearInterval(this._presenceTimer);
-            this._presenceTimer = setInterval(tick, 25000);
+            this._presenceTimer = setInterval(tick, 12000);
         },
 
         // Movies
@@ -6672,61 +6710,63 @@ function adminDashboard(userData = {}) {
     };
 }
 
-window.createParty = async function(movieId = null) {
+window.createParty = async function(movieOrId = null) {
+    let movie = null;
+    let movieId = 0;
+    if (movieOrId && typeof movieOrId === 'object') {
+        movie = movieOrId;
+        movieId = Number(movie.id || movie.movie_id) || 0;
+    } else {
+        movieId = Number(movieOrId) || 0;
+    }
+
+    if (typeof window.showPageLoader === 'function') {
+        window.showPageLoader();
+    }
+
     try {
+        if (movie && movieId > 0) {
+            const slim = {
+                id: movieId,
+                movie_id: movieId,
+                title: movie.title || '',
+                description: movie.description || '',
+                video_url: movie.video_url || movie.trailer || '',
+                actual_video_url: movie.actual_video_url || movie.stream_url || movie.video_url || '',
+                trailer: movie.trailer || movie.video_url || '',
+                stream_url: movie.stream_url || movie.actual_video_url || movie.video_url || '',
+                img: movie.img || movie.cover_image || '',
+                cover_image: movie.cover_image || movie.img || '',
+                duration: movie.duration || 0
+            };
+            sessionStorage.setItem('nexus_pending_room_movie', JSON.stringify(slim));
+        } else {
+            sessionStorage.removeItem('nexus_pending_room_movie');
+        }
+
         const formData = new FormData();
         formData.append('action', 'create_room');
-        if (movieId) {
-            formData.append('movie_id', movieId);
+        if (movieId > 0) {
+            formData.append('movie_id', String(movieId));
         }
-        
-        const pathsToTry = [
-            '/user_backend/create_room.php', // Standard relative path
-            '/user_backend/create_room.php',   // Workspace root absolute path
-            'user_backend/create_room.php'     // Current directory path
-        ];
-        
-        let data = null;
-        let lastError = null;
-        let successfulPath = null;
-        
-        // Robust fetch: try multiple path variations to handle different VSCode PHP Server setups
-        for (const p of pathsToTry) {
-            try {
-                const res = await fetch(p, { method: 'POST', body: formData });
-                const text = await res.text();
-                
-                // If it returns an HTML document (like a 404 page), it's the wrong path
-                if (text.trim().toLowerCase().startsWith('<!doctype') || text.trim().toLowerCase().startsWith('<html')) {
-                    throw new Error(`Path ${p} returned HTML (likely 404)`);
-                }
-                
-                data = JSON.parse(text);
-                successfulPath = p;
-                break; // Successfully found and parsed JSON
-            } catch (e) {
-                lastError = e;
-                console.warn(`[Nexus] Path fallback: ${p} failed.`);
-            }
-        }
-        
-        if (!data) {
-            throw new Error(`All path resolutions failed. Is the server running from the correct root folder? Last error: ${lastError.message}`);
-        }
-        
-        if (data.success) {
-            console.log(`Room created successfully using path ${successfulPath}! Code: ${data.room_code}`);
-            // Full page load is required so socket.io + watch_party.js initialize Alpine.
-            // Barba swaps the container without those scripts, which breaks video call and movie share.
+
+        const res = await fetch('/user_backend/create_room.php', { method: 'POST', body: formData });
+        const data = await res.json();
+
+        if (data && data.success) {
             window.location.href = `/user/watch_party.php?room_id=${encodeURIComponent(data.room_id)}`;
-        } else {
-            console.error("Room creation failed:", data.error);
-            if (typeof window.showToast === 'function') {
-                window.showToast(data.error, 'error');
-            }
+            return;
+        }
+
+        sessionStorage.removeItem('nexus_pending_room_movie');
+        if (typeof window.hidePageLoader === 'function') window.hidePageLoader();
+        if (typeof window.showToast === 'function') {
+            window.showToast((data && data.error) || 'Could not create room.', 'error');
         }
     } catch (error) {
         console.error("Error creating room:", error);
+        sessionStorage.removeItem('nexus_pending_room_movie');
+        if (typeof window.hidePageLoader === 'function') window.hidePageLoader();
         if (typeof window.showToast === 'function') {
             window.showToast("Failed to connect to server. Please check your localhost setup.", 'error');
         }

@@ -10,8 +10,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         exit;
     }
 
-    $host_id = $_SESSION['user_id']; 
-    $movie_id = isset($_POST['movie_id']) && !empty($_POST['movie_id']) ? $_POST['movie_id'] : 0;
+    header('Content-Type: application/json');
+    $host_id = (int)$_SESSION['user_id'];
+    $rawMovie = $_POST['movie_id'] ?? 0;
+    $movie_id = is_array($rawMovie) ? 0 : (int)$rawMovie;
+    if ($movie_id < 0) {
+        $movie_id = 0;
+    }
+    if ($movie_id > 0) {
+        $movieCheck = $conn->prepare("SELECT movie_id FROM movies WHERE movie_id = ? LIMIT 1");
+        $movieCheck->execute([$movie_id]);
+        if (!$movieCheck->fetchColumn()) {
+            $movie_id = 0;
+        }
+    }
     $room_code = substr(str_shuffle("0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ"), 0, 6);
     
     // Insert into database (ensure table exists or just create room)
@@ -25,7 +37,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             'movie_id' => (int)$movie_id,
         ]);
         
-        echo json_encode(['success' => true, 'room_code' => $room_code, 'room_id' => $room_id]);
+        echo json_encode([
+            'success' => true,
+            'room_code' => $room_code,
+            'room_id' => $room_id,
+            'movie_id' => (int)$movie_id,
+        ]);
     } catch (PDOException $e) {
         echo json_encode(['success' => false, 'error' => 'Database error: ' . $e->getMessage()]);
     }

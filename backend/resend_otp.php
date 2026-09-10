@@ -2,12 +2,9 @@
 // backend/resend_otp.php
 session_start();
 
-use PHPMailer\PHPMailer\PHPMailer;
-use PHPMailer\PHPMailer\SMTP;
-use PHPMailer\PHPMailer\Exception;
-
 require_once __DIR__ . '/../vendor/autoload.php';
 require_once __DIR__ . '/../conn.php';
+require_once __DIR__ . '/../mail_helper.php';
 
 $email = $_SESSION['verify_email'] ?? '';
 
@@ -16,6 +13,8 @@ if (empty($email)) {
     header("Location: ../frontend/index.php?error=" . urlencode("Session expired. Please log in again."));
     exit();
 }
+
+$otp_type = 'register';
 
 try {
     // 2. Fetch existing OTP type before clearing record
@@ -49,41 +48,7 @@ try {
         ':expires_at' => $expires_at
     ]);
 
-    // --- 3. Send Mail ---
-    $mail = new PHPMailer(true);
-    $mail->SMTPDebug = SMTP::DEBUG_OFF;
-    $mail->isSMTP();
-    $mail->Host       = 'smtp.gmail.com';
-    $mail->SMTPAuth   = true;
-    $mail->Username   = getenv('SMTP_USER') ?: 'koz51751@gmail.com'; 
-    $mail->Password   = getenv('SMTP_PASS') ?: 'kfnc dyla izdh zmpd';
-    $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
-    $mail->Port       = 587;
-
-    $mail->SMTPOptions = array(
-        'ssl' => array(
-            'verify_peer'       => false,
-            'verify_peer_name'  => false,
-            'allow_self_signed' => true
-        )
-    );
-
-    $mail->setFrom('koz51751@gmail.com', 'Watch Party');
-    $mail->addAddress($email);
-
-    $mail->isHTML(true);
-    $subject_title = ucfirst($otp_type);
-    $mail->Subject = "Nexus {$subject_title} - Verification OTP Code";
-    $mail->Body    = "
-        <div style='font-family: Arial, sans-serif; background: #050505; color: #ffffff; padding: 24px; border-radius: 12px;'>
-            <h2 style='color: #4f46e5;'>Nexus Verification</h2>
-            <p style='color: #cccccc;'>Your verification code is:</p>
-            <h1 style='color: #dc2626; letter-spacing: 6px; font-size: 32px;'>{$otp_code}</h1>
-            <p style='color: #888888; font-size: 12px;'>Valid for 3 minutes.</p>
-        </div>
-    ";
-
-    $mail->send();
+    sendOtpEmail($email, $otp_code, $otp_type);
 
     // Commit DB changes only if mail succeeds
     $conn->commit();
@@ -103,4 +68,3 @@ try {
     header("Location: ../frontend/{$redirect_page}?error=" . urlencode("Failed to send new code. Please try again later."));
     exit();
 }
-?>

@@ -167,7 +167,7 @@ session_write_close();
 
     <link rel="stylesheet" href="https://cdn.plyr.io/3.7.8/plyr.css" />
     <script src="https://cdn.plyr.io/3.7.8/plyr.polyfilled.js"></script>
-    <script src="../js/nexus_scripts.js?v=1789040500"></script>
+    <script src="../js/nexus_scripts.js?v=1789041000"></script>
     <script src="https://unpkg.com/htmx.org@1.9.10/dist/htmx.min.js" crossorigin="anonymous"></script>
 </head>
 <body class="h-screen w-screen flex relative selection:bg-red-500/30" data-barba="wrapper">
@@ -309,7 +309,7 @@ session_write_close();
 
     <script src="https://unpkg.com/@barba/core@2.9.7/dist/barba.umd.js" crossorigin="anonymous"></script>
     <script src="../js/admin_animations.js?v=1"></script>
-    <script src="../js/barba_setup.js?v=8"></script>
+    <script src="../js/barba_setup.js?v=9"></script>
     
 </body>
 </html>

@@ -1,3 +1,26 @@
+function nexusHardNavigateUrl(url) {
+    try {
+        const path = new URL(String(url || ''), window.location.href).pathname.replace(/\/+$/, '') || '/';
+        return (
+            path === '/'
+            || path === '/index.php'
+            || path.endsWith('/index.php')
+            || path.endsWith('/dashboard.php')
+            || path.endsWith('/admin_dashboard.php')
+            || path.endsWith('/watch_party.php')
+            || path.endsWith('/login.php')
+            || path.endsWith('/register.php')
+            || path.endsWith('/otp-login.php')
+            || path.endsWith('/otp-register.php')
+            || path.endsWith('/otp-forgot.php')
+            || path.endsWith('/forgot-password.php')
+            || path.includes('/backend/')
+        );
+    } catch (e) {
+        return false;
+    }
+}
+
 // Barba.js Initialization
 if (typeof barba !== 'undefined') {
     barba.init({
@@ -7,20 +30,7 @@ if (typeof barba !== 'undefined') {
             if (el && el.href && el.href.includes('backend/')) return true;
             const url = href || (el && el.href) || '';
             if (String(url).includes('watch_party.php')) return true;
-            try {
-                const path = new URL(String(url), window.location.origin).pathname.replace(/\/+$/, '') || '/';
-                if (
-                    path === '/'
-                    || path === '/index.php'
-                    || path.endsWith('/index.php')
-                    || path.endsWith('/dashboard.php')
-                    || path.endsWith('/admin_dashboard.php')
-                    || path.endsWith('/watch_party.php')
-                    || path.endsWith('/login.php')
-                    || path.endsWith('/register.php')
-                ) return true;
-            } catch (e) {}
-            return false;
+            return nexusHardNavigateUrl(url);
         },
         views: [{
             namespace: 'index',
@@ -123,6 +133,18 @@ if (typeof barba !== 'undefined') {
                         }
                     });
 
+                    const existingStyleText = new Set(
+                        Array.from(document.head.querySelectorAll('style')).map(s => s.textContent || '')
+                    );
+                    htmlDoc.head.querySelectorAll('style').forEach(newStyle => {
+                        const text = newStyle.textContent || '';
+                        if (!text || existingStyleText.has(text)) return;
+                        const style = document.createElement('style');
+                        style.textContent = text;
+                        document.head.appendChild(style);
+                        existingStyleText.add(text);
+                    });
+
                     // Do not re-inject the same JS file with a different cache-buster.
                     const scriptKey = (src) => {
                         try { return new URL(src, window.location.origin).pathname; } catch (e) { return src; }
@@ -218,10 +240,11 @@ document.addEventListener('submit', async (e) => {
         if (e.defaultPrevented) return;
         if (form.hasAttribute('data-barba-prevent')) return;
         if (typeof barba === 'undefined' || !barba.go) return;
+        const action = form.getAttribute('action') || window.location.href;
+        if (nexusHardNavigateUrl(action)) return;
         
         e.preventDefault();
         const formData = new FormData(form);
-        const action = form.getAttribute('action') || window.location.href;
         const method = (form.getAttribute('method') || 'GET').toUpperCase();
         
         if (typeof window.showPageLoader === 'function') window.showPageLoader();
@@ -238,6 +261,10 @@ document.addEventListener('submit', async (e) => {
             
             const response = await fetch(finalAction, fetchOpts);
             const finalUrl = response.url;
+            if (nexusHardNavigateUrl(finalUrl)) {
+                window.location.assign(finalUrl);
+                return;
+            }
             
             // Re-hide loader is handled by Barba's enter hook
             barba.go(finalUrl);
@@ -255,6 +282,7 @@ document.addEventListener('click', async (e) => {
     if (link && link.href && link.href.includes('backend/')) {
         if (e.defaultPrevented) return;
         if (link.hasAttribute('data-barba-prevent')) return;
+        if (nexusHardNavigateUrl(link.href)) return;
         if (typeof barba === 'undefined' || !barba.go) return;
         
         e.preventDefault();
@@ -263,6 +291,10 @@ document.addEventListener('click', async (e) => {
         
         try {
             const response = await fetch(link.href, { redirect: 'follow', credentials: 'same-origin' });
+            if (nexusHardNavigateUrl(response.url)) {
+                window.location.assign(response.url);
+                return;
+            }
             barba.go(response.url);
         } catch(err) {
             console.error('Link fetch error:', err);

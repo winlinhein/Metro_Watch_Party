@@ -201,11 +201,24 @@ session_write_close();
         :root {
             --plyr-color-main: #ef4444; /* Nexus Red */
         }
+
+        @keyframes nexus-stat-spin {
+            to { transform: rotate(360deg); }
+        }
+        @keyframes nexus-stat-spin-rev {
+            to { transform: rotate(-360deg); }
+        }
+        .stat-loader-orbit-outer {
+            animation: nexus-stat-spin 1.5s linear infinite;
+        }
+        .stat-loader-orbit-inner {
+            animation: nexus-stat-spin-rev 1s linear infinite;
+        }
     </style>
 
     <link rel="stylesheet" href="https://cdn.plyr.io/3.7.8/plyr.css" />
     <script src="https://cdn.plyr.io/3.7.8/plyr.polyfilled.js"></script>
-    <script src="../js/nexus_scripts.js?v=1789040500"></script>
+    <script src="../js/nexus_scripts.js?v=1789041000"></script>
 </head>
 <body class="h-screen w-screen flex flex-col relative selection:bg-red-500/30" data-barba="wrapper">
     <?php include __DIR__ . '/../frontend/components/page_loader.php'; ?>
@@ -750,9 +763,9 @@ session_write_close();
                                                     <!-- Ambient Glow -->
                                                     <div class="absolute inset-0 bg-indigo-500/20 rounded-full blur-md animate-pulse"></div>
                                                     <!-- Outer Orbit Ring -->
-                                                    <div class="absolute inset-0 border-[2px] border-white/5 border-t-indigo-500 border-r-indigo-500 rounded-full animate-[spin_1.5s_linear_infinite] shadow-[0_0_10px_rgba(99,102,241,0.2)]"></div>
+                                                    <div class="stat-loader-orbit-outer absolute inset-0 border-[2px] border-white/5 border-t-indigo-500 border-r-indigo-500 rounded-full shadow-[0_0_10px_rgba(99,102,241,0.2)]"></div>
                                                     <!-- Inner Counter-Orbit Ring -->
-                                                    <div class="absolute inset-1.5 border-[2px] border-white/5 border-b-red-500 border-l-red-500 rounded-full animate-[spin_1s_linear_infinite_reverse] shadow-[0_0_10px_rgba(239,68,68,0.2)]"></div>
+                                                    <div class="stat-loader-orbit-inner absolute inset-1.5 border-[2px] border-white/5 border-b-red-500 border-l-red-500 rounded-full shadow-[0_0_10px_rgba(239,68,68,0.2)]"></div>
                                                     <!-- Core Energy Dot -->
                                                     <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-2 h-2 bg-white shadow-[0_0_8px_#fff] rotate-45 animate-ping" style="animation-duration: 1.5s;"></div>
                                                     <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-1.5 h-1.5 bg-white shadow-[0_0_8px_#fff] rotate-45"></div>
@@ -854,14 +867,7 @@ session_write_close();
 
                             <p class="relative z-10 text-[10px] font-bold tracking-[0.28em] uppercase text-white/40 mono mb-2">Signal offline</p>
                             <h3 class="relative z-10 text-2xl font-black tracking-wide uppercase text-white mb-2">Nobody is hosting</h3>
-                            <p class="relative z-10 text-sm text-white/45 max-w-sm mb-6">None of your friends have a live watch party right now. Start one and invite them in.</p>
-
-                            <button type="button"
-                                    @click="createParty()"
-                                    class="relative z-10 px-6 py-2.5 rounded-xl bg-nexus-red hover:bg-red-400 text-white font-bold tracking-wide flex items-center gap-2 shadow-[0_0_20px_rgba(239,68,68,0.35)] transition-all hover:-translate-y-0.5">
-                                <span class="material-symbols-outlined text-[18px]">add</span>
-                                Host a Party
-                            </button>
+                            <p class="relative z-10 text-sm text-white/45 max-w-sm">None of your friends have a live watch party right now.</p>
                         </div>
                     </div>
 
@@ -962,7 +968,7 @@ session_write_close();
 </div>
 
 <script src="https://unpkg.com/@barba/core@2.9.7/dist/barba.umd.js" crossorigin="anonymous"></script>
-<script src="../js/barba_setup.js?v=8"></script>
+<script src="../js/barba_setup.js?v=9"></script>
 
 </body>
 </html>

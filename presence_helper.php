@@ -6,11 +6,17 @@ function ensureUserLastSeenColumn(PDO $conn): void
     if ($ready) {
         return;
     }
+    $flag = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'nexus_last_seen_ok';
+    if (is_file($flag)) {
+        $ready = true;
+        return;
+    }
     try {
         $conn->exec("ALTER TABLE users ADD COLUMN last_seen DATETIME NULL DEFAULT NULL");
     } catch (Throwable $e) {
         // Column already exists (or cannot be added); queries still try last_seen.
     }
+    @touch($flag);
     $ready = true;
 }
 

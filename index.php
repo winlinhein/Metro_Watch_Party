@@ -60,6 +60,7 @@ if ($sessionAuthed && $sessionUserId > 0 && in_array($sessionRole, ['user', 'adm
     <script src="https://cdn.jsdelivr.net/npm/gsap@3.13.0/dist/ScrambleTextPlugin.min.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/gsap@3.13.0/dist/ScrollToPlugin.min.js" crossorigin="anonymous"></script>
     <script>if (window.gsap) gsap.config({ nullTargetWarn: false });</script>
+    <script src="/js/home_page.js?v=10"></script>
 
     <style>
         body {
@@ -1357,6 +1358,6 @@ if ($sessionAuthed && $sessionUserId > 0 && in_array($sessionRole, ['user', 'adm
     </div>
 
     <script src="https://unpkg.com/@barba/core@2.9.7/dist/barba.umd.js" crossorigin="anonymous"></script>
-    <script src="/js/barba_setup.js?v=8"></script>
+    <script src="/js/barba_setup.js?v=9"></script>
 </body>
 </html>

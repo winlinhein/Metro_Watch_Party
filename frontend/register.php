@@ -131,7 +131,7 @@
             
             
 
-            <form action="../backend/register_backend.php?action=register" method="POST" class="space-y-5" id="registerForm" onsubmit="return validateRegistrationForm();" novalidate>
+            <form action="../backend/register_backend.php?action=register" method="POST" class="space-y-5" id="registerForm" data-barba-prevent onsubmit="return validateRegistrationForm();" novalidate>
                 
                 <!-- Name Field -->
                 <div class="floating-label-group gs-stagger">
@@ -263,7 +263,7 @@
 
     <script src="https://unpkg.com/@barba/core@2.9.7/dist/barba.umd.js" crossorigin="anonymous"></script>
     
-    <script src="../js/barba_setup.js?v=4"></script>
+    <script src="../js/barba_setup.js?v=9"></script>
 
 </body>
 </html>

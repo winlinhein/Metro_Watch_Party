@@ -131,7 +131,7 @@
             
 
             <!-- Form with novalidate so custom JS modal handles all validation -->
-            <form action="../backend/login_backend.php" method="POST" class="space-y-6" id="loginForm" onsubmit="return validateLoginForm()" novalidate>
+            <form action="../backend/login_backend.php" method="POST" class="space-y-6" id="loginForm" data-barba-prevent onsubmit="return validateLoginForm()" novalidate>
                 
                 <!-- Email Field -->
                 <div class="floating-label-group gs-stagger">
@@ -284,7 +284,7 @@
 
     <script src="https://unpkg.com/@barba/core@2.9.7/dist/barba.umd.js" crossorigin="anonymous"></script>
     
-    <script src="../js/barba_setup.js?v=4"></script>
+    <script src="../js/barba_setup.js?v=9"></script>
 
 </body>
 </html>
