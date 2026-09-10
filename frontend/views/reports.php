@@ -97,12 +97,13 @@
                             <td class="p-5">
                                 <span class="px-3 py-1 rounded-full border text-[11px] font-bold tracking-wide" 
                                       :class="{
-                                          'bg-red-500/10 text-red-400 border-red-500/20 shadow-[0_0_10px_rgba(239,68,68,0.15)]': report.type === 'High',
+                                          'bg-red-500/10 text-red-400 border-red-500/20 shadow-[0_0_10px_rgba(239,68,68,0.15)]': report.type === 'Room' || report.type === 'High',
                                           'bg-yellow-500/10 text-yellow-400 border-yellow-500/20 shadow-[0_0_10px_rgba(234,179,8,0.15)]': report.type === 'Medium',
-                                          'bg-blue-500/10 text-blue-400 border-blue-500/20 shadow-[0_0_10px_rgba(59,130,246,0.15)]': report.type === 'Low' || !['High','Medium'].includes(report.type)
+                                          'bg-purple-500/10 text-purple-300 border-purple-500/20': report.type === 'User',
+                                          'bg-blue-500/10 text-blue-400 border-blue-500/20 shadow-[0_0_10px_rgba(59,130,246,0.15)]': !['High','Medium','Room','User'].includes(report.type)
                                       }" x-text="report.type || 'Standard'"></span>
                             </td>
-                            <td class="p-5 text-white/60 truncate max-w-[200px]" x-text="report.excerpt"></td>
+                            <td class="p-5 text-white/60 truncate max-w-[220px]" x-text="report.reported_user || report.excerpt"></td>
                             <td class="p-5 text-center">
                                 <span class="px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider"
                                       :class="report.status === 'Pending' ? 'bg-orange-500/20 text-orange-400 border border-orange-500/30' : 'bg-green-500/20 text-green-400 border border-green-500/30'"
@@ -168,7 +169,7 @@
                                     <span class="text-white font-medium" x-text="selectedReport.user"></span>
                                 </div>
                                 <div class="bg-red-500/5 border border-red-500/10 rounded-xl p-4">
-                                    <p class="text-red-400/60 text-[10px] uppercase tracking-wider mb-2 font-bold">Reported Target</p>
+                                    <p class="text-red-400/60 text-[10px] uppercase tracking-wider mb-2 font-bold" x-text="selectedReport.type === 'Room' ? 'Reported Room' : 'Reported Target'"></p>
                                     <div class="flex items-center gap-2.5">
                                         <div class="relative w-8 h-8 shrink-0 overflow-visible" style="width: 2rem; height: 2rem;">
                                             <div class="absolute inset-0 z-0 overflow-hidden rounded-full scale-[1.15] bg-red-500/20">
@@ -181,6 +182,24 @@
                                             </template>
                                         </div>
                                         <span class="text-red-100 font-medium" x-text="selectedReport.reported_user || 'Unknown'"></span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Reported Room -->
+                            <div x-show="selectedReport.type === 'Room'" class="bg-indigo-500/5 border border-indigo-500/10 rounded-xl p-4">
+                                <p class="text-indigo-400/60 text-[10px] uppercase tracking-wider mb-3 font-bold">Watch Party</p>
+                                <div class="flex items-center gap-3">
+                                    <div class="w-12 h-16 rounded-lg overflow-hidden bg-white/5 border border-white/10 shrink-0">
+                                        <img x-show="selectedReport.reported_room_movie_poster" :src="selectedReport.reported_room_movie_poster" class="w-full h-full object-cover" alt="">
+                                        <div x-show="!selectedReport.reported_room_movie_poster" class="w-full h-full flex items-center justify-center text-white/30">
+                                            <span class="material-symbols-outlined">movie</span>
+                                        </div>
+                                    </div>
+                                    <div class="min-w-0">
+                                        <p class="text-white font-semibold truncate" x-text="selectedReport.reported_room_movie_title || 'No movie selected'"></p>
+                                        <p class="text-white/50 text-xs mono" x-text="selectedReport.reported_room_code ? ('Room #' + selectedReport.reported_room_code) : ('Room #' + (selectedReport.reported_room_id || '—'))"></p>
+                                        <p class="text-[10px] uppercase tracking-wider mt-1" :class="selectedReport.reported_room_status === 'active' ? 'text-green-400' : 'text-white/40'" x-text="selectedReport.reported_room_status === 'active' ? 'Still live' : 'Closed'"></p>
                                     </div>
                                 </div>
                             </div>

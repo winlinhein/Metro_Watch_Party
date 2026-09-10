@@ -49,6 +49,10 @@ function watchParty() {
         chatBanned: false,
         _exiting: false,
         currentMovie: null,
+        availableReasons: [],
+        showReportRoomModal: false,
+        selectedRoomReasonIds: [],
+        reportRoomDescription: '',
 
         friends: [],
         showInviteMenu: false,
@@ -79,6 +83,7 @@ function watchParty() {
 
             this.fetchFriends();
             this.fetchMovies();
+            this.fetchReasons();
             await this.startLocalMedia();
             await this.fetchRoomDetails();
             await this.connectSignaling();
@@ -572,6 +577,59 @@ function watchParty() {
                 }
             } catch (e) {
                 console.error("Error fetching friends:", e); //[cite: 6]
+            }
+        },
+
+        async fetchReasons() {
+            try {
+                const res = await fetch('../user_backend/get_reasons.php');
+                const data = await res.json();
+                if (data.success) {
+                    this.availableReasons = data.reasons || [];
+                }
+            } catch (e) {
+                console.error('Failed to fetch report reasons', e);
+            }
+        },
+
+        openReportRoomModal() {
+            this.selectedRoomReasonIds = [];
+            this.reportRoomDescription = '';
+            this.showReportRoomModal = true;
+            if (!this.availableReasons.length) this.fetchReasons();
+        },
+
+        closeReportRoomModal() {
+            this.showReportRoomModal = false;
+            this.selectedRoomReasonIds = [];
+            this.reportRoomDescription = '';
+        },
+
+        async submitRoomReport() {
+            if (!this.roomId) return;
+            if (this.selectedRoomReasonIds.length === 0 && !String(this.reportRoomDescription || '').trim()) return;
+            try {
+                const res = await fetch('../user_backend/submit_report.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        type: 'room',
+                        reported_room_id: Number(this.roomId),
+                        reason_ids: this.selectedRoomReasonIds,
+                        description: this.reportRoomDescription
+                    })
+                });
+                const data = await res.json().catch(() => ({ success: false, message: 'Invalid server response' }));
+                this.closeReportRoomModal();
+                if (data.success) {
+                    if (window.showToast) window.showToast('Room reported. Moderators have been notified.', 'success');
+                } else if (window.showToast) {
+                    window.showToast(data.message || 'Report failed.', 'error');
+                }
+            } catch (e) {
+                console.error('Room report failed:', e);
+                this.closeReportRoomModal();
+                if (window.showToast) window.showToast('Network error. Please try again.', 'error');
             }
         },
 
@@ -1269,8 +1327,8 @@ function watchParty() {
                 return;
             }
             if (event === 'room-ended') {
-                if (this.isHost) return;
-                this.exitEndedRoom((data && data.message) || 'The host ended this watch party.');
+                if (this.isHost && !(data && data.forced_by_admin)) return;
+                this.exitEndedRoom((data && data.message) || 'This watch party has ended.');
                 return;
             }
             if (event === 'force-leave') {

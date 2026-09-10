@@ -23,6 +23,7 @@ try {
     require_once __DIR__ . '/../conn.php';
     require_once __DIR__ . '/../poster_helper.php';
     require_once __DIR__ . '/../pusher_helper.php';
+    require_once __DIR__ . '/../admin_rooms_helper.php';
 
     $roomStmt = $conn->prepare("SELECT room_id, host_id, status FROM rooms WHERE room_id = :id LIMIT 1");
     $roomStmt->execute(['id' => $roomId]);
@@ -34,7 +35,7 @@ try {
         exit;
     }
 
-    if (($room['status'] ?? '') === 'ended') {
+    if (isRoomClosed($room['status'] ?? '')) {
         http_response_code(409);
         echo json_encode(['success' => false, 'message' => 'This watch party has ended']);
         exit;
@@ -72,6 +73,11 @@ try {
         'movieId' => $movieId,
         'videoUrl' => $movie['stream_url'],
         'fromUserId' => $userId,
+    ]);
+    broadcastAdminRoomsChanged('movie', [
+        'room_id' => $roomId,
+        'movie_id' => $movieId,
+        'movie_title' => $movie['title'] ?? '',
     ]);
 
     echo json_encode([

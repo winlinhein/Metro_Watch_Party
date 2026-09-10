@@ -31,8 +31,9 @@ if (!is_array($data)) {
 // ---------------------------------------------------------------------
 $is_item_report = isset($data['reported_item_id']) && isset($data['item_type']);
 $is_user_report = isset($data['reported_id']) && ($data['type'] ?? '') === 'user';
+$is_room_report = isset($data['reported_room_id']) && ($data['type'] ?? '') === 'room';
 
-if (!$is_item_report && !$is_user_report) {
+if (!$is_item_report && !$is_user_report && !$is_room_report) {
     echo json_encode(['success' => false, 'message' => 'Invalid report data']);
     exit;
 }
@@ -48,7 +49,7 @@ if (!is_array($reason_ids)) {
 }
 
 // At least one reason or description required
-if (empty($reason_ids) && empty(trim($description))) {
+if (empty($reason_ids) && trim((string)$description) === '') {
     echo json_encode(['success' => false, 'message' => 'Please provide a reason or description']);
     exit;
 }
@@ -56,6 +57,10 @@ if (empty($reason_ids) && empty(trim($description))) {
 // ---------------------------------------------------------------------
 // 4. Prepare Data Depending on Report Type
 // ---------------------------------------------------------------------
+$comment_id = null;
+$reported_user_id = null;
+$reported_room_id = null;
+
 if ($is_item_report) {
     $type = $data['item_type'];
     $allowed_item_types = ['comment', 'reply'];
@@ -66,8 +71,6 @@ if ($is_item_report) {
 
     $comment_id = (int)$data['reported_item_id'];
 
-    // Fetch the author's user_id from movie_comments
-    // Adjust column name if your primary key is `id` instead of `comment_id`
     $stmt_user = $conn->prepare("SELECT user_id FROM movie_comments WHERE comment_id = ?");
     $stmt_user->execute([$comment_id]);
     $comment_author = $stmt_user->fetch(PDO::FETCH_ASSOC);
@@ -79,14 +82,48 @@ if ($is_item_report) {
 
     $reported_user_id = (int)$comment_author['user_id'];
 
-    // Prevent reporting yourself
     if ($reported_user_id === $reporter_id) {
         echo json_encode(['success' => false, 'message' => 'You cannot report your own comment']);
         exit;
     }
+} elseif ($is_room_report) {
+    $type = 'room';
+    $reported_room_id = (int)$data['reported_room_id'];
+    if ($reported_room_id <= 0) {
+        echo json_encode(['success' => false, 'message' => 'Invalid room']);
+        exit;
+    }
+
+    $roomStmt = $conn->prepare("
+        SELECT r.room_id, r.room_code, r.host_id, r.movie_id, r.status,
+               COALESCE(u.user_name, u.email, 'Unknown') AS host_name,
+               m.title AS movie_title
+        FROM rooms r
+        LEFT JOIN users u ON u.user_id = r.host_id
+        LEFT JOIN movies m ON m.movie_id = r.movie_id AND r.movie_id > 0
+        WHERE r.room_id = ?
+        LIMIT 1
+    ");
+    $roomStmt->execute([$reported_room_id]);
+    $room = $roomStmt->fetch(PDO::FETCH_ASSOC);
+    if (!$room) {
+        echo json_encode(['success' => false, 'message' => 'Room not found']);
+        exit;
+    }
+
+    $reported_user_id = (int)$room['host_id'] ?: null;
+    $movieLabel = trim((string)($room['movie_title'] ?? '')) ?: 'No movie selected';
+    $room_snapshot = 'Room #' . $room['room_code'] . ' · ' . $movieLabel;
+    $description = trim((string)$description);
+    if ($description !== '') {
+        $description = $room_snapshot . ' — ' . $description;
+    } else {
+        $description = $room_snapshot;
+    }
+    if (strlen($description) > 255) {
+        $description = substr($description, 0, 252) . '...';
+    }
 } else {
-    // Direct user report
-    $comment_id = null;
     $reported_user_id = (int)$data['reported_id'];
     $type = 'user';
 
@@ -102,12 +139,11 @@ if ($is_item_report) {
 try {
     $conn->beginTransaction();
 
-    // Insert main report
     $stmt = $conn->prepare("
-        INSERT INTO reports (reporter_id, reported_user_id, comment_id, type, description)
-        VALUES (?, ?, ?, ?, ?)
+        INSERT INTO reports (reporter_id, reported_user_id, reported_room_id, comment_id, type, description)
+        VALUES (?, ?, ?, ?, ?, ?)
     ");
-    $stmt->execute([$reporter_id, $reported_user_id, $comment_id, $type, $description]);
+    $stmt->execute([$reporter_id, $reported_user_id, $reported_room_id, $comment_id, $type, $description]);
     $report_id = $conn->lastInsertId();
 
     // Insert reason mappings
@@ -142,6 +178,7 @@ try {
                 'id'               => $report_id,
                 'reporter_id'      => $reporter_id,
                 'reported_user_id' => $reported_user_id,
+                'reported_room_id' => $reported_room_id,
                 'comment_id'       => $comment_id,
                 'type'             => $type,
                 'description'      => $description,

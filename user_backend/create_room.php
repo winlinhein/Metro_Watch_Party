@@ -1,6 +1,7 @@
 <?php
 session_start();
-require_once __DIR__ . '/../conn.php'; 
+require_once __DIR__ . '/../conn.php';
+require_once __DIR__ . '/../admin_rooms_helper.php'; 
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'create_room') {
     
@@ -18,6 +19,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         $stmt = $conn->prepare("INSERT INTO rooms (room_code, host_id, movie_id, status, created_at) VALUES (?, ?, ?, 'active', NOW())");
         $stmt->execute([$room_code, $host_id, $movie_id]);
         $room_id = $conn->lastInsertId();
+        broadcastAdminRoomsChanged('create', [
+            'room_id' => (int)$room_id,
+            'host_id' => (int)$host_id,
+            'movie_id' => (int)$movie_id,
+        ]);
         
         echo json_encode(['success' => true, 'room_code' => $room_code, 'room_id' => $room_id]);
     } catch (PDOException $e) {

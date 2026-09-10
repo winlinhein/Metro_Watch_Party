@@ -18,6 +18,7 @@ if (!$roomId) {
 try {
     require_once '../conn.php';
     require_once '../poster_helper.php';
+    require_once '../admin_rooms_helper.php';
     $pdo = $conn;
     // 1. Fetch room using room_id or room_code
     $stmt = $pdo->prepare("SELECT room_id, room_code, host_id, movie_id, status, created_at FROM rooms WHERE (room_id = :id OR room_code = :code) LIMIT 1");
@@ -29,8 +30,8 @@ try {
         exit;
     }
 
-    // 2. Lifespan check: Block access if the room status is 'ended'
-    if ($room['status'] === 'ended') {
+    // 2. Lifespan check: Block access if the room was closed
+    if (isRoomClosed($room['status'] ?? '')) {
         echo json_encode(['success' => false, 'message' => 'This watch party has ended by the host.', 'is_ended' => true]);
         exit;
     }

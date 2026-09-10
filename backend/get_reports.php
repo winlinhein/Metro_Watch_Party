@@ -3,6 +3,7 @@
 session_start();
 require_once __DIR__ . '/../conn.php';
 require_once __DIR__ . '/../profile_media_helper.php';
+require_once __DIR__ . '/../poster_helper.php';
 
 header('Content-Type: application/json');
 
@@ -32,6 +33,10 @@ try {
             ANY_VALUE(reporter.user_name) AS reporter_name,
             ANY_VALUE(reported.user_id) AS reported_target_user_id,
             ANY_VALUE(reported.user_name) AS reported_user_name,
+            ANY_VALUE(rm.room_code) AS reported_room_code,
+            ANY_VALUE(rm.status) AS reported_room_status,
+            ANY_VALUE(rm.movie_id) AS reported_room_movie_id,
+            ANY_VALUE(mv.title) AS reported_room_movie_title,
             GROUP_CONCAT(re.reason_title SEPARATOR ', ') AS reported_reasons
         FROM 
             reports r
@@ -40,7 +45,11 @@ try {
         LEFT JOIN 
             movie_comments mc ON (r.comment_id = mc.comment_id OR (r.comment_id IS NULL AND r.reported_user_id = mc.comment_id)) AND r.type IN ('comment', 'reply')
         LEFT JOIN 
-            users reported ON (r.reported_user_id = reported.user_id AND r.type = 'user') OR (mc.user_id = reported.user_id AND r.type IN ('comment', 'reply'))
+            users reported ON (r.reported_user_id = reported.user_id AND r.type IN ('user', 'room')) OR (mc.user_id = reported.user_id AND r.type IN ('comment', 'reply'))
+        LEFT JOIN
+            rooms rm ON r.reported_room_id = rm.room_id
+        LEFT JOIN
+            movies mv ON rm.movie_id = mv.movie_id AND rm.movie_id > 0
         LEFT JOIN 
             report_and_reasons rr ON r.report_id = rr.report_id
         LEFT JOIN 
@@ -70,18 +79,30 @@ try {
     // Format the data exactly as your Alpine.js frontend expects it
     $formatted_reports = array_map(function($rep) use ($mediaByUser) {
         
-        // Determine if they reported a user or a room
         $reported_entity = 'Unknown/None';
-        if (!empty($rep['reported_user_name'])) {
+        $roomCode = $rep['reported_room_code'] ?? '';
+        $roomMovieTitle = trim((string)($rep['reported_room_movie_title'] ?? ''));
+        $roomMovieId = (int)($rep['reported_room_movie_id'] ?? 0);
+        if (($rep['type'] ?? '') === 'room') {
+            if ($roomCode) {
+                $reported_entity = 'Room #' . $roomCode;
+            } elseif (!empty($rep['reported_room_id'])) {
+                $reported_entity = 'Room #' . $rep['reported_room_id'];
+            }
+            if ($roomMovieTitle !== '') {
+                $reported_entity .= ' · ' . $roomMovieTitle;
+            }
+        } elseif (!empty($rep['reported_user_name'])) {
             $reported_entity = $rep['reported_user_name'];
         } elseif (!empty($rep['reported_room_id'])) {
-            $reported_entity = 'Room #' . $rep['reported_room_id'];
+            $reported_entity = 'Room #' . ($roomCode ?: $rep['reported_room_id']);
         }
 
         $reporterId = (int)($rep['reporter_user_id'] ?? 0);
         $reportedId = (int)($rep['reported_target_user_id'] ?? 0);
         $reporterMedia = $mediaByUser[$reporterId] ?? [];
         $reportedMedia = $mediaByUser[$reportedId] ?? [];
+        $desc = (string)($rep['description'] ?? '');
 
         return [
             'raw_id'        => $rep['report_id'], 
@@ -91,15 +112,21 @@ try {
             'reported_user' => $reported_entity, 
             'reported_movie_id' => $rep['reported_movie_id'] ?? null,
             'reported_comment_id' => in_array($rep['type'], ['comment', 'reply']) ? ($rep['comment_id'] ?? $rep['reported_user_id']) : null,
-            'reason'        => $rep['reported_reasons'] ?? 'No Specific Reason', // Using your GROUP_CONCAT alias
+            'reported_room_id' => $rep['reported_room_id'] ? (int)$rep['reported_room_id'] : null,
+            'reported_room_code' => $roomCode ?: null,
+            'reported_room_status' => $rep['reported_room_status'] ?? null,
+            'reported_room_movie_title' => $roomMovieTitle !== '' ? $roomMovieTitle : null,
+            'reported_room_movie_poster' => ($roomMovieId > 0 && $roomMovieTitle !== '') ? moviePosterUrl($roomMovieId) : '',
+            'reason'        => $rep['reported_reasons'] ?? 'No Specific Reason',
             'type'          => ucfirst($rep['type']),
-            'excerpt'       => substr($rep['description'], 0, 45) . (strlen($rep['description']) > 45 ? '...' : ''),
-            'description'   => $rep['description'],
+            'excerpt'       => $desc !== '' ? (substr($desc, 0, 45) . (strlen($desc) > 45 ? '...' : '')) : '',
+            'description'   => $desc,
             'status'        => ucfirst($rep['status']),
-            'priority'      => 'Medium', // Reverted back to hardcoded since there is no column
+            'priority'      => 'Medium',
             'reporter_avatar_url' => $reporterMedia['avatar_url'] ?? '',
             'reporter_border_preview' => $reporterMedia['border_preview'] ?? '',
             'reported_user_id' => $reportedId ?: null,
+            'reported_user_name' => $rep['reported_user_name'] ?? '',
             'reported_avatar_url' => $reportedMedia['avatar_url'] ?? '',
             'reported_border_preview' => $reportedMedia['border_preview'] ?? '',
         ];

@@ -34,30 +34,16 @@ if ($roomCode) {
     }
 
     require_once __DIR__ . '/../pusher_helper.php';
+    require_once __DIR__ . '/../admin_rooms_helper.php';
     $channel = 'watch-party-' . $room['room_id'];
 
-    // If user is the host, tell everyone the party is over, then delete the room.
+    // If user is the host, tell everyone the party is over, then close the room.
     if ((int)$room['host_id'] === (int)$userId) {
-        try {
-            triggerPusherEvent($channel, 'room-ended', [
-                'fromUserId' => (int)$userId,
-                'is_ended' => true,
-                'message' => 'The host ended this watch party.',
-            ]);
-        } catch (Throwable $ignore) {}
-
-        try {
-            $conn->prepare("DELETE FROM room_participants WHERE room_id = :room_id")
-                 ->execute(['room_id' => $room['room_id']]);
-        } catch (Exception $ignore) {}
-
-        try {
-            $conn->prepare("DELETE FROM room_kicks WHERE room_id = :room_id")
-                 ->execute(['room_id' => $room['room_id']]);
-        } catch (Exception $ignore) {}
-
-        $deleteStmt = $conn->prepare("DELETE FROM rooms WHERE room_id = :room_id");
-        $deleteStmt->execute(['room_id' => $room['room_id']]);
+        closeWatchPartyRoom($conn, (int)$room['room_id'], [
+            'from_user_id' => (int)$userId,
+            'forced_by_admin' => false,
+            'message' => 'The host ended this watch party.',
+        ]);
 
         echo json_encode(['success' => true, 'message' => 'Room deleted', 'is_ended' => true]);
         exit;
@@ -76,6 +62,11 @@ if ($roomCode) {
             'socketId' => (string)($_REQUEST['peer_id'] ?? ''),
         ]);
     } catch (Throwable $ignore) {}
+
+    broadcastAdminRoomsChanged('leave', [
+        'room_id' => (int)$room['room_id'],
+        'user_id' => (int)$userId,
+    ]);
 
     echo json_encode(['success' => true, 'message' => 'Participant left']);
 
