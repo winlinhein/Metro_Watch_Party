@@ -79,6 +79,7 @@ try {
             opacity: 0.015;
             pointer-events: none;
         }
+        [x-cloak] { display: none !important; }
         .custom-scrollbar::-webkit-scrollbar {
             width: 4px;
         }
@@ -178,7 +179,7 @@ try {
                     Report
                </button>
                <div class="relative">
-    <button @click="showInviteMenu = !showInviteMenu" class="px-4 py-2 bg-white/10 hover:bg-white/20 rounded-xl text-sm font-bold flex items-center gap-2 transition-colors">
+    <button @click="showInviteMenu = !showInviteMenu; if (showInviteMenu) refreshOnlineStatus()" class="px-4 py-2 bg-white/10 hover:bg-white/20 rounded-xl text-sm font-bold flex items-center gap-2 transition-colors">
         <span class="material-symbols-outlined text-[18px]">person_add</span>
         Invite
     </button>
@@ -198,6 +199,11 @@ try {
                             <template x-if="friend.border_preview">
                                 <img :src="friend.border_preview" class="absolute inset-0 z-10 h-full w-full scale-[1.45] object-contain pointer-events-none" alt="">
                             </template>
+                            <span class="absolute -bottom-0.5 -right-0.5 z-20 h-2 w-2 rounded-full"
+                                  :class="isUserOnline(friend)
+                                    ? 'bg-emerald-500 shadow-[0_0_5px_rgba(16,185,129,0.85)] ring-1 ring-[#07070b]'
+                                    : 'bg-gray-500 ring-1 ring-[#07070b]'"
+                                  :title="isUserOnline(friend) ? 'Online' : 'Offline'"></span>
                         </div>
                         <span class="text-sm font-medium truncate" x-text="friend.user_name"></span>
                     </div>
@@ -217,6 +223,15 @@ try {
 
         <!-- Content Area -->
         <div id="content-area" class="flex-1 flex overflow-hidden relative">
+
+            <div class="absolute inset-0 z-50 bg-[#050508]/90 backdrop-blur-md flex flex-col items-center justify-center gap-4"
+                 x-show="isConnecting || isLeaving"
+                 x-transition.opacity
+                 x-cloak>
+                <div class="w-14 h-14 border-4 border-red-500/25 border-t-red-500 rounded-full animate-spin"></div>
+                <p class="text-sm font-bold uppercase tracking-[0.2em] text-white/80" x-text="connectionHint"></p>
+                <p class="text-xs text-white/40" x-show="isConnecting && !isLeaving">Finding people in this room…</p>
+            </div>
             
             <!-- Main Movie Player Background -->
             <div class="absolute inset-0 bg-black overflow-hidden group video-container z-0" @mousemove="showControls = true; clearTimeout(controlsTimeout); controlsTimeout = setTimeout(() => { if (isPlaying) showControls = false }, 2500)" @mouseleave="if (isPlaying) showControls = false">
@@ -248,8 +263,11 @@ try {
                     </template>
                     
                     <!-- Loading State overlay -->
-                    <div class="absolute inset-0 bg-black/80 flex items-center justify-center z-10 transition-opacity duration-500" x-show="isLoading" x-transition.opacity>
-                        <div class="w-12 h-12 border-4 border-red-500/30 border-t-red-500 rounded-full animate-spin"></div>
+                    <div class="absolute inset-0 bg-black/80 flex items-center justify-center z-10 transition-opacity duration-500" x-show="isLoading || movieSwitching" x-transition.opacity>
+                        <div class="flex flex-col items-center gap-3">
+                            <div class="w-12 h-12 border-4 border-red-500/30 border-t-red-500 rounded-full animate-spin"></div>
+                            <p class="text-xs font-bold uppercase tracking-widest text-white/60" x-show="movieSwitching">Switching movie…</p>
+                        </div>
                     </div>
 
                     <!-- Giant Play Button Overlay (when paused) -->
@@ -680,7 +698,7 @@ try {
 <!-- Your external script file loaded at the bottom of the body -->
 
     
-    <script src="../js/barba_setup.js?v=5"></script>
+    <script src="../js/barba_setup.js?v=9"></script>
    
 
 

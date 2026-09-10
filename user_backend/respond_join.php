@@ -24,6 +24,7 @@ if (!in_array($action, ['accept', 'decline'], true)) {
 try {
     require_once __DIR__ . '/../conn.php';
     require_once __DIR__ . '/../pusher_helper.php';
+    require_once __DIR__ . '/../notifications_helper.php';
     require_once __DIR__ . '/../profile_media_helper.php';
 
     if ($requestId > 0) {
@@ -57,6 +58,12 @@ try {
 
     $targetId = (int)$request['requester_id'];
     $roomId = (int)$request['room_id'];
+
+    $deletedIds = deleteMatchingNotifications($conn, $hostId, [
+        'types' => ['join_request'],
+        'sender_id' => $targetId,
+        'room_id' => $roomId,
+    ]);
     $type = $action === 'accept' ? 'join_request_accepted' : 'join_request_declined';
     $message = $action === 'accept'
         ? ('accepted your request to join the watch party.|room:' . $roomId)
@@ -102,7 +109,12 @@ try {
     ];
     triggerPusherEvent("watch-party-{$roomId}", 'join-request-resolved', $resolved);
 
-    echo json_encode(['success' => true, 'status' => $status, 'room_id' => $roomId]);
+    echo json_encode([
+        'success' => true,
+        'status' => $status,
+        'room_id' => $roomId,
+        'deleted_notification_ids' => $deletedIds,
+    ]);
 } catch (Throwable $e) {
     http_response_code(500);
     echo json_encode(['success' => false, 'message' => 'Could not respond to join request']);

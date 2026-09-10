@@ -192,7 +192,7 @@
                                     </button>
                                     
                                     <!-- Host Party Button inside Modal -->
-                                    <button @click="isGuest ? window.location.href='../frontend/login.php' : createParty(selectedMovie?.id || selectedMovie?.movie_id)"
+                                    <button @click="isGuest ? window.location.href='../frontend/login.php' : createParty(selectedMovie)"
                                             class="px-3 py-1.5 rounded-xl border border-red-500/40 bg-red-500/10 text-red-400 hover:bg-red-500 hover:text-white flex items-center gap-1.5 text-xs font-bold transition-all duration-300 shadow-[0_0_15px_rgba(239,68,68,0.1)] hover:shadow-[0_0_25px_rgba(239,68,68,0.4)]">
                                         <span class="material-symbols-outlined text-[16px]">celebration</span>
                                         <span>Host Party</span>

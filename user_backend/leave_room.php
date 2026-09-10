@@ -5,6 +5,7 @@ header('Content-Type: application/json');
 $userId = $_SESSION['user_id'] ?? null;
 $roomCode = $_REQUEST['room_code'] ?? null;
 $roomId = $_REQUEST['room_id'] ?? null;
+session_write_close();
 
 $identifier = $roomCode ?: $roomId;
 

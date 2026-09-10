@@ -67,7 +67,7 @@
             
             
 
-            <form action="../backend/otp-forgot_backend.php" method="POST" class="space-y-6" id="otpForm" onsubmit="window.showPageLoader && window.showPageLoader();">
+            <form action="../backend/otp-forgot_backend.php" method="POST" class="space-y-6" id="otpForm" data-barba-prevent onsubmit="window.showPageLoader && window.showPageLoader();">
                 
                 <!-- OTP Inputs -->
                 <input type="hidden" name="otp" x-model="otpCode">
@@ -155,7 +155,7 @@
 
     <script src="https://unpkg.com/@barba/core@2.9.7/dist/barba.umd.js" crossorigin="anonymous"></script>
     
-    <script src="../js/barba_setup.js?v=4"></script>
+    <script src="../js/barba_setup.js?v=9"></script>
 
 </body>
 </html>

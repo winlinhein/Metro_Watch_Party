@@ -2,12 +2,9 @@
 // register_backend.php
 session_start();
 
-use PHPMailer\PHPMailer\PHPMailer;
-use PHPMailer\PHPMailer\SMTP;
-use PHPMailer\PHPMailer\Exception;
-
 require_once __DIR__ . '/../vendor/autoload.php';
 require_once __DIR__ . '/../conn.php';
+require_once __DIR__ . '/../mail_helper.php';
 
 function test_input($data) {
     return htmlspecialchars(trim(stripslashes($data)), ENT_QUOTES, 'UTF-8');
@@ -123,54 +120,20 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                 ':expires_at' => $expires_at
             ]);
 
-            // --- 3. Send Mail ---
-            $mail = new PHPMailer(true);
-            $mail->SMTPDebug = SMTP::DEBUG_OFF;
-            $mail->isSMTP();
-            $mail->Host       = 'smtp.gmail.com';
-            $mail->SMTPAuth   = true;
-            $mail->Username   = getenv('SMTP_USER') ?: 'koz51751@gmail.com'; 
-            $mail->Password   = getenv('SMTP_PASS') ?: 'kfnc dyla izdh zmpd';
-            $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
-            $mail->Port       = 587;
-
-            $mail->SMTPOptions = array(
-                'ssl' => array(
-                    'verify_peer'       => false,
-                    'verify_peer_name'  => false,
-                    'allow_self_signed' => true
-                )
-            );
-
-            $mail->setFrom('koz51751@gmail.com', 'Watch Party');
-            $mail->addAddress($email);
-
-            $mail->isHTML(true);
-            $mail->Subject = "Nexus Registration - OTP Code";
-            $mail->Body    = "
-                <div style='font-family: Arial, sans-serif; background: #050505; color: #ffffff; padding: 24px; border-radius: 12px;'>
-                    <h2 style='color: #4f46e5;'>Nexus Verification</h2>
-                    <p style='color: #cccccc;'>Your verification code is:</p>
-                    <h1 style='color: #dc2626; letter-spacing: 6px; font-size: 32px;'>{$otp_code}</h1>
-                    <p style='color: #888888; font-size: 12px;'>Valid for 3 minutes.</p>
-                </div>
-            ";
-
-            $mail->send();
+            sendOtpEmail($email, $otp_code, 'register');
             $conn->commit();
 
             $_SESSION['verify_email'] = $email;
+            $_SESSION['otp_type'] = 'register';
             header("Location: ../frontend/otp-register.php");
             exit();
 
-        } catch (Exception $e) {
+        } catch (Throwable $e) {
             if ($conn->inTransaction()) {
                 $conn->rollBack();
             }
-            echo "<div style='background:#111; color:#ff5555; padding:20px; font-family:monospace;'>";
-            echo "<h2>PHPMailer / DB Error Debug:</h2>";
-            echo "<p>" . htmlspecialchars($e->getMessage()) . "</p>";
-            echo "</div>";
+            error_log('Register mail error: ' . $e->getMessage());
+            header("Location: ../frontend/register.php?error=" . urlencode(mailUserError($e)));
             exit();
         }
     } else {

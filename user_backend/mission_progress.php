@@ -51,6 +51,41 @@ function resetMissionProgressIfNeeded(PDO $conn, int $userId, string $cycleType)
 }
 
 /**
+ * Reset daily/weekly/monthly mission cycles in one round-trip.
+ */
+function resetAllMissionCyclesIfNeeded(PDO $conn, int $userId): void {
+    $daily = getCurrentCycleKey('daily');
+    $weekly = getCurrentCycleKey('weekly');
+    $monthly = getCurrentCycleKey('monthly');
+
+    $stmt = $conn->prepare("
+        SELECT um.mission_id, m.reset_cycle
+        FROM user_missions um
+        JOIN missions m ON um.mission_id = m.mission_id
+        WHERE um.user_id = ?
+          AND (
+            (m.reset_cycle = 'daily' AND (um.cycle_key IS NULL OR um.cycle_key != ?))
+            OR (m.reset_cycle = 'weekly' AND (um.cycle_key IS NULL OR um.cycle_key != ?))
+            OR (m.reset_cycle = 'monthly' AND (um.cycle_key IS NULL OR um.cycle_key != ?))
+          )
+    ");
+    $stmt->execute([$userId, $daily, $weekly, $monthly]);
+    $outdated = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    if (!$outdated) return;
+
+    $updateStmt = $conn->prepare("
+        UPDATE user_missions
+        SET progress = 0, done_status = 0, claimed_at = NULL, cycle_key = ?
+        WHERE user_id = ? AND mission_id = ?
+    ");
+    foreach ($outdated as $row) {
+        $cycle = strtolower((string)($row['reset_cycle'] ?? 'daily'));
+        $key = $cycle === 'weekly' ? $weekly : ($cycle === 'monthly' ? $monthly : $daily);
+        $updateStmt->execute([$key, $userId, (int)$row['mission_id']]);
+    }
+}
+
+/**
  * Increment user progress for all active missions of a given type.
  * Also marks missions as completed when progress reaches target.
  */
