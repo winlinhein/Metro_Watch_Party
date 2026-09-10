@@ -8,7 +8,8 @@
  *
  * Env:
  *   RESEND_API_KEY   required on Render
- *   MAIL_FROM        e.g. Nexus <noreply@yourdomain.com>  (must be a verified Resend domain)
+ *   MAIL_FROM        e.g. Nexus <noreply@nexuswatchparty.site>  (must be a verified Resend domain)
+ *   RESEND_FROM      optional override if MAIL_FROM is a Gmail/Yahoo/etc address
  *   MAIL_FROM_NAME   optional, used with SMTP fallback
  *   SMTP_USER        Gmail address for local SMTP
  *   SMTP_PASS        Gmail app password for local SMTP
@@ -92,6 +93,47 @@ function mailFromName(): string
     return mailEnv('MAIL_FROM_NAME', 'Nexus');
 }
 
+function mailAddressDomain(string $email): string
+{
+    $at = strrchr($email, '@');
+    return $at === false ? '' : strtolower(substr($at, 1));
+}
+
+function isResendSendableFrom(string $email): bool
+{
+    $domain = mailAddressDomain($email);
+    if ($domain === '') {
+        return false;
+    }
+    static $blocked = [
+        'gmail.com',
+        'googlemail.com',
+        'yahoo.com',
+        'outlook.com',
+        'hotmail.com',
+        'live.com',
+        'icloud.com',
+        'aol.com',
+        'example.com',
+        'example.org',
+        'example.net',
+    ];
+    return !in_array($domain, $blocked, true);
+}
+
+function resendFromAddress(): string
+{
+    $configured = mailEnv('RESEND_FROM');
+    if ($configured !== '') {
+        return $configured;
+    }
+    $from = mailFromAddress();
+    if (isResendSendableFrom(mailIdentityEmail())) {
+        return $from;
+    }
+    return 'Nexus <noreply@nexuswatchparty.site>';
+}
+
 function otpEmailHtml(string $code, string $purpose): string
 {
     $code = htmlspecialchars($code, ENT_QUOTES, 'UTF-8');
@@ -143,8 +185,8 @@ function mailUserError(Throwable $e): string
     if (stripos($msg, 'RESEND_API_KEY') !== false) {
         return 'Email is not configured on the server. Add RESEND_API_KEY in Render Environment, then redeploy.';
     }
-    if (preg_match('/only send testing emails|verify a domain|from address is not verified/i', $msg)) {
-        return 'Resend is still in test mode. Codes can only go to your Resend account email until you verify a domain and set MAIL_FROM to that address.';
+    if (preg_match('/only send testing emails|verify a domain|from address is not verified|domain is not verified/i', $msg)) {
+        return 'Could not send a verification code. Set MAIL_FROM to an address on your verified Resend domain (nexuswatchparty.site), then redeploy.';
     }
     if ($msg !== '') {
         return 'Could not send a verification code. ' . $msg;
@@ -197,7 +239,7 @@ function sendNexusMail(string $to, string $subject, string $html, string $text =
 function sendMailViaResend(string $apiKey, string $to, string $subject, string $html, string $text, array $options = []): void
 {
     $identity = mailIdentityEmail();
-    $from = mailFromAddress();
+    $from = resendFromAddress();
     $replyTo = '';
     if (!empty($options['reply_to'])) {
         $reply = $options['reply_to'];
@@ -205,13 +247,6 @@ function sendMailViaResend(string $apiKey, string $to, string $subject, string $
     }
     if ($replyTo === '') {
         $replyTo = $identity;
-    }
-
-    $fromEmail = $identity;
-    if (preg_match('/@(gmail|googlemail|yahoo|outlook|hotmail|live)\.com$/i', $fromEmail)) {
-        // Resend cannot send as a Gmail address. Use the test sender and reply to the Gmail inbox.
-        $from = 'Nexus <beth.t@example.com>';
-        $replyTo = $fromEmail;
     }
 
     $payload = [
