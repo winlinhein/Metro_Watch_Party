@@ -14,6 +14,11 @@ session_write_close();
 
 $data = json_decode(file_get_contents('php://input'), true);
 $report_id = $data['report_id'] ?? null;
+if (is_string($report_id) && preg_match('/(\d+)/', $report_id, $m)) {
+    $report_id = (int)$m[1];
+} else {
+    $report_id = (int)$report_id;
+}
 
 if ($report_id) {
     try {

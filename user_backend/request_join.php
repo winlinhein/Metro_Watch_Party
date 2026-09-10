@@ -23,6 +23,7 @@ try {
     require_once __DIR__ . '/../conn.php';
     require_once __DIR__ . '/../pusher_helper.php';
     require_once __DIR__ . '/../profile_media_helper.php';
+    require_once __DIR__ . '/../admin_rooms_helper.php';
 
     $conn->exec("CREATE TABLE IF NOT EXISTS room_join_requests (
         id INT NOT NULL AUTO_INCREMENT,
@@ -40,7 +41,7 @@ try {
     $roomStmt->execute(['id' => $roomId]);
     $room = $roomStmt->fetch(PDO::FETCH_ASSOC);
 
-    if (!$room || ($room['status'] ?? '') === 'ended') {
+    if (!$room || isRoomClosed($room['status'] ?? '')) {
         http_response_code(404);
         echo json_encode(['success' => false, 'message' => 'This watch party has ended.']);
         exit;

@@ -43,12 +43,13 @@ function ensureRoomParticipantFlags(PDO $conn): void
 try {
     require_once __DIR__ . '/../conn.php';
     require_once __DIR__ . '/../pusher_helper.php';
+    require_once __DIR__ . '/../admin_rooms_helper.php';
 
     $stmt = $conn->prepare("SELECT room_id, host_id, status FROM rooms WHERE room_id = :id LIMIT 1");
     $stmt->execute(['id' => $roomId]);
     $room = $stmt->fetch(PDO::FETCH_ASSOC);
 
-    if (!$room || ($room['status'] ?? '') === 'ended') {
+    if (!$room || isRoomClosed($room['status'] ?? '')) {
         http_response_code(404);
         echo json_encode(['success' => false, 'message' => 'Room not found']);
         exit;
@@ -92,6 +93,10 @@ try {
 
         triggerPusherEvent("watch-party-{$roomId}", 'force-leave', $baseEvent + [
             'message' => 'The host removed you from the room.',
+        ]);
+        broadcastAdminRoomsChanged('kick', [
+            'room_id' => $roomId,
+            'user_id' => $targetUserId,
         ]);
 
         echo json_encode(['success' => true, 'action' => 'kick']);

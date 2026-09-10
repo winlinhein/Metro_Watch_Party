@@ -4770,7 +4770,7 @@ function adminDashboard(userData = {}) {
                 if (!(this.movies || []).length) this.fetchMovies();
                 if (!(this.availableGenres || []).length) this.fetchGenres();
             }
-            if (tabId === 'sessions' && !(this.rooms || []).length) {
+            if (tabId === 'sessions') {
                 this.fetchRooms();
             }
             if ((tabId === 'shop' || tabId === 'profile') && !(this.shopItems || []).length) {
@@ -4779,7 +4779,7 @@ function adminDashboard(userData = {}) {
             if (tabId === 'profile') {
                 this.fetchAdminProfile();
             }
-            if (tabId === 'reports' && !(this.reportsList || []).length) {
+            if (tabId === 'reports') {
                 this.fetchReports();
             }
             if (tabId === 'comments' && !(this.comments || []).length) {
@@ -4961,18 +4961,41 @@ function adminDashboard(userData = {}) {
         roomModalOpen: false,
         selectedRoom: null,
         rooms: [],
-
-        mockRoomUsers: [{ id: 1, name: 'Alice', isHost: true, avatar: '' }, { id: 2, name: 'Charlie', isHost: false, avatar: '' } ], mockRoomUsers2: [
-            { name: 'Alice', isHost: true },
-            { name: 'Charlie', isHost: false }
-        ],
+        roomPollTimer: null,
 
         async fetchRooms() {
             try {
-                const res = await fetch('/user_backend/get_rooms.php');
+                const res = await fetch('/backend/get_active_rooms.php');
                 const data = await res.json();
                 if (data.success) {
-                    this.rooms = data.rooms;
+                    this.rooms = (data.rooms || []).map((room) => {
+                        room.host_avatar_url = this.resolveAvatarUrl(room.host_avatar_url, room.host);
+                        if (Array.isArray(room.participants)) {
+                            room.participants = room.participants.map((p) => {
+                                const row = this.applyCachedMedia({
+                                    user_id: p.user_id || p.id,
+                                    avatar_url: p.avatar_url || '',
+                                    border_preview: p.border_preview || ''
+                                });
+                                return {
+                                    ...p,
+                                    avatar_url: this.resolveAvatarUrl(row.avatar_url, p.name),
+                                    border_preview: row.border_preview || ''
+                                };
+                            });
+                        }
+                        return room;
+                    });
+                    this.persistAvatarCache();
+                    if (this.selectedRoom) {
+                        const updated = this.rooms.find(r => Number(r.id) === Number(this.selectedRoom.id));
+                        if (updated) {
+                            this.selectedRoom = updated;
+                        } else {
+                            this.roomModalOpen = false;
+                            this.selectedRoom = null;
+                        }
+                    }
                 }
             } catch (e) {
                 console.error('fetchRooms error:', e);
@@ -5021,7 +5044,7 @@ function adminDashboard(userData = {}) {
                     fetch('/backend/update_report_status.php', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ report_id: report.id, status: 'Read' })
+                        body: JSON.stringify({ report_id: report.raw_id || report.id, status: 'Read' })
                     }).then(res => res.json()).then(data => {
                         if (data.success) {
                             report.status = 'Read';
@@ -5096,7 +5119,7 @@ function adminDashboard(userData = {}) {
                 const res = await fetch('/backend/update_report_status.php', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ report_id: this.selectedReport.id, status: 'Read' })
+                    body: JSON.stringify({ report_id: this.selectedReport.raw_id || this.selectedReport.id, status: 'Read' })
                 });
                 
                 const data = await res.json();
@@ -5835,20 +5858,26 @@ function adminDashboard(userData = {}) {
         },
         async disbandRoom(roomId) {
             if (!roomId) return;
-            if (!confirm('Are you sure you want to disband this room? This cannot be undone.')) return;
+            if (!confirm('Force close this watch party? Everyone in the room will be disconnected.')) return;
             try {
-                const res = await fetch(`/user_backend/leave_room.php?room_id=${roomId}`, { method: 'POST' });
+                const res = await fetch('/backend/force_close_room.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ room_id: roomId })
+                });
                 const data = await res.json();
                 if (data.success) {
-                    this.rooms = this.rooms.filter(r => r.id !== roomId);
+                    this.rooms = this.rooms.filter(r => Number(r.id) !== Number(roomId));
                     this.roomModalOpen = false;
-                    if (window.showToast) window.showToast('Room disbanded successfully.', 'success');
+                    this.selectedRoom = null;
+                    if (window.showToast) window.showToast('Room closed.', 'success');
+                    this.fetchStats();
                 } else {
-                    if (window.showToast) window.showToast(data.message || 'Failed to disband room.', 'error');
+                    if (window.showToast) window.showToast(data.message || 'Failed to close room.', 'error');
                 }
             } catch (e) {
                 console.error('disbandRoom error:', e);
-                if (window.showToast) window.showToast('Network error while disbanding room.', 'error');
+                if (window.showToast) window.showToast('Network error while closing room.', 'error');
             }
         },
 
@@ -5979,6 +6008,13 @@ function adminDashboard(userData = {}) {
             this.loadMediaCaches();
             this.cacheOwnAdminMedia();
             this.initPusher();
+
+            if (this.roomPollTimer) clearInterval(this.roomPollTimer);
+            this.roomPollTimer = setInterval(() => {
+                if (this.currentTab === 'sessions') {
+                    this.fetchRooms();
+                }
+            }, 8000);
 
             const loadingSafety = setTimeout(() => {
                 this.statsLoading = false;
@@ -6177,9 +6213,7 @@ function adminDashboard(userData = {}) {
 
             const moderationChannel = this.pusherClient.subscribe('admin-moderation-channel');
             moderationChannel.bind('new-report-event', (data) => {
-                if (this.currentTab === 'reports' || (this.reportsList || []).length) {
-                    this.fetchReports();
-                }
+                this.fetchReports();
                 if (data && data.notification) {
                     this.notifications.unshift(data.notification);
                     this.unreadNotifications = this.notifications.filter(n => Number(n.is_read) === 0).length;
@@ -6187,6 +6221,10 @@ function adminDashboard(userData = {}) {
                 } else {
                     this.fetchNotifications();
                 }
+            });
+            moderationChannel.bind('rooms-changed', () => {
+                this.fetchRooms();
+                this.fetchStats();
             });
 
             // ---- USER-SPECIFIC CHANNEL (only if logged in) ----

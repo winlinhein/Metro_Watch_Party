@@ -173,6 +173,10 @@ try {
                 </div>
             </div>
             <div class="flex items-center gap-3">
+               <button type="button" @click="openReportRoomModal()" class="px-3 py-2 bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 rounded-xl text-sm font-bold flex items-center gap-2 text-red-400 hover:text-red-300 transition-colors" title="Report this room">
+                    <span class="material-symbols-outlined text-[18px]">flag</span>
+                    Report
+               </button>
                <div class="relative">
     <button @click="showInviteMenu = !showInviteMenu" class="px-4 py-2 bg-white/10 hover:bg-white/20 rounded-xl text-sm font-bold flex items-center gap-2 transition-colors">
         <span class="material-symbols-outlined text-[18px]">person_add</span>
@@ -668,6 +672,8 @@ try {
             </div>
         </div>
     </div>
+
+    <?php include __DIR__ . '/report_room_modal.php'; ?>
 </div>
 
     <script src="https://unpkg.com/@barba/core@2.9.7/dist/barba.umd.js" crossorigin="anonymous"></script>
