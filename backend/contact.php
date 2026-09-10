@@ -2,11 +2,7 @@
 session_start();
 header('Content-Type: application/json');
 
-use PHPMailer\PHPMailer\PHPMailer;
-use PHPMailer\PHPMailer\SMTP;
-use PHPMailer\PHPMailer\Exception;
-
-require_once __DIR__ . '/../vendor/autoload.php';
+require_once __DIR__ . '/../mail_helper.php';
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     http_response_code(405);
@@ -68,49 +64,30 @@ if (strlen($message) > 2000) {
     exit;
 }
 
-$smtpUser = getenv('SMTP_USER') ?: 'koz51751@gmail.com';
-$smtpPass = getenv('SMTP_PASS') ?: 'kfnc dyla izdh zmpd';
-$to = getenv('CONTACT_TO') ?: $smtpUser;
+$to = mailEnv('CONTACT_TO', mailIdentityEmail());
 $topicLabel = ucfirst($topic);
 
 try {
-    $mail = new PHPMailer(true);
-    $mail->SMTPDebug = SMTP::DEBUG_OFF;
-    $mail->isSMTP();
-    $mail->Host = 'smtp.gmail.com';
-    $mail->SMTPAuth = true;
-    $mail->Username = $smtpUser;
-    $mail->Password = $smtpPass;
-    $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
-    $mail->Port = 587;
-    $mail->SMTPOptions = [
-        'ssl' => [
-            'verify_peer' => false,
-            'verify_peer_name' => false,
-            'allow_self_signed' => true
-        ]
-    ];
-
-    $mail->setFrom($smtpUser, 'Nexus Contact');
-    $mail->addAddress($to);
-    $mail->addReplyTo($email, $name);
-    $mail->isHTML(true);
-    $mail->Subject = "Nexus contact — {$topicLabel} — {$name}";
-    $mail->Body = "
+    sendNexusMail(
+        $to,
+        "Nexus contact — {$topicLabel} — {$name}",
+        "
         <div style='font-family: Arial, sans-serif; background:#050505; color:#ffffff; padding:24px; border-radius:12px;'>
             <h2 style='color:#ef4444; margin:0 0 12px;'>New Nexus signal</h2>
             <p style='color:#cccccc; margin:0 0 8px;'><strong>From:</strong> {$name} ({$email})</p>
             <p style='color:#cccccc; margin:0 0 16px;'><strong>Topic:</strong> {$topicLabel}</p>
             <div style='background:#111; border:1px solid #222; border-radius:8px; padding:16px; color:#ddd; white-space:pre-wrap;'>{$message}</div>
         </div>
-    ";
-    $mail->AltBody = "From: {$name} ({$email})\nTopic: {$topicLabel}\n\n{$message}";
-    $mail->send();
+        ",
+        "From: {$name} ({$email})\nTopic: {$topicLabel}\n\n{$message}",
+        ['reply_to' => ['email' => $email, 'name' => $name]]
+    );
 
     $_SESSION['contact_count']++;
     $_SESSION['contact_last'] = time();
 
     echo json_encode(['success' => true, 'message' => 'Signal received. We will reply shortly.']);
-} catch (Exception $e) {
+} catch (Throwable $e) {
+    error_log('Contact mail error: ' . $e->getMessage());
     echo json_encode(['success' => false, 'message' => 'Could not send right now. Try again in a moment.']);
 }

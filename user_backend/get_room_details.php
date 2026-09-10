@@ -38,6 +38,7 @@ try {
 
     // 3. Optional: Fetch movie metadata if movie_id is set
     $movie = null;
+    $room['movie_id'] = (int)($room['movie_id'] ?? 0);
     if ($room['movie_id'] > 0) {
         $movieStmt = $pdo->prepare("
             SELECT movie_id, title, description, video_url, actual_video_url, duration, view_count, created_at
@@ -48,6 +49,7 @@ try {
         $movieStmt->execute(['movie_id' => $room['movie_id']]);
         $movie = $movieStmt->fetch(PDO::FETCH_ASSOC);
         if ($movie) {
+            $movie['id'] = (int)$movie['movie_id'];
             $movie['img'] = moviePosterUrl($movie['movie_id']);
             $movie['cover_image'] = $movie['img'];
             $movie['trailer'] = $movie['video_url'];

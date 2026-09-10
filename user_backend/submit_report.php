@@ -2,6 +2,7 @@
 session_start();
 require_once __DIR__ . '/../conn.php';
 require_once __DIR__ . '/../pusher_helper.php';
+require_once __DIR__ . '/../profile_media_helper.php';
 
 header('Content-Type: application/json');
 
@@ -159,13 +160,22 @@ try {
 
     // Notify admins (role_id 1 and 3)
     $noti_message = "New " . ucfirst($type) . " report submitted (Report #" . $report_id . ")";
+    $adminStmt = $conn->prepare("SELECT user_id FROM users WHERE role_id IN (1, 3)");
+    $adminStmt->execute();
+    $adminIds = array_map('intval', $adminStmt->fetchAll(PDO::FETCH_COLUMN));
+
     $stmt_noti = $conn->prepare("
         INSERT INTO notifications (user_id, sender_id, type, message, is_read, created_at)
-        SELECT user_id, ?, 'report_alert', ?, 0, NOW()
-        FROM users
-        WHERE role_id IN (1, 3)
+        VALUES (?, ?, 'report_alert', ?, 0, NOW())
     ");
-    $stmt_noti->execute([$reporter_id, $noti_message]);
+    $adminNotifs = [];
+    foreach ($adminIds as $adminId) {
+        if ($adminId <= 0) {
+            continue;
+        }
+        $stmt_noti->execute([$adminId, $reporter_id, $noti_message]);
+        $adminNotifs[$adminId] = (int)$conn->lastInsertId();
+    }
 
     $conn->commit();
 
@@ -173,7 +183,10 @@ try {
     // 6. Real-time Pusher event for admins
     // -----------------------------------------------------------------
     if (function_exists('triggerPusherEvent')) {
-        $payload = [
+        $reporterMedia = getUserProfileMedia($conn, $reporter_id);
+        $reporterName = (string)($_SESSION['user_name'] ?? 'User');
+        $createdAt = date('Y-m-d H:i:s');
+        $reportPayload = [
             'report' => [
                 'id'               => $report_id,
                 'reporter_id'      => $reporter_id,
@@ -183,17 +196,24 @@ try {
                 'type'             => $type,
                 'description'      => $description,
                 'status'           => 'Pending',
-                'created_at'       => date('Y-m-d H:i:s')
-            ],
-            'notification' => [
-                'id'         => time(),
-                'type'       => 'report_alert',
-                'message'    => $noti_message,
-                'is_read'    => 0,
-                'created_at' => date('Y-m-d H:i:s')
+                'created_at'       => $createdAt
             ]
         ];
-        triggerPusherEvent('admin-moderation-channel', 'new-report-event', $payload);
+        triggerPusherEvent('admin-moderation-channel', 'new-report-event', $reportPayload);
+
+        foreach ($adminNotifs as $adminId => $notifId) {
+            $notifPayload = array_merge([
+                'id'          => $notifId,
+                'sender_id'   => $reporter_id,
+                'sender_name' => $reporterName,
+                'type'        => 'report_alert',
+                'message'     => $noti_message,
+                'is_read'     => 0,
+                'created_at'  => $createdAt,
+                'icon'        => 'flag',
+            ], $reporterMedia);
+            triggerPusherEvent("user-{$adminId}", 'new_notification', $notifPayload);
+        }
     }
 
     echo json_encode(['success' => true, 'message' => 'Report submitted successfully']);

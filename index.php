@@ -1,3 +1,26 @@
+<?php
+session_start();
+
+$homeLoggedIn = false;
+$homeUserName = '';
+$homeUserRole = '';
+$homeAvatarUrl = '';
+$homeBorderPreview = '';
+$homeDashboardUrl = '/user/dashboard.php';
+
+$sessionRole = strtolower((string)($_SESSION['user_role'] ?? ''));
+$sessionUserId = (int)($_SESSION['user_id'] ?? 0);
+$sessionAuthed = !empty($_SESSION['authenticated']) && $_SESSION['authenticated'] === true;
+
+if ($sessionAuthed && $sessionUserId > 0 && in_array($sessionRole, ['user', 'admin', 'moderator'], true)) {
+    $homeLoggedIn = true;
+    $homeUserName = (string)($_SESSION['user_name'] ?? 'User');
+    $homeUserRole = $sessionRole;
+    $homeDashboardUrl = in_array($sessionRole, ['admin', 'moderator'], true)
+        ? '/frontend/admin_dashboard.php'
+        : '/user/dashboard.php';
+}
+?>
 <!DOCTYPE html>
 <html lang="en" class="scroll-smooth">
 <head>
@@ -38,6 +61,7 @@
     <script src="https://cdn.jsdelivr.net/npm/gsap@3.13.0/dist/ScrambleTextPlugin.min.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/gsap@3.13.0/dist/ScrollToPlugin.min.js" crossorigin="anonymous"></script>
     <script>if (window.gsap) gsap.config({ nullTargetWarn: false });</script>
+    <script src="/js/home_page.js?v=10"></script>
 
     <style>
         body {
@@ -382,10 +406,26 @@
     <link rel="stylesheet" href="https://cdn.plyr.io/3.7.8/plyr.css" />
     <script src="https://cdn.plyr.io/3.7.8/plyr.polyfilled.js"></script>
     <script src="https://unpkg.com/htmx.org@1.9.10/dist/htmx.min.js" crossorigin="anonymous"></script>
-    <script src="/js/nexus_scripts.js?v=1788159000"></script>
 </head>
 <body data-barba="wrapper">
     <?php include __DIR__ . '/frontend/components/page_loader.php'; ?>
+    <?php
+    if ($homeLoggedIn && $sessionUserId > 0) {
+        try {
+            require_once __DIR__ . '/conn.php';
+            require_once __DIR__ . '/profile_media_helper.php';
+            $homeMedia = getUserProfileMedia($conn, $sessionUserId);
+            $homeAvatarUrl = (string)($homeMedia['avatar_url'] ?? '');
+            $homeBorderPreview = (string)($homeMedia['border_preview'] ?? '');
+        } catch (Throwable $e) {
+            error_log('index boot profile media: ' . $e->getMessage());
+        }
+    }
+    if ($homeAvatarUrl === '') {
+        $homeAvatarUrl = 'https://ui-avatars.com/api/?name=' . rawurlencode($homeUserName !== '' ? $homeUserName : 'User') . '&background=ef4444&color=fff&bold=true';
+    }
+    session_write_close();
+    ?>
     <?php include __DIR__ . '/frontend/components/cursor.php'; ?>
     <?php include __DIR__ . '/frontend/components/toast.php'; ?>
 <div id="barba-container" data-barba="container" data-barba-namespace="index" x-data="nexusHome()">
@@ -396,7 +436,7 @@
     <!-- Navigation -->
     <nav class="home-nav fixed top-0 left-0 right-0 z-50 glass-nav" :class="navScrolled && 'is-scrolled'">
         <div class="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
-            <a href="index.php" class="flex items-center gap-3 group cursor-pointer">
+            <a href="/index.php" data-barba-prevent class="flex items-center gap-3 group cursor-pointer">
                 <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-indigo-500 to-red-600 flex items-center justify-center shadow-[0_0_20px_rgba(239,68,68,0.4)] group-hover:scale-110 transition-transform duration-500">
                     <span class="material-symbols-outlined text-white">movie</span>
                 </div>
@@ -422,10 +462,27 @@
             </div>
 
             <div class="hidden md:flex items-center gap-3">
+                <?php if ($homeLoggedIn): ?>
+                <a href="<?php echo htmlspecialchars($homeDashboardUrl, ENT_QUOTES, 'UTF-8'); ?>" data-barba-prevent class="flex items-center gap-3 pl-1 pr-3 py-1 rounded-full bg-white/5 border border-white/10 hover:bg-white/10 hover:border-white/20 transition-all duration-300 cursor-pointer group">
+                    <div class="relative w-10 h-10 overflow-visible shrink-0" style="width: 2.5rem; height: 2.5rem;">
+                        <div class="absolute inset-0 z-0 overflow-hidden rounded-full scale-[1.15]<?php echo $homeBorderPreview === '' ? ' ring-1 ring-white/20' : ''; ?>">
+                            <img src="<?php echo htmlspecialchars($homeAvatarUrl, ENT_QUOTES, 'UTF-8'); ?>" alt="" class="absolute inset-0 h-full w-full object-cover">
+                        </div>
+                        <?php if ($homeBorderPreview !== ''): ?>
+                        <img src="<?php echo htmlspecialchars($homeBorderPreview, ENT_QUOTES, 'UTF-8'); ?>" alt="" class="absolute inset-0 z-10 h-full w-full scale-[1.38] object-contain pointer-events-none">
+                        <?php endif; ?>
+                    </div>
+                    <div class="min-w-0 pr-1">
+                        <p class="text-sm font-bold text-white truncate max-w-[140px] group-hover:text-red-400 transition-colors"><?php echo htmlspecialchars($homeUserName); ?></p>
+                        <p class="text-[9px] text-white/40 uppercase tracking-widest mono"><?php echo htmlspecialchars($homeUserRole); ?></p>
+                    </div>
+                </a>
+                <?php else: ?>
                 <a href="frontend/login.php" class="text-sm font-bold text-white/70 hover:text-white px-5 py-2.5 rounded-full hover:bg-white/5 border border-transparent hover:border-white/10 transition-all duration-300 cursor-pointer">Sign In</a>
                 <a href="frontend/register.php" class="home-magnetic animated-border px-6 py-2.5 text-sm font-bold text-white flex items-center gap-2 cursor-pointer">
                     Get Started <span class="material-symbols-outlined text-[18px]">arrow_forward</span>
                 </a>
+                <?php endif; ?>
             </div>
 
             <button class="md:hidden text-white/70 hover:text-white cursor-pointer" @click="mobileMenuOpen = !mobileMenuOpen" aria-label="Toggle menu">
@@ -449,8 +506,25 @@
                 <a href="#premium" @click="mobileMenuOpen = false" class="text-sm font-bold text-white/80 px-5 py-3 rounded-xl bg-white/5 border border-white/10">Premium</a>
                 <a href="#contact" @click="mobileMenuOpen = false" class="text-sm font-bold text-white/80 px-5 py-3 rounded-xl bg-white/5 border border-white/10">Contact</a>
                 <div class="h-px w-full bg-white/10 my-1"></div>
+                <?php if ($homeLoggedIn): ?>
+                <a href="<?php echo htmlspecialchars($homeDashboardUrl, ENT_QUOTES, 'UTF-8'); ?>" data-barba-prevent class="flex items-center gap-3 px-3 py-2 rounded-xl bg-white/5 border border-white/10">
+                    <div class="relative w-10 h-10 overflow-visible shrink-0" style="width: 2.5rem; height: 2.5rem;">
+                        <div class="absolute inset-0 z-0 overflow-hidden rounded-full scale-[1.15]<?php echo $homeBorderPreview === '' ? ' ring-1 ring-white/20' : ''; ?>">
+                            <img src="<?php echo htmlspecialchars($homeAvatarUrl, ENT_QUOTES, 'UTF-8'); ?>" alt="" class="absolute inset-0 h-full w-full object-cover">
+                        </div>
+                        <?php if ($homeBorderPreview !== ''): ?>
+                        <img src="<?php echo htmlspecialchars($homeBorderPreview, ENT_QUOTES, 'UTF-8'); ?>" alt="" class="absolute inset-0 z-10 h-full w-full scale-[1.38] object-contain pointer-events-none">
+                        <?php endif; ?>
+                    </div>
+                    <div class="min-w-0">
+                        <p class="text-sm font-bold text-white truncate"><?php echo htmlspecialchars($homeUserName); ?></p>
+                        <p class="text-[10px] text-white/40 uppercase tracking-widest mono"><?php echo htmlspecialchars($homeUserRole); ?></p>
+                    </div>
+                </a>
+                <?php else: ?>
                 <a href="frontend/login.php" class="text-lg font-medium text-white/80">Sign In</a>
                 <a href="frontend/register.php" class="text-lg font-bold text-red-500">Get Started</a>
+                <?php endif; ?>
             </div>
         </div>
     </nav>
@@ -490,10 +564,17 @@
                 </p>
 
                 <div class="home-hero-actions flex flex-wrap items-center gap-4">
+                    <?php if ($homeLoggedIn): ?>
+                    <a href="<?php echo htmlspecialchars($homeDashboardUrl, ENT_QUOTES, 'UTF-8'); ?>" data-barba-prevent class="home-magnetic animated-border px-8 py-4 font-bold text-white flex items-center gap-3 group cursor-pointer">
+                        <span class="material-symbols-outlined">play_arrow</span>
+                        Go to Dashboard
+                    </a>
+                    <?php else: ?>
                     <a href="backend/guest_login.php" class="home-magnetic animated-border px-8 py-4 font-bold text-white flex items-center gap-3 group cursor-pointer">
                         <span class="material-symbols-outlined">play_arrow</span>
                         Launch Nexus
                     </a>
+                    <?php endif; ?>
                     <a href="#features" class="home-magnetic px-8 py-4 rounded-full bg-white/10 hover:bg-white/15 border border-white/15 font-medium text-white transition-colors duration-300 flex items-center gap-2 cursor-pointer backdrop-blur-md">
                         <span class="material-symbols-outlined text-red-400">info</span>
                         More Info
@@ -597,7 +678,7 @@
         <div class="home-marquee-track flex gap-3 w-max py-1">
             <template x-for="(movie, i) in marqueeMovies" :key="'m'+i+movie.title">
                 <div class="w-24 md:w-28 aspect-[2/3] rounded-lg overflow-hidden border border-white/10 shrink-0">
-                    <img :src="movie.img" :alt="movie.title" class="w-full h-full object-cover" loading="lazy">
+                    <img :src="movie.img" :alt="movie.title" class="w-full h-full object-cover" loading="lazy" @error="$el.src='/frontend/assets/home/dune-live.jpg'">
                 </div>
             </template>
         </div>
@@ -706,7 +787,7 @@
                        @mouseenter="hoverMovie($el, true)"
                        @mouseleave="hoverMovie($el, false)">
                         <div class="aspect-[2/3] relative overflow-hidden">
-                            <img :src="movie.img" :alt="movie.title" class="w-full h-full object-cover">
+                            <img :src="movie.img" :alt="movie.title" class="w-full h-full object-cover" @error="$el.src='/frontend/assets/home/dune-live.jpg'">
                             <div class="absolute inset-0 bg-gradient-to-t from-black via-black/20 to-transparent"></div>
                             <div class="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center">
                                 <span class="w-12 h-12 rounded-full bg-red-500 flex items-center justify-center">
@@ -949,7 +1030,7 @@
                             <div class="flex gap-3 overflow-hidden pt-2">
                                 <template x-for="movie in movies.slice(0,4)" :key="'demo'+movie.title">
                                     <div class="w-24 shrink-0 aspect-[2/3] rounded-xl overflow-hidden border border-white/10">
-                                        <img :src="movie.img" :alt="movie.title" class="w-full h-full object-cover">
+                                        <img :src="movie.img" :alt="movie.title" class="w-full h-full object-cover" @error="$el.src='/frontend/assets/home/dune-live.jpg'">
                                     </div>
                                 </template>
                             </div>
@@ -1144,10 +1225,16 @@
             <h3 class="text-3xl md:text-5xl font-bold tracking-tighter mb-4">Press play with your people.</h3>
             <p class="text-white/50 mb-7 max-w-xl mx-auto text-sm">Open a room in seconds. No installs. Just a link, a film, and a crew on the same timeline.</p>
             <div class="flex flex-wrap justify-center gap-3">
+                <?php if ($homeLoggedIn): ?>
+                <a href="<?php echo htmlspecialchars($homeDashboardUrl, ENT_QUOTES, 'UTF-8'); ?>" data-barba-prevent class="home-magnetic animated-border px-7 py-3.5 font-bold text-white inline-flex items-center gap-2 cursor-pointer">
+                    Open dashboard <span class="material-symbols-outlined">dashboard</span>
+                </a>
+                <?php else: ?>
                 <a href="frontend/register.php" class="home-magnetic animated-border px-7 py-3.5 font-bold text-white inline-flex items-center gap-2 cursor-pointer">
                     Create your room <span class="material-symbols-outlined">rocket_launch</span>
                 </a>
                 <a href="frontend/login.php" class="px-7 py-3.5 rounded-full border border-white/15 bg-white/5 font-medium cursor-pointer hover:bg-white/10 transition-colors">Sign in</a>
+                <?php endif; ?>
             </div>
         </div>
     </section>
@@ -1241,7 +1328,7 @@
             </div>
 
             <div class="flex flex-col md:flex-row items-center justify-between gap-6 mb-10">
-                <a href="index.php" class="flex items-center gap-3 cursor-pointer group">
+                <a href="/index.php" data-barba-prevent class="flex items-center gap-3 cursor-pointer group">
                     <div class="w-8 h-8 rounded-lg bg-red-600 flex items-center justify-center group-hover:scale-110 transition-transform">
                         <span class="material-symbols-outlined text-white text-[18px]">movie</span>
                     </div>
@@ -1252,7 +1339,11 @@
                     <a href="#showcase" class="text-sm text-white/50 hover:text-white transition-colors cursor-pointer">Showcase</a>
                     <a href="#premium" class="text-sm text-white/50 hover:text-white transition-colors cursor-pointer">Premium</a>
                     <a href="#how-it-works" class="text-sm text-white/50 hover:text-white transition-colors cursor-pointer">How it works</a>
+                    <?php if ($homeLoggedIn): ?>
+                    <a href="<?php echo htmlspecialchars($homeDashboardUrl, ENT_QUOTES, 'UTF-8'); ?>" data-barba-prevent class="text-sm text-white/50 hover:text-white transition-colors cursor-pointer">Dashboard</a>
+                    <?php else: ?>
                     <a href="frontend/login.php" class="text-sm text-white/50 hover:text-white transition-colors cursor-pointer">Sign In</a>
+                    <?php endif; ?>
                 </div>
             </div>
             <div class="flex flex-col md:flex-row items-center justify-between gap-4 border-t border-white/5 pt-8">

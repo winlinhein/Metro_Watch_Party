@@ -41,7 +41,7 @@
     <?php include __DIR__ . '/components/toast.php'; ?>
 <div id="barba-container" data-barba="container" data-barba-namespace="register" x-data="{ showPassword: false }">
     <!-- Floating Back Button -->
-    <a href="../index.php" class="fixed top-8 left-8 sm:top-12 sm:left-12 z-50 flex items-center justify-center w-14 h-14 rounded-full bg-black/40 border border-white/10 backdrop-blur-xl gs-back-btn overflow-visible" id="floating-back">
+    <a href="/index.php" data-barba-prevent class="fixed top-8 left-8 sm:top-12 sm:left-12 z-50 flex items-center justify-center w-14 h-14 rounded-full bg-black/40 border border-white/10 backdrop-blur-xl gs-back-btn overflow-visible" id="floating-back">
         <!-- Magnetic hit area -->
         <div class="absolute -inset-6 bg-transparent rounded-full gs-back-hit"></div>
         <!-- Rotating ring -->
@@ -115,7 +115,7 @@
     <main class="w-full max-w-md p-6 z-10" id="main-container">
         
         <!-- Logo / Branding -->
-        <div class="text-center mb-8 ultimate-reveal" id="branding">
+        <a href="/index.php" data-barba-prevent class="text-center mb-8 ultimate-reveal block group" id="branding">
             <h1 class="text-4xl font-black tracking-tighter uppercase italic flex items-center justify-center gap-3">
                 <div class="w-10 h-10 bg-gradient-to-tr from-indigo-600 to-red-600 rounded-xl flex items-center justify-center shadow-[0_0_30px_rgba(79,70,229,0.4)] relative overflow-hidden" id="logo-box">
                     <svg class="w-6 h-6 text-white relative z-10" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5">
@@ -125,14 +125,14 @@
                 <span class="nexus-text text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 to-red-500 pr-2">JOIN NEXUS</span>
             </h1>
             <p class="text-white/50 mt-3 text-sm font-light tracking-wide">Become part of the universe.</p>
-        </div>
+        </a>
 
         <!-- Register Card -->
         <div class="glass-card rounded-2xl p-8 ultimate-reveal border-indigo-500/20 shadow-[0_0_50px_rgba(79,70,229,0.1)]" id="glass-card">
             
             
 
-            <form action="../backend/register_backend.php?action=register" method="POST" class="space-y-5" id="registerForm" onsubmit="return validateRegistrationForm();" novalidate>
+            <form action="../backend/register_backend.php?action=register" method="POST" class="space-y-5" id="registerForm" data-barba-prevent onsubmit="return validateRegistrationForm();" novalidate>
                 
                 <!-- Name Field -->
                 <div class="floating-label-group gs-stagger">

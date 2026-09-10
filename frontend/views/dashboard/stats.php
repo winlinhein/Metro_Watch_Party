@@ -3,6 +3,18 @@
     0% { transform: translateX(-100%) skewX(-15deg); }
     100% { transform: translateX(200%) skewX(-15deg); }
 }
+@keyframes nexus-stat-spin {
+    to { transform: rotate(360deg); }
+}
+@keyframes nexus-stat-spin-rev {
+    to { transform: rotate(-360deg); }
+}
+.stat-loader-orbit-outer {
+    animation: nexus-stat-spin 1.5s linear infinite;
+}
+.stat-loader-orbit-inner {
+    animation: nexus-stat-spin-rev 1s linear infinite;
+}
 @keyframes insane-glitch {
     0% { clip-path: inset(10% 0 80% 0); transform: translate(-2px, 2px); filter: hue-rotate(90deg); }
     20% { clip-path: inset(80% 0 5% 0); transform: translate(2px, -2px); filter: hue-rotate(-90deg); }
@@ -32,9 +44,9 @@
                             <!-- Ambient Glow -->
                             <div class="absolute inset-0 bg-indigo-500/20 rounded-full blur-md animate-pulse"></div>
                             <!-- Outer Orbit Ring -->
-                            <div class="absolute inset-0 border-[2px] border-white/5 border-t-indigo-500 border-r-indigo-500 rounded-full animate-[spin_1.5s_linear_infinite] shadow-[0_0_10px_rgba(99,102,241,0.2)]"></div>
+                            <div class="stat-loader-orbit-outer absolute inset-0 border-[2px] border-white/5 border-t-indigo-500 border-r-indigo-500 rounded-full shadow-[0_0_10px_rgba(99,102,241,0.2)]"></div>
                             <!-- Inner Counter-Orbit Ring -->
-                            <div class="absolute inset-1.5 border-[2px] border-white/5 border-b-red-500 border-l-red-500 rounded-full animate-[spin_1s_linear_infinite_reverse] shadow-[0_0_10px_rgba(239,68,68,0.2)]"></div>
+                            <div class="stat-loader-orbit-inner absolute inset-1.5 border-[2px] border-white/5 border-b-red-500 border-l-red-500 rounded-full shadow-[0_0_10px_rgba(239,68,68,0.2)]"></div>
                             <!-- Core Energy Dot -->
                             <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-2 h-2 bg-white shadow-[0_0_8px_#fff] rotate-45 animate-ping" style="animation-duration: 1.5s;"></div>
                             <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-1.5 h-1.5 bg-white shadow-[0_0_8px_#fff] rotate-45"></div>

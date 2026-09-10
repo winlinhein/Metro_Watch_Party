@@ -2,6 +2,7 @@
 session_start();
 require_once __DIR__ . '/../conn.php';
 require_once __DIR__ . '/../pusher_helper.php';
+require_once __DIR__ . '/../notifications_helper.php';
 require_once __DIR__ . '/../profile_media_helper.php';
 
 header('Content-Type: application/json');
@@ -28,6 +29,23 @@ if ($senderId === $friendId) {
 }
 
 try {
+    $targetStmt = $conn->prepare("
+        SELECT role_id, status
+        FROM users
+        WHERE user_id = ?
+        LIMIT 1
+    ");
+    $targetStmt->execute([$friendId]);
+    $target = $targetStmt->fetch(PDO::FETCH_ASSOC);
+    if (
+        !$target
+        || (int)$target['role_id'] !== 2
+        || strtolower((string)$target['status']) !== 'active'
+    ) {
+        echo json_encode(['success' => false, 'message' => 'User not found.']);
+        exit();
+    }
+
     // 2. Check existing relationship
     $checkSql = "SELECT user_id_1, user_id_2, status FROM user_friends 
                  WHERE (user_id_1 = :u1 AND user_id_2 = :u2) 
@@ -68,14 +86,22 @@ try {
                 VALUES (:user_id, :sender_id, 'friend_accepted', 'accepted your friend request.', 0, NOW())
             ");
             $notifStmt->execute([':user_id' => $friendId, ':sender_id' => $userId]);
+            $notifId = (int)$conn->lastInsertId();
+
+            deleteMatchingNotifications($conn, (int)$userId, [
+                'types' => ['friend_request'],
+                'sender_id' => (int)$friendId,
+            ]);
 
             // Real-time Pusher notification for the auto-accept event
             $payload = array_merge([
+                'id'          => $notifId,
                 'type'        => 'friend_accepted',
                 'sender_id'   => $senderId,
                 'sender_name' => $senderName,
                 'message'     => 'accepted your friend request.',
-                'created_at'  => date('Y-m-d H:i:s')
+                'created_at'  => date('Y-m-d H:i:s'),
+                'is_read'     => 0,
             ], $senderMedia);
             triggerPusherEvent("user-{$friendId}", "friend_event", $payload);
 
@@ -110,14 +136,17 @@ try {
         ':receiver' => $friendId,
         ':sender'   => $userId
     ]);
+    $notifId = (int)$conn->lastInsertId();
 
     // 4. Trigger event on target user's channel (include avatar/border for live UI)
     $payload = array_merge([
+        'id'          => $notifId,
         'type'        => 'friend_request',
         'sender_id'   => $senderId,
         'sender_name' => $senderName,
         'message'     => 'sent you a friend request.',
-        'created_at'  => date('Y-m-d H:i:s')
+        'created_at'  => date('Y-m-d H:i:s'),
+        'is_read'     => 0,
     ], $senderMedia);
 
     triggerPusherEvent("user-{$friendId}", "friend_event", $payload);

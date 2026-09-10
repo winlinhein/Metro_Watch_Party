@@ -1,6 +1,6 @@
 <!-- Notifications Button & Panel Component -->
-<div class="relative z-[60]" x-data>
-    <button @click="showNotifications = !showNotifications; if(showNotifications) { fetchNotifications(); markNotificationsAsRead(); }" 
+<div class="relative z-[60]">
+    <button @click="toggleNotificationPanel()" 
             class="relative w-10 h-10 rounded-xl bg-gradient-to-br from-red-500/20 to-purple-600/20 hover:from-red-500/40 hover:to-purple-600/40 border border-red-500/30 flex items-center justify-center transition-all duration-300 group shadow-[0_0_15px_rgba(239,68,68,0.3)] hover:shadow-[0_0_30px_rgba(239,68,68,0.6)] hover:scale-110 active:scale-95">
         <span class="absolute inset-0 rounded-xl bg-white/5 group-hover:bg-transparent transition-colors"></span>
         <span class="material-symbols-outlined text-white/90 group-hover:text-white transition-colors relative z-10 group-hover:animate-bounce">notifications</span>
@@ -42,7 +42,8 @@
 
         <div class="space-y-3 max-h-[320px] overflow-y-auto custom-scrollbar pr-1">
             <template x-for="notif in notifications" :key="notif.id">
-                <div class="p-3 rounded-xl bg-white/[0.02] hover:bg-white/[0.05] border border-white/5 transition-all flex gap-3 items-start">
+                <div class="p-3 rounded-xl hover:bg-white/[0.05] border transition-all flex gap-3 items-start group/notif"
+                     :class="Number(notif.is_read) === 0 ? 'bg-red-500/10 border-red-500/20' : 'bg-white/[0.02] border-white/5'">
                     
                     <!-- Sender avatar / border, fallback to type icon -->
                     <div class="relative w-9 h-9 shrink-0 overflow-visible" style="width: 2.25rem; height: 2.25rem;">
@@ -111,6 +112,16 @@
                         </template>
 
                         <p class="text-[9px] text-white/40 uppercase tracking-widest mt-1.5 font-mono" x-text="notif.created_at"></p>
+                    </div>
+
+                    <div class="flex flex-col items-center gap-2 shrink-0">
+                        <span x-show="Number(notif.is_read) === 0" class="w-2 h-2 rounded-full bg-red-500 shadow-[0_0_8px_#ef4444]"></span>
+                        <button type="button"
+                                @click.stop="deleteNotification(notif.id)"
+                                class="w-7 h-7 rounded-lg flex items-center justify-center text-white/30 hover:text-red-400 hover:bg-red-500/15 border border-transparent hover:border-red-500/30 transition-all"
+                                title="Delete notification">
+                            <span class="material-symbols-outlined text-[16px]">delete</span>
+                        </button>
                     </div>
                 </div>
             </template>

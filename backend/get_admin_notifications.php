@@ -49,6 +49,19 @@ try {
         $n['border_preview'] = $mediaByUser[$sid]['border_preview'] ?? '';
         $n['border_id'] = (int)($mediaByUser[$sid]['border_id'] ?? 0);
         $n['sender_name'] = $n['sender_name'] ?? 'System';
+        $n['is_read'] = (int)($n['is_read'] ?? 0);
+        $type = (string)($n['type'] ?? '');
+        if ($type === 'report_alert' || $type === 'report') {
+            $n['icon'] = 'flag';
+            $n['iconColorClass'] = 'text-red-400';
+            $n['bgClass'] = 'bg-red-500/20';
+            $n['borderClass'] = 'border-red-500/30';
+        } else {
+            $n['icon'] = $n['icon'] ?? 'notifications';
+            $n['iconColorClass'] = $n['iconColorClass'] ?? 'text-white/70';
+            $n['bgClass'] = $n['bgClass'] ?? 'bg-white/5';
+            $n['borderClass'] = $n['borderClass'] ?? 'border-white/10';
+        }
     }
     unset($n);
 

@@ -168,7 +168,7 @@ session_write_close();
 
     <link rel="stylesheet" href="https://cdn.plyr.io/3.7.8/plyr.css" />
     <script src="https://cdn.plyr.io/3.7.8/plyr.polyfilled.js"></script>
-    <script src="../js/nexus_scripts.js?v=1788173900"></script>
+    <script src="../js/nexus_scripts.js?v=1789041000"></script>
     <script src="https://unpkg.com/htmx.org@1.9.10/dist/htmx.min.js" crossorigin="anonymous"></script>
 </head>
 <body class="h-screen w-screen flex relative selection:bg-red-500/30" data-barba="wrapper">
@@ -195,16 +195,16 @@ session_write_close();
 
     <!-- Sidebar -->
     <aside class="sidebar w-64 h-full glass-panel flex flex-col relative z-20 shrink-0">
-        <div class="p-8 flex items-center gap-4 sidebar-brand">
-            <div class="w-10 h-10 bg-gradient-to-tr from-indigo-500 to-red-600 rounded-xl flex items-center justify-center shadow-[0_0_20px_rgba(239,68,68,0.4)] relative overflow-hidden group cursor-pointer">
+        <a href="/index.php" data-barba-prevent class="p-8 flex items-center gap-4 sidebar-brand group">
+            <div class="w-10 h-10 bg-gradient-to-tr from-indigo-500 to-red-600 rounded-xl flex items-center justify-center shadow-[0_0_20px_rgba(239,68,68,0.4)] relative overflow-hidden cursor-pointer">
                 <div class="absolute inset-0 bg-white/20 scale-0 group-hover:scale-100 transition-transform rounded-xl rounded-full opacity-0 group-hover:opacity-100 duration-300"></div>
                 <span class="material-symbols-outlined text-white font-bold relative z-10 text-[20px]">dashboard_customize</span>
             </div>
             <div>
-                <span class="text-xl font-bold tracking-tighter uppercase block leading-none">NEXUS</span>
+                <span class="text-xl font-bold tracking-tighter uppercase block leading-none group-hover:text-red-400 transition-colors">NEXUS</span>
                 <span class="text-[10px] text-white/50 tracking-widest uppercase font-semibold">Command Center</span>
             </div>
-        </div>
+        </a>
         
         <nav class="flex-1 px-4 mt-4 space-y-1 overflow-y-auto">
             <template x-for="item in navItems" :key="item.id">
@@ -240,11 +240,14 @@ session_write_close();
             <div class="flex items-center gap-6 relative">
                 <!-- Notifications -->
                 <div class="gs-header-item" @click.away="notificationsOpen = false">
-                    <button @click="notificationsOpen = !notificationsOpen" class="relative w-10 h-10 rounded-full bg-white/5 hover:bg-white/15 border border-white/5 hover:border-white/20 flex items-center justify-center transition-all duration-300 hover:scale-110 hover:shadow-[0_0_20px_rgba(255,255,255,0.15)] group">
+                    <button @click="toggleNotificationPanel()" class="relative w-10 h-10 rounded-full bg-white/5 hover:bg-white/15 border border-white/5 hover:border-white/20 flex items-center justify-center transition-all duration-300 hover:scale-110 hover:shadow-[0_0_20px_rgba(255,255,255,0.15)] group">
                         <span class="material-symbols-outlined text-white/70 group-hover:text-white transition-all duration-300 group-hover:rotate-12 group-hover:scale-110">notifications</span>
-                        <span class="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full shadow-[0_0_8px_#ef4444]" x-show="unreadNotifications > 0">
-                            <span class="absolute inset-0 rounded-full bg-red-500 opacity-0 group-hover:opacity-100 group-hover:animate-ping"></span>
-                        </span>
+                        <template x-if="unreadNotifications > 0">
+                            <span class="absolute -top-0.5 -right-0.5 flex h-4 w-4">
+                                <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                                <span class="relative inline-flex rounded-full h-4 w-4 bg-red-500 border border-white/50 text-[9px] font-bold text-white items-center justify-center" x-text="unreadNotifications"></span>
+                            </span>
+                        </template>
                     </button>
                 
                     <?php include __DIR__ . '/components/notifications.php'; ?>

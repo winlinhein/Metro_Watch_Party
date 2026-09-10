@@ -15,6 +15,10 @@ function watchParty() {
         showControls: false,
         controlsTimeout: null,
         isLoading: false,
+        isConnecting: true,
+        isLeaving: false,
+        movieSwitching: false,
+        connectionHint: 'Connecting to party…',
 
         // --- 2. Video Player State ---
         isPlaying: false,
@@ -81,21 +85,69 @@ function watchParty() {
                 });
             }, { once: true });
 
+            this.hydratePendingMovie();
+            this.seedLocalParticipant();
             this.fetchFriends();
+            this.startPresenceHeartbeat();
             this.fetchMovies();
             this.fetchReasons();
-            await this.startLocalMedia();
-            await this.fetchRoomDetails();
-            await this.connectSignaling();
-            await this.announcePresence();
+
+            setTimeout(() => this.markConnected(), 5000);
+
+            const cameraReady = this.startLocalMedia();
+            const roomReady = this.fetchRoomDetails();
+            const liveReady = (async () => {
+                await this.connectSignaling();
+                await this.announcePresence();
+            })();
+
+            await Promise.allSettled([roomReady, liveReady]);
             this.startRoomSync();
             this.fetchJoinRequests();
+            this.markConnected();
+
+            await cameraReady;
+            this.markConnected();
+        },
+
+        hydratePendingMovie() {
+            try {
+                const raw = sessionStorage.getItem('nexus_pending_room_movie');
+                if (!raw) return;
+                sessionStorage.removeItem('nexus_pending_room_movie');
+                const movie = JSON.parse(raw);
+                if (movie) this.applyMovie(movie);
+            } catch (e) {}
+        },
+
+        seedLocalParticipant() {
+            this.upsertParticipant({
+                id: 'local',
+                socketId: 'local',
+                peerId: this.peerId,
+                userId: Number(window.CURRENT_USER_ID) || null,
+                name: window.USER_NAME || 'You',
+                avatar: this.selfAvatar(),
+                border: this.selfBorder(),
+                stream: null,
+                muted: this.isMuted,
+                videoOn: this.isVideoOn,
+                speaking: false,
+                isSelf: true,
+                isHost: this.isHost
+            });
+        },
+
+        markConnected() {
+            this.isConnecting = false;
+            if (this.liveStatus === 'Connecting…') this.liveStatus = 'Live';
+            this.isLoading = false;
         },
 
         // Fetch room metadata & enforce host permissions / room active status
         async fetchRoomDetails({ quiet = false } = {}) {
             if (!this.roomId || this._exiting) return;
-            if (!quiet) this.isLoading = true;
+            if (!quiet && !this.isConnecting && !this.videoUrl) this.isLoading = true;
 
             try {
                 const res = await fetch(`../user_backend/get_room_details.php?room_id=${encodeURIComponent(this.roomId)}`);
@@ -140,19 +192,20 @@ function watchParty() {
         },
 
         // Triggered when user explicitly clicks a "Leave Room" button
-        async leaveRoom() {
-            const urlParams = new URLSearchParams(window.location.search);
-            const roomCode = urlParams.get('room_code');
-            const roomId   = urlParams.get('room_id') || urlParams.get('id');
-
-            const query = roomCode
-                ? `room_code=${encodeURIComponent(roomCode)}`
-                : `room_id=${encodeURIComponent(roomId)}`;
+        leaveRoom() {
+            if (this._exiting) return;
 
             if (this.isHost) {
                 const confirmEnd = confirm("Leaving as host will end this watch party for everyone. Continue?");
                 if (!confirmEnd) return;
             }
+
+            this._exiting = true;
+            this.isLeaving = true;
+            this.connectionHint = this.isHost ? 'Ending party…' : 'Leaving party…';
+
+            const roomId = this.roomId || new URLSearchParams(window.location.search).get('room_id');
+            const query = `room_id=${encodeURIComponent(roomId || '')}&peer_id=${encodeURIComponent(this.peerId || '')}`;
 
             try {
                 if (!this.isHost) {
@@ -161,27 +214,20 @@ function watchParty() {
                         peerId: this.peerId,
                         socketId: this.socket?.id || this.peerId
                     });
+                } else if (this.socket && this.socket.connected) {
+                    this.socket.emit('room-ended', {
+                        message: 'The host ended this watch party.',
+                        is_ended: true
+                    });
                 }
-                if (this.socket && this.socket.connected) {
-                    if (this.isHost) {
-                        this.socket.emit('room-ended', {
-                            message: 'The host ended this watch party.',
-                            is_ended: true
-                        });
-                    }
-                }
-                const res = await fetch(`../user_backend/leave_room.php?${query}&peer_id=${encodeURIComponent(this.peerId || '')}`, {
-                    method: 'POST'
-                });
-                const data = await res.json();
-                console.log("Leave response:", data);
+                navigator.sendBeacon(`../user_backend/leave_room.php?${query}`);
             } catch (e) {
                 console.error("Error leaving room:", e);
-            } finally {
-                this._exiting = true;
-                this.teardownMediaAndPeers();
-                window.location.href = 'dashboard.php';
             }
+
+            try { this.teardownMediaAndPeers(); } catch (e) {}
+            if (typeof window.showPageLoader === 'function') window.showPageLoader();
+            window.location.href = 'dashboard.php';
         },
 
         exitEndedRoom(message) {
@@ -280,15 +326,18 @@ function watchParty() {
         async hostMuteMember(user) {
             if (!this.isHost || user.isSelf) return;
             const muted = !user.muted;
+            user.muted = muted;
+            this.participants = [...this.participants];
             try {
                 const data = await this.hostAction('mute', user, { muted: muted ? '1' : '0' });
                 if (!data || !data.success) {
+                    user.muted = !muted;
+                    this.participants = [...this.participants];
                     if (window.showToast) window.showToast((data && data.message) || 'Could not mute member.', 'error');
-                    return;
                 }
-                user.muted = muted;
-                this.participants = [...this.participants];
             } catch (e) {
+                user.muted = !muted;
+                this.participants = [...this.participants];
                 console.error(e);
                 if (window.showToast) window.showToast('Could not mute member.', 'error');
             }
@@ -538,46 +587,94 @@ function watchParty() {
             }
         },
 
-        // Triggered when user explicitly clicks a "Leave Room" button
-       async leaveRoom() {
-    // Extract whichever parameter is present in the current URL
-    const urlParams = new URLSearchParams(window.location.search);
-    const roomCode = urlParams.get('room_code');
-    const roomId = urlParams.get('room_id') || urlParams.get('id');
-    
-    const query = roomCode 
-        ? `room_code=${encodeURIComponent(roomCode)}` 
-        : `room_id=${encodeURIComponent(roomId)}`;
-
-    if (this.isHost) {
-        const confirmEnd = confirm("Leaving as host will end this watch party for everyone. Continue?");
-        if (!confirmEnd) return;
-    }
-
-    try {
-        // Await the fetch so the browser doesn't navigate away early
-       const res = await fetch(`../user_backend/leave_room.php?${query}`, {
-    method: 'POST'
-});
-        const data = await res.json();
-        console.log("Leave response:", data);
-    } catch (e) {
-        console.error("Error leaving room:", e);
-    } finally {
-        //window.location.href = 'dashboard.php';
-    }
-},
-
         async fetchFriends() {
             try {
                 const res = await fetch('../user_backend/get_friends.php');
                 const data = await res.json();
                 if (data.friends) {
-                    this.friends = data.friends;
+                    this.friends = data.friends.map((friend) => ({
+                        ...friend,
+                        is_online: Number(friend.is_online) === 1 || friend.is_online === true ? 1 : 0
+                    }));
                 }
             } catch (e) {
-                console.error("Error fetching friends:", e); //[cite: 6]
+                console.error("Error fetching friends:", e);
             }
+        },
+
+        isUserOnline(user) {
+            if (!user) return false;
+            return Number(user.is_online) === 1 || user.is_online === true;
+        },
+
+        applyOnlineIds(ids) {
+            const set = new Set((ids || []).map(Number));
+            if (!Array.isArray(this.friends)) return;
+            this.friends = this.friends.map((row) => {
+                const id = Number(row.user_id || row.id || 0);
+                return { ...row, is_online: set.has(id) ? 1 : 0 };
+            });
+        },
+
+        applyPresenceUpdate(userId, isOnline) {
+            const id = Number(userId);
+            if (!id || !Array.isArray(this.friends)) return;
+            const flag = Number(isOnline) ? 1 : 0;
+            this.friends = this.friends.map((row) =>
+                Number(row.user_id || row.id || 0) === id ? { ...row, is_online: flag } : row
+            );
+        },
+
+        bindPresenceChannel() {
+            if (!this.pusherClient || this._presenceChannelBound) return;
+            this._presenceChannelBound = true;
+            const channel = this.pusherClient.subscribe('presence-status');
+            channel.bind('presence_update', (data) => {
+                this.applyPresenceUpdate(data?.user_id, data?.is_online);
+            });
+        },
+
+        bindPresenceLifecycle() {
+            if (this._presenceLifecycleBound) return;
+            this._presenceLifecycleBound = true;
+            const goOffline = () => {
+                try {
+                    const body = new Blob(['{}'], { type: 'application/json' });
+                    if (!navigator.sendBeacon('/user_backend/offline.php', body)) {
+                        fetch('/user_backend/offline.php', { method: 'POST', credentials: 'same-origin', keepalive: true });
+                    }
+                } catch (e) {}
+            };
+            window.addEventListener('pagehide', goOffline);
+            window.addEventListener('pageshow', () => {
+                this.touchPresence();
+            });
+        },
+
+        async touchPresence() {
+            try {
+                await fetch('/user_backend/heartbeat.php', { method: 'POST', credentials: 'same-origin' });
+            } catch (e) {}
+        },
+
+        async refreshOnlineStatus() {
+            try {
+                const res = await fetch('/user_backend/get_online_users.php', { credentials: 'same-origin' });
+                const data = await res.json();
+                if (data && data.success) this.applyOnlineIds(data.online_ids || []);
+            } catch (e) {}
+        },
+
+        startPresenceHeartbeat() {
+            this.bindPresenceChannel();
+            this.bindPresenceLifecycle();
+            const tick = () => {
+                this.touchPresence();
+                this.refreshOnlineStatus();
+            };
+            tick();
+            if (this._presenceTimer) clearInterval(this._presenceTimer);
+            this._presenceTimer = setInterval(tick, 12000);
         },
 
         async fetchReasons() {
@@ -645,6 +742,10 @@ function watchParty() {
 
         async fetchMovies() {
             try {
+                const cached = JSON.parse(sessionStorage.getItem('nexus_movies_cache') || 'null');
+                if (Array.isArray(cached) && cached.length && !(this.allMovies || []).length) {
+                    this.allMovies = cached;
+                }
                 const res = await fetch('/user_backend/movies_api.php');
                 const data = await res.json();
                 this.allMovies = Array.isArray(data) ? data : [];
@@ -655,31 +756,35 @@ function watchParty() {
 
         async selectMovie(movie) {
             if (!movie) return;
+            this.movieSwitching = true;
+            this.showMovieModal = false;
             this.applyMovie(movie);
 
             const movieId = movie.id || movie.movie_id;
+            this.signal('movie-changed', {
+                movieId,
+                videoUrl: this.videoUrl,
+                title: movie.title || '',
+                movie
+            });
+
             if (this.roomId && movieId) {
-                try {
-                    const form = new FormData();
-                    form.append('room_id', this.roomId);
-                    form.append('movie_id', movieId);
-                    await fetch('../user_backend/set_room_movie.php', {
-                        method: 'POST',
-                        body: form
-                    });
-                } catch (e) {
+                const form = new FormData();
+                form.append('room_id', this.roomId);
+                form.append('movie_id', movieId);
+                fetch('../user_backend/set_room_movie.php', {
+                    method: 'POST',
+                    body: form
+                }).catch((e) => {
                     console.error('Failed to persist shared movie:', e);
-                }
+                }).finally(() => {
+                    this.movieSwitching = false;
+                });
+            } else {
+                this.movieSwitching = false;
             }
 
-            if (this.socket && this.socket.connected) {
-                this.socket.emit('movie-changed', {
-                    movieId,
-                    videoUrl: this.videoUrl,
-                    title: movie.title || '',
-                    movie
-                });
-            }
+            setTimeout(() => { this.movieSwitching = false; }, 900);
         },
 
         isYouTubeUrl(url) {
@@ -1111,7 +1216,6 @@ function watchParty() {
             try {
                 const offer = await pc.createOffer();
                 await pc.setLocalDescription(offer);
-                await this.waitForIce(pc);
                 this.signal('offer', {
                     targetPeerId: key,
                     targetSocketId: normalized.socketId || key,
@@ -1161,7 +1265,6 @@ function watchParty() {
                 await this.flushPendingCandidates(fromKey);
                 const answer = await pc.createAnswer();
                 await pc.setLocalDescription(answer);
-                await this.waitForIce(pc);
                 this.signal('answer', {
                     targetPeerId: fromKey,
                     targetSocketId: from.socketId || fromKey,
@@ -1437,7 +1540,9 @@ function watchParty() {
             if (event === 'movie-changed') {
                 const movie = data.movie || { actual_video_url: data.videoUrl, title: data.title };
                 if (!movie.actual_video_url && data.videoUrl) movie.actual_video_url = data.videoUrl;
+                this.movieSwitching = true;
                 this.applyMovie(movie);
+                setTimeout(() => { this.movieSwitching = false; }, 700);
                 return;
             }
             if (event === 'playback-sync') {
@@ -1480,6 +1585,7 @@ function watchParty() {
                 this.roomChannel.bind(event, (data) => this.onRoomEvent(event, data));
             });
             this.liveStatus = 'Live';
+            this.bindPresenceChannel();
             return true;
         },
 
@@ -1500,6 +1606,7 @@ function watchParty() {
                     this.syncPresence(data.peers);
                     data.peers.forEach(peer => this.callPeer(this.mapRoomPeer(peer)));
                 }
+                this.markConnected();
             } catch (e) {
                 console.error('Failed to announce presence', e);
             }
@@ -1507,9 +1614,11 @@ function watchParty() {
 
         startRoomSync() {
             if (this.roomSyncTimer) clearInterval(this.roomSyncTimer);
+            let tick = 0;
             this.roomSyncTimer = setInterval(() => {
                 if (this._exiting) return;
-                this.fetchRoomDetails({ quiet: true });
+                tick += 1;
+                if (tick % 3 === 0) this.fetchRoomDetails({ quiet: true });
                 if (!this.roomId || !this.peerId) return;
                 const form = new FormData();
                 form.append('room_id', this.roomId);
@@ -1523,7 +1632,7 @@ function watchParty() {
                             return;
                         }
                         this.applyPresenceFlags(data.you);
-                        if (this.isHost) this.fetchJoinRequests();
+                        if (this.isHost && tick % 2 === 0) this.fetchJoinRequests();
                         if (!data.success || !Array.isArray(data.peers)) return;
                         this.syncPresence(data.peers);
                         data.peers.forEach(peer => {
@@ -1535,7 +1644,7 @@ function watchParty() {
                         });
                     })
                     .catch(() => {});
-            }, 4000);
+            }, 8000);
         },
 
         ensureSocketIo() {

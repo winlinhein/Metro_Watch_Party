@@ -1,6 +1,17 @@
 <?php
 session_start();
 
+$userId = (int)($_SESSION['user_id'] ?? 0);
+if ($userId > 0) {
+    try {
+        require_once __DIR__ . '/../conn.php';
+        require_once __DIR__ . '/../presence_helper.php';
+        clearUserPresence($conn, $userId);
+    } catch (Throwable $e) {
+        // Still sign out even if presence update fails.
+    }
+}
+
 // Clear session data
 $_SESSION = array();
 

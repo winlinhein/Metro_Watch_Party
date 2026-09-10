@@ -1,3 +1,26 @@
+function nexusHardNavigateUrl(url) {
+    try {
+        const path = new URL(String(url || ''), window.location.href).pathname.replace(/\/+$/, '') || '/';
+        return (
+            path === '/'
+            || path === '/index.php'
+            || path.endsWith('/index.php')
+            || path.endsWith('/dashboard.php')
+            || path.endsWith('/admin_dashboard.php')
+            || path.endsWith('/watch_party.php')
+            || path.endsWith('/login.php')
+            || path.endsWith('/register.php')
+            || path.endsWith('/otp-login.php')
+            || path.endsWith('/otp-register.php')
+            || path.endsWith('/otp-forgot.php')
+            || path.endsWith('/forgot-password.php')
+            || path.includes('/backend/')
+        );
+    } catch (e) {
+        return false;
+    }
+}
+
 // Barba.js Initialization
 (function initNexusBarba() {
     if (typeof barba === 'undefined') {
@@ -45,24 +68,30 @@
             currentLinks.add(newLink.href);
         });
 
+        // Do not re-inject the same JS file with a different cache-buster.
+        const scriptKey = (src) => {
+            try { return new URL(src, window.location.origin).pathname; } catch (e) { return src; }
+        };
         const currentScripts = new Set(
-            Array.from(document.querySelectorAll('script[src]')).map((s) => s.src)
+            Array.from(document.querySelectorAll('script[src]')).map((s) => scriptKey(s.src))
         );
         htmlDoc.querySelectorAll('script[src]').forEach((newScript) => {
-            if (!newScript.src || currentScripts.has(newScript.src)) return;
-            if (/barba(\.umd)?\.js/i.test(newScript.src) || /barba_setup\.js/i.test(newScript.src)) return;
+            if (!newScript.src) return;
+            const key = scriptKey(newScript.src);
+            if (!key || currentScripts.has(key)) return;
+            if (/barba(\.umd)?\.js/i.test(key) || /barba_setup\.js/i.test(key) || /nexus_scripts\.js/i.test(key)) return;
             const script = document.createElement('script');
             script.src = newScript.src;
             script.type = newScript.type || 'text/javascript';
             document.body.appendChild(script);
-            currentScripts.add(newScript.src);
+            currentScripts.add(key);
         });
     }
 
     barba.init({
         // Render (especially after idle spin-down) can take well over Barba's 2s default.
         timeout: 30000,
-        // Prefetch on hover stamps PHP session locks and races the  click request.
+        // Prefetch on hover stamps PHP session locks and races the click request.
         prefetchIgnore: true,
         cacheIgnore: false,
         // A second click while a slow fetch is in-flight would otherwise force a hard reload.
@@ -73,7 +102,7 @@
             if (el && el.href && el.href.includes('/backend/')) return true;
             const url = href || (el && el.href) || '';
             if (String(url).includes('watch_party.php')) return true;
-            return false;
+            return nexusHardNavigateUrl(url);
         },
         views: [{
             namespace: 'index',
@@ -155,11 +184,12 @@
                     window.initInteractiveElements();
                 }
 
-                if (typeof initAnimations === 'function') {
+                const ns = data.next && data.next.namespace;
+                if (ns !== 'index' && typeof initAnimations === 'function') {
                     initAnimations(data.next.container);
                 }
 
-                if (typeof initLocalAnimations === 'function') {
+                if (ns !== 'index' && typeof initLocalAnimations === 'function') {
                     initLocalAnimations(data.next.container);
                 }
 
@@ -198,6 +228,11 @@
 })();
 
 document.addEventListener('DOMContentLoaded', () => {
+    const ns = document.querySelector('[data-barba-namespace]')?.getAttribute('data-barba-namespace');
+    if (ns === 'index') {
+        if (typeof gsap !== 'undefined') gsap.config({ nullTargetWarn: false });
+        return;
+    }
     if (typeof initAnimations === 'function') {
         initAnimations(document);
     }
@@ -213,10 +248,11 @@ document.addEventListener('submit', async (e) => {
         if (e.defaultPrevented) return;
         if (form.hasAttribute('data-barba-prevent')) return;
         if (typeof barba === 'undefined' || !barba.go) return;
+        const action = form.getAttribute('action') || window.location.href;
+        if (nexusHardNavigateUrl(action)) return;
 
         e.preventDefault();
         const formData = new FormData(form);
-        const action = form.getAttribute('action') || window.location.href;
         const method = (form.getAttribute('method') || 'GET').toUpperCase();
 
         if (typeof window.showPageLoader === 'function') window.showPageLoader();
@@ -232,7 +268,13 @@ document.addEventListener('submit', async (e) => {
             }
 
             const response = await fetch(finalAction, fetchOpts);
-            barba.go(response.url);
+            const finalUrl = response.url;
+            if (nexusHardNavigateUrl(finalUrl)) {
+                window.location.assign(finalUrl);
+                return;
+            }
+
+            barba.go(finalUrl);
         } catch (err) {
             console.error('Form submission error:', err);
             if (typeof window.hidePageLoader === 'function') window.hidePageLoader();
@@ -245,6 +287,7 @@ document.addEventListener('click', async (e) => {
     if (link && link.href && link.href.includes('/backend/')) {
         if (e.defaultPrevented) return;
         if (link.hasAttribute('data-barba-prevent')) return;
+        if (nexusHardNavigateUrl(link.href)) return;
         if (typeof barba === 'undefined' || !barba.go) return;
 
         e.preventDefault();
@@ -253,6 +296,10 @@ document.addEventListener('click', async (e) => {
 
         try {
             const response = await fetch(link.href, { redirect: 'follow', credentials: 'same-origin' });
+            if (nexusHardNavigateUrl(response.url)) {
+                window.location.assign(response.url);
+                return;
+            }
             barba.go(response.url);
         } catch (err) {
             console.error('Link fetch error:', err);
