@@ -200,7 +200,7 @@ session_write_close();
 
     <!-- Sidebar -->
     <aside class="sidebar w-64 h-full glass-panel flex flex-col relative z-20 shrink-0">
-        <a href="/index.php" class="p-8 flex items-center gap-4 sidebar-brand group">
+        <a href="/index.php" data-barba-prevent class="p-8 flex items-center gap-4 sidebar-brand group">
             <div class="w-10 h-10 bg-gradient-to-tr from-indigo-500 to-red-600 rounded-xl flex items-center justify-center shadow-[0_0_20px_rgba(239,68,68,0.4)] relative overflow-hidden cursor-pointer">
                 <div class="absolute inset-0 bg-white/20 scale-0 group-hover:scale-100 transition-transform rounded-xl rounded-full opacity-0 group-hover:opacity-100 duration-300"></div>
                 <span class="material-symbols-outlined text-white font-bold relative z-10 text-[20px]">dashboard_customize</span>

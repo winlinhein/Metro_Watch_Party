@@ -263,7 +263,7 @@ session_write_close();
     <div id="side-panel" class="fixed top-0 left-0 w-full md:w-[320px] h-screen bg-[#050508]/95 backdrop-blur-3xl border-r border-white/10 z-[100] flex flex-col pointer-events-none -translate-x-full will-change-transform">
         <div class="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-10"></div>
         <div class="p-6 flex justify-between items-center border-b border-white/5 relative z-10 shrink-0">
-            <a href="/index.php" class="flex items-center gap-4 group cursor-pointer pointer-events-auto">
+            <a href="/index.php" data-barba-prevent class="flex items-center gap-4 group cursor-pointer pointer-events-auto">
                 <div class="w-10 h-10 bg-gradient-to-tr from-indigo-500 to-red-600 rounded-xl flex items-center justify-center shadow-[0_0_20px_rgba(239,68,68,0.4)] relative overflow-hidden icon-bounce">
                     <span class="material-symbols-outlined text-white font-bold relative z-10 text-[20px]">dashboard_customize</span>
                 </div>
@@ -699,7 +699,7 @@ session_write_close();
                 
                 <div class="h-8 w-[1px] bg-white/10 hidden md:block"></div>
 
-                <a href="/index.php" class="hidden md:flex items-center gap-3 group">
+                <a href="/index.php" data-barba-prevent class="hidden md:flex items-center gap-3 group">
                     <span class="text-xl font-bold tracking-tighter uppercase group-hover:text-red-400 transition-colors">NEXUS</span>
                 </a>
             </div>
