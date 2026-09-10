@@ -7,6 +7,13 @@ $homeUserRole = '';
 $homeAvatarUrl = '';
 $homeBorderPreview = '';
 $homeDashboardUrl = '/user/dashboard.php';
+$homeIsPremium = false;
+$homePremiumExpires = '';
+$homeFeed = [
+    'success' => true,
+    'active_users' => ['total' => 0, 'online' => 0, 'preview' => [], 'extra' => 0],
+    'trending' => [],
+];
 
 $sessionRole = strtolower((string)($_SESSION['user_role'] ?? ''));
 $sessionUserId = (int)($_SESSION['user_id'] ?? 0);
@@ -61,7 +68,7 @@ if ($sessionAuthed && $sessionUserId > 0 && in_array($sessionRole, ['user', 'adm
     <script src="https://cdn.jsdelivr.net/npm/gsap@3.13.0/dist/ScrambleTextPlugin.min.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/gsap@3.13.0/dist/ScrollToPlugin.min.js" crossorigin="anonymous"></script>
     <script>if (window.gsap) gsap.config({ nullTargetWarn: false });</script>
-    <script src="/js/home_page.js?v=10"></script>
+    <script src="/js/home_page.js?v=11"></script>
 
     <style>
         body {
@@ -221,6 +228,16 @@ if ($sessionAuthed && $sessionUserId > 0 && in_array($sessionRole, ['user', 'adm
             -ms-overflow-style: none;
         }
         .home-row-scroll::-webkit-scrollbar { display: none; }
+
+        .home-user-stack { isolation: isolate; }
+        .home-user-face { z-index: 1; }
+        .home-user-face:nth-child(1) { z-index: 4; }
+        .home-user-face:nth-child(2) { z-index: 3; }
+        .home-user-face:nth-child(3) { z-index: 2; }
+        .home-plan-current {
+            border-color: rgba(16,185,129,0.45) !important;
+            box-shadow: 0 0 0 1px rgba(16,185,129,0.2), 0 20px 50px -24px rgba(16,185,129,0.25);
+        }
 
         .home-movie-card { will-change: transform; }
         .home-feature-card { will-change: transform; }
@@ -410,22 +427,38 @@ if ($sessionAuthed && $sessionUserId > 0 && in_array($sessionRole, ['user', 'adm
 <body data-barba="wrapper">
     <?php include __DIR__ . '/frontend/components/page_loader.php'; ?>
     <?php
-    if ($homeLoggedIn && $sessionUserId > 0) {
-        try {
-            require_once __DIR__ . '/conn.php';
-            require_once __DIR__ . '/profile_media_helper.php';
+    try {
+        require_once __DIR__ . '/conn.php';
+        require_once __DIR__ . '/home_feed_helper.php';
+        $homeFeed = getHomeFeed($conn);
+        if ($homeLoggedIn && $sessionUserId > 0) {
             $homeMedia = getUserProfileMedia($conn, $sessionUserId);
             $homeAvatarUrl = (string)($homeMedia['avatar_url'] ?? '');
             $homeBorderPreview = (string)($homeMedia['border_preview'] ?? '');
-        } catch (Throwable $e) {
-            error_log('index boot profile media: ' . $e->getMessage());
+            $homePremium = resolveUserPremium($conn, $sessionUserId);
+            $homeIsPremium = (bool)$homePremium['is_premium'];
+            $homePremiumExpires = (string)($homePremium['premium_expires_at'] ?? '');
         }
+    } catch (Throwable $e) {
+        error_log('index boot home feed: ' . $e->getMessage());
     }
     if ($homeAvatarUrl === '') {
         $homeAvatarUrl = 'https://ui-avatars.com/api/?name=' . rawurlencode($homeUserName !== '' ? $homeUserName : 'User') . '&background=ef4444&color=fff&bold=true';
     }
+    $homeBoot = [
+        'loggedIn' => $homeLoggedIn,
+        'role' => $homeUserRole,
+        'dashboardUrl' => $homeDashboardUrl,
+        'isPremium' => $homeIsPremium,
+        'premiumExpiresAt' => $homePremiumExpires,
+        'activeUsers' => $homeFeed['active_users'] ?? ['total' => 0, 'online' => 0, 'preview' => [], 'extra' => 0],
+        'trending' => $homeFeed['trending'] ?? [],
+    ];
     session_write_close();
     ?>
+    <script>
+        window.NEXUS_HOME = <?php echo json_encode($homeBoot, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE); ?>;
+    </script>
     <?php include __DIR__ . '/frontend/components/cursor.php'; ?>
     <?php include __DIR__ . '/frontend/components/toast.php'; ?>
 <div id="barba-container" data-barba="container" data-barba-namespace="index" x-data="nexusHome()">
@@ -582,15 +615,24 @@ if ($sessionAuthed && $sessionUserId > 0 && in_array($sessionRole, ['user', 'adm
                 </div>
 
                 <div class="home-social-proof mt-10 flex items-center gap-5">
-                    <div class="flex -space-x-3">
-                        <img src="https://ui-avatars.com/api/?name=U1&background=ef4444&color=fff" alt="" class="w-10 h-10 rounded-full border-2 border-[#030305]">
-                        <img src="https://ui-avatars.com/api/?name=U2&background=4f46e5&color=fff" alt="" class="w-10 h-10 rounded-full border-2 border-[#030305]">
-                        <img src="https://ui-avatars.com/api/?name=U3&background=10b981&color=fff" alt="" class="w-10 h-10 rounded-full border-2 border-[#030305]">
-                        <div class="w-10 h-10 rounded-full border-2 border-[#030305] bg-white/10 flex items-center justify-center text-xs font-bold">+2k</div>
+                    <div class="home-user-stack flex -space-x-3">
+                        <template x-for="(person, i) in activePreview" :key="person.user_id || i">
+                            <div class="home-user-face relative w-10 h-10 overflow-visible shrink-0">
+                                <div class="absolute inset-0 z-0 overflow-hidden rounded-full scale-[1.15] ring-2 ring-[#030305]">
+                                    <img :src="person.avatar_url" :alt="person.name" class="absolute inset-0 h-full w-full object-cover">
+                                </div>
+                                <template x-if="person.border_preview">
+                                    <img :src="person.border_preview" alt="" class="absolute inset-0 z-10 h-full w-full scale-[1.45] object-contain pointer-events-none">
+                                </template>
+                            </div>
+                        </template>
+                        <div class="relative w-10 h-10 rounded-full border-2 border-[#030305] bg-white/10 flex items-center justify-center text-[10px] font-bold shrink-0"
+                             x-show="activeExtra > 0"
+                             x-text="'+' + formatCount(activeExtra)">+0</div>
                     </div>
                     <div>
-                        <div class="text-sm text-white/80 font-medium">Live rooms right now</div>
-                        <div class="text-xs text-white/40 mono" x-text="currentRoom.viewers + ' in ' + currentRoom.title">24 in Dune</div>
+                        <div class="text-sm text-white/80 font-medium">Active users</div>
+                        <div class="text-xs text-white/40 mono" x-text="activeOnline + ' online now'">0 online now</div>
                     </div>
                 </div>
             </div>
@@ -688,12 +730,12 @@ if ($sessionAuthed && $sessionUserId > 0 && in_array($sessionRole, ['user', 'adm
     <section class="relative py-5 border-y border-white/5">
         <div class="max-w-7xl mx-auto px-6 grid grid-cols-3 gap-3 text-center">
             <div class="home-reveal">
-                <div class="text-xl md:text-3xl font-bold tracking-tight"><span data-count="2400">0</span>+</div>
-                <div class="text-[10px] md:text-xs text-white/40 mono uppercase tracking-widest mt-0.5">Watching now</div>
+                <div class="text-xl md:text-3xl font-bold tracking-tight"><span data-count="<?php echo (int)($homeFeed['active_users']['total'] ?? 0); ?>">0</span></div>
+                <div class="text-[10px] md:text-xs text-white/40 mono uppercase tracking-widest mt-0.5">Members</div>
             </div>
             <div class="home-reveal">
-                <div class="text-xl md:text-3xl font-bold tracking-tight"><span data-count="128">0</span></div>
-                <div class="text-[10px] md:text-xs text-white/40 mono uppercase tracking-widest mt-0.5">Live rooms</div>
+                <div class="text-xl md:text-3xl font-bold tracking-tight"><span data-count="<?php echo (int)($homeFeed['active_users']['online'] ?? 0); ?>">0</span></div>
+                <div class="text-[10px] md:text-xs text-white/40 mono uppercase tracking-widest mt-0.5">Active users</div>
             </div>
             <div class="home-reveal">
                 <div class="text-xl md:text-3xl font-bold tracking-tight">0ms</div>
@@ -766,7 +808,7 @@ if ($sessionAuthed && $sessionUserId > 0 && in_array($sessionRole, ['user', 'adm
             <div class="home-reveal flex items-end justify-between mb-5 gap-4">
                 <div>
                     <h2 class="text-sm font-bold text-red-500 tracking-widest uppercase mb-1.5 mono">Trending Now</h2>
-                    <h3 class="text-2xl md:text-3xl font-bold tracking-tight">Popular Watch Parties</h3>
+                    <h3 class="text-2xl md:text-3xl font-bold tracking-tight">Most viewed titles</h3>
                 </div>
                 <div class="flex items-center gap-2">
                     <button type="button" class="w-10 h-10 rounded-full border border-white/10 bg-white/5 hover:bg-white/10 flex items-center justify-center cursor-pointer" @click="scrollRow(-1)" aria-label="Previous">
@@ -781,8 +823,9 @@ if ($sessionAuthed && $sessionUserId > 0 && in_array($sessionRole, ['user', 'adm
 
         <div class="max-w-7xl mx-auto px-6">
             <div x-ref="movieRow" class="home-row-scroll flex gap-4 overflow-x-auto pb-4 snap-x snap-mandatory">
-                <template x-for="(movie, i) in movies" :key="movie.title + i">
-                    <a href="backend/guest_login.php"
+                <template x-for="(movie, i) in movies" :key="(movie.id || movie.title) + '-' + i">
+                    <a :href="movieWatchHref(movie)"
+                       data-barba-prevent
                        class="home-movie-card glass-card rounded-xl overflow-hidden group cursor-pointer snap-start shrink-0 w-[38vw] sm:w-36 md:w-44"
                        @mouseenter="hoverMovie($el, true)"
                        @mouseleave="hoverMovie($el, false)">
@@ -794,11 +837,11 @@ if ($sessionAuthed && $sessionUserId > 0 && in_array($sessionRole, ['user', 'adm
                                     <span class="material-symbols-outlined text-2xl ml-0.5">play_arrow</span>
                                 </span>
                             </div>
-                            <div class="absolute top-3 left-3 text-[9px] font-bold tracking-widest uppercase bg-red-600 px-1.5 py-0.5 rounded">NEXUS</div>
+                            <div class="absolute top-3 left-3 text-[11px] font-black tracking-tight bg-black/70 border border-white/10 px-2 py-0.5 rounded" x-text="'#' + (i + 1)"></div>
                             <div class="absolute bottom-3 left-3 right-3">
                                 <span class="text-[10px] font-bold text-red-400 tracking-widest uppercase" x-text="movie.genre">Sci-Fi</span>
                                 <h4 class="font-bold text-base leading-tight" x-text="movie.title"></h4>
-                                <p class="text-[10px] text-white/50 mono mt-0.5" x-text="(movie.viewers || 12) + ' in room'">12 in room</p>
+                                <p class="text-[10px] text-white/50 mono mt-0.5" x-text="(movie.view_count || 0) + ' views'">0 views</p>
                             </div>
                         </div>
                     </a>
@@ -1107,7 +1150,7 @@ if ($sessionAuthed && $sessionUserId > 0 && in_array($sessionRole, ['user', 'adm
             </div>
 
             <div class="grid md:grid-cols-2 gap-4 max-w-4xl mx-auto items-stretch">
-                <article class="home-plan-card glass-card rounded-2xl p-5 md:p-6 flex flex-col">
+                <article class="home-plan-card glass-card rounded-2xl p-5 md:p-6 flex flex-col" :class="loggedIn && !isPremium && 'home-plan-current'">
                     <p class="text-[10px] mono tracking-[0.25em] text-white/40 uppercase mb-3">Signal</p>
                     <h4 class="text-xl font-bold mb-1">Free</h4>
                     <p class="text-sm text-white/45 mb-4">Drop in, watch, chat. No card required.</p>
@@ -1122,11 +1165,13 @@ if ($sessionAuthed && $sessionUserId > 0 && in_array($sessionRole, ['user', 'adm
                         <li class="flex items-start gap-3"><span class="material-symbols-outlined text-emerald-400 text-[18px] mt-0.5">check</span>Invite-only rooms</li>
                         <li class="flex items-start gap-3"><span class="material-symbols-outlined text-white/25 text-[18px] mt-0.5">check</span><span class="text-white/35">Profile cosmetics locked</span></li>
                     </ul>
-                    <a href="backend/guest_login.php" class="home-magnetic w-full rounded-xl border border-white/15 bg-white/5 hover:bg-white/10 py-3 text-center font-bold cursor-pointer transition-colors">Start for free</a>
+                    <a x-show="!loggedIn" x-cloak href="frontend/register.php" class="home-magnetic w-full rounded-xl border border-white/15 bg-white/5 hover:bg-white/10 py-3 text-center font-bold cursor-pointer transition-colors">Start for free</a>
+                    <div x-show="loggedIn && !isPremium" x-cloak class="w-full rounded-xl border border-emerald-400/30 bg-emerald-500/10 py-3 text-center font-bold text-emerald-300">Your current plan</div>
+                    <div x-show="loggedIn && isPremium" x-cloak class="w-full rounded-xl border border-white/10 bg-white/5 py-3 text-center font-bold text-white/40">Included in Premium</div>
                 </article>
 
-                <article class="home-plan-card home-plan-featured glass-card rounded-2xl p-5 md:p-6 flex flex-col relative overflow-hidden">
-                    <div class="absolute top-4 right-4 text-[9px] font-bold tracking-[0.2em] uppercase px-2.5 py-1 rounded-full bg-gradient-to-r from-indigo-500/30 to-fuchsia-500/30 border border-indigo-400/40 text-indigo-200">Most chosen</div>
+                <article class="home-plan-card home-plan-featured glass-card rounded-2xl p-5 md:p-6 flex flex-col relative overflow-hidden" :class="isPremium && 'home-plan-current'">
+                    <div class="absolute top-4 right-4 text-[9px] font-bold tracking-[0.2em] uppercase px-2.5 py-1 rounded-full bg-gradient-to-r from-indigo-500/30 to-fuchsia-500/30 border border-indigo-400/40 text-indigo-200" x-text="isPremium ? 'Active' : 'Most chosen'">Most chosen</div>
                     <p class="text-[10px] mono tracking-[0.25em] text-indigo-300 uppercase mb-3 inline-flex items-center gap-2">
                         <span class="material-symbols-outlined text-[16px]">stars</span>Nexus Premium
                     </p>
@@ -1143,10 +1188,19 @@ if ($sessionAuthed && $sessionUserId > 0 && in_array($sessionRole, ['user', 'adm
                         <li class="flex items-start gap-3"><span class="material-symbols-outlined text-fuchsia-400 text-[18px] mt-0.5">check</span>Premium badge on your identity</li>
                         <li class="flex items-start gap-3"><span class="material-symbols-outlined text-fuchsia-400 text-[18px] mt-0.5">check</span>Priority uplink — no protocol limits</li>
                     </ul>
-                    <a href="frontend/register.php" class="home-magnetic w-full rounded-xl bg-white text-black hover:shadow-[0_0_40px_rgba(255,255,255,0.28)] py-3 text-center font-black tracking-wide uppercase cursor-pointer inline-flex items-center justify-center gap-2">
+                    <div x-show="isPremium" class="rounded-xl border border-emerald-400/25 bg-emerald-500/10 px-4 py-3 mb-4 text-center">
+                        <p class="text-[10px] mono tracking-widest uppercase text-emerald-300/80 mb-1">Your current plan</p>
+                        <p class="text-sm font-bold text-white" x-text="premiumEndsLabel">Ends —</p>
+                        <p class="text-lg font-black tracking-tight text-emerald-300 mono mt-1" x-text="premiumCountdown">--</p>
+                    </div>
+                    <a x-show="!loggedIn" x-cloak href="frontend/register.php" class="home-magnetic w-full rounded-xl bg-white text-black hover:shadow-[0_0_40px_rgba(255,255,255,0.28)] py-3 text-center font-black tracking-wide uppercase cursor-pointer inline-flex items-center justify-center gap-2">
                         Unlock Premium <span class="material-symbols-outlined text-[18px]">bolt</span>
                     </a>
-                    <p class="text-[11px] text-white/35 text-center mt-3">Billed monthly · cancel any time · 30-day cycle</p>
+                    <a x-show="loggedIn && !isPremium" x-cloak :href="unlockPremiumHref" data-barba-prevent class="home-magnetic w-full rounded-xl bg-white text-black hover:shadow-[0_0_40px_rgba(255,255,255,0.28)] py-3 text-center font-black tracking-wide uppercase cursor-pointer inline-flex items-center justify-center gap-2">
+                        Unlock Premium <span class="material-symbols-outlined text-[18px]">bolt</span>
+                    </a>
+                    <div x-show="isPremium" x-cloak class="w-full rounded-xl border border-indigo-400/30 bg-indigo-500/10 py-3 text-center font-bold text-indigo-200">Your current plan</div>
+                    <p class="text-[11px] text-white/35 text-center mt-3" x-show="!isPremium">Billed monthly · cancel any time · 30-day cycle</p>
                 </article>
             </div>
         </div>

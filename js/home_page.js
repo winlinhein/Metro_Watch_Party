@@ -6,14 +6,14 @@
 
     const LOCAL_POSTER = '/frontend/assets/home/dune-live.jpg';
     const FALLBACK_MOVIES = [
-        { title: 'Interstellar', img: LOCAL_POSTER, genre: 'Sci-Fi', viewers: 42 },
-        { title: 'Dune: Part Two', img: LOCAL_POSTER, genre: 'Sci-Fi', viewers: 36 },
-        { title: 'The Batman', img: LOCAL_POSTER, genre: 'Action', viewers: 28 },
-        { title: 'Joker', img: LOCAL_POSTER, genre: 'Drama', viewers: 19 },
-        { title: 'Inception', img: LOCAL_POSTER, genre: 'Thriller', viewers: 31 },
-        { title: 'Parasite', img: LOCAL_POSTER, genre: 'Thriller', viewers: 22 },
-        { title: 'Spider-Man', img: LOCAL_POSTER, genre: 'Action', viewers: 47 },
-        { title: 'Your Name', img: LOCAL_POSTER, genre: 'Anime', viewers: 15 }
+        { id: 0, title: 'Interstellar', img: LOCAL_POSTER, genre: 'Sci-Fi', view_count: 0 },
+        { id: 0, title: 'Dune: Part Two', img: LOCAL_POSTER, genre: 'Sci-Fi', view_count: 0 },
+        { id: 0, title: 'The Batman', img: LOCAL_POSTER, genre: 'Action', view_count: 0 },
+        { id: 0, title: 'Joker', img: LOCAL_POSTER, genre: 'Drama', view_count: 0 },
+        { id: 0, title: 'Inception', img: LOCAL_POSTER, genre: 'Thriller', view_count: 0 },
+        { id: 0, title: 'Parasite', img: LOCAL_POSTER, genre: 'Thriller', view_count: 0 },
+        { id: 0, title: 'Spider-Man', img: LOCAL_POSTER, genre: 'Action', view_count: 0 },
+        { id: 0, title: 'Your Name', img: LOCAL_POSTER, genre: 'Anime', view_count: 0 }
     ];
 
     const FEATURED_ROOMS = [
@@ -504,13 +504,85 @@
         });
     };
 
+    function mapCatalogMovie(m) {
+        const img = m.img || m.cover_image || '';
+        const genres = Array.isArray(m.genres) ? m.genres : (m.genre ? [m.genre] : []);
+        return {
+            id: Number(m.id || m.movie_id) || 0,
+            title: m.title || 'Untitled',
+            img: (!img || /image\.tmdb\.org/i.test(img)) ? LOCAL_POSTER : img,
+            genre: genres[0] || m.genre || 'Film',
+            view_count: Number(m.view_count) || 0
+        };
+    }
+
+    function pickTrendingFromList(list, limit) {
+        const cap = limit || 10;
+        const all = Array.isArray(list) ? list.slice() : [];
+        const viewed = all.filter((m) => Number(m.view_count) > 0)
+            .sort((a, b) => Number(b.view_count) - Number(a.view_count));
+        const picked = [];
+        const seen = {};
+        viewed.forEach((m) => {
+            if (picked.length >= cap) return;
+            const id = Number(m.id || m.movie_id) || m.title;
+            if (seen[id]) return;
+            seen[id] = true;
+            picked.push(mapCatalogMovie(m));
+        });
+        if (picked.length < cap) {
+            const rest = all.filter((m) => !seen[Number(m.id || m.movie_id) || m.title]);
+            for (let i = rest.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                const tmp = rest[i];
+                rest[i] = rest[j];
+                rest[j] = tmp;
+            }
+            rest.forEach((m) => {
+                if (picked.length >= cap) return;
+                picked.push(mapCatalogMovie(m));
+            });
+        }
+        return picked;
+    }
+
+    function parsePremiumEnd(raw) {
+        if (!raw) return null;
+        const normalized = String(raw).replace(' ', 'T');
+        const date = new Date(normalized);
+        return Number.isNaN(date.getTime()) ? null : date;
+    }
+
+    function formatPremiumCountdown(end) {
+        if (!end) return '';
+        const diff = end.getTime() - Date.now();
+        if (diff <= 0) return 'Expired';
+        const d = Math.floor(diff / 86400000);
+        const h = Math.floor((diff % 86400000) / 3600000);
+        const m = Math.floor((diff % 3600000) / 60000);
+        const s = Math.floor((diff % 60000) / 1000);
+        return d + 'd ' + String(h).padStart(2, '0') + 'h ' + String(m).padStart(2, '0') + 'm ' + String(s).padStart(2, '0') + 's';
+    }
+
+    function formatPremiumEnds(end) {
+        if (!end) return '';
+        try {
+            return 'Ends ' + end.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+        } catch (e) {
+            return 'Ends ' + end.toDateString();
+        }
+    }
+
     window.nexusHome = function nexusHome() {
+        const boot = window.NEXUS_HOME || {};
+        const bootTrending = Array.isArray(boot.trending) ? boot.trending.map(mapCatalogMovie) : [];
+        const bootUsers = boot.activeUsers || {};
         return {
             mobileMenuOpen: false,
             navScrolled: false,
             featuredIndex: 0,
             featuredRooms: FEATURED_ROOMS,
-            movies: FALLBACK_MOVIES.slice(),
+            movies: bootTrending.length ? bootTrending : FALLBACK_MOVIES.slice(),
             hoveredMovie: null,
             faqOpen: null,
             demoStep: 1,
@@ -519,6 +591,18 @@
             contactError: '',
             _featTimer: null,
             _scrollBound: null,
+            _premiumTimer: null,
+            loggedIn: !!boot.loggedIn,
+            role: boot.role || '',
+            dashboardUrl: boot.dashboardUrl || '/user/dashboard.php',
+            isPremium: !!boot.isPremium,
+            premiumExpiresAt: boot.premiumExpiresAt || '',
+            premiumCountdown: '',
+            premiumEndsLabel: '',
+            activePreview: Array.isArray(bootUsers.preview) ? bootUsers.preview : [],
+            activeOnline: Number(bootUsers.online) || 0,
+            activeTotal: Number(bootUsers.total) || 0,
+            activeExtra: Number(bootUsers.extra) || 0,
 
             get currentRoom() {
                 return this.featuredRooms[this.featuredIndex] || this.featuredRooms[0];
@@ -528,13 +612,21 @@
                 return this.movies.concat(this.movies);
             },
 
+            get unlockPremiumHref() {
+                if (!this.loggedIn) return 'frontend/register.php';
+                if (this.role === 'user') return '/user/dashboard.php?premium=1';
+                return this.dashboardUrl;
+            },
+
             init() {
                 this._scrollBound = () => {
                     this.navScrolled = window.scrollY > 24;
                 };
                 window.addEventListener('scroll', this._scrollBound, { passive: true });
                 this._scrollBound();
-                this.loadMovies();
+                this.tickPremium();
+                this._premiumTimer = setInterval(() => this.tickPremium(), 1000);
+                this.loadHomeFeed();
                 this.startFeatured();
 
                 this.$watch('featuredIndex', (i) => {
@@ -552,9 +644,79 @@
             destroy() {
                 window.removeEventListener('scroll', this._scrollBound);
                 this.stopFeatured();
+                if (this._premiumTimer) {
+                    clearInterval(this._premiumTimer);
+                    this._premiumTimer = null;
+                }
                 if (typeof window.destroyHomePage === 'function') {
                     window.destroyHomePage();
                 }
+            },
+
+            tickPremium() {
+                const end = parsePremiumEnd(this.premiumExpiresAt);
+                if (!this.isPremium || !end) {
+                    this.premiumCountdown = '';
+                    this.premiumEndsLabel = '';
+                    return;
+                }
+                this.premiumEndsLabel = formatPremiumEnds(end);
+                this.premiumCountdown = formatPremiumCountdown(end);
+            },
+
+            formatCount(n) {
+                const val = Number(n) || 0;
+                if (val >= 1000) return (val / 1000).toFixed(val >= 10000 ? 0 : 1).replace(/\.0$/, '') + 'k';
+                return String(val);
+            },
+
+            movieWatchHref(movie) {
+                const id = Number(movie && (movie.id || movie.movie_id)) || 0;
+                const qs = 'tab=movies' + (id ? '&movie=' + id : '');
+                if (this.loggedIn) {
+                    const base = this.role === 'admin' || this.role === 'moderator'
+                        ? '/frontend/admin_dashboard.php'
+                        : '/user/dashboard.php';
+                    return base + '?' + qs;
+                }
+                return '/backend/guest_login.php?' + qs;
+            },
+
+            applyFeed(data) {
+                if (!data) return;
+                const users = data.active_users || data.activeUsers || {};
+                if (users) {
+                    this.activePreview = Array.isArray(users.preview) ? users.preview : this.activePreview;
+                    this.activeOnline = Number(users.online) || 0;
+                    this.activeTotal = Number(users.total) || 0;
+                    this.activeExtra = Number(users.extra) || Math.max(0, this.activeTotal - this.activePreview.length);
+                }
+                const trending = Array.isArray(data.trending) ? data.trending : [];
+                if (trending.length) {
+                    this.movies = trending.map(mapCatalogMovie);
+                    this.featuredRooms = roomsFromCatalog(trending);
+                    this.$nextTick(() => {
+                        if (typeof ScrollTrigger !== 'undefined') ScrollTrigger.refresh();
+                        window.crossfadeFeatured(this.$root, this.currentRoom);
+                    });
+                }
+            },
+
+            async loadHomeFeed() {
+                if ((this.movies || []).length && this.activePreview.length) {
+                    // still refresh quietly
+                }
+                try {
+                    const res = await fetch('/backend/home_feed_api.php', { cache: 'no-store' });
+                    if (res.ok) {
+                        const data = await res.json();
+                        if (data && (data.success !== false)) {
+                            this.applyFeed(data);
+                            if ((this.movies || []).length) return;
+                        }
+                    }
+                } catch (e) { /* fall through */ }
+                this.loadMovies();
             },
 
             startFeatured() {
@@ -593,15 +755,7 @@
                         const data = await res.json();
                         const list = Array.isArray(data) ? data : (data && data.movies);
                         if (list && list.length) {
-                            this.movies = list.slice(0, 12).map((m) => {
-                                const img = m.img || m.cover_image || '';
-                                return {
-                                    title: m.title || 'Untitled',
-                                    img: (!img || /image\.tmdb\.org/i.test(img)) ? LOCAL_POSTER : img,
-                                    genre: Array.isArray(m.genres) ? (m.genres[0] || 'Film') : (m.genre || 'Film'),
-                                    viewers: Math.max(3, Math.floor(Math.random() * 48))
-                                };
-                            });
+                            this.movies = pickTrendingFromList(list, 10);
                             this.featuredRooms = roomsFromCatalog(list);
                             this.$nextTick(() => {
                                 if (typeof ScrollTrigger !== 'undefined') ScrollTrigger.refresh();
