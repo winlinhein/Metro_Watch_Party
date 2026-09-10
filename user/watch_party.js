@@ -533,6 +533,36 @@ function watchParty() {
             }
         },
 
+        // Triggered when user explicitly clicks a "Leave Room" button
+       async leaveRoom() {
+    // Extract whichever parameter is present in the current URL
+    const urlParams = new URLSearchParams(window.location.search);
+    const roomCode = urlParams.get('room_code');
+    const roomId = urlParams.get('room_id') || urlParams.get('id');
+    
+    const query = roomCode 
+        ? `room_code=${encodeURIComponent(roomCode)}` 
+        : `room_id=${encodeURIComponent(roomId)}`;
+
+    if (this.isHost) {
+        const confirmEnd = confirm("Leaving as host will end this watch party for everyone. Continue?");
+        if (!confirmEnd) return;
+    }
+
+    try {
+        // Await the fetch so the browser doesn't navigate away early
+       const res = await fetch(`../user_backend/leave_room.php?${query}`, {
+    method: 'POST'
+});
+        const data = await res.json();
+        console.log("Leave response:", data);
+    } catch (e) {
+        console.error("Error leaving room:", e);
+    } finally {
+        //window.location.href = 'dashboard.php';
+    }
+},
+
         async fetchFriends() {
             try {
                 const res = await fetch('../user_backend/get_friends.php');
@@ -541,7 +571,7 @@ function watchParty() {
                     this.friends = data.friends;
                 }
             } catch (e) {
-                console.error("Error fetching friends:", e);
+                console.error("Error fetching friends:", e); //[cite: 6]
             }
         },
 
@@ -714,7 +744,7 @@ function watchParty() {
         },
 
         // ==========================================
-        // WEBRTC & LOCAL MEDIA
+        // WEBRTC & LOCAL MEDIA[cite: 6]
         // ==========================================
         localPreviewStream() {
             if (!this.localStream) return null;
@@ -1566,7 +1596,7 @@ function watchParty() {
         },
 
         // ==========================================
-        // VIDEO PLAYER CONTROLS
+        // VIDEO PLAYER CONTROLS[cite: 6]
         // ==========================================
         togglePlay() {
             if (!this.$refs.videoPlayer) return;
@@ -1584,8 +1614,8 @@ function watchParty() {
             this.currentTime = this.$refs.videoPlayer.currentTime;
             this.progressPercent = this.duration ? (this.currentTime / this.duration) * 100 : 0;
             
-            if (this.$refs.videoPlayer.buffered.length > 0) {
-                this.bufferPercent = (this.$refs.videoPlayer.buffered.end(0) / this.duration) * 100;
+            if (this.$refs.videoPlayer.buffered.length > 0) { //[cite: 6]
+                this.bufferPercent = (this.$refs.videoPlayer.buffered.end(0) / this.duration) * 100; //[cite: 6]
             }
         },
 
@@ -1597,35 +1627,35 @@ function watchParty() {
             this.emitPlaybackSync();
         },
 
-        updateVolume() {
-            this.$refs.videoPlayer.volume = this.volume;
+        updateVolume() { //[cite: 6]
+            this.$refs.videoPlayer.volume = this.volume; //[cite: 6]
         },
 
-        toggleMute() {
-            this.volume = this.volume === 0 ? 1 : 0;
-            this.updateVolume();
+        toggleMute() { //[cite: 6]
+            this.volume = this.volume === 0 ? 1 : 0; //[cite: 6]
+            this.updateVolume(); //[cite: 6]
         },
 
-        toggleFullscreen() {
-            const contentArea = document.getElementById('content-area');
-            if (!document.fullscreenElement) {
-                contentArea.requestFullscreen().catch(err => console.log(err));
-                this.isFullscreen = true;
+        toggleFullscreen() { //[cite: 6]
+            const contentArea = document.getElementById('content-area'); //[cite: 6]
+            if (!document.fullscreenElement) { //[cite: 6]
+                contentArea.requestFullscreen().catch(err => console.log(err)); //[cite: 6]
+                this.isFullscreen = true; //[cite: 6]
             } else {
-                document.exitFullscreen();
-                this.isFullscreen = false;
+                document.exitFullscreen(); //[cite: 6]
+                this.isFullscreen = false; //[cite: 6]
             }
         },
 
-        formatTime(seconds) {
-            if(isNaN(seconds)) return "00:00";
-            const m = Math.floor(seconds / 60).toString().padStart(2, '0');
-            const s = Math.floor(seconds % 60).toString().padStart(2, '0');
-            return `${m}:${s}`;
+        formatTime(seconds) { //[cite: 6]
+            if(isNaN(seconds)) return "00:00"; //[cite: 6]
+            const m = Math.floor(seconds / 60).toString().padStart(2, '0'); //[cite: 6]
+            const s = Math.floor(seconds % 60).toString().padStart(2, '0'); //[cite: 6]
+            return `${m}:${s}`; //[cite: 6]
         },
 
         // ==========================================
-        // CHAT & BOTTOM TOGGLES
+        // CHAT & BOTTOM TOGGLES[cite: 6]
         // ==========================================
         enrichChatMessage(data) {
             const name = data.name || data.userName || 'Guest';
