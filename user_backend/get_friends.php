@@ -11,11 +11,13 @@ if (empty($_SESSION['user_id'])) {
 
 require_once __DIR__ . '/../conn.php';
 require_once __DIR__ . '/../profile_media_helper.php';
+require_once __DIR__ . '/../presence_helper.php';
 
 $currentUserId = (int)$_SESSION['user_id'];
 session_write_close();
 
 try {
+    ensureUserLastSeenColumn($conn);
     $friendsStmt = $conn->prepare("
         SELECT 
             u.user_id, 
@@ -23,6 +25,7 @@ try {
             u.email, 
             u.is_premium,
             uf.status,
+            MAX(u.last_seen) AS last_seen,
             COUNT(m.message_id) AS unread_count
         FROM user_friends uf
         JOIN users u 
@@ -47,19 +50,28 @@ try {
         'id4' => $currentUserId
     ]);
     $friends = attachProfileMedia($conn, $friendsStmt->fetchAll(PDO::FETCH_ASSOC));
+    foreach ($friends as &$friend) {
+        $friend['is_online'] = onlineFlagFromLastSeen($friend['last_seen'] ?? null);
+    }
+    unset($friend);
 
     $pendingStmt = $conn->prepare("
         SELECT 
             u.user_id, 
             u.user_name, 
             u.email, 
-            u.is_premium
+            u.is_premium,
+            u.last_seen
         FROM user_friends uf
         JOIN users u ON u.user_id = uf.user_id_1
         WHERE uf.user_id_2 = :current_id AND uf.status = 'pending'
     ");
     $pendingStmt->execute(['current_id' => $currentUserId]);
     $pendingRequests = attachProfileMedia($conn, $pendingStmt->fetchAll(PDO::FETCH_ASSOC));
+    foreach ($pendingRequests as &$req) {
+        $req['is_online'] = onlineFlagFromLastSeen($req['last_seen'] ?? null);
+    }
+    unset($req);
 
     echo json_encode([
         'friends' => $friends,

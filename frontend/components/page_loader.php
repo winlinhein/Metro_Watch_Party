@@ -1,5 +1,5 @@
 <?php if (basename((string)($_SERVER['SCRIPT_NAME'] ?? '')) !== 'admin_dashboard.php'): ?>
-<script src="/js/home_page.js?v=7"></script>
+<script src="/js/home_page.js?v=9"></script>
 <?php endif; ?>
 <!-- Insane Page Loader -->
 <div id="nexus-page-loader" class="fixed inset-0 z-[99999] pointer-events-auto flex items-center justify-center overflow-hidden">
@@ -34,22 +34,34 @@
 </div>
 
 <style>
-    /* Ensure body doesn't scroll while loading */
     body.is-loading {
         overflow: hidden !important;
+    }
+    #nexus-page-loader {
+        position: fixed;
+        inset: 0;
+        z-index: 99999;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        overflow: hidden;
+        background: #030305;
+        pointer-events: auto;
+    }
+    #nexus-page-loader .loader-panel {
+        transform-origin: bottom center;
     }
 </style>
 
 <script>
-    // Add is-loading class immediately to prevent scrolling during load
-    if(!document.body.classList.contains('is-loading')) {
+    if (document.body && !document.body.classList.contains('is-loading')) {
         document.body.classList.add('is-loading');
     }
 
     window.showPageLoader = function(onComplete) {
         const loader = document.getElementById('nexus-page-loader');
-        const panels = document.querySelectorAll('.loader-panel');
-        const content = document.querySelector('.loader-content');
+        const panels = document.querySelectorAll('#nexus-page-loader .loader-panel');
+        const content = document.querySelector('#nexus-page-loader .loader-content');
         
         if (!loader) {
             if (onComplete) onComplete();
@@ -57,72 +69,79 @@
         }
 
         loader.style.display = 'flex';
+        loader.style.opacity = '1';
         loader.style.pointerEvents = 'auto';
         document.body.classList.add('is-loading');
 
-        if (typeof gsap !== 'undefined') {
+        if (typeof gsap !== 'undefined' && panels.length) {
+            gsap.config({ nullTargetWarn: false });
+            gsap.set(panels, { scaleY: 1 });
+            if (content) gsap.set(content, { opacity: 1, scale: 1, filter: 'blur(0px)' });
             const tl = gsap.timeline({ onComplete: onComplete });
-            tl.to(panels, {
+            tl.fromTo(panels, { scaleY: 0 }, {
                 scaleY: 1,
                 duration: 0.5,
                 ease: "expo.inOut",
                 stagger: 0.1
-            })
-            .to(content, {
-                opacity: 1,
-                scale: 1,
-                filter: 'blur(0px)',
-                duration: 0.4,
-                ease: "power2.out"
-            }, "-=0.2");
+            });
+            if (content) {
+                tl.to(content, {
+                    opacity: 1,
+                    scale: 1,
+                    filter: 'blur(0px)',
+                    duration: 0.4,
+                    ease: "power2.out"
+                }, "-=0.2");
+            }
             return tl;
-        } else {
-            loader.style.opacity = '1';
-            if(onComplete) onComplete();
         }
+
+        if (onComplete) onComplete();
     };
 
     window.hidePageLoader = function(onComplete) {
         const loader = document.getElementById('nexus-page-loader');
-        const panels = document.querySelectorAll('.loader-panel');
-        const content = document.querySelector('.loader-content');
+        const panels = document.querySelectorAll('#nexus-page-loader .loader-panel');
+        const content = document.querySelector('#nexus-page-loader .loader-content');
         
         if (!loader) {
             if (onComplete) onComplete();
             return;
         }
 
+        const finish = () => {
+            document.body.classList.remove('is-loading');
+            loader.style.pointerEvents = 'none';
+            loader.style.display = 'none';
+            if (onComplete) onComplete();
+        };
+
         if (typeof gsap !== 'undefined') {
             gsap.config({ nullTargetWarn: false });
-            const enterTl = gsap.timeline({
-                onComplete: () => {
-                    document.body.classList.remove('is-loading');
-                    loader.style.pointerEvents = 'none';
-                    loader.style.display = 'none';
-                    if (onComplete) onComplete();
-                }
-            });
-            
-            enterTl.to(content, {
-                opacity: 0,
-                scale: 1.1,
-                filter: 'blur(10px)',
-                duration: 0.5,
-                ease: "power2.inOut",
-                delay: 0.2
-            })
-            .to(panels, {
-                scaleY: 0,
-                duration: 0.8,
-                ease: "expo.inOut",
-                stagger: 0.1
-            }, "-=0.3");
+            const enterTl = gsap.timeline({ onComplete: finish });
+            if (content) {
+                enterTl.to(content, {
+                    opacity: 0,
+                    scale: 1.1,
+                    filter: 'blur(10px)',
+                    duration: 0.5,
+                    ease: "power2.inOut",
+                    delay: 0.2
+                });
+            }
+            if (panels.length) {
+                enterTl.to(panels, {
+                    scaleY: 0,
+                    duration: 0.8,
+                    ease: "expo.inOut",
+                    stagger: 0.1
+                }, content ? "-=0.3" : 0);
+            }
+            if (!content && !panels.length) finish();
             return enterTl;
-        } else {
-            loader.style.display = 'none';
-            document.body.classList.remove('is-loading');
-            if(onComplete) onComplete();
         }
+
+        finish();
     };
 
     // Initial page load

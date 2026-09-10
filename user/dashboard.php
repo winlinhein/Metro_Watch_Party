@@ -205,7 +205,7 @@ session_write_close();
 
     <link rel="stylesheet" href="https://cdn.plyr.io/3.7.8/plyr.css" />
     <script src="https://cdn.plyr.io/3.7.8/plyr.polyfilled.js"></script>
-    <script src="../js/nexus_scripts.js?v=1788180500"></script>
+    <script src="../js/nexus_scripts.js?v=1789040500"></script>
 </head>
 <body class="h-screen w-screen flex flex-col relative selection:bg-red-500/30" data-barba="wrapper">
     <?php include __DIR__ . '/../frontend/components/page_loader.php'; ?>
@@ -223,15 +223,15 @@ session_write_close();
     <div id="side-panel" class="fixed top-0 left-0 w-full md:w-[320px] h-screen bg-[#050508]/95 backdrop-blur-3xl border-r border-white/10 z-[100] flex flex-col pointer-events-none -translate-x-full will-change-transform">
         <div class="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-10"></div>
         <div class="p-6 flex justify-between items-center border-b border-white/5 relative z-10 shrink-0">
-            <div class="flex items-center gap-4 group cursor-pointer">
+            <a href="/index.php" data-barba-prevent class="flex items-center gap-4 group cursor-pointer pointer-events-auto">
                 <div class="w-10 h-10 bg-gradient-to-tr from-indigo-500 to-red-600 rounded-xl flex items-center justify-center shadow-[0_0_20px_rgba(239,68,68,0.4)] relative overflow-hidden icon-bounce">
                     <span class="material-symbols-outlined text-white font-bold relative z-10 text-[20px]">dashboard_customize</span>
                 </div>
                 <div>
-                    <span class="text-xl font-bold tracking-tighter uppercase block leading-none">NEXUS</span>
+                    <span class="text-xl font-bold tracking-tighter uppercase block leading-none group-hover:text-red-400 transition-colors">NEXUS</span>
                     <span class="text-[10px] text-white/50 tracking-widest uppercase font-semibold">Menu</span>
                 </div>
-            </div>
+            </a>
             <button @click="closeNav()" class="w-8 h-8 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 flex items-center justify-center transition-all duration-300 pointer-events-auto">
                 <span class="material-symbols-outlined text-white/70 text-[18px]">close</span>
             </button>
@@ -385,7 +385,7 @@ session_write_close();
                                 <h2 class="text-base font-bold uppercase tracking-wider text-white">Friends</h2>
                                 <p class="text-[10px] text-emerald-400/90 uppercase tracking-widest font-mono mt-0.5 flex items-center gap-1.5">
                                     <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
-                                    <span x-text="friends.length"></span> Active Friends
+                                    <span x-text="onlineFriendsCount"></span> Online
                                 </p>
                             </div>
                         </div>
@@ -440,10 +440,11 @@ session_write_close();
                                         <template x-if="friend.border_preview">
                                             <img :src="friend.border_preview" class="absolute inset-0 z-10 h-full w-full scale-[1.4] object-contain pointer-events-none" alt="">
                                         </template>
-                                        <span class="absolute -bottom-0.5 -right-0.5 flex h-2.5 w-2.5 z-20">
-                                            <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                                            <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500 border-2 border-[#07070b]"></span>
-                                        </span>
+                                        <span class="absolute -bottom-0.5 -right-0.5 z-20 h-2 w-2 rounded-full"
+                                              :class="isUserOnline(friend)
+                                                ? 'bg-emerald-500 shadow-[0_0_5px_rgba(16,185,129,0.85)] ring-1 ring-[#07070b]'
+                                                : 'bg-gray-500 ring-1 ring-[#07070b]'"
+                                              :title="isUserOnline(friend) ? 'Online' : 'Offline'"></span>
                                     </div>
                                     <div class="min-w-0 flex-1 cursor-pointer" @click.stop="toggleDropdown(friend, $event)">
                                         <h4 class="text-xs font-semibold text-white/90 truncate" x-text="friend.user_name"></h4>
@@ -487,6 +488,11 @@ session_write_close();
                                         <template x-if="req.border_preview">
                                             <img :src="req.border_preview" class="absolute inset-0 z-10 h-full w-full scale-[1.4] object-contain pointer-events-none" alt="">
                                         </template>
+                                        <span class="absolute -bottom-0.5 -right-0.5 z-20 h-2 w-2 rounded-full"
+                                              :class="isUserOnline(req)
+                                                ? 'bg-emerald-500 shadow-[0_0_5px_rgba(16,185,129,0.85)] ring-1 ring-[#07070b]'
+                                                : 'bg-gray-500 ring-1 ring-[#07070b]'"
+                                              :title="isUserOnline(req) ? 'Online' : 'Offline'"></span>
                                     </div>
                                     <div class="min-w-0 flex-1 cursor-pointer" @click.stop="toggleDropdown(req, $event)">
                                         <h4 class="text-xs font-semibold text-white truncate" x-text="req.user_name"></h4>
@@ -582,6 +588,11 @@ session_write_close();
                                 <template x-if="user.border_preview">
                                     <img :src="user.border_preview" class="absolute inset-0 z-10 h-full w-full scale-[1.4] object-contain pointer-events-none" alt="">
                                 </template>
+                                <span class="absolute -bottom-0.5 -right-0.5 z-20 h-2 w-2 rounded-full"
+                                      :class="isUserOnline(user)
+                                        ? 'bg-emerald-500 shadow-[0_0_5px_rgba(16,185,129,0.85)] ring-1 ring-[#07070b]'
+                                        : 'bg-gray-500 ring-1 ring-[#07070b]'"
+                                      :title="isUserOnline(user) ? 'Online' : 'Offline'"></span>
                             </div>
                             <div class="min-w-0 flex-1 cursor-pointer" @click.stop="toggleDropdown(user, $event)">
                                 <h4 class="text-xs font-bold text-white truncate" x-text="user.user_name"></h4>
@@ -647,8 +658,10 @@ session_write_close();
                 </button>
                 
                 <div class="h-8 w-[1px] bg-white/10 hidden md:block"></div>
-                
 
+                <a href="/index.php" data-barba-prevent class="hidden md:flex items-center gap-3 group">
+                    <span class="text-xl font-bold tracking-tighter uppercase group-hover:text-red-400 transition-colors">NEXUS</span>
+                </a>
             </div>
             
             <div class="flex items-center gap-6">
@@ -812,11 +825,14 @@ session_write_close();
                                             <span class="text-xs text-white/60 mono" x-text="(party.members || 0) + ' Members Active'"></span>
                                             <button type="button"
                                                     @click="party.in_room || party.request_status === 'accepted' ? enterFriendRoom(party) : requestJoinRoom(party)"
-                                                    class="px-5 py-2 border text-white font-bold tracking-wide rounded-xl transition-all flex items-center gap-2"
+                                                    :disabled="joiningRoomId === party.room_id"
+                                                    class="px-5 py-2 border text-white font-bold tracking-wide rounded-xl transition-all flex items-center gap-2 disabled:opacity-60"
                                                     :class="party.request_status === 'pending'
-                                                        ? 'bg-white/5 border-white/10 text-white/50 cursor-default'
+                                                        ? 'bg-white/5 border-white/10 text-white/70'
                                                         : 'bg-white/5 hover:bg-white/10 border-white/10'">
-                                                <span x-text="party.in_room || party.request_status === 'accepted' ? 'Enter Room' : (party.request_status === 'pending' ? 'Requested' : 'Request to Join')"></span>
+                                                <span x-text="joiningRoomId === party.room_id
+                                                    ? 'Sending…'
+                                                    : (party.in_room || party.request_status === 'accepted' ? 'Enter Room' : (party.request_status === 'pending' ? 'Requested' : 'Request to Join'))"></span>
                                                 <span class="material-symbols-outlined text-[18px]" x-text="party.request_status === 'pending' ? 'hourglass_top' : 'arrow_forward'"></span>
                                             </button>
                                         </div>
@@ -946,9 +962,7 @@ session_write_close();
 </div>
 
 <script src="https://unpkg.com/@barba/core@2.9.7/dist/barba.umd.js" crossorigin="anonymous"></script>
-<script src="../js/barba_setup.js?v=5"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js" onerror="window.gsap=window.gsap||{to:()=>({to:()=>({}),fromTo:()=>({})}),fromTo:()=>({}),from:()=>({}),set:()=>{},timeline:()=>({to:()=>({}),fromTo:()=>({}),add:()=>({}),set:()=>({})}),config:()=>{},killTweensOf:()=>{}}"></script>
-<script src="../js/nexus_scripts.js?v=1788180500"></script>
+<script src="../js/barba_setup.js?v=8"></script>
 
 </body>
 </html>

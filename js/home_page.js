@@ -4,15 +4,16 @@
     let homeCtx = null;
     let featuredTween = null;
 
+    const LOCAL_POSTER = '/frontend/assets/home/dune-live.jpg';
     const FALLBACK_MOVIES = [
-        { title: 'Interstellar', img: 'https://image.tmdb.org/t/p/w500/gEU2QniLT6KCq6urGY8JiXQAALt.jpg', genre: 'Sci-Fi', viewers: 42 },
-        { title: 'Dune: Part Two', img: 'https://image.tmdb.org/t/p/w500/1pdfLvkbY9ohJlCjQH2CZjjYVvJ.jpg', genre: 'Sci-Fi', viewers: 36 },
-        { title: 'The Batman', img: 'https://image.tmdb.org/t/p/w500/74xTEgt7R36Fpooo50r9T25onhq.jpg', genre: 'Action', viewers: 28 },
-        { title: 'Joker', img: 'https://image.tmdb.org/t/p/w500/udDclJoHjfjb8Ekgsd4FDteOkCU.jpg', genre: 'Drama', viewers: 19 },
-        { title: 'Inception', img: 'https://image.tmdb.org/t/p/w500/oYuLEt3zNKs9x4kKviJVFPQKqg8.jpg', genre: 'Thriller', viewers: 31 },
-        { title: 'Parasite', img: 'https://image.tmdb.org/t/p/w500/7IiTTgloJzvGI1TAYymCfbfl3vT.jpg', genre: 'Thriller', viewers: 22 },
-        { title: 'Spider-Man', img: 'https://image.tmdb.org/t/p/w500/8Vt6mWEReuy4Of61Lnj5Xj704m8.jpg', genre: 'Action', viewers: 47 },
-        { title: 'Your Name', img: 'https://image.tmdb.org/t/p/w500/q719jXXEzOoYaps6babgKnOH1r.jpg', genre: 'Anime', viewers: 15 }
+        { title: 'Interstellar', img: LOCAL_POSTER, genre: 'Sci-Fi', viewers: 42 },
+        { title: 'Dune: Part Two', img: LOCAL_POSTER, genre: 'Sci-Fi', viewers: 36 },
+        { title: 'The Batman', img: LOCAL_POSTER, genre: 'Action', viewers: 28 },
+        { title: 'Joker', img: LOCAL_POSTER, genre: 'Drama', viewers: 19 },
+        { title: 'Inception', img: LOCAL_POSTER, genre: 'Thriller', viewers: 31 },
+        { title: 'Parasite', img: LOCAL_POSTER, genre: 'Thriller', viewers: 22 },
+        { title: 'Spider-Man', img: LOCAL_POSTER, genre: 'Action', viewers: 47 },
+        { title: 'Your Name', img: LOCAL_POSTER, genre: 'Anime', viewers: 15 }
     ];
 
     const FEATURED_ROOMS = [
@@ -156,7 +157,8 @@
                     if (title) {
                         const line = container.querySelector('.home-hero-line');
                         const accent = container.querySelector('.home-hero-accent');
-                        if (typeof SplitText !== 'undefined' && !reduceMotion && line) {
+                        const fontsReady = !document.fonts || document.fonts.status === 'loaded';
+                        if (typeof SplitText !== 'undefined' && !reduceMotion && line && fontsReady) {
                             const split = SplitText.create(line, {
                                 type: 'chars, words',
                                 charsClass: 'home-char',
@@ -591,12 +593,15 @@
                         const data = await res.json();
                         const list = Array.isArray(data) ? data : (data && data.movies);
                         if (list && list.length) {
-                            this.movies = list.slice(0, 12).map((m) => ({
-                                title: m.title || 'Untitled',
-                                img: m.img || m.cover_image || '',
-                                genre: Array.isArray(m.genres) ? (m.genres[0] || 'Film') : (m.genre || 'Film'),
-                                viewers: Math.max(3, Math.floor(Math.random() * 48))
-                            }));
+                            this.movies = list.slice(0, 12).map((m) => {
+                                const img = m.img || m.cover_image || '';
+                                return {
+                                    title: m.title || 'Untitled',
+                                    img: (!img || /image\.tmdb\.org/i.test(img)) ? LOCAL_POSTER : img,
+                                    genre: Array.isArray(m.genres) ? (m.genres[0] || 'Film') : (m.genre || 'Film'),
+                                    viewers: Math.max(3, Math.floor(Math.random() * 48))
+                                };
+                            });
                             this.featuredRooms = roomsFromCatalog(list);
                             this.$nextTick(() => {
                                 if (typeof ScrollTrigger !== 'undefined') ScrollTrigger.refresh();

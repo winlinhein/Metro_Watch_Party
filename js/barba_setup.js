@@ -7,6 +7,19 @@ if (typeof barba !== 'undefined') {
             if (el && el.href && el.href.includes('backend/')) return true;
             const url = href || (el && el.href) || '';
             if (String(url).includes('watch_party.php')) return true;
+            try {
+                const path = new URL(String(url), window.location.origin).pathname.replace(/\/+$/, '') || '/';
+                if (
+                    path === '/'
+                    || path === '/index.php'
+                    || path.endsWith('/index.php')
+                    || path.endsWith('/dashboard.php')
+                    || path.endsWith('/admin_dashboard.php')
+                    || path.endsWith('/watch_party.php')
+                    || path.endsWith('/login.php')
+                    || path.endsWith('/register.php')
+                ) return true;
+            } catch (e) {}
             return false;
         },
         views: [{
@@ -99,23 +112,7 @@ if (typeof barba !== 'undefined') {
                         document.body.className = newClass;
                     }
 
-                    // Swap inline styles
-                    const oldStyles = document.head.querySelectorAll('style');
-                    oldStyles.forEach(s => s.remove());
-                    htmlDoc.head.querySelectorAll('style').forEach(newStyle => {
-                        const style = document.createElement('style');
-                        style.innerHTML = newStyle.innerHTML;
-                        document.head.appendChild(style);
-                    });
-
-                    // Swap external stylesheets
-                    const newLinkHrefs = Array.from(htmlDoc.head.querySelectorAll('link[rel="stylesheet"]')).map(l => l.href);
-                    document.head.querySelectorAll('link[rel="stylesheet"]').forEach(link => {
-                        if (!newLinkHrefs.includes(link.href)) {
-                            link.remove();
-                        }
-                    });
-                    
+                    // Keep existing styles (Tailwind CDN injects <style> tags). Only add missing sheets.
                     const currentLinks = Array.from(document.head.querySelectorAll('link[rel="stylesheet"]')).map(l => l.href);
                     htmlDoc.head.querySelectorAll('link[rel="stylesheet"]').forEach(newLink => {
                         if (newLink.href && !currentLinks.includes(newLink.href)) {
@@ -126,14 +123,19 @@ if (typeof barba !== 'undefined') {
                         }
                     });
 
-                    // Swap external scripts dynamically
-                    const currentScripts = Array.from(document.querySelectorAll('script')).map(s => s.src).filter(Boolean);
-                    htmlDoc.querySelectorAll('script').forEach(newScript => {
-                        if (newScript.src && !currentScripts.includes(newScript.src)) {
+                    // Do not re-inject the same JS file with a different cache-buster.
+                    const scriptKey = (src) => {
+                        try { return new URL(src, window.location.origin).pathname; } catch (e) { return src; }
+                    };
+                    const currentScripts = Array.from(document.querySelectorAll('script[src]')).map(s => scriptKey(s.src));
+                    htmlDoc.querySelectorAll('script[src]').forEach(newScript => {
+                        const key = scriptKey(newScript.src);
+                        if (key && !currentScripts.includes(key) && !key.includes('nexus_scripts.js')) {
                             const script = document.createElement('script');
                             script.src = newScript.src;
                             script.type = newScript.type || 'text/javascript';
                             document.body.appendChild(script);
+                            currentScripts.push(key);
                         }
                     });
                 }
@@ -148,12 +150,12 @@ if (typeof barba !== 'undefined') {
                     window.initInteractiveElements();
                 }
                 
-                // Re-initialize GSAP scoped strictly to the new container
-                if (typeof initAnimations === 'function') {
+                const ns = data.next && data.next.namespace;
+                if (ns !== 'index' && typeof initAnimations === 'function') {
                     initAnimations(data.next.container);
                 }
                 
-                if (typeof initLocalAnimations === 'function') {
+                if (ns !== 'index' && typeof initLocalAnimations === 'function') {
                     initLocalAnimations(data.next.container);
                 }
 
@@ -195,6 +197,11 @@ if (typeof barba !== 'undefined') {
 
 
 document.addEventListener('DOMContentLoaded', () => {
+    const ns = document.querySelector('[data-barba-namespace]')?.getAttribute('data-barba-namespace');
+    if (ns === 'index') {
+        if (typeof gsap !== 'undefined') gsap.config({ nullTargetWarn: false });
+        return;
+    }
     if (typeof initAnimations === 'function') {
         initAnimations(document);
     }

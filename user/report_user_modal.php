@@ -30,7 +30,7 @@
             <!-- Tags Container -->
             <div class="flex flex-wrap gap-2">
                 <!-- Loop through available reasons -->
-                <template x-for="reason in availableReasons" :key="reason.reason_id">
+                <template x-for="reason in (availableReasons || [])" :key="reason.reason_id">
                     
                     <!-- Clickable Label Tag -->
                     <label

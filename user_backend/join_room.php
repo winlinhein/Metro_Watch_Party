@@ -24,8 +24,10 @@ if ($roomId <= 0 || $peerId === '') {
 try {
     require_once __DIR__ . '/../conn.php';
     require_once __DIR__ . '/../pusher_helper.php';
+    require_once __DIR__ . '/../notifications_helper.php';
     require_once __DIR__ . '/../profile_media_helper.php';
     require_once __DIR__ . '/../admin_rooms_helper.php';
+    require_once __DIR__ . '/../presence_helper.php';
 
     $roomStmt = $conn->prepare("SELECT room_id, host_id, status FROM rooms WHERE room_id = :id LIMIT 1");
     $roomStmt->execute(['id' => $roomId]);
@@ -115,6 +117,7 @@ try {
     $peerStmt->execute(['room_id' => $roomId, 'peer_id' => $peerId]);
     $peers = attachProfileMedia($conn, $peerStmt->fetchAll(PDO::FETCH_ASSOC));
     $selfMedia = getUserProfileMedia($conn, $userId);
+    touchUserPresence($conn, $userId);
 
     $payload = [
         'peerId' => $peerId,
@@ -133,6 +136,13 @@ try {
         broadcastAdminRoomsChanged('join', [
             'room_id' => $roomId,
             'user_id' => $userId,
+        ]);
+    }
+
+    if (!$heartbeat) {
+        deleteMatchingNotifications($conn, $userId, [
+            'types' => ['party_invite', 'join_request_accepted'],
+            'room_id' => $roomId,
         ]);
     }
 
