@@ -137,6 +137,8 @@ function userDashboard() {
                 ? [{ id: bootBorderId, name: 'Equipped', preview: bootBorderPreview, owned: true }]
                 : [])
         ],
+        borderPage: 1,
+        viewportWidth: typeof window !== 'undefined' ? window.innerWidth : 1024,
         hasCustomAvatar: !!bootAvatarRaw,
         selectedAvatar: bootAvatar,   
 
@@ -176,10 +178,53 @@ function userDashboard() {
             return url;
         },
 
+        orderBorders(list) {
+            const items = Array.isArray(list) ? [...list] : [];
+            const none = items.find(b => Number(b.id) === 0) || { id: 0, name: 'None', preview: '', owned: true };
+            const rest = items.filter(b => Number(b.id) !== 0);
+            const owned = rest.filter(b => !!b.owned);
+            const locked = rest.filter(b => !b.owned);
+            return [none, ...owned, ...locked];
+        },
+
+        get borderCols() {
+            return this.viewportWidth >= 768 ? 3 : 2;
+        },
+
+        get borderPageSize() {
+            return this.borderCols * 2;
+        },
+
+        get borderPageCount() {
+            const n = (this.availableBorders || []).length;
+            return Math.max(1, Math.ceil(n / this.borderPageSize));
+        },
+
+        get pagedBorders() {
+            const size = this.borderPageSize;
+            const page = Math.min(Math.max(1, this.borderPage), this.borderPageCount);
+            const start = (page - 1) * size;
+            return (this.availableBorders || []).slice(start, start + size);
+        },
+
+        get borderSlotFillers() {
+            const missing = this.borderPageSize - this.pagedBorders.length;
+            return missing > 0 ? Array.from({ length: missing }, (_, i) => i) : [];
+        },
+
+        get borderPageNumbers() {
+            return Array.from({ length: this.borderPageCount }, (_, i) => i + 1);
+        },
+
+        setBorderPage(page) {
+            const next = Math.min(Math.max(1, Number(page) || 1), this.borderPageCount);
+            this.borderPage = next;
+        },
+
         buildAvailableBorders() {
             const borderItems = this.shopItems.filter(item => String(item.category || '').toLowerCase() === 'border');
             const ownedIds = new Set((this.userInventory || []).map(id => Number(id)));
-            this.availableBorders = [
+            this.availableBorders = this.orderBorders([
                 { id: 0, name: 'None', preview: '', owned: true },
                 ...borderItems.map(item => ({
                     id: Number(item.id),
@@ -187,13 +232,14 @@ function userDashboard() {
                     preview: item.image,
                     owned: ownedIds.has(Number(item.id))
                 }))
-            ];
+            ]);
             const active = this.availableBorders.find(b => Number(b.id) === Number(this.activeBorderId));
             if (active?.preview) {
                 this.activeBorderPreview = active.preview;
             } else if (!this.activeBorderId) {
                 this.activeBorderPreview = '';
             }
+            if (this.borderPage > this.borderPageCount) this.borderPage = 1;
         },
 
        async fetchUserProfile() {
@@ -398,16 +444,18 @@ function userDashboard() {
             if (borderId && borderPreview) {
                 const exists = this.availableBorders.some(b => Number(b.id) === borderId);
                 if (!exists) {
-                    this.availableBorders = [
+                    this.availableBorders = this.orderBorders([
                         { id: 0, name: 'None', preview: '', owned: true },
                         { id: borderId, name: 'Equipped', preview: borderPreview, owned: true },
                         ...this.availableBorders.filter(b => Number(b.id) !== 0 && Number(b.id) !== borderId)
-                    ];
+                    ]);
                 } else {
-                    this.availableBorders = this.availableBorders.map(b =>
-                        Number(b.id) === borderId ? { ...b, preview: borderPreview || b.preview } : b
-                    );
+                    this.availableBorders = this.orderBorders(this.availableBorders.map(b =>
+                        Number(b.id) === borderId ? { ...b, preview: borderPreview || b.preview, owned: true } : b
+                    ));
                 }
+            } else {
+                this.availableBorders = this.orderBorders(this.availableBorders);
             }
         },
 
@@ -582,7 +630,7 @@ function userDashboard() {
                         if (window.showToast) window.showToast('Unable to load movies. Please try again.', 'error');
                         return;
                     }
-                    window.location.href = '/frontend/login.php';
+                    window.nexusNavigate('/frontend/login.php');
                     return;
                 }
                 if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
@@ -761,7 +809,7 @@ function userDashboard() {
                     if (window.showToast) window.showToast(data.message || 'Account deleted.', 'success');
                     // Redirect to login page after short delay
                     setTimeout(() => {
-                        window.location.href = '/frontend/login.php';
+                        window.nexusNavigate('/frontend/login.php');
                     }, 1500);
                 } else {
                     this.deleteAccountError = data.message || 'Failed to delete account.';
@@ -1126,7 +1174,7 @@ function userDashboard() {
                         if (window.showToast) window.showToast('Unable to load movies. Please try again.', 'error');
                         return;
                     }
-                    window.location.href = '/frontend/login.php';
+                    window.nexusNavigate('/frontend/login.php');
                     return;
                 }
                 if (!response.ok) throw new Error('Failed to fetch friends');
@@ -1782,7 +1830,7 @@ function userDashboard() {
         // Tab Navigation
         switchTab(tabId) {
             if (this.isGuest && ['watchlist', 'account', 'shop'].includes(tabId)) {
-                window.location.href = '/frontend/login.php';
+                window.nexusNavigate('/frontend/login.php');
                 return;
             }
 
@@ -3381,6 +3429,11 @@ function userDashboard() {
 
             this._partyInviteHandler = (e) => this.handleIncomingPartyInvite(e.detail || {});
             window.addEventListener('incoming-party-invite', this._partyInviteHandler);
+            this._onBorderResize = () => {
+                this.viewportWidth = window.innerWidth;
+                if (this.borderPage > this.borderPageCount) this.borderPage = this.borderPageCount;
+            };
+            window.addEventListener('resize', this._onBorderResize);
             
             if (this.isGuest) {
                 this.statsLoading = false;
@@ -3683,7 +3736,7 @@ function __legacyWatchPartyStub() {
             try {
                 const res = await fetch('/user_backend/movies_api.php');
                 if (res.status === 401) {
-                    window.location.href = '/frontend/login.php';
+                    window.nexusNavigate('/frontend/login.php');
                     return;
                 }
                 const data = await res.json();
@@ -3716,7 +3769,7 @@ function __legacyWatchPartyStub() {
             try {
                 const res = await fetch('/user_backend/get_friends.php');
                 if (res.status === 401) {
-                    window.location.href = '/frontend/login.php';
+                    window.nexusNavigate('/frontend/login.php');
                     return;
                 }
                 if (!res.ok) throw new Error('Failed to fetch friends');
@@ -5951,7 +6004,7 @@ function adminDashboard(userData = {}) {
                 const data = await response.json();
 
                 if (data.success) {
-                    window.location.href = '../frontend/login.php?account_deleted=1';
+                    window.nexusNavigate('../frontend/login.php?account_deleted=1');
                 } else {
                     // 2. Server-side check: Incorrect password / session error
                     const errorMsg = data.message || data.error || 'Failed to delete account.';

@@ -101,22 +101,28 @@
                     </button>
                 </div>
 
-                <!-- Border Selection Grid -->
-                <div class="flex-1">
-                    <div class="grid grid-cols-2 xl:grid-cols-3 gap-4">
-                        <template x-for="border in availableBorders" :key="border.id">
-                            <button @click="border.owned ? setActiveBorder(border.id) : null" 
-                                    class="relative p-4 rounded-xl border flex flex-col items-center justify-center gap-3 transition-all duration-300 transform"
+                <!-- Border Selection Grid: 2 rows + pagination, owned first -->
+                <div class="flex-1 min-w-0 flex flex-col">
+                    <div class="flex items-center justify-between gap-3 mb-3">
+                        <p class="text-[10px] font-bold uppercase tracking-widest text-white/40">Select a border</p>
+                        <p class="text-[10px] font-mono text-white/30" x-show="borderPageCount > 1" x-cloak>
+                            <span x-text="borderPage"></span> / <span x-text="borderPageCount"></span>
+                        </p>
+                    </div>
+                    <div class="grid grid-cols-2 md:grid-cols-3 grid-rows-2 gap-3 overflow-hidden auto-rows-fr">
+                        <template x-for="border in pagedBorders" :key="border.id">
+                            <button type="button" @click="border.owned ? setActiveBorder(border.id) : null"
+                                    class="relative p-4 rounded-xl border flex flex-col items-center justify-center gap-3 transition-all duration-300 transform h-full"
                                     :class="[
                                         !border.owned ? 'bg-black/60 border-white/5 opacity-50 cursor-not-allowed hover:bg-black/60' : 'hover:-translate-y-1',
-                                        activeBorderId === border.id ? 'bg-emerald-500/10 border-emerald-500 text-emerald-400 shadow-[0_0_15px_rgba(16,185,129,0.2)]' : 'bg-black/40 border-white/5 text-white/50 hover:bg-white/5 hover:border-white/20'
+                                        Number(activeBorderId) === Number(border.id) ? 'bg-emerald-500/10 border-emerald-500 text-emerald-400 shadow-[0_0_15px_rgba(16,185,129,0.2)]' : 'bg-black/40 border-white/5 text-white/50 hover:bg-white/5 hover:border-white/20'
                                     ]">
-                                
+
                                 <div class="relative w-12 h-12 overflow-visible shrink-0" style="width: 3rem; height: 3rem;">
-                                    <div class="absolute inset-0 z-0 overflow-hidden rounded-full scale-[1.18]" :class="border.id === 0 ? (activeBorderId === border.id ? 'ring-2 ring-emerald-500' : 'ring-2 ring-white/10') : ''">
+                                    <div class="absolute inset-0 z-0 overflow-hidden rounded-full scale-[1.18]" :class="Number(border.id) === 0 ? (Number(activeBorderId) === 0 ? 'ring-2 ring-emerald-500' : 'ring-2 ring-white/10') : ''">
                                         <img :src="selectedAvatar || 'https://ui-avatars.com/api/?name=' + encodeURIComponent(savedProfile.username || 'User') + '&background=ef4444&color=fff&bold=true'" class="absolute inset-0 h-full w-full object-cover" style="object-fit: cover;">
                                     </div>
-                                    <template x-if="border.id !== 0">
+                                    <template x-if="Number(border.id) !== 0">
                                         <img :src="border.preview" class="absolute inset-0 z-10 h-full w-full object-contain scale-[1.38] pointer-events-none">
                                     </template>
                                     <div x-show="!border.owned" class="absolute inset-0 z-20 flex scale-[1.18] items-center justify-center rounded-full bg-black/60 backdrop-blur-[1px]">
@@ -124,14 +130,38 @@
                                     </div>
                                 </div>
 
-                                <span class="text-xs font-bold uppercase tracking-wider" x-text="border.name"></span>
-                                
-                                <!-- Checkmark for active -->
-                                <div x-show="activeBorderId === border.id" class="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-emerald-500 text-black flex items-center justify-center shadow-lg z-30">
+                                <span class="text-xs font-bold uppercase tracking-wider truncate max-w-full px-1" x-text="border.name"></span>
+
+                                <div x-show="border.owned && Number(border.id) !== 0 && Number(activeBorderId) !== Number(border.id)"
+                                     class="absolute top-2 left-2 z-30 px-1.5 py-0.5 rounded bg-emerald-500/15 border border-emerald-500/30 text-[8px] font-black uppercase tracking-widest text-emerald-400">
+                                    Owned
+                                </div>
+
+                                <div x-show="Number(activeBorderId) === Number(border.id)" class="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-emerald-500 text-black flex items-center justify-center shadow-lg z-30">
                                     <span class="material-symbols-outlined text-[14px] font-bold">check</span>
                                 </div>
                             </button>
                         </template>
+                        <template x-for="i in borderSlotFillers" :key="'border-pad-'+i">
+                            <div class="rounded-xl border border-transparent p-4 invisible pointer-events-none" aria-hidden="true"></div>
+                        </template>
+                    </div>
+                    <div class="flex items-center justify-center gap-1.5 mt-4" x-show="borderPageCount > 1" x-cloak>
+                        <button type="button" @click="setBorderPage(borderPage - 1)" :disabled="borderPage <= 1"
+                                class="w-8 h-8 rounded-lg border border-white/10 bg-white/5 text-white/70 hover:bg-white/10 hover:text-white disabled:opacity-30 disabled:pointer-events-none flex items-center justify-center transition-colors">
+                            <span class="material-symbols-outlined text-[18px]">chevron_left</span>
+                        </button>
+                        <template x-for="page in borderPageNumbers" :key="'border-page-'+page">
+                            <button type="button" @click="setBorderPage(page)"
+                                    class="min-w-8 h-8 px-2 rounded-lg text-[11px] font-bold transition-colors"
+                                    :class="page === borderPage ? 'bg-emerald-500 text-black shadow-[0_0_12px_rgba(16,185,129,0.35)]' : 'bg-white/5 border border-white/10 text-white/60 hover:text-white hover:bg-white/10'">
+                                <span x-text="page"></span>
+                            </button>
+                        </template>
+                        <button type="button" @click="setBorderPage(borderPage + 1)" :disabled="borderPage >= borderPageCount"
+                                class="w-8 h-8 rounded-lg border border-white/10 bg-white/5 text-white/70 hover:bg-white/10 hover:text-white disabled:opacity-30 disabled:pointer-events-none flex items-center justify-center transition-colors">
+                            <span class="material-symbols-outlined text-[18px]">chevron_right</span>
+                        </button>
                     </div>
                 </div>
             </div>

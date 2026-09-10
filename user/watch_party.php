@@ -20,12 +20,14 @@ try {
 } catch (Throwable $e) {
     error_log('watch_party profile media: ' . $e->getMessage());
 }
+session_write_close();
 ?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <?php include __DIR__ . '/../frontend/components/head_boot.php'; ?>
     <title>Nexus - Watch Party</title>
     
     <script>
@@ -694,11 +696,7 @@ try {
     <?php include __DIR__ . '/report_room_modal.php'; ?>
 </div>
 
-    <script src="https://unpkg.com/@barba/core@2.9.7/dist/barba.umd.js" crossorigin="anonymous"></script>
-<!-- Your external script file loaded at the bottom of the body -->
-
-    
-    <script src="../js/barba_setup.js?v=9"></script>
+    <?php include __DIR__ . '/../frontend/components/barba_scripts.php'; ?>
    
 
 

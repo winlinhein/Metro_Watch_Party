@@ -56,7 +56,7 @@
                         </div>
 
                         <!-- Watchlist Button Overlay -->
-                        <button @click.stop="isGuest ? window.location.href='../frontend/login.php' : toggleWatchlist(movie)" 
+                        <button @click.stop="isGuest ? nexusNavigate('../frontend/login.php') : toggleWatchlist(movie)" 
                                 class="absolute top-4 right-4 z-40 group/watchlist w-10 h-10 flex items-center justify-center rounded-xl backdrop-blur-xl border transition-all duration-500 overflow-hidden transform-gpu"
                                 :class="movie.inWatchlist ? 'bg-indigo-500/20 border-indigo-400/50 shadow-[0_0_20px_rgba(99,102,241,0.5)]' : 'bg-black/40 border-white/10 hover:border-indigo-500/50 hover:bg-black/60'">
                             <span class="material-symbols-outlined relative z-10 transition-all duration-500 transform group-hover/watchlist:scale-110"
@@ -182,7 +182,7 @@
                                     <h2 class="text-3xl font-black text-white" x-text="selectedMovie?.title"></h2>
                                     
                                     <!-- NEW: Watchlist Button inside Modal -->
-                                    <button @click="isGuest ? window.location.href='../frontend/login.php' : toggleWatchlist(selectedMovie)" 
+                                    <button @click="isGuest ? nexusNavigate('../frontend/login.php') : toggleWatchlist(selectedMovie)" 
                                             class="px-3 py-1.5 rounded-xl border flex items-center gap-1.5 text-xs font-bold transition-all duration-300"
                                             :class="selectedMovie?.inWatchlist ? 'bg-indigo-500/20 text-indigo-400 border-indigo-500/40 shadow-[0_0_15px_rgba(99,102,241,0.3)]' : 'bg-white/5 text-white/70 hover:text-white border-white/10 hover:border-indigo-500/40'">
                                         <span class="material-symbols-outlined text-[16px]"
@@ -192,7 +192,7 @@
                                     </button>
                                     
                                     <!-- Host Party Button inside Modal -->
-                                    <button @click="isGuest ? window.location.href='../frontend/login.php' : createParty(selectedMovie)"
+                                    <button @click="isGuest ? nexusNavigate('../frontend/login.php') : createParty(selectedMovie)"
                                             class="px-3 py-1.5 rounded-xl border border-red-500/40 bg-red-500/10 text-red-400 hover:bg-red-500 hover:text-white flex items-center gap-1.5 text-xs font-bold transition-all duration-300 shadow-[0_0_15px_rgba(239,68,68,0.1)] hover:shadow-[0_0_25px_rgba(239,68,68,0.4)]">
                                         <span class="material-symbols-outlined text-[16px]">celebration</span>
                                         <span>Host Party</span>
@@ -323,7 +323,7 @@
                                                 </div>
                                                 <div class="flex items-center gap-2">
                                                     <span class="text-[10px] text-white/40" x-text="comment.created_at || ''"></span>
-                                                    <button @click="isGuest ? window.location.href='../frontend/login.php' : openReportItemModal(comment.comment_id || comment.id, 'comment')" class="opacity-0 group-hover:opacity-100 text-white/30 hover:text-red-500 transition-all focus:opacity-100" title="Report Comment">
+                                                    <button @click="isGuest ? nexusNavigate('../frontend/login.php') : openReportItemModal(comment.comment_id || comment.id, 'comment')" class="opacity-0 group-hover:opacity-100 text-white/30 hover:text-red-500 transition-all focus:opacity-100" title="Report Comment">
                                                         <span class="material-symbols-outlined text-[16px]">flag</span>
                                                     </button>
                                                 </div>
@@ -333,11 +333,11 @@
 
                                             <!-- Like & Reply Buttons -->
                                             <div class="flex items-center gap-4 mt-2 pt-2 border-t border-white/5 text-[11px]">
-                                                <button @click="isGuest ? window.location.href='../frontend/login.php' : likeComment(comment.id || comment.comment_id)"  class="flex items-center gap-1 text-white/50 hover:text-red-400 transition-colors">
+                                                <button @click="isGuest ? nexusNavigate('../frontend/login.php') : likeComment(comment.id || comment.comment_id)"  class="flex items-center gap-1 text-white/50 hover:text-red-400 transition-colors">
                                                     <span class="material-symbols-outlined text-[14px]" :class="comment.is_liked ? 'text-red-500' : ''" :style="comment.is_liked ? 'font-variation-settings: \'FILL\' 1;' : ''">favorite</span>
                                                     <span x-text="comment.likes_count || 0"></span>
                                                 </button>
-                                                <button @click="isGuest ? window.location.href='../frontend/login.php' : replyingToCommentId = replyingToCommentId === (comment.id || comment.comment_id) ? null : (comment.id || comment.comment_id)"  class="text-white/50 hover:text-white transition-colors">Reply</button>
+                                                <button @click="isGuest ? nexusNavigate('../frontend/login.php') : replyingToCommentId = replyingToCommentId === (comment.id || comment.comment_id) ? null : (comment.id || comment.comment_id)"  class="text-white/50 hover:text-white transition-colors">Reply</button>
                                                 
                                                 <template x-if="comment.replies && comment.replies.length > 0">
                                                     <button @click="comment.show_replies = comment.show_replies === undefined ? false : !comment.show_replies" 
@@ -400,7 +400,7 @@
                                                             </div>
                                                             <div class="flex items-center gap-2">
                                                                 <span class="text-[9px] text-white/30" x-text="reply.created_at || ''"></span>
-                                                                <button @click="isGuest ? window.location.href='../frontend/login.php' : openReportItemModal(reply.comment_id || reply.id || reply.reply_id, 'reply')" class="opacity-0 group-hover:opacity-100 text-white/30 hover:text-red-500 transition-all focus:opacity-100" title="Report Reply">
+                                                                <button @click="isGuest ? nexusNavigate('../frontend/login.php') : openReportItemModal(reply.comment_id || reply.id || reply.reply_id, 'reply')" class="opacity-0 group-hover:opacity-100 text-white/30 hover:text-red-500 transition-all focus:opacity-100" title="Report Reply">
                                                                     <span class="material-symbols-outlined text-[14px]">flag</span>
                                                                 </button>
                                                             </div>
