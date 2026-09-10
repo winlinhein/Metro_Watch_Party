@@ -532,11 +532,9 @@ session_write_close();
             const contentArea = document.getElementById('content-area');
             
             if (document.fullscreenElement === contentArea) {
-                // Move cursors to content area so they show in fullscreen
                 if (cursorGlow) contentArea.appendChild(cursorGlow);
                 if (innerCursor) contentArea.appendChild(innerCursor);
             } else {
-                // Move them back to body
                 if (cursorGlow) document.body.appendChild(cursorGlow);
                 if (innerCursor) document.body.appendChild(innerCursor);
             }

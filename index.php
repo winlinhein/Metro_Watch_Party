@@ -436,7 +436,7 @@ if ($sessionAuthed && $sessionUserId > 0 && in_array($sessionRole, ['user', 'adm
     <!-- Navigation -->
     <nav class="home-nav fixed top-0 left-0 right-0 z-50 glass-nav" :class="navScrolled && 'is-scrolled'">
         <div class="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
-            <a href="/index.php" data-barba-prevent class="flex items-center gap-3 group cursor-pointer">
+            <a href="/index.php" class="flex items-center gap-3 group cursor-pointer">
                 <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-indigo-500 to-red-600 flex items-center justify-center shadow-[0_0_20px_rgba(239,68,68,0.4)] group-hover:scale-110 transition-transform duration-500">
                     <span class="material-symbols-outlined text-white">movie</span>
                 </div>
@@ -463,7 +463,7 @@ if ($sessionAuthed && $sessionUserId > 0 && in_array($sessionRole, ['user', 'adm
 
             <div class="hidden md:flex items-center gap-3">
                 <?php if ($homeLoggedIn): ?>
-                <a href="<?php echo htmlspecialchars($homeDashboardUrl, ENT_QUOTES, 'UTF-8'); ?>" data-barba-prevent class="flex items-center gap-3 pl-1 pr-3 py-1 rounded-full bg-white/5 border border-white/10 hover:bg-white/10 hover:border-white/20 transition-all duration-300 cursor-pointer group">
+                <a href="<?php echo htmlspecialchars($homeDashboardUrl, ENT_QUOTES, 'UTF-8'); ?>" class="flex items-center gap-3 pl-1 pr-3 py-1 rounded-full bg-white/5 border border-white/10 hover:bg-white/10 hover:border-white/20 transition-all duration-300 cursor-pointer group">
                     <div class="relative w-10 h-10 overflow-visible shrink-0" style="width: 2.5rem; height: 2.5rem;">
                         <div class="absolute inset-0 z-0 overflow-hidden rounded-full scale-[1.15]<?php echo $homeBorderPreview === '' ? ' ring-1 ring-white/20' : ''; ?>">
                             <img src="<?php echo htmlspecialchars($homeAvatarUrl, ENT_QUOTES, 'UTF-8'); ?>" alt="" class="absolute inset-0 h-full w-full object-cover">
@@ -507,7 +507,7 @@ if ($sessionAuthed && $sessionUserId > 0 && in_array($sessionRole, ['user', 'adm
                 <a href="#contact" @click="mobileMenuOpen = false" class="text-sm font-bold text-white/80 px-5 py-3 rounded-xl bg-white/5 border border-white/10">Contact</a>
                 <div class="h-px w-full bg-white/10 my-1"></div>
                 <?php if ($homeLoggedIn): ?>
-                <a href="<?php echo htmlspecialchars($homeDashboardUrl, ENT_QUOTES, 'UTF-8'); ?>" data-barba-prevent class="flex items-center gap-3 px-3 py-2 rounded-xl bg-white/5 border border-white/10">
+                <a href="<?php echo htmlspecialchars($homeDashboardUrl, ENT_QUOTES, 'UTF-8'); ?>" class="flex items-center gap-3 px-3 py-2 rounded-xl bg-white/5 border border-white/10">
                     <div class="relative w-10 h-10 overflow-visible shrink-0" style="width: 2.5rem; height: 2.5rem;">
                         <div class="absolute inset-0 z-0 overflow-hidden rounded-full scale-[1.15]<?php echo $homeBorderPreview === '' ? ' ring-1 ring-white/20' : ''; ?>">
                             <img src="<?php echo htmlspecialchars($homeAvatarUrl, ENT_QUOTES, 'UTF-8'); ?>" alt="" class="absolute inset-0 h-full w-full object-cover">
@@ -565,12 +565,12 @@ if ($sessionAuthed && $sessionUserId > 0 && in_array($sessionRole, ['user', 'adm
 
                 <div class="home-hero-actions flex flex-wrap items-center gap-4">
                     <?php if ($homeLoggedIn): ?>
-                    <a href="<?php echo htmlspecialchars($homeDashboardUrl, ENT_QUOTES, 'UTF-8'); ?>" data-barba-prevent class="home-magnetic animated-border px-8 py-4 font-bold text-white flex items-center gap-3 group cursor-pointer">
+                    <a href="<?php echo htmlspecialchars($homeDashboardUrl, ENT_QUOTES, 'UTF-8'); ?>" class="home-magnetic animated-border px-8 py-4 font-bold text-white flex items-center gap-3 group cursor-pointer">
                         <span class="material-symbols-outlined">play_arrow</span>
                         Go to Dashboard
                     </a>
                     <?php else: ?>
-                    <a href="backend/guest_login.php" class="home-magnetic animated-border px-8 py-4 font-bold text-white flex items-center gap-3 group cursor-pointer">
+                    <a href="backend/guest_login.php" class="home-magnetic animated-border px-8 py-4 font-bold text-white flex items-center gap-3 group">
                         <span class="material-symbols-outlined">play_arrow</span>
                         Launch Nexus
                     </a>
@@ -1226,7 +1226,7 @@ if ($sessionAuthed && $sessionUserId > 0 && in_array($sessionRole, ['user', 'adm
             <p class="text-white/50 mb-7 max-w-xl mx-auto text-sm">Open a room in seconds. No installs. Just a link, a film, and a crew on the same timeline.</p>
             <div class="flex flex-wrap justify-center gap-3">
                 <?php if ($homeLoggedIn): ?>
-                <a href="<?php echo htmlspecialchars($homeDashboardUrl, ENT_QUOTES, 'UTF-8'); ?>" data-barba-prevent class="home-magnetic animated-border px-7 py-3.5 font-bold text-white inline-flex items-center gap-2 cursor-pointer">
+                <a href="<?php echo htmlspecialchars($homeDashboardUrl, ENT_QUOTES, 'UTF-8'); ?>" class="home-magnetic animated-border px-7 py-3.5 font-bold text-white inline-flex items-center gap-2 cursor-pointer">
                     Open dashboard <span class="material-symbols-outlined">dashboard</span>
                 </a>
                 <?php else: ?>
@@ -1328,7 +1328,7 @@ if ($sessionAuthed && $sessionUserId > 0 && in_array($sessionRole, ['user', 'adm
             </div>
 
             <div class="flex flex-col md:flex-row items-center justify-between gap-6 mb-10">
-                <a href="/index.php" data-barba-prevent class="flex items-center gap-3 cursor-pointer group">
+                <a href="/index.php" class="flex items-center gap-3 cursor-pointer group">
                     <div class="w-8 h-8 rounded-lg bg-red-600 flex items-center justify-center group-hover:scale-110 transition-transform">
                         <span class="material-symbols-outlined text-white text-[18px]">movie</span>
                     </div>
@@ -1340,7 +1340,7 @@ if ($sessionAuthed && $sessionUserId > 0 && in_array($sessionRole, ['user', 'adm
                     <a href="#premium" class="text-sm text-white/50 hover:text-white transition-colors cursor-pointer">Premium</a>
                     <a href="#how-it-works" class="text-sm text-white/50 hover:text-white transition-colors cursor-pointer">How it works</a>
                     <?php if ($homeLoggedIn): ?>
-                    <a href="<?php echo htmlspecialchars($homeDashboardUrl, ENT_QUOTES, 'UTF-8'); ?>" data-barba-prevent class="text-sm text-white/50 hover:text-white transition-colors cursor-pointer">Dashboard</a>
+                    <a href="<?php echo htmlspecialchars($homeDashboardUrl, ENT_QUOTES, 'UTF-8'); ?>" class="text-sm text-white/50 hover:text-white transition-colors cursor-pointer">Dashboard</a>
                     <?php else: ?>
                     <a href="frontend/login.php" class="text-sm text-white/50 hover:text-white transition-colors cursor-pointer">Sign In</a>
                     <?php endif; ?>
