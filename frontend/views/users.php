@@ -153,16 +153,11 @@
                                     </div>
 
                                     <div
-                                        class="absolute -bottom-1 -right-1 w-3.5 h-3.5 rounded-full border-2 border-[#030305] transition-colors z-20"
-                                        :class="
-                                            user.status === 'Active'
-                                                ? 'bg-green-500 group-hover:shadow-[0_0_8px_#22c55e]'
-                                                : (
-                                                    user.status === 'Banned'
-                                                        ? 'bg-red-500'
-                                                        : 'bg-yellow-500'
-                                                )
-                                        "
+                                        class="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full z-20"
+                                        :class="isUserOnline(user)
+                                            ? 'bg-emerald-500 shadow-[0_0_6px_#22c55e] ring-1 ring-[#030305]'
+                                            : 'bg-gray-500 ring-1 ring-[#030305]'"
+                                        :title="isUserOnline(user) ? 'Online' : 'Offline'"
                                     ></div>
                                 </div>
 

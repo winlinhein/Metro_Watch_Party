@@ -1,3 +1,26 @@
+function nexusHardNavigateUrl(url) {
+    try {
+        const path = new URL(String(url || ''), window.location.href).pathname.replace(/\/+$/, '') || '/';
+        return (
+            path === '/'
+            || path === '/index.php'
+            || path.endsWith('/index.php')
+            || path.endsWith('/dashboard.php')
+            || path.endsWith('/admin_dashboard.php')
+            || path.endsWith('/watch_party.php')
+            || path.endsWith('/login.php')
+            || path.endsWith('/register.php')
+            || path.endsWith('/otp-login.php')
+            || path.endsWith('/otp-register.php')
+            || path.endsWith('/otp-forgot.php')
+            || path.endsWith('/forgot-password.php')
+            || path.includes('/backend/')
+        );
+    } catch (e) {
+        return false;
+    }
+}
+
 // Barba.js Initialization
 if (typeof barba !== 'undefined') {
     barba.init({
@@ -7,7 +30,7 @@ if (typeof barba !== 'undefined') {
             if (el && el.href && el.href.includes('backend/')) return true;
             const url = href || (el && el.href) || '';
             if (String(url).includes('watch_party.php')) return true;
-            return false;
+            return nexusHardNavigateUrl(url);
         },
         views: [{
             namespace: 'index',
@@ -99,23 +122,7 @@ if (typeof barba !== 'undefined') {
                         document.body.className = newClass;
                     }
 
-                    // Swap inline styles
-                    const oldStyles = document.head.querySelectorAll('style');
-                    oldStyles.forEach(s => s.remove());
-                    htmlDoc.head.querySelectorAll('style').forEach(newStyle => {
-                        const style = document.createElement('style');
-                        style.innerHTML = newStyle.innerHTML;
-                        document.head.appendChild(style);
-                    });
-
-                    // Swap external stylesheets
-                    const newLinkHrefs = Array.from(htmlDoc.head.querySelectorAll('link[rel="stylesheet"]')).map(l => l.href);
-                    document.head.querySelectorAll('link[rel="stylesheet"]').forEach(link => {
-                        if (!newLinkHrefs.includes(link.href)) {
-                            link.remove();
-                        }
-                    });
-                    
+                    // Keep existing styles (Tailwind CDN injects <style> tags). Only add missing sheets.
                     const currentLinks = Array.from(document.head.querySelectorAll('link[rel="stylesheet"]')).map(l => l.href);
                     htmlDoc.head.querySelectorAll('link[rel="stylesheet"]').forEach(newLink => {
                         if (newLink.href && !currentLinks.includes(newLink.href)) {
@@ -126,14 +133,31 @@ if (typeof barba !== 'undefined') {
                         }
                     });
 
-                    // Swap external scripts dynamically
-                    const currentScripts = Array.from(document.querySelectorAll('script')).map(s => s.src).filter(Boolean);
-                    htmlDoc.querySelectorAll('script').forEach(newScript => {
-                        if (newScript.src && !currentScripts.includes(newScript.src)) {
+                    const existingStyleText = new Set(
+                        Array.from(document.head.querySelectorAll('style')).map(s => s.textContent || '')
+                    );
+                    htmlDoc.head.querySelectorAll('style').forEach(newStyle => {
+                        const text = newStyle.textContent || '';
+                        if (!text || existingStyleText.has(text)) return;
+                        const style = document.createElement('style');
+                        style.textContent = text;
+                        document.head.appendChild(style);
+                        existingStyleText.add(text);
+                    });
+
+                    // Do not re-inject the same JS file with a different cache-buster.
+                    const scriptKey = (src) => {
+                        try { return new URL(src, window.location.origin).pathname; } catch (e) { return src; }
+                    };
+                    const currentScripts = Array.from(document.querySelectorAll('script[src]')).map(s => scriptKey(s.src));
+                    htmlDoc.querySelectorAll('script[src]').forEach(newScript => {
+                        const key = scriptKey(newScript.src);
+                        if (key && !currentScripts.includes(key) && !key.includes('nexus_scripts.js')) {
                             const script = document.createElement('script');
                             script.src = newScript.src;
                             script.type = newScript.type || 'text/javascript';
                             document.body.appendChild(script);
+                            currentScripts.push(key);
                         }
                     });
                 }
@@ -148,12 +172,12 @@ if (typeof barba !== 'undefined') {
                     window.initInteractiveElements();
                 }
                 
-                // Re-initialize GSAP scoped strictly to the new container
-                if (typeof initAnimations === 'function') {
+                const ns = data.next && data.next.namespace;
+                if (ns !== 'index' && typeof initAnimations === 'function') {
                     initAnimations(data.next.container);
                 }
                 
-                if (typeof initLocalAnimations === 'function') {
+                if (ns !== 'index' && typeof initLocalAnimations === 'function') {
                     initLocalAnimations(data.next.container);
                 }
 
@@ -195,6 +219,11 @@ if (typeof barba !== 'undefined') {
 
 
 document.addEventListener('DOMContentLoaded', () => {
+    const ns = document.querySelector('[data-barba-namespace]')?.getAttribute('data-barba-namespace');
+    if (ns === 'index') {
+        if (typeof gsap !== 'undefined') gsap.config({ nullTargetWarn: false });
+        return;
+    }
     if (typeof initAnimations === 'function') {
         initAnimations(document);
     }
@@ -211,10 +240,11 @@ document.addEventListener('submit', async (e) => {
         if (e.defaultPrevented) return;
         if (form.hasAttribute('data-barba-prevent')) return;
         if (typeof barba === 'undefined' || !barba.go) return;
+        const action = form.getAttribute('action') || window.location.href;
+        if (nexusHardNavigateUrl(action)) return;
         
         e.preventDefault();
         const formData = new FormData(form);
-        const action = form.getAttribute('action') || window.location.href;
         const method = (form.getAttribute('method') || 'GET').toUpperCase();
         
         if (typeof window.showPageLoader === 'function') window.showPageLoader();
@@ -231,6 +261,10 @@ document.addEventListener('submit', async (e) => {
             
             const response = await fetch(finalAction, fetchOpts);
             const finalUrl = response.url;
+            if (nexusHardNavigateUrl(finalUrl)) {
+                window.location.assign(finalUrl);
+                return;
+            }
             
             // Re-hide loader is handled by Barba's enter hook
             barba.go(finalUrl);
@@ -248,6 +282,7 @@ document.addEventListener('click', async (e) => {
     if (link && link.href && link.href.includes('backend/')) {
         if (e.defaultPrevented) return;
         if (link.hasAttribute('data-barba-prevent')) return;
+        if (nexusHardNavigateUrl(link.href)) return;
         if (typeof barba === 'undefined' || !barba.go) return;
         
         e.preventDefault();
@@ -256,6 +291,10 @@ document.addEventListener('click', async (e) => {
         
         try {
             const response = await fetch(link.href, { redirect: 'follow', credentials: 'same-origin' });
+            if (nexusHardNavigateUrl(response.url)) {
+                window.location.assign(response.url);
+                return;
+            }
             barba.go(response.url);
         } catch(err) {
             console.error('Link fetch error:', err);

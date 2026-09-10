@@ -23,9 +23,9 @@ if ($roomId <= 0 || $peerId === '') {
 
 try {
     require_once __DIR__ . '/../conn.php';
-    require_once __DIR__ . '/../pusher_helper.php';
-    require_once __DIR__ . '/../profile_media_helper.php';
     require_once __DIR__ . '/../admin_rooms_helper.php';
+    require_once __DIR__ . '/../presence_helper.php';
+    require_once __DIR__ . '/../room_schema_helper.php';
 
     $roomStmt = $conn->prepare("SELECT room_id, host_id, status FROM rooms WHERE room_id = :id LIMIT 1");
     $roomStmt->execute(['id' => $roomId]);
@@ -36,29 +36,7 @@ try {
         exit;
     }
 
-    $conn->exec("CREATE TABLE IF NOT EXISTS room_participants (
-        room_id INT NOT NULL,
-        user_id INT NOT NULL,
-        user_name VARCHAR(191) NOT NULL DEFAULT '',
-        peer_id VARCHAR(64) NOT NULL,
-        last_seen DATETIME NOT NULL,
-        forced_muted TINYINT(1) NOT NULL DEFAULT 0,
-        PRIMARY KEY (peer_id),
-        KEY room_seen (room_id, last_seen)
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
-
-    foreach (['forced_muted', 'forced_video_off', 'chat_banned'] as $col) {
-        try {
-            $conn->exec("ALTER TABLE room_participants ADD COLUMN {$col} TINYINT(1) NOT NULL DEFAULT 0");
-        } catch (Throwable $ignore) {}
-    }
-
-    $conn->exec("CREATE TABLE IF NOT EXISTS room_kicks (
-        room_id INT NOT NULL,
-        user_id INT NOT NULL,
-        kicked_at DATETIME NOT NULL,
-        PRIMARY KEY (room_id, user_id)
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+    ensureRoomParticipantSchema($conn);
 
     $kickStmt = $conn->prepare("SELECT 1 FROM room_kicks WHERE room_id = :room_id AND user_id = :user_id LIMIT 1");
     $kickStmt->execute(['room_id' => $roomId, 'user_id' => $userId]);
@@ -113,8 +91,22 @@ try {
           AND last_seen > DATE_SUB(NOW(), INTERVAL 45 SECOND)
     ");
     $peerStmt->execute(['room_id' => $roomId, 'peer_id' => $peerId]);
-    $peers = attachProfileMedia($conn, $peerStmt->fetchAll(PDO::FETCH_ASSOC));
-    $selfMedia = getUserProfileMedia($conn, $userId);
+    $peers = $peerStmt->fetchAll(PDO::FETCH_ASSOC);
+
+    $selfMedia = ['avatar_url' => '', 'border_preview' => ''];
+    if (!$heartbeat) {
+        require_once __DIR__ . '/../profile_media_helper.php';
+        $peers = attachProfileMedia($conn, $peers);
+        $selfMedia = getUserProfileMedia($conn, $userId);
+        require_once __DIR__ . '/../notifications_helper.php';
+        deleteMatchingNotifications($conn, $userId, [
+            'types' => ['party_invite', 'join_request_accepted'],
+            'room_id' => $roomId,
+        ]);
+        touchUserPresence($conn, $userId);
+    } else {
+        $conn->prepare("UPDATE users SET last_seen = NOW() WHERE user_id = ?")->execute([$userId]);
+    }
 
     $payload = [
         'peerId' => $peerId,
@@ -129,6 +121,7 @@ try {
     ];
 
     if (!$heartbeat || !$alreadyThere) {
+        require_once __DIR__ . '/../pusher_helper.php';
         triggerPusherEvent("watch-party-{$roomId}", 'peer-join', $payload);
         broadcastAdminRoomsChanged('join', [
             'room_id' => $roomId,

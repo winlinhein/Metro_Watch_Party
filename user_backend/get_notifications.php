@@ -26,7 +26,7 @@ try {
             n.created_at,
             u.user_name AS sender_name
         FROM notifications n
-        JOIN users u ON u.user_id = n.sender_id
+        LEFT JOIN users u ON u.user_id = n.sender_id
         WHERE n.user_id = :userId
         ORDER BY n.created_at DESC
         LIMIT 30
@@ -35,19 +35,24 @@ try {
     $notifications = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
     // Attach sender avatar/border using sender_id as the user key
-    $mediaRows = array_map(static function ($n) {
-        return ['user_id' => (int)$n['sender_id']];
-    }, $notifications);
+    $mediaRows = [];
+    foreach ($notifications as $n) {
+        if (!empty($n['sender_id'])) {
+            $mediaRows[] = ['user_id' => (int)$n['sender_id']];
+        }
+    }
     $mediaByUser = [];
     foreach (attachProfileMedia($conn, $mediaRows) as $m) {
         $mediaByUser[(int)$m['user_id']] = $m;
     }
 
     foreach ($notifications as &$n) {
-        $sid = (int)$n['sender_id'];
+        $sid = (int)($n['sender_id'] ?? 0);
         $n['avatar_url'] = $mediaByUser[$sid]['avatar_url'] ?? '';
         $n['border_preview'] = $mediaByUser[$sid]['border_preview'] ?? '';
         $n['border_id'] = (int)($mediaByUser[$sid]['border_id'] ?? 0);
+        $n['sender_name'] = $n['sender_name'] ?? 'System';
+        $n['is_read'] = (int)($n['is_read'] ?? 0);
 
         // Extract room_id from party/join messages: "...|room:123" or "...|room:123|req:45"
         $n['room_id'] = null;

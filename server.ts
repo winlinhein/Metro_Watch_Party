@@ -267,6 +267,10 @@ app.post("/user_backend/clear_notifications.php", (req, res) => {
   res.json({ success: true });
 });
 
+app.post("/user_backend/delete_notification.php", (req, res) => {
+  res.json({ success: true });
+});
+
 app.get("/user_backend/get_chat_history.php", (req, res) => {
   const friendId = req.query.friend_id;
   res.json({
@@ -303,6 +307,13 @@ app.post("/user_backend/mark_notifications_read.php", (req, res) => {
 });
 
 app.get("/user_backend/get_notifications.php", (req, res) => {
+  res.json({
+    success: true,
+    notifications: []
+  });
+});
+
+app.get("/backend/get_admin_notifications.php", (req, res) => {
   res.json({
     success: true,
     notifications: []

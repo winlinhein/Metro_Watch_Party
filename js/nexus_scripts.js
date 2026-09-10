@@ -546,6 +546,34 @@ function userDashboard() {
         },
 
         // API Fetching
+        hydrateLocalCaches() {
+            try {
+                const movies = JSON.parse(sessionStorage.getItem('nexus_movies_cache') || 'null');
+                if (Array.isArray(movies) && movies.length && !(this.movies || []).length) {
+                    this.movies = movies.map(m => this._normalizeMovie(m));
+                    this.syncWatchlistState();
+                }
+            } catch (e) {}
+            try {
+                const friends = JSON.parse(sessionStorage.getItem('nexus_friends_cache') || 'null');
+                if (friends && Array.isArray(friends.friends) && !(this.friends || []).length) {
+                    this.friends = friends.friends;
+                    this.pendingRequests = friends.pending_requests || [];
+                    this.updateFriendsCount();
+                }
+            } catch (e) {}
+            try {
+                const rooms = JSON.parse(sessionStorage.getItem('nexus_friend_rooms_cache') || 'null');
+                if (Array.isArray(rooms) && rooms.length && !(this.friendRooms || []).length) {
+                    this.friendRooms = rooms;
+                }
+            } catch (e) {}
+        },
+
+        persistMoviesCache() {
+            try { sessionStorage.setItem('nexus_movies_cache', JSON.stringify(this.movies || [])); } catch (e) {}
+        },
+
         async fetchMovies() {
             try {
                 const response = await fetch('/user_backend/movies_api.php');
@@ -576,6 +604,7 @@ function userDashboard() {
 
                 this.movies = rawMovies.map(m => this._normalizeMovie(m));
                 this.syncWatchlistState();
+                this.persistMoviesCache();
             } catch (e) {
                 console.error("Failed to load movies from database:", e);
                 this.movieError = "Failed to load movies. Please try again.";
@@ -899,16 +928,17 @@ function userDashboard() {
 
         // Command Center Metrics
         statsLoading: true, stats: [
-            { label: 'Total Watch Time', value: 124, suffix: 'H', icon: 'timer', colorClass: 'bg-red-500/10 text-red-500 border border-red-500/20 group-hover:bg-red-500/20 group-hover:shadow-[0_0_20px_rgba(239,68,68,0.3)]', trendClass: 'text-green-400 border-green-400/20', trend: '+12%', desc: 'vs last week' },
-            { label: 'Sessions Hosted', value: 28, suffix: '', icon: 'cell_tower', colorClass: 'bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 group-hover:bg-indigo-500/20 group-hover:shadow-[0_0_20px_rgba(79,70,229,0.3)]', trendClass: 'text-green-400 border-green-400/20', trend: '+3', desc: 'new this week' },
+            { label: 'Total Watch Time', value: 0, suffix: 'H', icon: 'timer', colorClass: 'bg-red-500/10 text-red-500 border border-red-500/20 group-hover:bg-red-500/20 group-hover:shadow-[0_0_20px_rgba(239,68,68,0.3)]', trendClass: 'text-green-400 border-green-400/20', trend: '+12%', desc: 'vs last week' },
+            { label: 'Sessions Hosted', value: 0, suffix: '', icon: 'cell_tower', colorClass: 'bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 group-hover:bg-indigo-500/20 group-hover:shadow-[0_0_20px_rgba(79,70,229,0.3)]', trendClass: 'text-green-400 border-green-400/20', trend: '+3', desc: 'new this week' },
             { label: 'Friends', value: 0, suffix: '', icon: 'group', colorClass: 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 group-hover:bg-emerald-500/20 group-hover:shadow-[0_0_20px_rgba(16,185,129,0.3)]', trendClass: 'text-emerald-400 border-emerald-400/20', trend: 'Online', desc: 'active', action: 'showFriendsPanel = true' },
-            { label: 'Quests', value: 1250, suffix: ' PTS', icon: 'stars', colorClass: 'bg-yellow-500/10 text-yellow-400 border border-yellow-500/20 group-hover:bg-yellow-500/20 group-hover:shadow-[0_0_20px_rgba(234,179,8,0.3)]', trendClass: 'text-yellow-400 border-yellow-400/20', trend: 'Available', desc: 'Daily quests', action: 'showQuestsPanel = true' }
+            { label: 'Quests', value: 0, suffix: ' PTS', icon: 'stars', colorClass: 'bg-yellow-500/10 text-yellow-400 border border-yellow-500/20 group-hover:bg-yellow-500/20 group-hover:shadow-[0_0_20px_rgba(234,179,8,0.3)]', trendClass: 'text-yellow-400 border-yellow-400/20', trend: 'Available', desc: 'Daily quests', action: 'showQuestsPanel = true' }
         ],
 
         // Watch Party Sessions, Watchlist & Activity Feed
         upcomingParties: [],
         friendRooms: [],
         friendRoomsLoading: false,
+        joiningRoomId: null,
         watchlist: [],
         networkTraffic: [
             { day: 'Mon', reqs: 1250, height: 40 },
@@ -1109,6 +1139,12 @@ function userDashboard() {
                     this.persistAvatarCache();
                     this.updateFriendsCount();
                     this.initAllChatSubscriptions();
+                    try {
+                        sessionStorage.setItem('nexus_friends_cache', JSON.stringify({
+                            friends: this.friends,
+                            pending_requests: this.pendingRequests
+                        }));
+                    } catch (e) {}
                 }
             } catch (err) {
                 if (err.name === 'AbortError') return;
@@ -1120,7 +1156,104 @@ function userDashboard() {
             }
         },
 
+        isUserOnline(user) {
+            if (!user) return false;
+            return Number(user.is_online) === 1 || user.is_online === true;
+        },
+
+        get onlineFriendsCount() {
+            return (this.friends || []).filter(f => this.isUserOnline(f)).length;
+        },
+
+        createParty(movieId = null) {
+            return window.createParty(movieId);
+        },
+
+        applyOnlineIds(ids) {
+            const set = new Set((ids || []).map(Number));
+            const mark = (row) => {
+                const id = Number(row.user_id || row.id || 0);
+                return { ...row, is_online: set.has(id) ? 1 : 0 };
+            };
+            if (Array.isArray(this.friends)) this.friends = this.friends.map(mark);
+            if (Array.isArray(this.pendingRequests)) this.pendingRequests = this.pendingRequests.map(mark);
+            if (Array.isArray(this.searchResults)) this.searchResults = this.searchResults.map(mark);
+        },
+
+        applyPresenceUpdate(userId, isOnline) {
+            const id = Number(userId);
+            if (!id) return;
+            const flag = Number(isOnline) ? 1 : 0;
+            const patch = (list) => Array.isArray(list)
+                ? list.map((row) => Number(row.user_id || row.id || 0) === id ? { ...row, is_online: flag } : row)
+                : list;
+            this.friends = patch(this.friends);
+            this.pendingRequests = patch(this.pendingRequests);
+            this.searchResults = patch(this.searchResults);
+        },
+
+        bindPresenceChannel() {
+            if (!this.pusherClient || this._presenceChannelBound) return;
+            this._presenceChannelBound = true;
+            const channel = this.pusherClient.subscribe('presence-status');
+            channel.bind('presence_update', (data) => {
+                this.applyPresenceUpdate(data?.user_id, data?.is_online);
+            });
+        },
+
+        bindPresenceLifecycle() {
+            if (this.isGuest || this._presenceLifecycleBound) return;
+            this._presenceLifecycleBound = true;
+            const goOffline = () => {
+                try {
+                    const body = new Blob(['{}'], { type: 'application/json' });
+                    if (!navigator.sendBeacon('/user_backend/offline.php', body)) {
+                        fetch('/user_backend/offline.php', { method: 'POST', credentials: 'same-origin', keepalive: true });
+                    }
+                } catch (e) {}
+            };
+            window.addEventListener('pagehide', goOffline);
+            window.addEventListener('pageshow', () => {
+                this.touchPresence();
+            });
+        },
+
+        async touchPresence() {
+            if (this.isGuest) return;
+            try {
+                await fetch('/user_backend/heartbeat.php', { method: 'POST', credentials: 'same-origin' });
+            } catch (e) {}
+        },
+
+        async refreshOnlineStatus() {
+            if (this.isGuest) return;
+            try {
+                const res = await fetch('/user_backend/get_online_users.php', { credentials: 'same-origin' });
+                const data = await res.json();
+                if (data && data.success) this.applyOnlineIds(data.online_ids || []);
+            } catch (e) {}
+        },
+
+        startPresenceHeartbeat() {
+            if (this.isGuest) return;
+            this.bindPresenceChannel();
+            this.bindPresenceLifecycle();
+            const tick = () => {
+                this.touchPresence();
+                this.refreshOnlineStatus();
+            };
+            tick();
+            if (this._presenceTimer) clearInterval(this._presenceTimer);
+            this._presenceTimer = setInterval(tick, 12000);
+        },
+
         // Fetch Notifications
+        syncUnreadFromList() {
+            this.unreadNotifCount = this.showNotifications
+                ? 0
+                : this.notifications.filter(n => Number(n.is_read) === 0).length;
+        },
+
         async fetchNotifications() {
             try {
                 const response = await fetch('/user_backend/get_notifications.php');
@@ -1130,10 +1263,31 @@ function userDashboard() {
                 if (data.success && Array.isArray(data.notifications)) {
                     this.notifications = data.notifications.map(n => this.applyCachedMedia(n, 'sender_id'));
                     this.persistAvatarCache();
-                    this.unreadNotifCount = this.notifications.filter(n => Number(n.is_read) === 0).length;
+                    this.syncUnreadFromList();
                 }
             } catch (err) {
                 console.error('Notification error:', err);
+            }
+        },
+
+        async toggleNotificationPanel() {
+            this.showNotifications = !this.showNotifications;
+            if (!this.showNotifications) return;
+            this.unreadNotifCount = 0;
+            await this.fetchNotifications();
+            await this.markNotificationsAsRead();
+        },
+
+        async markNotificationsAsRead() {
+            const hasUnread = this.notifications.some(n => Number(n.is_read) === 0) || this.unreadNotifCount > 0;
+            this.unreadNotifCount = 0;
+            this.notifications = this.notifications.map(n => ({ ...n, is_read: 1 }));
+            if (!hasUnread) return;
+
+            try {
+                await fetch('/user_backend/mark_notifications_read.php', { method: 'POST' });
+            } catch (err) {
+                console.error('Failed to mark notifications read:', err);
             }
         },
 
@@ -1144,13 +1298,120 @@ function userDashboard() {
                 if (data.success) {
                     this.notifications = [];
                     this.unreadNotifCount = 0;
-                    window.showToast('All notifications cleared.', 'success');
+                    if (window.showToast) window.showToast('All notifications cleared.', 'success');
                 }
             } catch (err) {
                 console.error('Failed to clear notifications:', err);
-                // Even if it fails server-side or mock, we can clear locally for UX if we want.
-                this.notifications = [];
-                this.unreadNotifCount = 0;
+            }
+        },
+
+        async deleteNotification(notifId) {
+            if (notifId == null || notifId === '') return;
+            const localId = notifId;
+            const removeLocal = () => {
+                this.notifications = this.notifications.filter(n => String(n.id) !== String(localId));
+                this.syncUnreadFromList();
+            };
+
+            if (String(notifId).startsWith('invite-')) {
+                removeLocal();
+                return;
+            }
+
+            try {
+                const res = await fetch('/user_backend/delete_notification.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ notification_id: Number(notifId) })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    removeLocal();
+                } else {
+                    removeLocal();
+                }
+            } catch (e) {
+                console.warn('Failed to delete notification', e);
+                removeLocal();
+            }
+        },
+
+        removeMatchingNotifications({ types = [], sender_id = null, room_id = null, ids = [] } = {}) {
+            const typeSet = new Set((types || []).map(String));
+            const idSet = new Set((ids || []).map(String).filter(Boolean));
+            const senderId = sender_id == null || sender_id === '' ? null : Number(sender_id);
+            const roomId = room_id == null || room_id === '' ? null : Number(room_id);
+
+            this.notifications = this.notifications.filter((n) => {
+                if (idSet.size && idSet.has(String(n.id))) return false;
+                if (typeSet.size && !typeSet.has(String(n.type))) return true;
+                if (senderId != null && !Number.isNaN(senderId) && Number(n.sender_id) !== senderId) return true;
+                if (roomId != null && !Number.isNaN(roomId) && Number(n.room_id) !== roomId) return true;
+                if (typeSet.size || senderId != null || roomId != null) return false;
+                return true;
+            });
+            this.syncUnreadFromList();
+        },
+
+        async deleteMatchingNotifications(match = {}) {
+            const ids = [...(match.ids || [])];
+            if (match.notification_id) ids.push(match.notification_id);
+            this.removeMatchingNotifications({ ...match, ids });
+            const payload = {};
+            if (match.notification_id && !String(match.notification_id).startsWith('invite-')) {
+                payload.notification_id = Number(match.notification_id);
+            }
+            if (match.types && match.types.length) payload.types = match.types;
+            if (match.sender_id) payload.sender_id = Number(match.sender_id);
+            if (match.room_id) payload.room_id = Number(match.room_id);
+            if (!payload.notification_id && !payload.types && !payload.sender_id && !payload.room_id) {
+                return;
+            }
+            try {
+                const res = await fetch('/user_backend/delete_notification.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                const data = await res.json();
+                if (data && Array.isArray(data.deleted_notification_ids)) {
+                    this.removeMatchingNotifications({ ids: data.deleted_notification_ids });
+                }
+            } catch (e) {
+                console.warn('Failed to delete matching notifications', e);
+            }
+        },
+
+        applyIncomingUserNotification(data) {
+            if (!data || data.type === 'friend_rejected') return;
+
+            const incomingId = data.id;
+            if (incomingId && this.notifications.some(n => String(n.id) === String(incomingId))) {
+                return;
+            }
+
+            const panelOpen = !!this.showNotifications;
+            this.notifications = [
+                {
+                    id: incomingId || Date.now(),
+                    type: data.type,
+                    sender_id: data.sender_id,
+                    sender_name: data.sender_name,
+                    message: data.message,
+                    room_id: data.room_id || null,
+                    request_id: data.request_id || null,
+                    created_at: data.created_at,
+                    avatar_url: data.avatar_url || '',
+                    border_preview: data.border_preview || '',
+                    is_read: panelOpen ? 1 : 0
+                },
+                ...this.notifications
+            ];
+
+            if (panelOpen) {
+                this.markNotificationsAsRead();
+            } else {
+                this.syncUnreadFromList();
             }
         },
 
@@ -1166,27 +1427,21 @@ function userDashboard() {
                 && Number(n.sender_id) === senderId
             );
             if (already) {
-                this.showNotifications = true;
                 return;
             }
 
-            this.notifications = [
-                {
-                    id: detail.id || `invite-${roomId}-${Date.now()}`,
-                    type: 'party_invite',
-                    sender_id: senderId || null,
-                    sender_name: senderName,
-                    message: detail.message || 'invited you to a watch party.',
-                    room_id: roomId,
-                    created_at: detail.created_at || 'Just now',
-                    avatar_url: detail.avatar_url || '',
-                    border_preview: detail.border_preview || '',
-                    is_read: 0
-                },
-                ...this.notifications
-            ];
-            this.unreadNotifCount++;
-            this.showNotifications = true;
+            this.applyIncomingUserNotification({
+                id: detail.id || `invite-${roomId}-${Date.now()}`,
+                type: 'party_invite',
+                sender_id: senderId || null,
+                sender_name: senderName,
+                message: detail.message || 'invited you to a watch party.',
+                room_id: roomId,
+                created_at: detail.created_at || 'Just now',
+                avatar_url: detail.avatar_url || '',
+                border_preview: detail.border_preview || '',
+                is_read: 0
+            });
             if (window.showToast) {
                 window.showToast(`${senderName} invited you to a watch party`, 'info');
             }
@@ -1198,29 +1453,37 @@ function userDashboard() {
                 if (window.showToast) window.showToast('This invite is missing a room.', 'error');
                 return;
             }
-            if (notif?.id) this.dismissNotification(notif.id);
+            this.deleteMatchingNotifications({
+                types: ['party_invite', 'join_request_accepted'],
+                room_id: roomId,
+                notification_id: notif?.id
+            });
             window.location.href = `/user/watch_party.php?room_id=${encodeURIComponent(roomId)}`;
         },
 
         async declinePartyInvite(notif) {
-            if (notif?.id) await this.dismissNotification(notif.id);
-            this.notifications = this.notifications.filter(n => n.id !== notif.id);
-            this.unreadNotifCount = this.notifications.filter(n => Number(n.is_read) === 0).length;
+            await this.deleteMatchingNotifications({
+                types: ['party_invite'],
+                room_id: notif?.room_id,
+                sender_id: notif?.sender_id,
+                notification_id: notif?.id
+            });
             if (window.showToast) window.showToast('Invite declined.', 'info');
         },
 
-        async fetchFriendRooms() {
+        async fetchFriendRooms({ quiet = false } = {}) {
             if (this.isGuest) {
                 this.friendRooms = [];
                 this.friendRoomsLoading = false;
                 return;
             }
-            this.friendRoomsLoading = true;
+            if (!quiet && !(this.friendRooms || []).length) this.friendRoomsLoading = true;
             try {
                 const res = await fetch('/user_backend/get_friend_rooms.php');
                 const data = await res.json();
                 if (data.success) {
                     this.friendRooms = data.rooms || [];
+                    try { sessionStorage.setItem('nexus_friend_rooms_cache', JSON.stringify(this.friendRooms)); } catch (e) {}
                 }
             } catch (e) {
                 console.error('fetchFriendRooms', e);
@@ -1232,29 +1495,50 @@ function userDashboard() {
         enterFriendRoom(party) {
             const roomId = Number(party?.room_id || 0);
             if (!roomId) return;
+            if (typeof window.showPageLoader === 'function') window.showPageLoader();
             window.location.href = `/user/watch_party.php?room_id=${encodeURIComponent(roomId)}`;
         },
 
         async requestJoinRoom(party) {
-            if (!party || party.request_status === 'pending') return;
+            if (!party) return;
             if (party.in_room || party.request_status === 'accepted') {
                 this.enterFriendRoom(party);
                 return;
             }
+            const roomId = Number(party.room_id || 0);
+            if (!roomId || this.joiningRoomId) return;
+            this.joiningRoomId = roomId;
             try {
                 const form = new FormData();
-                form.append('room_id', String(party.room_id));
-                const res = await fetch('/user_backend/request_join.php', { method: 'POST', body: form });
-                const data = await res.json();
+                form.append('room_id', String(roomId));
+                const res = await fetch('/user_backend/request_join.php', {
+                    method: 'POST',
+                    body: form,
+                    credentials: 'same-origin'
+                });
+                const rawText = await res.text();
+                let data = {};
+                try {
+                    data = JSON.parse(rawText);
+                } catch (err) {
+                    console.error('request_join.php returned invalid JSON:', rawText);
+                    throw new Error('Invalid JSON response from server');
+                }
                 if (!data.success) {
                     if (window.showToast) window.showToast(data.message || 'Could not send join request.', 'error');
                     return;
                 }
-                party.request_status = 'pending';
-                this.friendRooms = [...this.friendRooms];
+                this.friendRooms = (this.friendRooms || []).map((room) => {
+                    if (Number(room.room_id) !== roomId) return room;
+                    return { ...room, request_status: 'pending' };
+                });
                 if (window.showToast) window.showToast('Join request sent to the host.', 'success');
+                this.fetchFriendRooms();
             } catch (e) {
+                console.error('requestJoinRoom', e);
                 if (window.showToast) window.showToast('Could not send join request.', 'error');
+            } finally {
+                this.joiningRoomId = null;
             }
         },
 
@@ -1271,9 +1555,13 @@ function userDashboard() {
                     if (window.showToast) window.showToast(data.message || 'Could not respond.', 'error');
                     return;
                 }
-                if (notif?.id) await this.dismissNotification(notif.id);
-                this.notifications = this.notifications.filter(n => n.id !== notif.id);
-                this.unreadNotifCount = this.notifications.filter(n => Number(n.is_read) === 0).length;
+                await this.deleteMatchingNotifications({
+                    types: ['join_request'],
+                    sender_id: notif?.sender_id,
+                    room_id: notif?.room_id,
+                    notification_id: notif?.id,
+                    ids: data.deleted_notification_ids || []
+                });
                 if (window.showToast) {
                     window.showToast(action === 'accept' ? 'Join request accepted.' : 'Join request declined.', 'info');
                 }
@@ -1283,16 +1571,7 @@ function userDashboard() {
         },
 
         async dismissNotification(notifId) {
-            if (!notifId || String(notifId).startsWith('invite-')) return;
-            try {
-                await fetch('/user_backend/delete_notification.php', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ notification_id: Number(notifId) })
-                });
-            } catch (e) {
-                console.warn('Failed to delete notification', e);
-            }
+            await this.deleteNotification(notifId);
         },
 
         respondToFriendRequest(userId, action) {
@@ -1349,10 +1628,11 @@ function userDashboard() {
 
                     // Synchronize State Arrays (Immediately remove the requests/notifications)
                     this.pendingRequests = this.pendingRequests.filter(req => Number(req.user_id) !== targetUserId);
-                    this.notifications = this.notifications.filter(notif =>
-                        !(Number(notif.sender_id) === targetUserId && notif.type === 'friend_request')
-                    );
-                    this.unreadNotifCount = this.notifications.filter(n => Number(n.is_read) === 0).length;
+                    this.removeMatchingNotifications({
+                        types: ['friend_request'],
+                        sender_id: targetUserId,
+                        ids: data.deleted_notification_ids || []
+                    });
 
                     // Update Search Results UI instantly
                     const userIndex = this.searchResults.findIndex(u => Number(u.user_id) === targetUserId);
@@ -1404,16 +1684,28 @@ function userDashboard() {
             })
             .then(data => {
                 if (data && data.success) {
-                    if (window.showToast) window.showToast('Friend request sent!', 'success');
-                    
-                    // SYNCHRONIZE STATE
-                    const userIndex = this.searchResults.findIndex(u => u.user_id === userId);
-                    if (userIndex !== -1) {
-                        this.searchResults[userIndex].friend_status = 'pending';
-                        this.searchResults[userIndex].requester_id = window.CURRENT_USER_ID; 
-                        
-                        // 🔥 FIX: Force Alpine to recognize the array changed
-                        this.searchResults = [...this.searchResults];
+                    const targetId = Number(userId);
+                    if (data.status === 'accepted') {
+                        if (window.showToast) window.showToast('Friend request accepted!', 'success');
+                        this.pendingRequests = this.pendingRequests.filter(req => Number(req.user_id) !== targetId);
+                        this.removeMatchingNotifications({
+                            types: ['friend_request'],
+                            sender_id: targetId
+                        });
+                        const userIndex = this.searchResults.findIndex(u => Number(u.user_id) === targetId);
+                        if (userIndex !== -1) {
+                            this.searchResults[userIndex].friend_status = 'accepted';
+                            this.searchResults = [...this.searchResults];
+                        }
+                        this.fetchFriends().then(() => this.initAllChatSubscriptions());
+                    } else {
+                        if (window.showToast) window.showToast('Friend request sent!', 'success');
+                        const userIndex = this.searchResults.findIndex(u => Number(u.user_id) === targetId);
+                        if (userIndex !== -1) {
+                            this.searchResults[userIndex].friend_status = 'pending';
+                            this.searchResults[userIndex].requester_id = window.CURRENT_USER_ID;
+                            this.searchResults = [...this.searchResults];
+                        }
                     }
                 } else {
                     console.error("Request failed:", data);
@@ -1651,14 +1943,11 @@ function userDashboard() {
             const channelName = `chat-${minId}-${maxId}`;
 
             if (this.activeSubscriptions.has(channelName)) {
-                console.log(`Already subscribed to ${channelName}`);
                 return;
             }
             this.activeSubscriptions.add(channelName);
 
             const channel = this.pusherClient.subscribe(channelName);
-            console.log(`Subscribed to ${channelName}`);
-
 
             channel.bind('new_message', (data) => {
                 const senderId = Number(data.sender_id);
@@ -2684,30 +2973,6 @@ function userDashboard() {
             }
         },
 
-        markNotificationsAsRead() {
-            if (this.unreadNotifCount === 0) return;
-
-            fetch('/user_backend/mark_notifications_read.php', { method: 'POST' })
-                .then(res => res.json())
-                .then(data => {
-                    if (data.success) {
-                        this.unreadNotifCount = 0;
-                        this.notifications.forEach(n => n.is_read = 1);
-                    }
-                });
-        },
-
-        clearAllNotifications() {
-            fetch('/user_backend/clear_notifications.php', { method: 'POST' })
-                .then(res => res.json())
-                .then(data => {
-                    if (data.success) {
-                        this.notifications = [];
-                        this.unreadNotifCount = 0;
-                    }
-                });
-        },
-
          handleProfileChanged(data) {
             const uid = Number(data.user_id);
             this.forceSetCachedMedia(uid, {
@@ -2837,6 +3102,8 @@ function userDashboard() {
                 this.handleProfileChanged(data);
             });
 
+            this.bindPresenceChannel();
+
             // ---- USER-SPECIFIC CHANNEL (only if logged in) ----
             if (!window.CURRENT_USER_ID) return;
 
@@ -2850,6 +3117,24 @@ function userDashboard() {
             channel.bind('notifications_cleared', () => {
                 this.notifications = [];
                 this.unreadNotifCount = 0;
+            });
+
+            channel.bind('notification_deleted', (data) => {
+                const id = data?.id ?? data?.notification_id;
+                if (id == null) return;
+                this.notifications = this.notifications.filter(n => String(n.id) !== String(id));
+                this.syncUnreadFromList();
+            });
+
+            channel.bind('notifications_deleted', (data) => {
+                const ids = (data?.ids || []).map(String);
+                if (!ids.length) return;
+                this.notifications = this.notifications.filter(n => !ids.includes(String(n.id)));
+                this.syncUnreadFromList();
+            });
+
+            channel.bind('new_notification', (data) => {
+                this.applyIncomingUserNotification(data);
             });
 
             // Real-time unfriend
@@ -2900,7 +3185,9 @@ function userDashboard() {
                         && Number(n.sender_id) === senderId
                     );
                     if (dup) {
-                        this.showNotifications = true;
+                        if (window.showToast) {
+                            window.showToast(`${data.sender_name} invited you to a watch party`, 'info');
+                        }
                         return;
                     }
                 }
@@ -2908,54 +3195,47 @@ function userDashboard() {
                 if (data.type === 'join_request') {
                     const roomId = Number(data.room_id || 0);
                     const senderId = Number(data.sender_id || 0);
-                    const dupJoin = this.notifications.some(n =>
+                    const existing = this.notifications.find(n =>
                         n.type === 'join_request'
                         && Number(n.room_id) === roomId
                         && Number(n.sender_id) === senderId
                     );
-                    if (dupJoin) {
-                        this.showNotifications = true;
+                    if (existing) {
+                        this.notifications = this.notifications.map((n) => {
+                            if (String(n.id) !== String(existing.id)) return n;
+                            return {
+                                ...n,
+                                id: data.id || n.id,
+                                request_id: data.request_id || n.request_id,
+                                is_read: this.showNotifications ? 1 : 0,
+                                created_at: data.created_at || n.created_at
+                            };
+                        });
+                        if (this.showNotifications) {
+                            this.markNotificationsAsRead();
+                        } else {
+                            this.syncUnreadFromList();
+                        }
                         if (window.showToast) {
                             window.showToast(`${data.sender_name} wants to join your watch party`, 'info');
                         }
-                        return;
+                    } else {
+                        this.applyIncomingUserNotification(data);
+                        if (window.showToast) {
+                            window.showToast(`${data.sender_name} wants to join your watch party`, 'info');
+                        }
                     }
+                } else {
+                    this.applyIncomingUserNotification(data);
                 }
 
-                this.notifications = [
-                    {
-                        id: data.id || Date.now(),
-                        type: data.type,
-                        sender_id: data.sender_id,
-                        sender_name: data.sender_name,
-                        message: data.message,
-                        room_id: data.room_id || null,
-                        request_id: data.request_id || null,
-                        created_at: data.created_at,
-                        avatar_url: avatarUrl,
-                        border_preview: borderPreview,
-                        is_read: 0
-                    },
-                    ...this.notifications
-                ];
-                this.unreadNotifCount++;
-
                 if (data.type === 'party_invite') {
-                    this.showNotifications = true;
                     if (window.showToast) {
                         window.showToast(`${data.sender_name} invited you to a watch party`, 'info');
                     }
                 }
 
-                if (data.type === 'join_request') {
-                    this.showNotifications = true;
-                    if (window.showToast) {
-                        window.showToast(`${data.sender_name} wants to join your watch party`, 'info');
-                    }
-                }
-
                 if (data.type === 'join_request_accepted') {
-                    this.showNotifications = true;
                     this.friendRooms = (this.friendRooms || []).map((room) => {
                         if (Number(room.room_id) !== Number(data.room_id)) return room;
                         return { ...room, request_status: 'accepted' };
@@ -3048,10 +3328,12 @@ function userDashboard() {
                     if (typeof window.showToast === 'function') {
                         window.showToast(`${data.sender_name} ${data.message}`, 'error');
                     }
-                } else if (typeof window.showToast === 'function') {
+                } else if (data.type === 'friend_request' && typeof window.showToast === 'function') {
                     window.showToast(`${data.sender_name} ${data.message}`, 'success');
                 }
-                this.fetchNotifications();
+                this.fetchNotifications().then(() => {
+                    if (this.showNotifications) this.markNotificationsAsRead();
+                });
             });
 
             channel.bind('missions_updated', () => {
@@ -3094,6 +3376,7 @@ function userDashboard() {
             this.initPusher();
             this.loadMediaCaches();
             this.cacheOwnMedia();
+            this.hydrateLocalCaches();
             this.fetchMovies();
 
             this._partyInviteHandler = (e) => this.handleIncomingPartyInvite(e.detail || {});
@@ -3114,21 +3397,19 @@ function userDashboard() {
                     this.stats = this.stats.filter(stat => stat.label !== 'Quests');
                 }
 
-                const loadingSafety = setTimeout(() => { this.statsLoading = false; }, 4000);
-                try {
-                    await Promise.allSettled([
-                        this.fetchFriends(),
-                        this.fetchUserProfile(),
-                        isRegularUser ? this.loadMissions() : Promise.resolve(),
-                        this.fetchNotifications(),
-                        this.fetchFriendRooms()
-                    ]);
-                    if (this._friendRoomsTimer) clearInterval(this._friendRoomsTimer);
-                    this._friendRoomsTimer = setInterval(() => this.fetchFriendRooms(), 12000);
-                } finally {
-                    clearTimeout(loadingSafety);
+                this.statsLoading = true;
+                const statsJobs = [this.fetchFriends()];
+                if (isRegularUser) statsJobs.push(this.loadMissions());
+                this.fetchUserProfile();
+                Promise.allSettled(statsJobs).finally(() => {
                     this.statsLoading = false;
-                }
+                });
+
+                this.fetchNotifications();
+                this.fetchFriendRooms();
+                this.startPresenceHeartbeat();
+                if (this._friendRoomsTimer) clearInterval(this._friendRoomsTimer);
+                this._friendRoomsTimer = setInterval(() => this.fetchFriendRooms({ quiet: true }), 12000);
 
                 this.fetchReasons();
                 this.checkPaymentStatus().then(() => this.fetchPremiumStatus()).then(() => {
@@ -3137,7 +3418,6 @@ function userDashboard() {
                         this.justPaid = false;
                     }
                 });
-                this.searchUsers();
                 this.buildAvailableBorders();
             }
 
@@ -3222,16 +3502,22 @@ function userDashboard() {
                     
                     // B. Intro Animations
                     const tl = gsap.timeline();
-                    tl.fromTo(".gs-header-item", 
-                        { y: -40, opacity: 0, scale: 0.95 }, 
-                        { y: 0, opacity: 1, scale: 1, stagger: 0.1, duration: 0.8, ease: "back.out(1.5)" }, 
-                        0.2
-                    )
-                    .fromTo(".stagger-item", 
-                        { opacity: 0, y: 80, rotationY: 15, scale: 0.9 }, 
-                        { opacity: 1, y: 0, rotationY: 0, scale: 1, stagger: 0.1, duration: 0.9, ease: "back.out(1.2)" }, 
-                        "-=0.6"
-                    );
+                    const headerItems = this.$root.querySelectorAll('.gs-header-item');
+                    const staggerItems = this.$root.querySelectorAll('.stagger-item');
+                    if (headerItems.length) {
+                        tl.fromTo(headerItems,
+                            { y: -40, opacity: 0, scale: 0.95 },
+                            { y: 0, opacity: 1, scale: 1, stagger: 0.1, duration: 0.8, ease: "back.out(1.5)" },
+                            0.2
+                        );
+                    }
+                    if (staggerItems.length) {
+                        tl.fromTo(staggerItems,
+                            { opacity: 0, y: 80, rotationY: 15, scale: 0.9 },
+                            { opacity: 1, y: 0, rotationY: 0, scale: 1, stagger: 0.1, duration: 0.9, ease: "back.out(1.2)" },
+                            "-=0.6"
+                        );
+                    }
 
                     // C. Split text animation for welcome header
                     const welcomeText = this.$root.querySelector('.welcome-text');
@@ -3253,15 +3539,17 @@ function userDashboard() {
                         );
                     }
 
-                    // D. Continuous pulse micro-animation for activity feed items
-                    gsap.to('.activity-item .dot-pulse', {
-                        scale: 1.8,
-                        opacity: 0,
-                        repeat: -1,
-                        duration: 1.5,
-                        ease: "power2.out",
-                        stagger: 0.3
-                    });
+                    const pulses = this.$root.querySelectorAll('.activity-item .dot-pulse');
+                    if (pulses.length) {
+                        gsap.to(pulses, {
+                            scale: 1.8,
+                            opacity: 0,
+                            repeat: -1,
+                            duration: 1.5,
+                            ease: "power2.out",
+                            stagger: 0.3
+                        });
+                    }
                 }
             });
 
@@ -3766,41 +4054,23 @@ window.initAnimations = function(container = document) {
     }
 
     if (typeof gsap !== 'undefined') {
+        gsap.config({ nullTargetWarn: false });
+        const tweenIf = (tl, selector, from, to, pos) => {
+            const els = container.querySelectorAll(selector);
+            if (!els.length) return tl;
+            return tl.fromTo(els, from, to, pos);
+        };
         const tl = gsap.timeline();
-        
-        // Initial Sequence
-        tl.to(container.querySelectorAll('.ultimate-reveal'), 
-            { opacity: 1, duration: 0.1 }
-        )
-        .fromTo(container.querySelectorAll('#logo-box'), 
-            { scale: 0, rotation: -45, opacity: 0 },
-            { scale: 1, rotation: 0, opacity: 1, duration: 0.8, ease: 'back.out(1.5)' }
-        )
-        .fromTo(container.querySelectorAll('#branding h1'), 
-            { x: -30, opacity: 0 },
-            { x: 0, opacity: 1, duration: 0.6, ease: 'power2.out' },
-            "-=0.4"
-        )
-        .fromTo(container.querySelectorAll('#branding p'), 
-             { y: 20, opacity: 0 },
-            { y: 0, opacity: 1, duration: 0.5, ease: 'power2.out' },
-            "-=0.4"
-        )
-        .fromTo(container.querySelectorAll('#otp-inputs input'),
-            { y: 20, opacity: 0, scale: 0.5 },
-            { y: 0, opacity: 1, scale: 1, duration: 0.8, stagger: 0.05, ease: "back.out(1.5)" },
-            "-=0.4"
-        )
-        .fromTo(container.querySelectorAll('.gs-stagger'), 
-            { opacity: 0, y: 30 },
-            { opacity: 1, y: 0, duration: 0.6, stagger: 0.08, ease: 'back.out(1.2)' },
-            "-=0.8"
-        )
-        .fromTo(container.querySelectorAll('.gs-footer'), 
-            { opacity: 0, y: 10 },
-            { opacity: 1, y: 0, duration: 0.5 },
-            "-=0.4"
-        );
+        const reveals = container.querySelectorAll('.ultimate-reveal');
+        if (reveals.length) {
+            tl.to(reveals, { opacity: 1, duration: 0.1 });
+        }
+        tweenIf(tl, '#logo-box', { scale: 0, rotation: -45, opacity: 0 }, { scale: 1, rotation: 0, opacity: 1, duration: 0.8, ease: 'back.out(1.5)' });
+        tweenIf(tl, '#branding h1', { x: -30, opacity: 0 }, { x: 0, opacity: 1, duration: 0.6, ease: 'power2.out' }, "-=0.4");
+        tweenIf(tl, '#branding p', { y: 20, opacity: 0 }, { y: 0, opacity: 1, duration: 0.5, ease: 'power2.out' }, "-=0.4");
+        tweenIf(tl, '#otp-inputs input', { y: 20, opacity: 0, scale: 0.5 }, { y: 0, opacity: 1, scale: 1, duration: 0.8, stagger: 0.05, ease: "back.out(1.5)" }, "-=0.4");
+        tweenIf(tl, '.gs-stagger', { opacity: 0, y: 30 }, { opacity: 1, y: 0, duration: 0.6, stagger: 0.08, ease: 'back.out(1.2)' }, "-=0.8");
+        tweenIf(tl, '.gs-footer', { opacity: 0, y: 10 }, { opacity: 1, y: 0, duration: 0.5 }, "-=0.4");
     }
 
     if (typeof gsap !== 'undefined') {
@@ -4609,6 +4879,30 @@ function adminDashboard(userData = {}) {
             { id: 'comments', label: 'Comments', icon: 'comment' }
         ],
         notifications: [],
+        unreadNotifCount: 0,
+        syncUnreadFromList() {
+            const count = this.notificationsOpen
+                ? 0
+                : this.notifications.filter(n => Number(n.is_read) === 0).length;
+            this.unreadNotifications = count;
+            this.unreadNotifCount = count;
+        },
+        decorateAdminNotification(n) {
+            const type = String(n.type || '');
+            const decorated = { ...n, is_read: Number(n.is_read) === 1 ? 1 : 0 };
+            if (type === 'report_alert' || type === 'report') {
+                decorated.icon = decorated.icon || 'flag';
+                decorated.iconColorClass = decorated.iconColorClass || 'text-red-400';
+                decorated.bgClass = decorated.bgClass || 'bg-red-500/20';
+                decorated.borderClass = decorated.borderClass || 'border-red-500/30';
+            } else {
+                decorated.icon = decorated.icon || 'notifications';
+                decorated.iconColorClass = decorated.iconColorClass || 'text-white/70';
+                decorated.bgClass = decorated.bgClass || 'bg-white/5';
+                decorated.borderClass = decorated.borderClass || 'border-white/10';
+            }
+            return decorated;
+        },
         async fetchNotifications() {
             try {
                 const response = await fetch('/backend/get_admin_notifications.php');
@@ -4618,39 +4912,105 @@ function adminDashboard(userData = {}) {
                     if (!fallback.ok) return;
                     const data = await fallback.json();
                     if (data.success && Array.isArray(data.notifications)) {
-                        this.notifications = data.notifications.map(n => this.applyCachedMedia(n, 'sender_id'));
-                        this.unreadNotifications = this.notifications.filter(n => Number(n.is_read) === 0).length;
-                        this.unreadNotifCount = this.unreadNotifications;
+                        this.notifications = data.notifications.map(n => this.decorateAdminNotification(this.applyCachedMedia(n, 'sender_id')));
                         this.persistAvatarCache();
+                        this.syncUnreadFromList();
                     }
                     return;
                 }
 
                 const data = await response.json();
                 if (data.success && Array.isArray(data.notifications)) {
-                    this.notifications = data.notifications.map(n => this.applyCachedMedia(n, 'sender_id'));
-                    this.unreadNotifications = this.notifications.filter(n => Number(n.is_read) === 0).length;
-                    this.unreadNotifCount = this.unreadNotifications;
+                    this.notifications = data.notifications.map(n => this.decorateAdminNotification(this.applyCachedMedia(n, 'sender_id')));
                     this.persistAvatarCache();
+                    this.syncUnreadFromList();
                 }
             } catch (err) {
                 console.error('Notification network error:', err);
             }
         },
-        // Clear notification badge
-       markAllRead() {
-            if (this.unreadNotifCount === 0) return;
+        async toggleNotificationPanel() {
+            this.notificationsOpen = !this.notificationsOpen;
+            if (!this.notificationsOpen) return;
+            this.unreadNotifications = 0;
+            this.unreadNotifCount = 0;
+            await this.fetchNotifications();
+            await this.markNotificationsAsRead();
+        },
+        async markNotificationsAsRead() {
+            const hasUnread = this.notifications.some(n => Number(n.is_read) === 0)
+                || this.unreadNotifications > 0
+                || this.unreadNotifCount > 0;
+            this.unreadNotifications = 0;
+            this.unreadNotifCount = 0;
+            this.notifications = this.notifications.map(n => ({ ...n, is_read: 1, read: true }));
+            if (!hasUnread) return;
 
-            fetch('/user_backend/mark_notifications_read.php', { method: 'POST' })
-                .then(res => res.json())
-                .then(data => {
-                    if (data.success) {
-                        this.unreadNotifCount = 0;
-                        // Force Alpine to re-render by mapping to a completely new array
-                        this.notifications = this.notifications.map(n => ({ ...n, is_read: 1 }));
-                    }
-                })
-                .catch(err => console.error("Error marking read:", err));
+            try {
+                await fetch('/user_backend/mark_notifications_read.php', { method: 'POST' });
+            } catch (err) {
+                console.error('Error marking read:', err);
+            }
+        },
+        markAllRead() {
+            return this.markNotificationsAsRead();
+        },
+        async clearAllNotifications() {
+            try {
+                const res = await fetch('/user_backend/clear_notifications.php', { method: 'POST' });
+                const data = await res.json();
+                if (data.success) {
+                    this.notifications = [];
+                    this.unreadNotifications = 0;
+                    this.unreadNotifCount = 0;
+                    if (this.showToast) this.showToast('All notifications cleared.', 'success');
+                }
+            } catch (err) {
+                console.error('Failed to clear notifications:', err);
+            }
+        },
+        async deleteNotification(notifId) {
+            if (notifId == null || notifId === '') return;
+            const removeLocal = () => {
+                this.notifications = this.notifications.filter(n => String(n.id) !== String(notifId));
+                this.syncUnreadFromList();
+            };
+            try {
+                await fetch('/user_backend/delete_notification.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ notification_id: Number(notifId) })
+                });
+            } catch (e) {
+                console.warn('Failed to delete notification', e);
+            }
+            removeLocal();
+        },
+        applyIncomingAdminNotification(data) {
+            if (!data || data.type === 'friend_rejected') return;
+            const incomingId = data.id;
+            if (incomingId && this.notifications.some(n => String(n.id) === String(incomingId))) {
+                return;
+            }
+            const panelOpen = !!this.notificationsOpen;
+            const incoming = this.decorateAdminNotification({
+                id: incomingId || Date.now(),
+                type: data.type,
+                sender_id: data.sender_id,
+                sender_name: data.sender_name || 'System',
+                message: data.message,
+                created_at: data.created_at,
+                avatar_url: data.avatar_url || '',
+                border_preview: data.border_preview || '',
+                is_read: panelOpen ? 1 : 0,
+                icon: data.icon
+            });
+            this.notifications = [incoming, ...this.notifications];
+            if (panelOpen) {
+                this.markNotificationsAsRead();
+            } else {
+                this.syncUnreadFromList();
+            }
         },
         statsLoading: true,
         stats: [
@@ -4737,6 +5097,82 @@ function adminDashboard(userData = {}) {
             } finally {
                 this.isLoading = false;
             }
+        },
+
+        isUserOnline(user) {
+            if (!user) return false;
+            return Number(user.is_online) === 1 || user.is_online === true;
+        },
+
+        applyOnlineIds(ids) {
+            const set = new Set((ids || []).map(Number));
+            if (Array.isArray(this.users)) {
+                this.users = this.users.map((row) => {
+                    const id = Number(row.id || row.user_id || 0);
+                    return { ...row, is_online: set.has(id) ? 1 : 0 };
+                });
+            }
+        },
+
+        applyPresenceUpdate(userId, isOnline) {
+            const id = Number(userId);
+            if (!id || !Array.isArray(this.users)) return;
+            const flag = Number(isOnline) ? 1 : 0;
+            this.users = this.users.map((row) =>
+                Number(row.id || row.user_id || 0) === id ? { ...row, is_online: flag } : row
+            );
+        },
+
+        bindPresenceChannel() {
+            if (!this.pusherClient || this._presenceChannelBound) return;
+            this._presenceChannelBound = true;
+            const channel = this.pusherClient.subscribe('presence-status');
+            channel.bind('presence_update', (data) => {
+                this.applyPresenceUpdate(data?.user_id, data?.is_online);
+            });
+        },
+
+        bindPresenceLifecycle() {
+            if (this._presenceLifecycleBound) return;
+            this._presenceLifecycleBound = true;
+            const goOffline = () => {
+                try {
+                    const body = new Blob(['{}'], { type: 'application/json' });
+                    if (!navigator.sendBeacon('/user_backend/offline.php', body)) {
+                        fetch('/user_backend/offline.php', { method: 'POST', credentials: 'same-origin', keepalive: true });
+                    }
+                } catch (e) {}
+            };
+            window.addEventListener('pagehide', goOffline);
+            window.addEventListener('pageshow', () => {
+                this.touchPresence();
+            });
+        },
+
+        async touchPresence() {
+            try {
+                await fetch('/user_backend/heartbeat.php', { method: 'POST', credentials: 'same-origin' });
+            } catch (e) {}
+        },
+
+        async refreshOnlineStatus() {
+            try {
+                const res = await fetch('/user_backend/get_online_users.php', { credentials: 'same-origin' });
+                const data = await res.json();
+                if (data && data.success) this.applyOnlineIds(data.online_ids || []);
+            } catch (e) {}
+        },
+
+        startPresenceHeartbeat() {
+            this.bindPresenceChannel();
+            this.bindPresenceLifecycle();
+            const tick = () => {
+                this.touchPresence();
+                this.refreshOnlineStatus();
+            };
+            tick();
+            if (this._presenceTimer) clearInterval(this._presenceTimer);
+            this._presenceTimer = setInterval(tick, 12000);
         },
 
         // Movies
@@ -6042,6 +6478,8 @@ function adminDashboard(userData = {}) {
                 this.commentsLoading = false;
             }
 
+            this.startPresenceHeartbeat();
+
             this.$watch('movieModalOpen', (isOpen) => {
                 if (!isOpen) {
                     this.currentMovieId = null;
@@ -6211,16 +6649,14 @@ function adminDashboard(userData = {}) {
                 this.handleProfileChanged(data);
             });
 
+            this.bindPresenceChannel();
+
             const moderationChannel = this.pusherClient.subscribe('admin-moderation-channel');
-            moderationChannel.bind('new-report-event', (data) => {
+            moderationChannel.bind('new-report-event', () => {
                 this.fetchReports();
-                if (data && data.notification) {
-                    this.notifications.unshift(data.notification);
-                    this.unreadNotifications = this.notifications.filter(n => Number(n.is_read) === 0).length;
-                    this.unreadNotifCount = this.unreadNotifications;
-                } else {
-                    this.fetchNotifications();
-                }
+                this.fetchNotifications().then(() => {
+                    if (this.notificationsOpen) this.markNotificationsAsRead();
+                });
             });
             moderationChannel.bind('rooms-changed', () => {
                 this.fetchRooms();
@@ -6236,65 +6672,101 @@ function adminDashboard(userData = {}) {
                 alert(data.message || 'Your account has been banned.');
                 window.location.href = '/backend/logout.php';
             });
+
+            userChannel.bind('notifications_read', () => {
+                this.unreadNotifications = 0;
+                this.unreadNotifCount = 0;
+                this.notifications = this.notifications.map(n => ({ ...n, is_read: 1, read: true }));
+            });
+
+            userChannel.bind('notifications_cleared', () => {
+                this.notifications = [];
+                this.unreadNotifications = 0;
+                this.unreadNotifCount = 0;
+            });
+
+            userChannel.bind('notification_deleted', (data) => {
+                const id = data?.id ?? data?.notification_id;
+                if (id == null) return;
+                this.notifications = this.notifications.filter(n => String(n.id) !== String(id));
+                this.syncUnreadFromList();
+            });
+
+            userChannel.bind('notifications_deleted', (data) => {
+                const ids = (data?.ids || []).map(String);
+                if (!ids.length) return;
+                this.notifications = this.notifications.filter(n => !ids.includes(String(n.id)));
+                this.syncUnreadFromList();
+            });
+
+            userChannel.bind('new_notification', (data) => {
+                this.applyIncomingAdminNotification(data);
+            });
+
+            userChannel.bind('friend_event', (data) => {
+                this.applyIncomingAdminNotification(data);
+            });
         }
     };
 }
 
-window.createParty = async function(movieId = null) {
+window.createParty = async function(movieOrId = null) {
+    let movie = null;
+    let movieId = 0;
+    if (movieOrId && typeof movieOrId === 'object') {
+        movie = movieOrId;
+        movieId = Number(movie.id || movie.movie_id) || 0;
+    } else {
+        movieId = Number(movieOrId) || 0;
+    }
+
+    if (typeof window.showPageLoader === 'function') {
+        window.showPageLoader();
+    }
+
     try {
+        if (movie && movieId > 0) {
+            const slim = {
+                id: movieId,
+                movie_id: movieId,
+                title: movie.title || '',
+                description: movie.description || '',
+                video_url: movie.video_url || movie.trailer || '',
+                actual_video_url: movie.actual_video_url || movie.stream_url || movie.video_url || '',
+                trailer: movie.trailer || movie.video_url || '',
+                stream_url: movie.stream_url || movie.actual_video_url || movie.video_url || '',
+                img: movie.img || movie.cover_image || '',
+                cover_image: movie.cover_image || movie.img || '',
+                duration: movie.duration || 0
+            };
+            sessionStorage.setItem('nexus_pending_room_movie', JSON.stringify(slim));
+        } else {
+            sessionStorage.removeItem('nexus_pending_room_movie');
+        }
+
         const formData = new FormData();
         formData.append('action', 'create_room');
-        if (movieId) {
-            formData.append('movie_id', movieId);
+        if (movieId > 0) {
+            formData.append('movie_id', String(movieId));
         }
-        
-        const pathsToTry = [
-            '/user_backend/create_room.php', // Standard relative path
-            '/user_backend/create_room.php',   // Workspace root absolute path
-            'user_backend/create_room.php'     // Current directory path
-        ];
-        
-        let data = null;
-        let lastError = null;
-        let successfulPath = null;
-        
-        // Robust fetch: try multiple path variations to handle different VSCode PHP Server setups
-        for (const p of pathsToTry) {
-            try {
-                const res = await fetch(p, { method: 'POST', body: formData });
-                const text = await res.text();
-                
-                // If it returns an HTML document (like a 404 page), it's the wrong path
-                if (text.trim().toLowerCase().startsWith('<!doctype') || text.trim().toLowerCase().startsWith('<html')) {
-                    throw new Error(`Path ${p} returned HTML (likely 404)`);
-                }
-                
-                data = JSON.parse(text);
-                successfulPath = p;
-                break; // Successfully found and parsed JSON
-            } catch (e) {
-                lastError = e;
-                console.warn(`[Nexus] Path fallback: ${p} failed.`);
-            }
-        }
-        
-        if (!data) {
-            throw new Error(`All path resolutions failed. Is the server running from the correct root folder? Last error: ${lastError.message}`);
-        }
-        
-        if (data.success) {
-            console.log(`Room created successfully using path ${successfulPath}! Code: ${data.room_code}`);
-            // Full page load is required so socket.io + watch_party.js initialize Alpine.
-            // Barba swaps the container without those scripts, which breaks video call and movie share.
+
+        const res = await fetch('/user_backend/create_room.php', { method: 'POST', body: formData });
+        const data = await res.json();
+
+        if (data && data.success) {
             window.location.href = `/user/watch_party.php?room_id=${encodeURIComponent(data.room_id)}`;
-        } else {
-            console.error("Room creation failed:", data.error);
-            if (typeof window.showToast === 'function') {
-                window.showToast(data.error, 'error');
-            }
+            return;
+        }
+
+        sessionStorage.removeItem('nexus_pending_room_movie');
+        if (typeof window.hidePageLoader === 'function') window.hidePageLoader();
+        if (typeof window.showToast === 'function') {
+            window.showToast((data && data.error) || 'Could not create room.', 'error');
         }
     } catch (error) {
         console.error("Error creating room:", error);
+        sessionStorage.removeItem('nexus_pending_room_movie');
+        if (typeof window.hidePageLoader === 'function') window.hidePageLoader();
         if (typeof window.showToast === 'function') {
             window.showToast("Failed to connect to server. Please check your localhost setup.", 'error');
         }

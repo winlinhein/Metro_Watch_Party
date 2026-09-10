@@ -10,18 +10,19 @@
     <div class="flex justify-between items-center p-5 border-b border-white/5 bg-[#0a0a0c] relative z-10">
         <h3 class="text-white font-semibold tracking-wide flex items-center gap-2">
             Alerts 
-            <span class="bg-red-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full" x-show="unreadNotifications > 0" x-text="unreadNotifications + ' NEW'"></span>
+            <span class="bg-white/10 text-white/50 text-[10px] font-bold px-2 py-0.5 rounded-full" x-text="notifications.length + ' Total'"></span>
         </h3>
-        <button @click="markAllRead()" class="text-xs text-white/40 hover:text-red-400 transition-colors flex items-center gap-1 group">
-            <span class="material-symbols-outlined text-[14px] group-hover:rotate-90 transition-transform">clear_all</span>
-            Clear
+        <button type="button" @click.stop="clearAllNotifications()" x-show="notifications.length > 0" class="text-xs text-white/40 hover:text-red-400 transition-colors flex items-center gap-1 group">
+            <span class="material-symbols-outlined text-[14px] group-hover:rotate-12 transition-transform">delete_sweep</span>
+            Clear All
         </button>
     </div>
     
     <!-- Render Notifications Dynamically -->
     <div class="flex-1 overflow-y-auto max-h-[400px] p-2 space-y-1 bg-[#0a0a0c]">
         <template x-for="notif in notifications" :key="notif.id">
-            <div @click="notif.is_read = 1; notif.read = true" class="flex gap-4 p-3 rounded-xl hover:bg-white/[0.04] transition-all duration-300 cursor-pointer group relative overflow-hidden" :class="{'opacity-70 hover:opacity-100': Number(notif.is_read) === 1 || notif.read}">
+            <div class="flex gap-4 p-3 rounded-xl hover:bg-white/[0.04] transition-all duration-300 group relative overflow-hidden"
+                 :class="Number(notif.is_read) === 0 ? 'bg-red-500/10' : 'opacity-80 hover:opacity-100'">
                 <div class="absolute inset-0 bg-gradient-to-r opacity-0 group-hover:opacity-100 transition-opacity" :class="notif.gradientFrom"></div>
                 <div class="relative w-10 h-10 shrink-0 overflow-visible" style="width: 2.5rem; height: 2.5rem;">
                     <div class="absolute inset-0 z-0 overflow-hidden rounded-full scale-[1.1] flex items-center justify-center border transition-all group-hover:scale-110"
@@ -33,8 +34,8 @@
                         <img :src="notif.border_preview" class="absolute inset-0 z-10 h-full w-full scale-[1.4] object-contain pointer-events-none" alt="">
                     </template>
                 </div>
-                <div class="relative z-10 flex-1">
-                    <p class="text-sm leading-snug transition-colors" :class="(Number(notif.is_read) === 1 || notif.read) ? 'text-white/60 group-hover:text-white' : 'text-white/80 group-hover:text-white'">
+                <div class="relative z-10 flex-1 min-w-0">
+                    <p class="text-sm leading-snug transition-colors" :class="Number(notif.is_read) === 1 ? 'text-white/60 group-hover:text-white' : 'text-white/80 group-hover:text-white'">
                         <span class="font-bold text-white" x-show="notif.sender_name" x-text="notif.sender_name"></span>
                         <span x-text="(notif.sender_name ? ' ' : '') + (notif.message || '')"></span>
                     </p>
@@ -43,17 +44,19 @@
                         <span x-text="notif.time || notif.created_at"></span>
                     </span>
                 </div>
-                <template x-if="Number(notif.is_read) === 0 && !notif.read">
-                    <div class="w-2 h-2 rounded-full mt-1 bg-red-500" :class="notif.indicatorClass"></div>
-                </template>
+                <div class="relative z-10 flex flex-col items-center gap-2 shrink-0">
+                    <span x-show="Number(notif.is_read) === 0" class="w-2 h-2 rounded-full bg-red-500 shadow-[0_0_8px_#ef4444]"></span>
+                    <button type="button"
+                            @click.stop="deleteNotification(notif.id)"
+                            class="w-7 h-7 rounded-lg flex items-center justify-center text-white/30 hover:text-red-400 hover:bg-red-500/15 border border-transparent hover:border-red-500/30 transition-all"
+                            title="Delete notification">
+                        <span class="material-symbols-outlined text-[16px]">delete</span>
+                    </button>
+                </div>
             </div>
         </template>
-    </div>
-    
-    <div class="p-3 bg-white/[0.02] border-t border-white/5 relative z-10">
-        <button class="w-full py-2 rounded-lg bg-white/5 hover:bg-white/10 text-white/70 hover:text-white text-xs font-bold uppercase tracking-wider transition-all border border-transparent hover:border-white/10 flex items-center justify-center gap-2 group">
-            View All Events
-            <span class="material-symbols-outlined text-[14px] group-hover:translate-x-1 transition-transform">arrow_forward</span>
-        </button>
+        <div x-show="notifications.length === 0" class="py-10 text-center text-xs text-white/40">
+            No notifications yet.
+        </div>
     </div>
 </div>
