@@ -2,14 +2,18 @@
 // /admin_backend/get_reports.php
 session_start();
 require_once __DIR__ . '/../conn.php';
+require_once __DIR__ . '/../profile_media_helper.php';
 
 header('Content-Type: application/json');
 
-// Ensure user is an admin
-if (empty($_SESSION['user_role']) || $_SESSION['user_role'] !== 'admin') {
+// Ensure user is an admin or moderator
+$role = strtolower((string)($_SESSION['user_role'] ?? ''));
+if (empty($_SESSION['user_role']) || !in_array($role, ['admin', 'moderator'], true)) {
     echo json_encode(['error' => 'Unauthorized access.']);
     exit;
 }
+
+session_write_close();
 
 try {
     // Incorporating your corrected query with the many-to-many relationship
@@ -24,7 +28,9 @@ try {
             r.reported_user_id,
             r.comment_id,
             ANY_VALUE(mc.movie_id) AS reported_movie_id,
+            ANY_VALUE(reporter.user_id) AS reporter_user_id,
             ANY_VALUE(reporter.user_name) AS reporter_name,
+            ANY_VALUE(reported.user_id) AS reported_target_user_id,
             ANY_VALUE(reported.user_name) AS reported_user_name,
             GROUP_CONCAT(re.reason_title SEPARATOR ', ') AS reported_reasons
         FROM 
@@ -47,8 +53,22 @@ try {
     
     $reports = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
+    $mediaRows = [];
+    foreach ($reports as $rep) {
+        if (!empty($rep['reporter_user_id'])) {
+            $mediaRows[] = ['user_id' => (int)$rep['reporter_user_id']];
+        }
+        if (!empty($rep['reported_target_user_id'])) {
+            $mediaRows[] = ['user_id' => (int)$rep['reported_target_user_id']];
+        }
+    }
+    $mediaByUser = [];
+    foreach (attachProfileMedia($conn, $mediaRows) as $m) {
+        $mediaByUser[(int)$m['user_id']] = $m;
+    }
+
     // Format the data exactly as your Alpine.js frontend expects it
-    $formatted_reports = array_map(function($rep) {
+    $formatted_reports = array_map(function($rep) use ($mediaByUser) {
         
         // Determine if they reported a user or a room
         $reported_entity = 'Unknown/None';
@@ -57,6 +77,11 @@ try {
         } elseif (!empty($rep['reported_room_id'])) {
             $reported_entity = 'Room #' . $rep['reported_room_id'];
         }
+
+        $reporterId = (int)($rep['reporter_user_id'] ?? 0);
+        $reportedId = (int)($rep['reported_target_user_id'] ?? 0);
+        $reporterMedia = $mediaByUser[$reporterId] ?? [];
+        $reportedMedia = $mediaByUser[$reportedId] ?? [];
 
         return [
             'raw_id'        => $rep['report_id'], 
@@ -71,7 +96,12 @@ try {
             'excerpt'       => substr($rep['description'], 0, 45) . (strlen($rep['description']) > 45 ? '...' : ''),
             'description'   => $rep['description'],
             'status'        => ucfirst($rep['status']),
-            'priority'      => 'Medium' // Reverted back to hardcoded since there is no column
+            'priority'      => 'Medium', // Reverted back to hardcoded since there is no column
+            'reporter_avatar_url' => $reporterMedia['avatar_url'] ?? '',
+            'reporter_border_preview' => $reporterMedia['border_preview'] ?? '',
+            'reported_user_id' => $reportedId ?: null,
+            'reported_avatar_url' => $reportedMedia['avatar_url'] ?? '',
+            'reported_border_preview' => $reportedMedia['border_preview'] ?? '',
         ];
     }, $reports);
 

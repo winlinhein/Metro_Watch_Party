@@ -1,3 +1,6 @@
+<?php if (basename((string)($_SERVER['SCRIPT_NAME'] ?? '')) !== 'admin_dashboard.php'): ?>
+<script src="/js/home_page.js?v=7"></script>
+<?php endif; ?>
 <!-- Insane Page Loader -->
 <div id="nexus-page-loader" class="fixed inset-0 z-[99999] pointer-events-auto flex items-center justify-center overflow-hidden">
     <!-- Animated background panels -->
@@ -95,6 +98,7 @@
                 onComplete: () => {
                     document.body.classList.remove('is-loading');
                     loader.style.pointerEvents = 'none';
+                    loader.style.display = 'none';
                     if (onComplete) onComplete();
                 }
             });
@@ -125,5 +129,17 @@
     document.addEventListener('DOMContentLoaded', () => {
         // Just hide it initially since it's visible by default in HTML
         window.hidePageLoader();
+        setTimeout(() => {
+            const loader = document.getElementById('nexus-page-loader');
+            if (!loader) return;
+            document.body.classList.remove('is-loading');
+            loader.style.pointerEvents = 'none';
+            if (loader.style.display !== 'none' && loader.getAttribute('data-force-hidden') !== '1') {
+                const stillVisible = window.getComputedStyle(loader).opacity !== '0';
+                if (stillVisible) {
+                    loader.style.display = 'none';
+                }
+            }
+        }, 4000);
     });
 </script>

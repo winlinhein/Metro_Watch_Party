@@ -1,39 +1,39 @@
 <!-- Profile View -->
-<div data-tab-panel="profile" style="display: none;" class="absolute inset-0 p-10 w-full min-h-full">
+<div data-tab-panel="profile" style="display: none;" class="absolute inset-0 p-10 w-full min-h-full overflow-y-auto">
     <!-- Inline Notification Banner -->
-    <div x-show="notification.show" 
+    <div x-show="profileAlert.show" 
         x-transition:enter="transition ease-out duration-300"
         x-transition:enter-start="opacity-0 -translate-y-4"
         x-transition:enter-end="opacity-100 translate-y-0"
         x-transition:leave="transition ease-in duration-200"
         x-transition:leave-start="opacity-100 translate-y-0"
         x-transition:leave-end="opacity-0 -translate-y-4"
-        :class="notification.type === 'error' ? 'bg-red-500/10 border-red-500/30 text-red-300' : 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300'"
+        :class="profileAlert.type === 'error' ? 'bg-red-500/10 border-red-500/30 text-red-300' : 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300'"
         class="mb-6 p-4 rounded-2xl border backdrop-blur-md flex items-start justify-between gap-4 shadow-lg"
         style="display: none;">
         
         <div class="flex items-start gap-3">
             <!-- Icon -->
             <span class="material-symbols-outlined text-xl mt-0.5" 
-                x-text="notification.type === 'error' ? 'error' : 'check_circle'"></span>
+                x-text="profileAlert.type === 'error' ? 'error' : 'check_circle'"></span>
             
             <!-- Message Container (Handles single string or error array) -->
             <div class="text-xs font-medium space-y-1">
-                <template x-if="Array.isArray(notification.message)">
+                <template x-if="Array.isArray(profileAlert.message)">
                     <ul class="list-disc list-inside space-y-1">
-                        <template x-for="msg in notification.message" :key="msg">
+                        <template x-for="msg in profileAlert.message" :key="msg">
                             <li x-text="msg"></li>
                         </template>
                     </ul>
                 </template>
-                <template x-if="!Array.isArray(notification.message)">
-                    <p x-text="notification.message"></p>
+                <template x-if="!Array.isArray(profileAlert.message)">
+                    <p x-text="profileAlert.message"></p>
                 </template>
             </div>
         </div>
 
         <!-- Dismiss Button -->
-        <button @click="notification.show = false" class="text-white/40 hover:text-white transition-colors">
+        <button @click="profileAlert.show = false" class="text-white/40 hover:text-white transition-colors">
             <span class="material-symbols-outlined text-sm">close</span>
         </button>
     </div>
@@ -58,19 +58,20 @@
         <div class="xl:col-span-1 space-y-6">
             <div class="glass-card rounded-2xl p-8 stagger-item flex flex-col items-center relative overflow-hidden group hover:border-red-500/30 transition-colors duration-300 shadow-xl">
                 <div class="absolute inset-0 bg-gradient-to-b from-red-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
-                <div class="relative z-10 w-full flex flex-col items-center">
-                    
-                    <div class="relative w-32 h-32 mb-6 group cursor-pointer mt-4" @click="avatarModalOpen = true">
-                        <img :src="selectedAvatar" class="w-full h-full rounded-full object-cover border-4 border-red-500/50 group-hover:border-red-500 transition-colors z-10 relative shadow-2xl">
+                    <div class="relative z-10 w-full flex flex-col items-center">
                         
-                        <!-- Dynamic Border -->
+                    <div class="relative w-32 h-32 mb-6 group cursor-pointer mt-4 overflow-visible shrink-0" style="width: 8rem; height: 8rem;">
+                        <div class="absolute inset-0 z-10 overflow-hidden rounded-full shadow-2xl scale-[1.18]" :class="selectedBorder ? '' : 'ring-4 ring-red-500/50 group-hover:ring-red-500'">
+                            <img :src="selectedAvatar" class="absolute inset-0 h-full w-full object-cover" style="object-fit: cover;">
+                        </div>
                         <template x-if="selectedBorder">
-                            <img :src="selectedBorder" class="absolute inset-0 w-full h-full object-cover z-20 pointer-events-none scale-[1.3] drop-shadow-[0_0_15px_rgba(255,255,255,0.2)] mix-blend-screen opacity-90">
+                            <img :src="selectedBorder" class="absolute inset-0 z-20 h-full w-full object-contain pointer-events-none scale-[1.38] drop-shadow-[0_0_15px_rgba(255,255,255,0.2)] mix-blend-screen opacity-90">
                         </template>
                         
-                        <div class="absolute inset-0 rounded-full bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity z-30">
+                        <div class="absolute inset-0 rounded-full bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity z-30" @click="$refs.adminAvatarInput.click()">
                             <span class="material-symbols-outlined text-white">photo_camera</span>
                         </div>
+                        <input type="file" x-ref="adminAvatarInput" class="hidden" accept="image/*" @change="uploadAvatar($event)">
                     </div>
                     
                     <h3 class="text-xl font-bold text-white mb-1" 
@@ -80,9 +81,17 @@
                     <p class="text-white/40 text-sm mb-6 mono" 
                     x-text="displayEmail">
                     </p>
-                    <button @click="avatarModalOpen = true" class="w-full py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-sm font-semibold transition-colors flex justify-center items-center gap-2">
-                        <span class="material-symbols-outlined text-[16px]">image</span> Change Border
-                    </button>
+                    <div class="w-full space-y-2">
+                        <button type="button" @click="$refs.adminAvatarInput.click()" class="w-full py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-sm font-semibold transition-colors flex justify-center items-center gap-2">
+                            <span class="material-symbols-outlined text-[16px]">add_a_photo</span> Change Picture
+                        </button>
+                        <button type="button" x-show="hasCustomAvatar" @click="removeAvatar()" class="w-full py-2 bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 rounded-xl text-sm font-semibold text-red-400 transition-colors flex justify-center items-center gap-2">
+                            <span class="material-symbols-outlined text-[16px]">delete</span> Remove Picture
+                        </button>
+                        <button @click="avatarModalOpen = true" class="w-full py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-sm font-semibold transition-colors flex justify-center items-center gap-2">
+                            <span class="material-symbols-outlined text-[16px]">image</span> Change Border
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>
@@ -171,14 +180,14 @@
         
         <div class="grid grid-cols-4 gap-3">
             <template x-for="border in borders" :key="border.id">
-                <button @click="selectedBorder = border.url; avatarModalOpen = false" 
+                <button @click="applyAdminBorder(border)" 
                     :class="selectedBorder === border.url ? 'border-red-500 bg-red-500/10' : 'border-white/10 bg-white/5 hover:border-white/30'"
                     class="w-full aspect-square rounded-xl border transition-all flex items-center justify-center overflow-hidden relative group">
                     <template x-if="!border.url">
                         <span class="material-symbols-outlined text-white/20 text-2xl group-hover:text-white/40 transition-colors">block</span>
                     </template>
                     <template x-if="border.url">
-                        <img :src="border.url" class="absolute inset-0 w-full h-full object-cover">
+                        <img :src="border.url" loading="lazy" decoding="async" class="absolute inset-0 w-full h-full object-cover">
                     </template>
                     
                     <!-- Selected Indicator -->

@@ -1,12 +1,27 @@
 // Barba.js Initialization
 if (typeof barba !== 'undefined') {
     barba.init({
-        prevent: ({ el }) => {
-            if (el.hasAttribute('data-barba-prevent')) return true;
-            if (el.getAttribute('href') && el.getAttribute('href').startsWith('#')) return true;
-            if (el.href && el.href.includes('backend/')) return true;
+        prevent: ({ el, href }) => {
+            if (el && el.hasAttribute('data-barba-prevent')) return true;
+            if (el && el.getAttribute('href') && el.getAttribute('href').startsWith('#')) return true;
+            if (el && el.href && el.href.includes('backend/')) return true;
+            const url = href || (el && el.href) || '';
+            if (String(url).includes('watch_party.php')) return true;
             return false;
         },
+        views: [{
+            namespace: 'index',
+            afterEnter({ next }) {
+                if (typeof window.initHomePage === 'function') {
+                    requestAnimationFrame(() => window.initHomePage(next.container));
+                }
+            },
+            beforeLeave() {
+                if (typeof window.destroyHomePage === 'function') {
+                    window.destroyHomePage();
+                }
+            }
+        }],
         transitions: [{
             name: 'opacity-transition',
             leave(data) {
@@ -18,6 +33,10 @@ if (typeof barba !== 'undefined') {
                     v.load();
                     v.remove();
                 });
+
+                if (typeof window.destroyHomePage === 'function') {
+                    window.destroyHomePage();
+                }
 
                 // Kill all ScrollTriggers before leaving to prevent memory leaks and conflicts
                 if (typeof ScrollTrigger !== 'undefined') {
@@ -33,12 +52,14 @@ if (typeof barba !== 'undefined') {
                 return new Promise(resolve => {
                     if (typeof window.showPageLoader === 'function') {
                         window.showPageLoader(resolve);
-                    } else {
+                    } else if (typeof gsap !== 'undefined') {
                         gsap.to(data.current.container, {
                             opacity: 0,
                             duration: 0.3,
                             onComplete: resolve
                         });
+                    } else {
+                        resolve();
                     }
                 });
             },
@@ -47,10 +68,21 @@ if (typeof barba !== 'undefined') {
                 // We do not manually call Alpine.start() or Alpine.initTree() to avoid duplicate errors.
 
                 // Start entering animation
-                gsap.from(data.next.container, {
-                    opacity: 0,
-                    duration: 0.3
-                });
+                if (typeof gsap !== 'undefined') {
+                    if (data.next.namespace === 'index') {
+                        gsap.from(data.next.container, {
+                            opacity: 0,
+                            y: 20,
+                            duration: 0.55,
+                            ease: 'power3.out'
+                        });
+                    } else {
+                        gsap.from(data.next.container, {
+                            opacity: 0,
+                            duration: 0.3
+                        });
+                    }
+                }
                 
                 // Update body classes safely
                 if (data.next.html) {
@@ -125,6 +157,10 @@ if (typeof barba !== 'undefined') {
                     initLocalAnimations(data.next.container);
                 }
 
+                if (data.next.namespace === 'index' && typeof window.initHomePage === 'function') {
+                    requestAnimationFrame(() => window.initHomePage(data.next.container));
+                }
+
                 // Check for URL parameters (error/success messages) after Barba transition
                 setTimeout(() => {
                     const urlParams = new URLSearchParams(window.location.search);
@@ -145,6 +181,15 @@ if (typeof barba !== 'undefined') {
                 }
             }
         }]
+    });
+
+    barba.hooks.before((data) => {
+        const nextUrl = data?.next?.url;
+        const href = typeof nextUrl === 'string' ? nextUrl : (nextUrl?.href || '');
+        if (href.includes('watch_party.php')) {
+            window.location.assign(href);
+            throw new Error('Hard navigation to watch party');
+        }
     });
 }
 

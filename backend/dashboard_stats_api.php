@@ -1,11 +1,11 @@
 <?php
 session_start();
 
+$role = strtolower((string)($_SESSION['user_role'] ?? ''));
 if (
     empty($_SESSION['authenticated']) ||
     $_SESSION['authenticated'] !== true ||
-    empty($_SESSION['user_role']) ||
-    $_SESSION['user_role'] !== 'admin'
+    !in_array($role, ['admin', 'moderator'], true)
 ) {
     http_response_code(403);
     header('Content-Type: application/json');
@@ -14,6 +14,7 @@ if (
 }
 
 header('Content-Type: application/json');
+session_write_close();
 require_once __DIR__ . '/../conn.php';
 
 function formatChange(float $current, float $previous): string

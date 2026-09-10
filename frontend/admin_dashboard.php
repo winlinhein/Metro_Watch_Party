@@ -12,10 +12,37 @@ if (
     exit();
 }
 
-    $userName  = $_SESSION['user_name']  ?? 'Agent';
-    $userEmail = $_SESSION['user_email'] ?? '';
-    $userRole  = $_SESSION['user_role']  ?? 'user';
+$userName  = $_SESSION['user_name']  ?? 'Agent';
+$userEmail = $_SESSION['user_email'] ?? '';
+$userRole  = $_SESSION['user_role']  ?? 'user';
+$userId    = (int)($_SESSION['user_id'] ?? 0);
+
+$avatarUrl = '';
+$borderPreview = '';
+$activeBorderId = 0;
+if ($userId > 0) {
+    try {
+        require_once __DIR__ . '/../conn.php';
+        require_once __DIR__ . '/../profile_media_helper.php';
+        $media = getUserProfileMedia($conn, $userId);
+        $avatarUrl = $media['avatar_url'] ?? '';
+        $borderPreview = $media['border_preview'] ?? '';
+        $activeBorderId = (int)($media['border_id'] ?? 0);
+    } catch (Throwable $e) {
+        error_log('admin dashboard boot profile media: ' . $e->getMessage());
+    }
+}
+
+$bootAvatarSrc = $avatarUrl !== ''
+    ? $avatarUrl
+    : ('https://ui-avatars.com/api/?name=' . rawurlencode($userName) . '&background=ef4444&color=fff&bold=true');
+
+session_write_close();
 ?>
+<script src="https://js.pusher.com/8.2.0/pusher.min.js"></script>
+<script>
+    window.CURRENT_USER_ID = <?= json_encode($userId) ?>;
+</script>
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -24,8 +51,8 @@ if (
     <title>Nexus - Admin Dashboard</title>
     
     <script src="https://cdn.tailwindcss.com/3.4.17"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js" crossorigin="anonymous"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/ScrollTrigger.min.js" crossorigin="anonymous"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js" crossorigin="anonymous" onerror="window.gsap=window.gsap||{to:()=>({to:()=>({}),fromTo:()=>({})}),fromTo:()=>({}),from:()=>({}),set:()=>{},timeline:()=>({to:()=>({}),fromTo:()=>({}),add:()=>({}),set:()=>({})}),config:()=>{},killTweensOf:()=>{}}"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js" crossorigin="anonymous" onerror="if(window.gsap)window.gsap.ScrollTrigger=window.gsap.ScrollTrigger||{create:()=>{},refresh:()=>{},kill:()=>{}}"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/@alpinejs/teleport@3.14.1/dist/cdn.min.js"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.1/dist/cdn.min.js" crossorigin="anonymous"></script>
     <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -140,7 +167,7 @@ if (
 
     <link rel="stylesheet" href="https://cdn.plyr.io/3.7.8/plyr.css" />
     <script src="https://cdn.plyr.io/3.7.8/plyr.polyfilled.js"></script>
-    <script src="../js/nexus_scripts.js?v=1787387210"></script>
+    <script src="../js/nexus_scripts.js?v=1788173600"></script>
     <script src="https://unpkg.com/htmx.org@1.9.10/dist/htmx.min.js" crossorigin="anonymous"></script>
 </head>
 <body class="h-screen w-screen flex relative selection:bg-red-500/30" data-barba="wrapper">
@@ -151,10 +178,13 @@ if (
      class="flex h-full w-full" 
      data-barba="container" 
      data-barba-namespace="admin_dashboard" 
-     x-data="adminDashboard({ 
-         user_name: '<?= htmlspecialchars($userName, ENT_QUOTES) ?>', 
-         email: '<?= htmlspecialchars($userEmail, ENT_QUOTES) ?>' 
-     })" 
+     x-data="adminDashboard(<?= htmlspecialchars(json_encode([
+         'user_name' => $userName,
+         'email' => $userEmail,
+         'avatar_url' => $avatarUrl,
+         'border_preview' => $borderPreview,
+         'active_border_id' => (int)$activeBorderId,
+     ], JSON_UNESCAPED_SLASHES), ENT_QUOTES, 'UTF-8') ?>)"
      @view-comment="handleViewComment($event.detail)"
      x-init="initDashboard()">
 
@@ -187,7 +217,7 @@ if (
         </nav>
         
         <div class="p-6">
-            <button onclick="handleLogout()" 
+            <button type="button" onclick="handleLogout()"
                     class="flex items-center gap-3 py-2 px-4 text-white/50 hover:text-red-400 transition-colors rounded-xl hover:bg-red-500/10 gs-nav-item w-full text-left cursor-pointer">
                 <span class="material-symbols-outlined text-[20px]">logout</span>
                 <span class="text-sm font-medium">Terminate Session</span>
@@ -203,7 +233,7 @@ if (
             <div class="flex items-center gap-4 bg-white/[0.03] border border-white/10 rounded-2xl px-5 py-3 w-[400px] focus-within:border-red-500/50 focus-within:bg-white/[0.05] transition-all duration-300 shadow-inner gs-header-item group">
                 <span class="material-symbols-outlined text-white/40 group-focus-within:text-red-400 transition-colors">search</span>
                 <input type="text" placeholder="Search databases..." class="bg-transparent border-none outline-none text-white text-sm w-full placeholder-white/30 font-medium">
-                <div class="px-2 py-0.5 rounded bg-white/10 text-[10px] text-white/50 mono border border-white/5">😘</div>
+                <div class="px-2 py-0.5 rounded bg-white/10 text-[10px] text-white/50 mono border border-white/5">ðŸ˜˜</div>
             </div>
             
             <div class="flex items-center gap-6 relative">
@@ -230,16 +260,29 @@ if (
                             <?php echo htmlspecialchars($userRole); ?>
                         </p>
                     </div>
-                    <div class="relative w-12 h-12">
-                        <!-- 2. Dynamically updates avatar image & alt text -->
-                        <img :src="selectedAvatar" 
-                            :alt="displayName"
-                            src="https://ui-avatars.com/api/?name=<?= urlencode($userName) ?>&background=ef4444&color=fff&bold=true" 
-                            class="w-full h-full rounded-full border border-white/20 group-hover:border-red-500/50 group-hover:shadow-[0_0_15px_rgba(239,68,68,0.3)] transition-all duration-300 relative z-10">
-                        
-                        <template x-if="selectedBorder">
-                            <img :src="selectedBorder" class="absolute inset-0 w-full h-full object-cover z-20 pointer-events-none scale-[1.3] drop-shadow-[0_0_15px_rgba(255,255,255,0.2)] mix-blend-screen opacity-90">
-                        </template>
+                    <div class="relative w-12 h-12 overflow-visible shrink-0" style="width: 3rem; height: 3rem;">
+                        <div class="absolute inset-0 z-10 overflow-hidden rounded-full scale-[1.18] group-hover:shadow-[0_0_15px_rgba(239,68,68,0.3)] transition-all duration-300" :class="selectedBorder ? '' : 'ring-1 ring-white/20 group-hover:ring-red-500/50'">
+                            <img :src="selectedAvatar" 
+                                :alt="displayName"
+                                src="<?= htmlspecialchars($bootAvatarSrc, ENT_QUOTES, 'UTF-8') ?>" 
+                                class="absolute inset-0 h-full w-full object-cover"
+                                style="object-fit: cover;">
+                        </div>
+                        <?php if ($borderPreview !== ''): ?>
+                        <img src="<?= htmlspecialchars($borderPreview, ENT_QUOTES, 'UTF-8') ?>"
+                             :src="selectedBorder || '<?= htmlspecialchars($borderPreview, ENT_QUOTES, 'UTF-8') ?>'"
+                             class="absolute inset-0 z-20 h-full w-full object-contain pointer-events-none scale-[1.38] drop-shadow-[0_0_15px_rgba(255,255,255,0.2)] mix-blend-screen opacity-90"
+                             alt=""
+                             decoding="sync"
+                             fetchpriority="high"
+                             :class="selectedBorder ? '' : 'invisible'">
+                        <?php else: ?>
+                        <img x-show="!!selectedBorder"
+                             :src="selectedBorder"
+                             class="absolute inset-0 z-20 h-full w-full object-contain pointer-events-none scale-[1.38] drop-shadow-[0_0_15px_rgba(255,255,255,0.2)] mix-blend-screen opacity-90"
+                             style="display: none;"
+                             alt="">
+                        <?php endif; ?>
                         <div class="absolute -bottom-1 -right-1 w-3.5 h-3.5 bg-green-500 border-2 border-[#030305] rounded-full z-30"></div>
                     </div>
                 </div>
@@ -250,7 +293,7 @@ if (
         </header>
 
         <!-- Content Area -->
-        <div class="flex-1 overflow-y-auto p-10 tab-content relative scroll-smooth" >
+        <div class="flex-1 min-h-0 overflow-y-auto p-10 tab-content relative scroll-smooth">
             <?php include __DIR__ . '/views/dashboard.php'; ?>
             <?php include __DIR__ . '/views/movies.php'; ?>
             <?php include __DIR__ . '/views/users.php'; ?>

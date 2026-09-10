@@ -164,6 +164,9 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
         $_SESSION['user_email']    = $user_record['email'];
         $_SESSION['user_role']     = $role;
 
+        require_once __DIR__ . '/../user_backend/mission_progress.php';
+        updateMissionProgress($user_record['user_id'] , 'daily_login', 1);
+
         if ($role === 'admin') {
             header("Location: ../frontend/admin_dashboard.php?success=" . urlencode("Welcome to Admin Dashboard"));
             exit();

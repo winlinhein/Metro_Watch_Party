@@ -5,10 +5,12 @@ require_once __DIR__ . '/../conn.php';
 
 header('Content-Type: application/json');
 
-if (empty($_SESSION['user_role']) || $_SESSION['user_role'] !== 'admin') {
+if (empty($_SESSION['user_role']) || !in_array(strtolower((string)$_SESSION['user_role']), ['admin', 'moderator'], true)) {
     echo json_encode(['success' => false, 'message' => 'Unauthorized']);
     exit;
 }
+
+session_write_close();
 
 $data = json_decode(file_get_contents('php://input'), true);
 $report_id = $data['report_id'] ?? null;

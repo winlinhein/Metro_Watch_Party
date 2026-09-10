@@ -7,6 +7,8 @@ if (empty($_SESSION["user_id"])) {
     exit;
 }
 
+session_write_close();
+
 try {
     require_once __DIR__ . "/../conn.php";
 
@@ -16,7 +18,7 @@ try {
                r.host_id,
                r.status,
                r.created_at,
-               COALESCE(u.name, u.username, u.email, \"Unknown\") AS host_name
+               COALESCE(u.user_name, u.email, \"Unknown\") AS host_name
         FROM rooms r
         LEFT JOIN users u ON u.user_id = r.host_id
         WHERE r.status = \"active\"

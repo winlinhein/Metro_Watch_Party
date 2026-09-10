@@ -7,15 +7,18 @@ if (empty($_SESSION['user_id'])) {
     exit();
 }
 
+$userId = (int)$_SESSION['user_id'];
+session_write_close();
+
 require_once __DIR__ . '/../conn.php';
 
 $stmt = $conn->prepare("SELECT is_premium, premium_expires_at FROM users WHERE user_id = ?");
-$stmt->execute([$_SESSION['user_id']]);
+$stmt->execute([$userId]);
 $row = $stmt->fetch(PDO::FETCH_ASSOC);
 
 $isPremium = (bool)$row['is_premium'];
 if ($isPremium && $row['premium_expires_at'] && strtotime($row['premium_expires_at']) < time()) {
-    $conn->prepare("UPDATE users SET is_premium = 0 WHERE user_id = ?")->execute([$_SESSION['user_id']]);
+    $conn->prepare("UPDATE users SET is_premium = 0 WHERE user_id = ?")->execute([$userId]);
     $isPremium = false;
 }
 

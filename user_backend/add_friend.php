@@ -2,6 +2,7 @@
 session_start();
 require_once __DIR__ . '/../conn.php';
 require_once __DIR__ . '/../pusher_helper.php';
+require_once __DIR__ . '/../profile_media_helper.php';
 
 header('Content-Type: application/json');
 
@@ -12,6 +13,8 @@ $senderName = $_SESSION['user_name'] ?? 'Someone';
 $data     = json_decode(file_get_contents('php://input'), true);
 $friendId = (int)($data['friend_id'] ?? 0);
 session_write_close();
+
+$senderMedia = getUserProfileMedia($conn, (int)$senderId);
 
 // 1. Validation & Self-Request Check
 if (!$senderId || !$friendId) {
@@ -67,13 +70,13 @@ try {
             $notifStmt->execute([':user_id' => $friendId, ':sender_id' => $userId]);
 
             // Real-time Pusher notification for the auto-accept event
-            $payload = [
+            $payload = array_merge([
                 'type'        => 'friend_accepted',
                 'sender_id'   => $senderId,
                 'sender_name' => $senderName,
                 'message'     => 'accepted your friend request.',
                 'created_at'  => date('Y-m-d H:i:s')
-            ];
+            ], $senderMedia);
             triggerPusherEvent("user-{$friendId}", "friend_event", $payload);
 
             echo json_encode([
@@ -108,14 +111,14 @@ try {
         ':sender'   => $userId
     ]);
 
-    // 4. Trigger event on target user's channel
-    $payload = [
+    // 4. Trigger event on target user's channel (include avatar/border for live UI)
+    $payload = array_merge([
         'type'        => 'friend_request',
         'sender_id'   => $senderId,
         'sender_name' => $senderName,
         'message'     => 'sent you a friend request.',
         'created_at'  => date('Y-m-d H:i:s')
-    ];
+    ], $senderMedia);
 
     triggerPusherEvent("user-{$friendId}", "friend_event", $payload);
 

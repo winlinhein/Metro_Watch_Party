@@ -1,5 +1,5 @@
 <!-- Sessions View (Rooms) -->
-<div data-tab-panel="sessions" style="display: none;" class="absolute inset-0 p-10 w-full min-h-full">
+<div data-tab-panel="sessions" style="display: none;" class="absolute inset-0 p-10 w-full min-h-full overflow-y-auto">
     <div class="flex items-center justify-between mb-10 stagger-item">
         <div>
             <h2 class="text-3xl font-bold text-white tracking-tight mb-1">Active Sessions</h2>

@@ -37,7 +37,7 @@
             // 3. Check for success before redirecting
             if (data.success) {
                 console.log(`Room created successfully! Code: ${data.room_code}`);
-                window.location.href = `watch_party.php?room_id=${data.room_id}`;
+                window.location.href = `/user/watch_party.php?room_id=${encodeURIComponent(data.room_id)}`;
             } else {
                 console.error("Room creation failed:", data.error);
                 if (window.showToast) window.showToast(data.error, 'error');

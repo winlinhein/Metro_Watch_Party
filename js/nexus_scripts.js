@@ -1,4 +1,50 @@
+(function () {
+    if (typeof window !== 'undefined' && typeof window.gsapSafe === 'undefined') {
+        const noopTween = { to: () => noopTween, fromTo: () => noopTween, play: () => {}, pause: () => {}, kill: () => {}, add: () => noopTween, set: () => noopTween };
+        const safe = {
+            to: () => noopTween,
+            fromTo: () => noopTween,
+            from: () => noopTween,
+            set: () => {},
+            timeline: () => noopTween,
+            config: () => {},
+            killTweensOf: () => {},
+            del: () => {},
+            setProperty: () => {},
+            getProperty: () => null,
+            utils: {},
+            plugins: {}
+        };
+        Object.defineProperty(window, 'gsapSafe', {
+            configurable: true,
+            get() { return typeof gsap !== 'undefined' ? gsap : safe; }
+        });
+    }
+})();
+
 function userDashboard() {
+    const bootUser = window.NEXUS_USER || {};
+    const bootName = bootUser.username || 'User';
+    const bootAvatarRaw = bootUser.avatar_url || '';
+    const bootBorderId = Number(bootUser.active_border_id) || 0;
+    const bootBorderPreview = bootUser.border_preview || '';
+    const resolveBootAvatar = (url, name) => {
+        if (!url) {
+            return `https://ui-avatars.com/api/?name=${encodeURIComponent(name || 'User')}&background=ef4444&color=fff&bold=true`;
+        }
+        if (/^(https?:)?\/\//i.test(url) || url.startsWith('data:') || url.startsWith('blob:')) {
+            return url;
+        }
+        if (url.startsWith('/user_backend/media.php') || url.startsWith('/uploads/')) {
+            return url;
+        }
+        if (url.startsWith('/')) {
+            return url;
+        }
+        return '/uploads/avatars/' + String(url).replace(/^\/+/, '');
+    };
+    const bootAvatar = resolveBootAvatar(bootAvatarRaw, bootName);
+
     return {
         // Navigation & Tab State
         currentTab: 'dashboard',
@@ -37,13 +83,21 @@ function userDashboard() {
         // Form & Data Objects
         selectedReport: null,
         selectedRoom: null,
-        formData: { name: '', price: 0, rarity: 'Common', image: '' },
+
+         // Shop & Points
+        formData: { name: '', price: 0, rarity: 'Common', image: '' },      
+        userPoints: 0,
+        userInventory: [],
         shopItems: [],
+        showConfirmModal: false,  
+        selectedItem: null,        
 
         // Movie State & Modals
         movies: [],
         movieSearchQuery: '',
         selectedMovie: null,
+        viewRecorded: false,        // reset each time a new movie detail is opened
+        viewThresholdSeconds: 10,   // minimum watch time before counting a view 
         newRating: 0,
         hoveredRating: 0,
         commentText: '',
@@ -69,18 +123,227 @@ function userDashboard() {
         selectedReasonIds: [],
         reportDescription: '',
 
-        // --- Account State ---
-        accountForm: { },
+       // Account State
+        accountForm: {
+            username: bootName,
+            email: bootUser.email || ''
+        },
         passwordForm: { current: '', new: '', confirm: '' },
-        activeBorderId: 1,
+        activeBorderId: bootBorderId,
+        activeBorderPreview: bootBorderPreview,
         availableBorders: [
-            { id: 1, name: 'None', preview: 'https://via.placeholder.com/150/000000/FFFFFF/?text=None', owned: true },
-            { id: 2, name: 'Encom Grid', preview: '/frontend/assets/borders/Encom%20grid.gif', owned: true },
-            { id: 3, name: 'Glitch', preview: '/frontend/assets/borders/Glitch.gif', owned: false },
-            { id: 4, name: 'Hallucination', preview: '/frontend/assets/borders/Hallunication.gif', owned: false },
-            { id: 5, name: 'Spray Doodle', preview: '/frontend/assets/borders/Spray%20doodle.gif', owned: false },
-            { id: 6, name: 'Sukuna Slashes', preview: '/frontend/assets/borders/Sukuna\'s%20slashes.gif', owned: true }
+            { id: 0, name: 'None', preview: '', owned: true },
+            ...(bootBorderId && bootBorderPreview
+                ? [{ id: bootBorderId, name: 'Equipped', preview: bootBorderPreview, owned: true }]
+                : [])
         ],
+        hasCustomAvatar: !!bootAvatarRaw,
+        selectedAvatar: bootAvatar,   
+
+        resolveShopImage(image) {
+            if (!image) return '';
+            if (/^(https?:)?\/\//i.test(image) || image.startsWith('/') || image.startsWith('data:') || image.startsWith('blob:')) {
+                return image;
+            }
+            return '/uploads/shop/' + image;
+        },
+
+        resolveAvatarUrl(url, name = 'User') {
+            if (!url) return this.getAvatarUrl(name);
+            if (/^(https?:)?\/\//i.test(url) || url.startsWith('data:') || url.startsWith('blob:')) {
+                return url;
+            }
+            if (url.startsWith('/user_backend/media.php') || url.startsWith('/uploads/')) {
+                return url;
+            }
+            if (url.startsWith('/')) {
+                return url;
+            }
+            return '/uploads/avatars/' + url.replace(/^\/+/, '');
+        },
+
+        resolveMediaUrl(url) {
+            if (!url) return '';
+            if (/^(https?:)?\/\//i.test(url) || url.startsWith('data:') || url.startsWith('blob:')) {
+                return url;
+            }
+            if (url.startsWith('/user_backend/media.php')) {
+                return url;
+            }
+            if (url.startsWith('/uploads/')) {
+                return '/user_backend/media.php?path=' + encodeURIComponent(url);
+            }
+            return url;
+        },
+
+        buildAvailableBorders() {
+            const borderItems = this.shopItems.filter(item => String(item.category || '').toLowerCase() === 'border');
+            const ownedIds = new Set((this.userInventory || []).map(id => Number(id)));
+            this.availableBorders = [
+                { id: 0, name: 'None', preview: '', owned: true },
+                ...borderItems.map(item => ({
+                    id: Number(item.id),
+                    name: item.name,
+                    preview: item.image,
+                    owned: ownedIds.has(Number(item.id))
+                }))
+            ];
+            const active = this.availableBorders.find(b => Number(b.id) === Number(this.activeBorderId));
+            if (active?.preview) {
+                this.activeBorderPreview = active.preview;
+            } else if (!this.activeBorderId) {
+                this.activeBorderPreview = '';
+            }
+        },
+
+       async fetchUserProfile() {
+            try {
+                const res = await fetch('/user_backend/get_user_profile.php');
+                const text = await res.text();
+                let data;
+                try {
+                    data = JSON.parse(text);
+                } catch (parseErr) {
+                    console.error('Failed to fetch profile: non-JSON response', text.slice(0, 200));
+                    return;
+                }
+                if (data.success) {
+                    this.userPoints = data.points;
+                    this.userInventory = (data.inventory || []).map(id => Number(id));
+                    this.activeBorderId = Number(data.active_border_id) || 0;
+                    this.activeBorderPreview = data.border_preview || '';
+                    localStorage.removeItem('activeBorder');
+                    if (data.avatar_url) {
+                        const avatar = this.resolveAvatarUrl(data.avatar_url, this.savedProfile.username);
+                        this.selectedAvatar = avatar;
+                        this.savedProfile.avatar_url = avatar;
+                        this.hasCustomAvatar = true;
+                    } else {
+                        this.selectedAvatar = this.getAvatarUrl(this.savedProfile.username);
+                        this.savedProfile.avatar_url = '';
+                        this.hasCustomAvatar = false;
+                    }
+                    if (window.NEXUS_USER) {
+                        window.NEXUS_USER.avatar_url = data.avatar_url || '';
+                        window.NEXUS_USER.active_border_id = this.activeBorderId;
+                        window.NEXUS_USER.border_preview = this.activeBorderPreview;
+                    }
+                    this.buildAvailableBorders();
+                    this.cacheOwnMedia();
+
+                    // Force reset if active border is not owned
+                    const owned = this.userInventory.includes(Number(this.activeBorderId));
+                    if (this.activeBorderId !== 0 && !owned) {
+                        this.activeBorderId = 0;
+                        this.activeBorderPreview = '';
+                        fetch('/user_backend/update_active_border.php', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ border_id: 0 })
+                        }).catch(() => {});
+                    }
+                }
+            } catch (e) {
+                console.error('Failed to fetch profile:', e);
+            }
+        },
+
+        async setActiveBorder(borderId) {
+            borderId = Number(borderId) || 0;
+            const border = this.availableBorders.find(b => Number(b.id) === borderId);
+            if (!border || !border.owned) {
+                if (window.showToast) window.showToast('You do not own this border', 'error');
+                return;
+            }
+
+            const previous = this.activeBorderId;
+            const previousPreview = this.activeBorderPreview;
+            this.activeBorderId = borderId;
+            this.activeBorderPreview = border.preview || '';
+            if (window.showToast) window.showToast(`${border.name} border applied!`, 'success');
+
+            try {
+                const res = await fetch('/user_backend/update_active_border.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ border_id: borderId })
+                });
+                const data = await res.json();
+                if (!data.success) {
+                    this.activeBorderId = previous;
+                    this.activeBorderPreview = previousPreview;
+                    if (window.showToast) window.showToast(data.message || 'Failed to save border', 'error');
+                    return;
+                }
+                localStorage.removeItem('activeBorder');
+                if (window.NEXUS_USER) {
+                    window.NEXUS_USER.active_border_id = borderId;
+                    window.NEXUS_USER.border_preview = this.activeBorderPreview;
+                }
+            } catch (e) {
+                this.activeBorderId = previous;
+                this.activeBorderPreview = previousPreview;
+                console.error('Failed to save border:', e);
+                if (window.showToast) window.showToast('Failed to save border', 'error');
+            }
+        },
+
+       async uploadAvatar(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const formData = new FormData();
+            formData.append('avatar', file);
+
+            try {
+                const res = await fetch('/user_backend/upload_avatar.php', {
+                    method: 'POST',
+                    body: formData
+                });
+                const data = await res.json();
+                if (data.success) {
+                    this.selectedAvatar = this.resolveAvatarUrl(data.avatar_url, this.savedProfile.username);
+                    this.savedProfile.avatar_url = this.selectedAvatar;
+                    this.hasCustomAvatar = true;
+                    if (window.NEXUS_USER) window.NEXUS_USER.avatar_url = this.selectedAvatar;
+                    this.forceSetCachedMedia(window.CURRENT_USER_ID, {
+                        avatar_url: this.selectedAvatar,
+                        border_preview: this.activeBorderPreview || ''
+                    });
+                    if (window.showToast) window.showToast('Profile picture updated!', 'success');
+                } else {
+                    if (window.showToast) window.showToast(data.message || 'Upload failed', 'error');
+                }
+            } catch (e) {
+                console.error('Avatar upload error:', e);
+                if (window.showToast) window.showToast('Network error', 'error');
+            } finally {
+                event.target.value = '';
+            }
+        },
+
+        async removeAvatar() {
+            try {
+                const res = await fetch('/user_backend/remove_avatar.php', { method: 'POST' });
+                const data = await res.json();
+                if (data.success) {
+                    this.selectedAvatar = this.getAvatarUrl(this.savedProfile.username);
+                    this.savedProfile.avatar_url = '';
+                    this.hasCustomAvatar = false;
+                    if (window.NEXUS_USER) window.NEXUS_USER.avatar_url = '';
+                    this.forceSetCachedMedia(window.CURRENT_USER_ID, {
+                        avatar_url: '',
+                        border_preview: this.activeBorderPreview || ''
+                    });
+                    if (window.showToast) window.showToast('Profile picture removed', 'success');
+                } else {
+                    if (window.showToast) window.showToast(data.message || 'Failed to remove avatar', 'error');
+                }
+            } catch (e) {
+                console.error('Remove avatar error:', e);
+                if (window.showToast) window.showToast('Network error', 'error');
+            }
+        },
 
         // --- Report Item Modal State ---
         showReportItemModal: false,
@@ -98,6 +361,56 @@ function userDashboard() {
             return window.NEXUS_USER?.isGuest === true;
         },
 
+        applyBootProfile(user = window.NEXUS_USER) {
+            if (!user || user.isGuest) {
+                this.savedProfile = { username: 'Guest', email: '', avatar_url: '' };
+                this.accountForm = { username: 'Guest', email: '' };
+                this.selectedAvatar = this.getAvatarUrl('Guest');
+                this.hasCustomAvatar = false;
+                this.activeBorderId = 0;
+                this.activeBorderPreview = '';
+                return;
+            }
+
+            const name = user.username || 'User';
+            const email = user.email || '';
+            const avatarRaw = user.avatar_url || '';
+            const borderId = Number(user.active_border_id) || 0;
+            const borderPreview = user.border_preview || '';
+
+            this.savedProfile = {
+                username: name,
+                email,
+                avatar_url: avatarRaw
+            };
+            this.accountForm = { username: name, email };
+
+            if (avatarRaw) {
+                this.selectedAvatar = this.resolveAvatarUrl(avatarRaw, name);
+                this.hasCustomAvatar = true;
+            } else {
+                this.selectedAvatar = this.getAvatarUrl(name);
+                this.hasCustomAvatar = false;
+            }
+
+            this.activeBorderId = borderId;
+            this.activeBorderPreview = borderPreview;
+            if (borderId && borderPreview) {
+                const exists = this.availableBorders.some(b => Number(b.id) === borderId);
+                if (!exists) {
+                    this.availableBorders = [
+                        { id: 0, name: 'None', preview: '', owned: true },
+                        { id: borderId, name: 'Equipped', preview: borderPreview, owned: true },
+                        ...this.availableBorders.filter(b => Number(b.id) !== 0 && Number(b.id) !== borderId)
+                    ];
+                } else {
+                    this.availableBorders = this.availableBorders.map(b =>
+                        Number(b.id) === borderId ? { ...b, preview: borderPreview || b.preview } : b
+                    );
+                }
+            }
+        },
+
         requireLogin() {
             if (this.isGuest) {
                 if (window.showToast) window.showToast('Please login to continue', 'info');
@@ -112,14 +425,15 @@ function userDashboard() {
             if (this.isActivating) return;
             this.isActivating = true;
 
-            // GSAP animation sequence (as before)
-            const tl = gsap.timeline();
-            tl.to('.premium-btn', { scale: 0.9, duration: 0.2 })
-            .to('.premium-btn', { scale: 1.1, duration: 0.1, yoyo: true, repeat: 3 })
-            .to('.premium-btn', { opacity: 0, scale: 0, duration: 0.4, ease: 'back.in(1.5)' });
-            tl.to('.premium-features', { opacity: 0, y: -20, duration: 0.3, stagger: 0.1 }, '-=0.4');
-            tl.to('.premium-card', { boxShadow: '0 0 100px rgba(99,102,241,0)', duration: 0.5 }, '-=0.5');
-            tl.fromTo('.premium-loader', { scale: 0, opacity: 0 }, { scale: 1, opacity: 1, duration: 0.5, ease: 'elastic.out(1, 0.5)' });
+            if (typeof gsap !== 'undefined') {
+                const tl = gsap.timeline();
+                tl.to('.premium-btn', { scale: 0.9, duration: 0.2 })
+                .to('.premium-btn', { scale: 1.1, duration: 0.1, yoyo: true, repeat: 3 })
+                .to('.premium-btn', { opacity: 0, scale: 0, duration: 0.4, ease: 'back.in(1.5)' });
+                tl.to('.premium-features', { opacity: 0, y: -20, duration: 0.3, stagger: 0.1 }, '-=0.4');
+                tl.to('.premium-card', { boxShadow: '0 0 100px rgba(99,102,241,0)', duration: 0.5 }, '-=0.5');
+                tl.fromTo('.premium-loader', { scale: 0, opacity: 0 }, { scale: 1, opacity: 1, duration: 0.5, ease: 'elastic.out(1, 0.5)' });
+            }
 
             try {
                 const res = await fetch('/user_backend/create_checkout_session.php', {
@@ -136,16 +450,18 @@ function userDashboard() {
             } catch (err) {
                 console.error('Payment error:', err);
                 if (window.showToast) window.showToast('Payment failed to start.', 'error');
-                // Revert UI
-                gsap.to('.premium-loader', { opacity: 0, scale: 0, duration: 0.3 });
-                gsap.to('.premium-btn', { opacity: 1, scale: 1, duration: 0.3, delay: 0.3 });
-                gsap.to('.premium-features', { opacity: 1, y: 0, duration: 0.3, stagger: 0.1, delay: 0.3 });
+                if (typeof gsap !== 'undefined') {
+                    gsap.to('.premium-loader', { opacity: 0, scale: 0, duration: 0.3 });
+                    gsap.to('.premium-btn', { opacity: 1, scale: 1, duration: 0.3, delay: 0.3 });
+                    gsap.to('.premium-features', { opacity: 1, y: 0, duration: 0.3, stagger: 0.1, delay: 0.3 });
+                }
             } finally {
                 this.isActivating = false;
             }
         },
 
         initPremium() {
+            if (typeof gsap === 'undefined') return;
             if (this.isPremium) {
                 gsap.set('.premium-success-icon', { opacity: 1, scale: 1, rotation: 0 });
                 gsap.set('.premium-welcome-text', { opacity: 1, y: 0 });
@@ -205,16 +521,34 @@ function userDashboard() {
         get filteredMovies() {
             if (!this.movieSearchQuery.trim()) return this.movies;
             const query = this.movieSearchQuery.toLowerCase();
-            return this.movies.filter(movie => 
-                (movie.title && movie.title.toLowerCase().includes(query)) ||
-                (Array.isArray(movie.genres) && movie.genres.some(g => g.toLowerCase().includes(query)))
-            );
+            return this.movies.filter(movie => {
+                const titleMatch = movie.title && movie.title.toLowerCase().includes(query);
+                let genres = movie.genres;
+                if (typeof genres === 'string') genres = genres.split(',').map(s => s.trim()).filter(Boolean);
+                const genreMatch = Array.isArray(genres) && genres.some(g => (g || '').toLowerCase().includes(query));
+                return titleMatch || genreMatch;
+            });
+        },
+
+        // Normalize movies returned by the API: ensure genres=array, add year/genre helpers
+        _normalizeMovie(m) {
+            if (!m || typeof m !== 'object') return m;
+            let genres = m.genres;
+            if (typeof genres === 'string') genres = genres.split(',').map(s => s.trim()).filter(Boolean);
+            if (!Array.isArray(genres)) genres = [];
+            const year = m.year || (m.created_at ? new Date(m.created_at).getFullYear() : 2024);
+            return {
+                ...m,
+                genres,
+                year,
+                genre: m.genre || genres[0] || 'Movie'
+            };
         },
 
         // API Fetching
         async fetchMovies() {
             try {
-                const response = await fetch(`/user_backend/movies_api.php?t=${Date.now()}`);
+                const response = await fetch('/user_backend/movies_api.php');
                 if (response.status === 401) {
                     if (this.isGuest) {
                         if (window.showToast) window.showToast('Unable to load movies. Please try again.', 'error');
@@ -226,29 +560,55 @@ function userDashboard() {
                 if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
 
                 const data = await response.json();
-                console.log("Fetched movies raw:", data);
 
-                // -- Handle three possible response shapes --
+                let rawMovies = [];
                 if (Array.isArray(data)) {
-                    // Backend returns a plain array
-                    this.movies = data;
+                    rawMovies = data;
                 } else if (data && typeof data === 'object' && data.success !== undefined) {
-                    // Backend returns { success: true, movies: [...] }
                     if (data.success && Array.isArray(data.movies)) {
-                        this.movies = data.movies;
+                        rawMovies = data.movies;
                     } else {
                         throw new Error(data.message || 'Failed to load movies');
                     }
                 } else {
-                    // Unexpected format
                     throw new Error('Invalid response format');
                 }
 
-                console.log("Movies assigned:", this.movies);
+                this.movies = rawMovies.map(m => this._normalizeMovie(m));
+                this.syncWatchlistState();
             } catch (e) {
                 console.error("Failed to load movies from database:", e);
                 this.movieError = "Failed to load movies. Please try again.";
-                this.movies = [];   // ensure it's always an array
+                this.movies = [];
+            }
+        },
+
+       async recordView(movieId) {
+            if (!movieId || this.viewRecorded) return;
+
+            try {
+                const res = await fetch('/user_backend/record_view.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ movie_id: movieId })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    // Update modal
+                    if (this.selectedMovie && this.getMovieId(this.selectedMovie) === movieId) {
+                        this.selectedMovie.view_count = data.view_count;
+                    }
+                    // Update main movies array
+                    const movieInList = this.movies.find(m => this.getMovieId(m) === movieId);
+                    if (movieInList) {
+                        movieInList.view_count = data.view_count;
+                    }
+                }
+                // Always mark as recorded to prevent repeated calls
+                this.viewRecorded = true;
+            } catch (e) {
+                console.error('Failed to record view:', e);
+                this.viewRecorded = true; // prevent repeated attempts on network error
             }
         },
 
@@ -259,11 +619,12 @@ function userDashboard() {
         },
 
         // --- Account Methods ---
-        // Initialized synchronously from NEXUS_USER so the correct name is
+        // Initialized synchronously from NEXUS_USER so the correct name/avatar/border
         // shown on the very first render, without waiting for init().
         savedProfile: {
-            username: '...',   
-            email: ''
+            username: bootName,
+            email: bootUser.email || '',
+            avatar_url: bootAvatarRaw || ''
         },
         deleteAccountModalOpen: false,
         deleteAccountPassword: '',
@@ -340,22 +701,6 @@ function userDashboard() {
             }
         },
 
-        setActiveBorder(borderId) {
-            const border = this.availableBorders.find(b => b.id === borderId);
-            if (!border) return;
-            
-            if (!border.owned) {
-                if (window.showToast) window.showToast('You do not own this border. Purchase it in the shop!', 'error');
-                return;
-            }
-
-            this.activeBorderId = borderId;
-            if (window.showToast) {
-                window.showToast(`${border.name} border applied!`, 'success');
-            }
-            // Save to local storage or backend
-            localStorage.setItem('activeBorder', borderId);
-        },
         openDeleteAccountModal() {
             this.deleteAccountModalOpen = true;
             this.deleteAccountPassword = '';
@@ -478,6 +823,7 @@ function userDashboard() {
 
         async openMovieDetail(movie) {
             this.selectedMovie = movie;
+            this.viewRecorded = false; 
             this.newRating = movie?.user_rating ? parseInt(movie.user_rating, 10) : 0;
             this.hoveredRating = 0;
             this.commentText = '';
@@ -531,6 +877,8 @@ function userDashboard() {
         // Data Lists
         friends: [],
         pendingRequests: [],
+        avatarCache: {},
+        chatHistoryCache: {},
         notifications: [],
         searchResults: [],
         unreadNotifCount: 0,
@@ -558,11 +906,9 @@ function userDashboard() {
         ],
 
         // Watch Party Sessions, Watchlist & Activity Feed
-        upcomingParties: [
-            { title: "Dune: Part Two", time: "TODAY 20:00", genre: "SCI-FI", host: "You", members: 8, img: "https://images.unsplash.com/photo-1536440136628-849c177e76a1?auto=format&fit=crop&q=80&w=400&h=200" },
-            { title: "Interstellar", time: "TMRW 21:00", genre: "SCI-FI", host: "Sarah J.", members: 12, img: "https://images.unsplash.com/photo-1614730321146-b6fa6a46bcb4?auto=format&fit=crop&q=80&w=400&h=200" },
-            { title: "Cyberpunk Edgerunners", time: "FRI 22:00", genre: "ANIME", host: "David W.", members: 15, img: "https://images.unsplash.com/photo-1578632767115-351597cf2477?auto=format&fit=crop&q=80&w=400&h=200" }
-        ],
+        upcomingParties: [],
+        friendRooms: [],
+        friendRoomsLoading: false,
         watchlist: [],
         networkTraffic: [
             { day: 'Mon', reqs: 1250, height: 40 },
@@ -581,38 +927,170 @@ function userDashboard() {
             { day: 'Sun', reqs: 4600, height: 88 }
         ],
 
+        claimingQuestId: null,
+
+        get questPointsAvailable() {
+            const questStat = this.stats.find(s => s.label === 'Quests');
+            return questStat ? questStat.value : 0;
+        },
+
         async loadMissions() {
-            this.statsLoading = true;
             try {
                 const response = await fetch('/user_backend/mission.php');
                 const data = await response.json();
                 
                 if (data.success) {
-                    // Update Total Points in stats array
-                    this.stats[3].value = data.totalPoints;
+                    // Update Total Points in stats array (only if Quests stat exists, for regular users)
+                    const questStat = this.stats.find(s => s.label === 'Quests');
+                    if (questStat) {
+                        questStat.value = data.totalPoints;
+                    }
                     
                     // Populate daily, weekly, and monthly quests dynamically
                     ['daily', 'weekly', 'monthly'].forEach(type => {
                         this.quests[type] = (data.quests[type] || []).map(q => ({
-                            id: q.mission_id,
+                            id: q.id,
                             title: q.title,
-                            desc: `Reward: ${q.points_reward} Points`, // Fixed backticks
-                            points: q.points_reward,
-                            completed: Number(q.completed) === 1
+                            desc: q.desc,
+                            points: q.points,
+                            completed: Number(q.completed) === 1,
+                            claimed: Number(q.claimed) === 1,
+                            progress: Number(q.progress) || 0,
+                            target: Number(q.target) || 0
                         }));
                     });
                 }
             } catch (err) {
                 console.error('Failed to fetch missions:', err);
-            } finally {
-                setTimeout(() => { this.statsLoading = false; }, 800);
             }
+        },
+
+        async claimQuest(missionId) {
+            if (!missionId || this.claimingQuestId) return;
+            this.claimingQuestId = missionId;
+            try {
+                const res = await fetch('/user_backend/claim_mission.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ mission_id: missionId })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    if (window.showToast) window.showToast(`Claimed ${data.points_added} points!`, 'success');
+                    const questStat = this.stats.find(s => s.label === 'Quests');
+                    if (questStat) {
+                        questStat.value = Math.max(0, Number(questStat.value) - Number(data.points_added || 0));
+                    }
+                    ['daily', 'weekly', 'monthly'].forEach(type => {
+                        this.quests[type] = (this.quests[type] || []).map(q =>
+                            Number(q.id) === Number(missionId) ? { ...q, claimed: true } : q
+                        );
+                    });
+                    this.userPoints = Number(this.userPoints || 0) + Number(data.points_added || 0);
+                    await this.loadMissions();
+                    await this.fetchUserProfile();
+                } else {
+                    if (window.showToast) window.showToast(data.message || 'Claim failed', 'error');
+                }
+            } catch (e) {
+                console.error('Claim error:', e);
+                if (window.showToast) window.showToast('Could not claim mission. Please try again.', 'error');
+            } finally {
+                this.claimingQuestId = null;
+            }
+        },
+
+        mediaFileKey(url) {
+            if (!url) return '';
+            const raw = String(url);
+            const pathMatch = raw.match(/[?&]path=([^&]+)/);
+            if (pathMatch) {
+                try { return decodeURIComponent(pathMatch[1]); } catch (e) { return pathMatch[1]; }
+            }
+            return raw;
+        },
+
+        loadMediaCaches() {
+            try {
+                this.avatarCache = JSON.parse(sessionStorage.getItem('nexus_avatar_cache') || '{}');
+            } catch (e) {
+                this.avatarCache = {};
+            }
+            try {
+                this.chatHistoryCache = JSON.parse(sessionStorage.getItem('nexus_chat_cache') || '{}');
+            } catch (e) {
+                this.chatHistoryCache = {};
+            }
+        },
+
+        persistAvatarCache() {
+            try { sessionStorage.setItem('nexus_avatar_cache', JSON.stringify(this.avatarCache)); } catch (e) {}
+        },
+
+        persistChatCache() {
+            try { sessionStorage.setItem('nexus_chat_cache', JSON.stringify(this.chatHistoryCache)); } catch (e) {}
+        },
+
+        applyCachedMedia(row, userIdKey = 'user_id') {
+            if (!row || typeof row !== 'object') return row;
+            const id = Number(row[userIdKey] || row.user_id || row.sender_id || 0);
+            if (!id) return row;
+            const cached = this.avatarCache[id] || {};
+            const incomingAvatar = row.avatar_url || '';
+            const incomingBorder = row.border_preview || '';
+            const cachedAvatar = cached.avatar_url || '';
+            const cachedBorder = cached.border_preview || '';
+
+            if (cachedAvatar && (!incomingAvatar || this.mediaFileKey(cachedAvatar) === this.mediaFileKey(incomingAvatar))) {
+                row.avatar_url = cachedAvatar;
+            } else if (incomingAvatar) {
+                this.avatarCache[id] = { ...cached, avatar_url: incomingAvatar };
+                row.avatar_url = incomingAvatar;
+            }
+
+            if (cachedBorder && (!incomingBorder || this.mediaFileKey(cachedBorder) === this.mediaFileKey(incomingBorder))) {
+                row.border_preview = cachedBorder;
+            } else if (incomingBorder) {
+                this.avatarCache[id] = { ...(this.avatarCache[id] || {}), border_preview: incomingBorder };
+                row.border_preview = incomingBorder;
+            }
+
+            if (Array.isArray(row.replies)) {
+                row.replies = row.replies.map(r => this.applyCachedMedia(r, userIdKey));
+            }
+            return row;
+        },
+
+        cacheOwnMedia() {
+            const id = Number(window.CURRENT_USER_ID);
+            if (!id) return;
+            this.forceSetCachedMedia(id, {
+                avatar_url: this.savedProfile?.avatar_url || this.selectedAvatar || '',
+                border_preview: this.activeBorderPreview || ''
+            });
+        },
+
+        forceSetCachedMedia(userId, media = {}) {
+            const id = Number(userId);
+            if (!id) return;
+            const prev = this.avatarCache[id] || {};
+            this.avatarCache[id] = {
+                avatar_url: media.avatar_url !== undefined && media.avatar_url !== null
+                    ? media.avatar_url
+                    : (prev.avatar_url || ''),
+                border_preview: media.border_preview !== undefined && media.border_preview !== null
+                    ? media.border_preview
+                    : (prev.border_preview || '')
+            };
+            this.persistAvatarCache();
         },
 
         // Fetch Friends & Incoming Pending Requests
         async fetchFriends(retries = 1) {
             try {
-                const response = await fetch('/user_backend/get_friends.php');
+                const response = await fetch('/user_backend/get_friends.php', {
+                    signal: AbortSignal.timeout ? AbortSignal.timeout(8000) : undefined
+                });
                 if (response.status === 401) {
                     if (this.isGuest) {
                         if (window.showToast) window.showToast('Unable to load movies. Please try again.', 'error');
@@ -626,8 +1104,9 @@ function userDashboard() {
                 const data = await response.json();
                 
                 if (data && !data.error) {
-                    this.friends = data.friends || [];
-                    this.pendingRequests = data.pending_requests || [];
+                    this.friends = (data.friends || []).map(f => this.applyCachedMedia(f));
+                    this.pendingRequests = (data.pending_requests || []).map(r => this.applyCachedMedia(r));
+                    this.persistAvatarCache();
                     this.updateFriendsCount();
                     this.initAllChatSubscriptions();
                 }
@@ -649,7 +1128,8 @@ function userDashboard() {
 
                 const data = await response.json();
                 if (data.success && Array.isArray(data.notifications)) {
-                    this.notifications = data.notifications;
+                    this.notifications = data.notifications.map(n => this.applyCachedMedia(n, 'sender_id'));
+                    this.persistAvatarCache();
                     this.unreadNotifCount = this.notifications.filter(n => Number(n.is_read) === 0).length;
                 }
             } catch (err) {
@@ -671,6 +1151,147 @@ function userDashboard() {
                 // Even if it fails server-side or mock, we can clear locally for UX if we want.
                 this.notifications = [];
                 this.unreadNotifCount = 0;
+            }
+        },
+
+        handleIncomingPartyInvite(detail = {}) {
+            const roomId = Number(detail.room_id || detail.roomId || 0);
+            const senderId = Number(detail.sender_id || detail.hostId || 0);
+            const senderName = detail.sender_name || detail.hostName || 'Someone';
+            if (!roomId) return;
+
+            const already = this.notifications.some(n =>
+                n.type === 'party_invite'
+                && Number(n.room_id) === roomId
+                && Number(n.sender_id) === senderId
+            );
+            if (already) {
+                this.showNotifications = true;
+                return;
+            }
+
+            this.notifications = [
+                {
+                    id: detail.id || `invite-${roomId}-${Date.now()}`,
+                    type: 'party_invite',
+                    sender_id: senderId || null,
+                    sender_name: senderName,
+                    message: detail.message || 'invited you to a watch party.',
+                    room_id: roomId,
+                    created_at: detail.created_at || 'Just now',
+                    avatar_url: detail.avatar_url || '',
+                    border_preview: detail.border_preview || '',
+                    is_read: 0
+                },
+                ...this.notifications
+            ];
+            this.unreadNotifCount++;
+            this.showNotifications = true;
+            if (window.showToast) {
+                window.showToast(`${senderName} invited you to a watch party`, 'info');
+            }
+        },
+
+        acceptPartyInvite(notif) {
+            const roomId = Number(notif?.room_id || 0);
+            if (!roomId) {
+                if (window.showToast) window.showToast('This invite is missing a room.', 'error');
+                return;
+            }
+            if (notif?.id) this.dismissNotification(notif.id);
+            window.location.href = `/user/watch_party.php?room_id=${encodeURIComponent(roomId)}`;
+        },
+
+        async declinePartyInvite(notif) {
+            if (notif?.id) await this.dismissNotification(notif.id);
+            this.notifications = this.notifications.filter(n => n.id !== notif.id);
+            this.unreadNotifCount = this.notifications.filter(n => Number(n.is_read) === 0).length;
+            if (window.showToast) window.showToast('Invite declined.', 'info');
+        },
+
+        async fetchFriendRooms() {
+            if (this.isGuest) {
+                this.friendRooms = [];
+                this.friendRoomsLoading = false;
+                return;
+            }
+            this.friendRoomsLoading = true;
+            try {
+                const res = await fetch('/user_backend/get_friend_rooms.php');
+                const data = await res.json();
+                if (data.success) {
+                    this.friendRooms = data.rooms || [];
+                }
+            } catch (e) {
+                console.error('fetchFriendRooms', e);
+            } finally {
+                this.friendRoomsLoading = false;
+            }
+        },
+
+        enterFriendRoom(party) {
+            const roomId = Number(party?.room_id || 0);
+            if (!roomId) return;
+            window.location.href = `/user/watch_party.php?room_id=${encodeURIComponent(roomId)}`;
+        },
+
+        async requestJoinRoom(party) {
+            if (!party || party.request_status === 'pending') return;
+            if (party.in_room || party.request_status === 'accepted') {
+                this.enterFriendRoom(party);
+                return;
+            }
+            try {
+                const form = new FormData();
+                form.append('room_id', String(party.room_id));
+                const res = await fetch('/user_backend/request_join.php', { method: 'POST', body: form });
+                const data = await res.json();
+                if (!data.success) {
+                    if (window.showToast) window.showToast(data.message || 'Could not send join request.', 'error');
+                    return;
+                }
+                party.request_status = 'pending';
+                this.friendRooms = [...this.friendRooms];
+                if (window.showToast) window.showToast('Join request sent to the host.', 'success');
+            } catch (e) {
+                if (window.showToast) window.showToast('Could not send join request.', 'error');
+            }
+        },
+
+        async respondJoinRequest(notif, action) {
+            try {
+                const form = new FormData();
+                form.append('action', action);
+                if (notif.request_id) form.append('request_id', String(notif.request_id));
+                if (notif.room_id) form.append('room_id', String(notif.room_id));
+                if (notif.sender_id) form.append('requester_id', String(notif.sender_id));
+                const res = await fetch('/user_backend/respond_join.php', { method: 'POST', body: form });
+                const data = await res.json();
+                if (!data.success) {
+                    if (window.showToast) window.showToast(data.message || 'Could not respond.', 'error');
+                    return;
+                }
+                if (notif?.id) await this.dismissNotification(notif.id);
+                this.notifications = this.notifications.filter(n => n.id !== notif.id);
+                this.unreadNotifCount = this.notifications.filter(n => Number(n.is_read) === 0).length;
+                if (window.showToast) {
+                    window.showToast(action === 'accept' ? 'Join request accepted.' : 'Join request declined.', 'info');
+                }
+            } catch (e) {
+                if (window.showToast) window.showToast('Could not respond.', 'error');
+            }
+        },
+
+        async dismissNotification(notifId) {
+            if (!notifId || String(notifId).startsWith('invite-')) return;
+            try {
+                await fetch('/user_backend/delete_notification.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ notification_id: Number(notifId) })
+                });
+            } catch (e) {
+                console.warn('Failed to delete notification', e);
             }
         },
 
@@ -703,18 +1324,34 @@ function userDashboard() {
                     // If not found in pending, check notifications
                     if (!acceptedUser) {
                         const notifUser = this.notifications.find(n => Number(n.sender_id) === targetUserId);
-                        if (notifUser) acceptedUser = { user_id: notifUser.sender_id, user_name: notifUser.sender_name };
+                        if (notifUser) {
+                            acceptedUser = {
+                                user_id: notifUser.sender_id,
+                                user_name: notifUser.sender_name,
+                                avatar_url: notifUser.avatar_url || '',
+                                border_preview: notifUser.border_preview || ''
+                            };
+                        }
                     }
                     
                     // If still not found, check search results
                     if (!acceptedUser) {
                         const searchUser = this.searchResults.find(u => Number(u.user_id) === targetUserId);
-                        if (searchUser) acceptedUser = { user_id: searchUser.user_id, user_name: searchUser.user_name || searchUser.name };
+                        if (searchUser) {
+                            acceptedUser = {
+                                user_id: searchUser.user_id,
+                                user_name: searchUser.user_name || searchUser.name,
+                                avatar_url: searchUser.avatar_url || '',
+                                border_preview: searchUser.border_preview || ''
+                            };
+                        }
                     }
 
                     // Synchronize State Arrays (Immediately remove the requests/notifications)
                     this.pendingRequests = this.pendingRequests.filter(req => Number(req.user_id) !== targetUserId);
-                    this.notifications = this.notifications.filter(notif => Number(notif.sender_id) !== targetUserId);
+                    this.notifications = this.notifications.filter(notif =>
+                        !(Number(notif.sender_id) === targetUserId && notif.type === 'friend_request')
+                    );
                     this.unreadNotifCount = this.notifications.filter(n => Number(n.is_read) === 0).length;
 
                     // Update Search Results UI instantly
@@ -730,6 +1367,8 @@ function userDashboard() {
                             this.friends = [...this.friends, {
                                 user_id: acceptedUser.user_id,
                                 user_name: acceptedUser.user_name || "New Friend",
+                                avatar_url: acceptedUser.avatar_url || '',
+                                border_preview: acceptedUser.border_preview || '',
                                 unread_count: 0
                             }];
                             this.updateFriendsCount();
@@ -858,6 +1497,13 @@ function userDashboard() {
             if (this.currentTab === tabId) return;
             const oldTab = this.currentTab;
             this.currentTab = tabId;
+            if (tabId === 'movies' && !this.movies.length) this.fetchMovies();
+            if (tabId === 'watchlist') this.fetchWatchlist();
+            if (tabId === 'shop' || tabId === 'account') {
+                if (!this.shopItems.length) {
+                    this.fetchShopItems().then(() => this.buildAvailableBorders());
+                }
+            }
             const oldPanel = document.querySelector(`[data-tab-panel="${oldTab}"]`);
             const newPanel = document.querySelector(`[data-tab-panel="${tabId}"]`);
             if (oldPanel && newPanel && typeof window.gsap !== 'undefined') {
@@ -877,10 +1523,14 @@ function userDashboard() {
             if (this.isNavOpen) return;
             this.isNavOpen = true;
             
-            const tl = gsap.timeline();
-            this.$root.querySelector('#side-panel').style.pointerEvents = 'auto';
-            this.$root.querySelector('#nav-overlay').style.pointerEvents = 'auto';
+            const sidePanel = this.$root.querySelector('#side-panel');
+            const navOverlay = this.$root.querySelector('#nav-overlay');
+            if (sidePanel) sidePanel.style.pointerEvents = 'auto';
+            if (navOverlay) navOverlay.style.pointerEvents = 'auto';
             
+            if (typeof gsap === 'undefined') return;
+            
+            const tl = gsap.timeline();
             tl.to('#nav-overlay', { opacity: 1, duration: 0.15, ease: "power2.out" }, 0);
             tl.to('#side-panel', { x: 0, duration: 0.5, ease: "expo.out" }, 0);
             tl.fromTo('.side-nav-item', 
@@ -898,10 +1548,19 @@ function userDashboard() {
             if (!this.isNavOpen) return;
             this.isNavOpen = false;
             
+            const sidePanel = this.$root.querySelector('#side-panel');
+            const navOverlay = this.$root.querySelector('#nav-overlay');
+            
+            if (typeof gsap === 'undefined') {
+                if (sidePanel) sidePanel.style.pointerEvents = 'none';
+                if (navOverlay) navOverlay.style.pointerEvents = 'none';
+                return;
+            }
+            
             const tl = gsap.timeline({
                 onComplete: () => {
-                    this.$root.querySelector('#side-panel').style.pointerEvents = 'none';
-                    this.$root.querySelector('#nav-overlay').style.pointerEvents = 'none';
+                    if (sidePanel) sidePanel.style.pointerEvents = 'none';
+                    if (navOverlay) navOverlay.style.pointerEvents = 'none';
                 }
             });
             
@@ -1014,9 +1673,11 @@ function userDashboard() {
                         sender: 'them',
                         text: data.message_text || '',
                         message_type: data.message_type || 'text',
-                        image_url: data.image_url || null,
+                        image_url: this.resolveMediaUrl(data.image_url || null),
                         time: this.formatTime(data.time)
                     }];
+                    this.chatHistoryCache[senderId] = this.chatMessages.filter(m => !String(m.image_url || '').startsWith('data:')).slice(-80);
+                    this.persistChatCache();
                     this.scrollToBottom();
 
                     fetch('/user_backend/mark_as_read.php', {
@@ -1063,8 +1724,9 @@ function userDashboard() {
             const friendId = Number(friend.user_id || friend.friend_id || friend.id);
             if (!friendId) return;
 
-            this.activeChatFriend = { ...friend, user_id: friendId, unread_count: 0 };
-            this.chatMessages = [];
+            this.activeChatFriend = this.applyCachedMedia({ ...friend, user_id: friendId, unread_count: 0 });
+            const cachedMessages = this.chatHistoryCache[friendId];
+            this.chatMessages = Array.isArray(cachedMessages) ? cachedMessages : [];
             this.showChatPanel = true;
             this.clearFriendUnread(friendId);
 
@@ -1080,13 +1742,13 @@ function userDashboard() {
                 }
             });
 
-            await fetch('/user_backend/mark_as_read.php', {
+            const historyPromise = this.fetchChatHistory(friendId);
+            fetch('/user_backend/mark_as_read.php', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ sender_id: friendId })
-            });
-
-            await this.fetchChatHistory(friendId);
+            }).catch(() => {});
+            await historyPromise;
         },
 
         
@@ -1304,13 +1966,7 @@ function userDashboard() {
                         );
                     }
 
-                    this.friends = this.friends.filter(
-                        f => Number(f.user_id || f.friend_id || f.id) !== targetId
-                    );
-
-                    this.updateFriendsCount();
-                    this.closeDropdown();
-
+                    this.applyFriendRemoved(targetId);
                 } else {
                     if (window.showToast) {
                         window.showToast(
@@ -1325,22 +1981,52 @@ function userDashboard() {
             });
         },
 
+        applyFriendRemoved(removedId) {
+            const id = Number(removedId);
+            if (!id) return;
+
+            this.friends = this.friends.filter(
+                f => Number(f.user_id || f.friend_id || f.id) !== id
+            );
+            this.updateFriendsCount();
+
+            this.searchResults = this.searchResults.map(user => {
+                if (Number(user.user_id) === id) {
+                    return { ...user, friend_status: null, requester_id: null };
+                }
+                return user;
+            });
+
+            if (this.activeChatFriend && Number(this.activeChatFriend.user_id) === id) {
+                this.closeChat();
+            }
+
+            if (this.selectedProfileUser) {
+                const selectedId = Number(
+                    this.selectedProfileUser.user_id ||
+                    this.selectedProfileUser.friend_id ||
+                    this.selectedProfileUser.id
+                );
+                if (selectedId === id) {
+                    this.closeDropdown();
+                }
+            }
+        },
+
         // 4. Updated closeChat Method
         closeChat() {
-            if (typeof gsap !== 'undefined') {
+            this.showChatPanel = false;
+            if (typeof gsap !== 'undefined' && this.$refs.chatPanel) {
                 gsap.to(this.$refs.chatPanel, {
                     x: '100%',
                     opacity: 0,
                     duration: 0.3,
                     ease: 'power2.in',
                     onComplete: () => {
-                        this.showChatPanel = false;
                         this.activeChatFriend = null;
-                        // gsap.set(".chat-panel-container", { clearProps: "all" });
                     }
                 });
             } else {
-                this.showChatPanel = false;
                 this.activeChatFriend = null;
             }
         },
@@ -1367,10 +2053,12 @@ function userDashboard() {
                         sender: Number(msg.sender_id) === Number(window.CURRENT_USER_ID) ? 'me' : 'them',
                         text: msg.message_text,
                         message_type: msg.message_type || 'text',
-                        image_url: msg.image_url || null,
+                        image_url: this.resolveMediaUrl(msg.image_url || null),
                         time: this.formatTime(msg.time || msg.created_at),
                         is_read: msg.is_read
                     }));
+                    this.chatHistoryCache[friendId] = this.chatMessages.filter(m => !String(m.image_url || '').startsWith('data:')).slice(-80);
+                    this.persistChatCache();
                     this.scrollToBottom();
                 } else {
                     console.error("Backend error loading chats:", data.message);
@@ -1430,7 +2118,7 @@ function userDashboard() {
                     // Replace temp image message with real URL
                     const tempMsg = this.chatMessages.find(m => m.id.startsWith('temp-img-'));
                     if (tempMsg) {
-                        tempMsg.image_url = data.data.image_url;
+                        tempMsg.image_url = this.resolveMediaUrl(data.data.image_url);
                         tempMsg.is_temp = false;
                     }
                 } else if (!data.success) {
@@ -1540,7 +2228,8 @@ function userDashboard() {
                         });
                     };
                     applyLikes(data.comments);
-                    this.selectedMovie.comments = data.comments;
+                    this.selectedMovie.comments = data.comments.map(c => this.applyCachedMedia(c));
+                    this.persistAvatarCache();
                 }
             } catch (e) { 
                 console.error("Failed to load comments:", e); 
@@ -1652,7 +2341,19 @@ function userDashboard() {
                     if (!commentData.success) {
                         throw new Error(commentData.message || 'Comment submission failed');
                     }
-                    await this.fetchMovieComments(movieId);
+                    const posted = this.applyCachedMedia({
+                        ...(commentData.comment || {}),
+                        user_id: Number(window.CURRENT_USER_ID),
+                        comment: commentText,
+                        comment_text: commentText,
+                        replies: [],
+                        avatar_url: this.savedProfile?.avatar_url || this.selectedAvatar || '',
+                        border_preview: this.activeBorderPreview || ''
+                    });
+                    const currentComments = this.selectedMovie.comments || [];
+                    if (!currentComments.some(c => Number(c.id) === Number(posted.id))) {
+                        this.selectedMovie.comments = [posted, ...currentComments];
+                    }
                 }
 
                 // If we reach here, both succeeded
@@ -1692,8 +2393,19 @@ function userDashboard() {
                     const data = JSON.parse(rawText); // Try to parse it
                     if (!data.success && window.showToast) {
                         window.showToast(data.message || 'Failed to post reply', 'error');
-                    } else {
-                        await this.fetchMovieComments(this.selectedMovie.id);
+                    } else if (data.success) {
+                        const reply = this.applyCachedMedia({
+                            ...(data.reply || {}),
+                            user_id: Number(window.CURRENT_USER_ID),
+                            avatar_url: this.savedProfile?.avatar_url || this.selectedAvatar || '',
+                            border_preview: this.activeBorderPreview || ''
+                        });
+                        this.selectedMovie.comments = (this.selectedMovie.comments || []).map(comment => {
+                            if (Number(comment.id) !== Number(parentCommentId)) return comment;
+                            const replies = comment.replies || [];
+                            if (replies.some(r => Number(r.id) === Number(reply.id))) return comment;
+                            return { ...comment, replies: [...replies, reply] };
+                        });
                     }
                 } catch (parseError) {
                     console.error("Server returned non-JSON response:", rawText);
@@ -1772,18 +2484,52 @@ function userDashboard() {
             return await this.processLiveReview(rating, commentText);
         },
 
+        async fetchShopItems() {
+            try {
+                const res = await fetch('/user_backend/get_shop_items.php');
+                const data = await res.json();
+                if (data.success) {
+                    this.shopItems = data.items.map(item => ({
+                        id: item.id,
+                        name: item.name,
+                        price: item.price,
+                        rarity: item.rarity,
+                        image: this.resolveShopImage(item.image),
+                        category: item.category
+                    }));
+                }
+            } catch (e) {
+                console.error('Failed to fetch shop items:', e);
+            }
+        },
+
+        async purchaseItem(itemId) {
+            try {
+                const res = await fetch('/user_backend/purchase_item.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ item_id: itemId })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    this.userPoints = data.new_points;
+                    this.userInventory.push(itemId);
+                    this.showConfirmModal = false;   // close modal
+                    if (window.showToast) window.showToast('Purchase successful!', 'success');
+                    this.fetchUserProfile();
+                } else {
+                    if (window.showToast) window.showToast(data.message || 'Purchase failed', 'error');
+                }
+            } catch (e) {
+                console.error('Purchase error:', e);
+                if (window.showToast) window.showToast('Network error', 'error');
+            }
+        },
+
         async fetchWatchlist() {
             try {
                 const response = await fetch("/user_backend/get_watchlist.php");
-                let raw = await response.text();
-                console.log("Raw watchlist response:", raw);
-                
-                // Remove leading backslash if present
-                if (raw.startsWith('\\')) {
-                    raw = raw.substring(1);
-                }
-                
-                const data = JSON.parse(raw);
+                const data = await response.json();
                 if (data.success) {
                     this.watchlist = data.watchlist || [];
                     this.watchlist = [...this.watchlist];
@@ -1863,8 +2609,8 @@ function userDashboard() {
                 if (!this.selectedMovie || Number(this.getMovieId(this.selectedMovie)) !== Number(data.movie_id)) return;
 
                 const currentComments = this.selectedMovie.comments || [];
-                // Push onto the array
-                this.selectedMovie.comments = [data, ...currentComments];
+                if (currentComments.some(c => Number(c.id) === Number(data.id))) return;
+                this.selectedMovie.comments = [this.applyCachedMedia(data), ...currentComments];
             });
 
             // 3. Live Reply Update
@@ -1878,7 +2624,7 @@ function userDashboard() {
                         const replyExists = currentReplies.some(r => Number(r.id) === Number(data.id));
 
                         if (!replyExists) {
-                            return { ...comment, replies: [...currentReplies, data] };
+                            return { ...comment, replies: [...currentReplies, this.applyCachedMedia(data)] };
                         }
                     }
                     return comment;
@@ -1915,6 +2661,20 @@ function userDashboard() {
                     this.selectedMovie.comments = newComments;
                 }
             });
+
+            // 5. Live View Count Update
+            channel.bind('view_count_updated', (data) => {
+                if (!this.selectedMovie || Number(this.getMovieId(this.selectedMovie)) !== Number(data.movie_id)) return;
+
+                // Update modal
+                this.selectedMovie.view_count = data.view_count;
+
+                // Update main movies array
+                const movieInList = this.movies.find(m => Number(this.getMovieId(m)) === Number(data.movie_id));
+                if (movieInList) {
+                    movieInList.view_count = data.view_count;
+                }
+            });
         },
 
         unsubscribeFromLiveMovieEvents(movieId) {
@@ -1948,19 +2708,102 @@ function userDashboard() {
                 });
         },
 
-        // Initialize Pusher Connection
-        initPusher() {
-            if (!window.CURRENT_USER_ID || typeof Pusher === 'undefined') {
-                console.warn('Pusher init skipped: CURRENT_USER_ID or Pusher missing');
-                return;
+         handleProfileChanged(data) {
+            const uid = Number(data.user_id);
+            this.forceSetCachedMedia(uid, {
+                avatar_url: data.avatar_url,
+                border_preview: data.border_preview
+            });
+
+            // Update current user if it's them (e.g., another tab)
+            if (window.CURRENT_USER_ID && uid === Number(window.CURRENT_USER_ID)) {
+                if (data.avatar_url !== undefined && data.avatar_url !== null) {
+                    if (data.avatar_url) {
+                        this.selectedAvatar = this.resolveAvatarUrl(data.avatar_url, this.savedProfile.username);
+                        this.savedProfile.avatar_url = this.selectedAvatar;
+                        this.hasCustomAvatar = true;
+                    } else {
+                        this.selectedAvatar = this.getAvatarUrl(this.savedProfile.username);
+                        this.savedProfile.avatar_url = '';
+                        this.hasCustomAvatar = false;
+                    }
+                }
+                if (data.border_id !== undefined) this.activeBorderId = Number(data.border_id) || 0;
+                if (data.border_preview !== undefined) this.activeBorderPreview = data.border_preview || '';
             }
 
-            Pusher.logToConsole = true; // ⚠️ REMOVE IN PRODUCTION
+            const patchTree = (list) => {
+                if (!Array.isArray(list)) return list;
+                return list.map(node => {
+                    if (Number(node.user_id) === uid) {
+                        if (data.avatar_url !== undefined) node.avatar_url = data.avatar_url || '';
+                        if (data.border_preview !== undefined) node.border_preview = data.border_preview || '';
+                    }
+                    if (node.replies) node.replies = patchTree(node.replies);
+                    return { ...node };
+                });
+            };
 
-            this.pusherClient = new Pusher('f4b5637ef4b8952b6eb8', {
-                cluster: 'ap1',
-                encrypted: true
+            // Update comments (if any), including replies
+            if (this.selectedMovie && this.selectedMovie.comments) {
+                this.selectedMovie.comments = patchTree(this.selectedMovie.comments);
+            }
+
+            // Update friends list
+            this.friends = this.friends.map(friend => {
+                if (Number(friend.user_id) === Number(data.user_id)) {
+                    if (data.avatar_url !== undefined && data.avatar_url !== null) friend.avatar_url = data.avatar_url;
+                    if (data.border_preview !== undefined && data.border_preview !== null) friend.border_preview = data.border_preview;
+                }
+                return friend;
             });
+
+            if (Array.isArray(this.pendingRequests)) {
+                this.pendingRequests = this.pendingRequests.map(req => {
+                    if (Number(req.user_id) === Number(data.user_id)) {
+                        if (data.avatar_url !== undefined && data.avatar_url !== null) req.avatar_url = data.avatar_url;
+                        if (data.border_preview !== undefined && data.border_preview !== null) req.border_preview = data.border_preview;
+                    }
+                    return req;
+                });
+            }
+
+            if (Array.isArray(this.notifications)) {
+                this.notifications = this.notifications.map(n => {
+                    if (Number(n.sender_id) === Number(data.user_id)) {
+                        if (data.avatar_url !== undefined && data.avatar_url !== null) n.avatar_url = data.avatar_url;
+                        if (data.border_preview !== undefined && data.border_preview !== null) n.border_preview = data.border_preview;
+                    }
+                    return n;
+                });
+            }
+
+            if (this.activeChatFriend && Number(this.activeChatFriend.user_id) === Number(data.user_id)) {
+                if (data.avatar_url !== undefined && data.avatar_url !== null) this.activeChatFriend.avatar_url = data.avatar_url;
+                if (data.border_preview !== undefined && data.border_preview !== null) this.activeChatFriend.border_preview = data.border_preview;
+            }
+
+            // Update searchResults
+            this.searchResults = this.searchResults.map(user => {
+                if (Number(user.user_id) === Number(data.user_id)) {
+                    if (data.avatar_url !== undefined && data.avatar_url !== null) user.avatar_url = data.avatar_url;
+                    if (data.border_preview !== undefined && data.border_preview !== null) user.border_preview = data.border_preview;
+                }
+                return user;
+            });
+        },
+
+        // Initialize Pusher Connection
+        initPusher() {
+            // Only run if Pusher library is available
+            if (typeof Pusher === 'undefined') return;
+
+            if (!this.pusherClient) {
+                this.pusherClient = new Pusher('f4b5637ef4b8952b6eb8', {
+                    cluster: 'ap1',
+                    encrypted: true
+                });
+            }
 
             this.pusherClient.connection.bind('connected', () => {
                 console.log('Pusher connected');
@@ -1968,6 +2811,34 @@ function userDashboard() {
             this.pusherClient.connection.bind('error', (err) => {
                 console.error('Pusher connection error:', err);
             });
+
+            // ---- PUBLIC CHANNELS (always subscribe) ----
+
+            // Shop live updates
+            const shopChannel = this.pusherClient.subscribe('shop-updates');
+            shopChannel.bind('shop_changed', () => {
+                this.fetchShopItems();
+            });
+
+            // Movie live updates
+            const movieChannel = this.pusherClient.subscribe('movie-updates');
+            movieChannel.bind('movie_changed', (data) => {
+                if (data.action === 'delete') {
+                    const movieId = Number(data.movie_id);
+                    this.movies = this.movies.filter(m => Number(m.id || m.movie_id) !== movieId);
+                } else {
+                    this.fetchMovies();
+                }
+            });
+
+            //Border and Avater
+            const profileChannel = this.pusherClient.subscribe('profile-updates');
+            profileChannel.bind('profile_changed', (data) => {
+                this.handleProfileChanged(data);
+            });
+
+            // ---- USER-SPECIFIC CHANNEL (only if logged in) ----
+            if (!window.CURRENT_USER_ID) return;
 
             const channel = this.pusherClient.subscribe(`user-${window.CURRENT_USER_ID}`);
 
@@ -1984,39 +2855,24 @@ function userDashboard() {
             // Real-time unfriend
             channel.bind('friend-removed', (data) => {
                 const removedId = Number(data.friend_id);
-
-                this.friends = this.friends.filter(
-                    f => Number(f.user_id || f.friend_id || f.id) !== removedId
+                const wasFriend = this.friends.some(
+                    f => Number(f.user_id || f.friend_id || f.id) === removedId
                 );
-
-                this.updateFriendsCount();
-
-                // Also update search results immediately
-                this.searchResults = this.searchResults.map(user => {
-                    if (Number(user.user_id) === removedId) {
-                        return {
-                            ...user,
-                            friend_status: null,
-                            requester_id: null
-                        };
-                    }
-                    return user;
-                });
-
-                if (window.showToast) {
+                this.applyFriendRemoved(removedId);
+                // Only toast for the other party (local unfriend already toasted)
+                if (wasFriend && window.showToast) {
                     window.showToast('A friendship was removed.', 'info');
                 }
             });
 
+            // Watchlist updates
             channel.bind('watchlist-updated', (data) => {
                 const movieId = data.movie_id;
                 const action = data.action;
-
                 const catalogItem = this.movies.find(m => Number(this.getMovieId(m)) === Number(movieId));
                 if (catalogItem) {
                     catalogItem.inWatchlist = (action === 'added');
                 }
-
                 if (action === 'removed') {
                     this.watchlist = this.watchlist.filter(w => Number(w.id) !== Number(movieId));
                 } else if (action === 'added') {
@@ -2024,39 +2880,130 @@ function userDashboard() {
                 }
             });
 
+            // Friend events
             channel.bind('friend_event', (data) => {
+                const avatarUrl = data.avatar_url || '';
+                const borderPreview = data.border_preview || '';
+                if (data.sender_id) {
+                    this.forceSetCachedMedia(data.sender_id, {
+                        avatar_url: avatarUrl,
+                        border_preview: borderPreview
+                    });
+                }
+
+                if (data.type === 'party_invite') {
+                    const roomId = Number(data.room_id || 0);
+                    const senderId = Number(data.sender_id || 0);
+                    const dup = this.notifications.some(n =>
+                        n.type === 'party_invite'
+                        && Number(n.room_id) === roomId
+                        && Number(n.sender_id) === senderId
+                    );
+                    if (dup) {
+                        this.showNotifications = true;
+                        return;
+                    }
+                }
+
+                if (data.type === 'join_request') {
+                    const roomId = Number(data.room_id || 0);
+                    const senderId = Number(data.sender_id || 0);
+                    const dupJoin = this.notifications.some(n =>
+                        n.type === 'join_request'
+                        && Number(n.room_id) === roomId
+                        && Number(n.sender_id) === senderId
+                    );
+                    if (dupJoin) {
+                        this.showNotifications = true;
+                        if (window.showToast) {
+                            window.showToast(`${data.sender_name} wants to join your watch party`, 'info');
+                        }
+                        return;
+                    }
+                }
+
                 this.notifications = [
                     {
-                        id: Date.now(),
+                        id: data.id || Date.now(),
                         type: data.type,
                         sender_id: data.sender_id,
                         sender_name: data.sender_name,
                         message: data.message,
+                        room_id: data.room_id || null,
+                        request_id: data.request_id || null,
                         created_at: data.created_at,
+                        avatar_url: avatarUrl,
+                        border_preview: borderPreview,
                         is_read: 0
                     },
                     ...this.notifications
                 ];
-
                 this.unreadNotifCount++;
 
+                if (data.type === 'party_invite') {
+                    this.showNotifications = true;
+                    if (window.showToast) {
+                        window.showToast(`${data.sender_name} invited you to a watch party`, 'info');
+                    }
+                }
+
+                if (data.type === 'join_request') {
+                    this.showNotifications = true;
+                    if (window.showToast) {
+                        window.showToast(`${data.sender_name} wants to join your watch party`, 'info');
+                    }
+                }
+
+                if (data.type === 'join_request_accepted') {
+                    this.showNotifications = true;
+                    this.friendRooms = (this.friendRooms || []).map((room) => {
+                        if (Number(room.room_id) !== Number(data.room_id)) return room;
+                        return { ...room, request_status: 'accepted' };
+                    });
+                    if (window.showToast) {
+                        window.showToast(`${data.sender_name} accepted your join request`, 'success');
+                    }
+                }
+
+                if (data.type === 'join_request_declined') {
+                    this.friendRooms = (this.friendRooms || []).map((room) => {
+                        if (Number(room.room_id) !== Number(data.room_id)) return room;
+                        return { ...room, request_status: null };
+                    });
+                    if (window.showToast) {
+                        window.showToast(`${data.sender_name} declined your join request`, 'info');
+                    }
+                }
+
                 if (data.type === 'friend_request') {
-                    const alreadyExists = this.pendingRequests.some(r => r.user_id == data.sender_id);
+                    const alreadyExists = this.pendingRequests.some(r => Number(r.user_id) === Number(data.sender_id));
                     if (!alreadyExists) {
                         this.pendingRequests = [
                             {
                                 user_id: data.sender_id,
-                                user_name: data.sender_name
-                            }, 
+                                user_name: data.sender_name,
+                                avatar_url: avatarUrl,
+                                border_preview: borderPreview
+                            },
                             ...this.pendingRequests
                         ];
+                    } else {
+                        this.pendingRequests = this.pendingRequests.map(req => {
+                            if (Number(req.user_id) !== Number(data.sender_id)) return req;
+                            return {
+                                ...req,
+                                avatar_url: avatarUrl || req.avatar_url,
+                                border_preview: borderPreview || req.border_preview
+                            };
+                        });
                     }
+                    // Keep pending list in sync with DB (covers any missed media fields)
+                    this.fetchFriends();
                 }
 
                 if (data.type === 'friend_accepted') {
                     const acceptorId = Number(data.sender_id);
                     const acceptorName = data.sender_name;
-
                     const friendExists = this.friends.some(f => Number(f.user_id) === acceptorId);
                     if (!friendExists) {
                         this.friends = [
@@ -2064,40 +3011,52 @@ function userDashboard() {
                             {
                                 user_id: acceptorId,
                                 user_name: acceptorName,
+                                avatar_url: avatarUrl,
+                                border_preview: borderPreview,
                                 unread_count: 0
                             }
                         ];
                         this.subscribeToChatChannel(acceptorId);
+                        this.updateFriendsCount();
+                    } else {
+                        this.friends = this.friends.map(f => {
+                            if (Number(f.user_id) !== acceptorId) return f;
+                            return {
+                                ...f,
+                                avatar_url: avatarUrl || f.avatar_url,
+                                border_preview: borderPreview || f.border_preview
+                            };
+                        });
                     }
-
                     const userIndex = this.searchResults.findIndex(u => Number(u.user_id) === acceptorId);
                     if (userIndex !== -1) {
                         this.searchResults[userIndex].friend_status = 'accepted';
+                        this.searchResults[userIndex].avatar_url = avatarUrl || this.searchResults[userIndex].avatar_url;
+                        this.searchResults[userIndex].border_preview = borderPreview || this.searchResults[userIndex].border_preview;
                         this.searchResults = [...this.searchResults];
                     }
-
                     if (window.showToast) window.showToast(`${acceptorName} accepted your request!`, 'success');
+                    this.fetchFriends();
+                } else if (data.type === 'friend_rejected') {
+                    const declinerId = Number(data.sender_id);
+                    this.searchResults = this.searchResults.map(user => {
+                        if (Number(user.user_id) === declinerId) {
+                            return { ...user, friend_status: null, requester_id: null };
+                        }
+                        return user;
+                    });
+                    if (typeof window.showToast === 'function') {
+                        window.showToast(`${data.sender_name} ${data.message}`, 'error');
+                    }
                 } else if (typeof window.showToast === 'function') {
-                    const toastType = data.type === 'friend_rejected' ? 'error' : 'success';
-                    window.showToast(`${data.sender_name} ${data.message}`, toastType);
+                    window.showToast(`${data.sender_name} ${data.message}`, 'success');
                 }
-
-                this.fetchFriends();
-                this.searchUsers();
                 this.fetchNotifications();
             });
 
-            // Subscribe to movie update events
-            const movieChannel = this.pusherClient.subscribe('movie-updates');
-
-            movieChannel.bind('movie_changed', (data) => {
-                // Refresh the movie list when any change occurs
-                if (data.action === 'delete') {
-                    const movieId = Number(data.movie_id);
-                    this.movies = this.movies.filter(m => Number(m.id || m.movie_id) !== movieId);
-                } else {
-                    // For create/update, simply re-fetch the full list
-                    this.fetchMovies();
+            channel.bind('missions_updated', () => {
+                if (window.NEXUS_USER?.role === 'user') {
+                    this.loadMissions();
                 }
             });
         },
@@ -2124,32 +3083,22 @@ function userDashboard() {
                 window.NEXUS_USER = { isGuest: true, username: 'Guest', email: '' };
             }
 
-            // 2. Update savedProfile and accountForm based on NEXUS_USER
-            if (!window.NEXUS_USER.isGuest) {
-                this.savedProfile = {
-                    username: window.NEXUS_USER.username || 'CurrentUser',
-                    email: window.NEXUS_USER.email || ''
-                };
-                this.accountForm = { ...this.savedProfile };
-            } else {
-                this.savedProfile = { username: 'Guest', email: '' };
-                this.accountForm = { ...this.savedProfile };
-            }
+            // 2. Update savedProfile / avatar / border instantly from boot payload
+            this.applyBootProfile(window.NEXUS_USER);
 
-            const savedBorder = localStorage.getItem('activeBorder');
-            if (savedBorder) this.activeBorderId = parseInt(savedBorder, 10);
+            // Source of truth is the DB via fetchUserProfile — drop stale local border cache
+            localStorage.removeItem('activeBorder');
 
             if (typeof gsap !== 'undefined') gsap.config({ nullTargetWarn: false });
 
-            // 1. Initialize Pusher only for logged-in users
-            if (!this.isGuest) {
-                this.initPusher();
-            }
+            this.initPusher();
+            this.loadMediaCaches();
+            this.cacheOwnMedia();
+            this.fetchMovies();
 
-            // 2. Always fetch movies (public for everyone)
-            await this.fetchMovies();
-
-            // 3. For guests, skip all user-specific data fetching
+            this._partyInviteHandler = (e) => this.handleIncomingPartyInvite(e.detail || {});
+            window.addEventListener('incoming-party-invite', this._partyInviteHandler);
+            
             if (this.isGuest) {
                 this.statsLoading = false;
                 this.stats = this.stats.map(stat => ({ ...stat, value: '0' }));
@@ -2159,22 +3108,37 @@ function userDashboard() {
                 this.watchlist = [];
                 this.notifications = [];
                 this.unreadNotifCount = 0;
-                // Set up a simple watch for showPremiumModal? Not needed.
             } else {
-                // Logged-in user flow
-                this.fetchReasons();
-                await this.fetchWatchlist();
-                await this.fetchFriends();
-                this.searchUsers();
-                this.loadMissions();
-                this.fetchNotifications();
-                await this.checkPaymentStatus();
-                await this.fetchPremiumStatus();
-
-                if (this.justPaid) {
-                    this.showPremiumModal = true;
-                    this.justPaid = false;
+                const isRegularUser = window.NEXUS_USER?.role === 'user';
+                if (!isRegularUser) {
+                    this.stats = this.stats.filter(stat => stat.label !== 'Quests');
                 }
+
+                const loadingSafety = setTimeout(() => { this.statsLoading = false; }, 4000);
+                try {
+                    await Promise.allSettled([
+                        this.fetchFriends(),
+                        this.fetchUserProfile(),
+                        isRegularUser ? this.loadMissions() : Promise.resolve(),
+                        this.fetchNotifications(),
+                        this.fetchFriendRooms()
+                    ]);
+                    if (this._friendRoomsTimer) clearInterval(this._friendRoomsTimer);
+                    this._friendRoomsTimer = setInterval(() => this.fetchFriendRooms(), 12000);
+                } finally {
+                    clearTimeout(loadingSafety);
+                    this.statsLoading = false;
+                }
+
+                this.fetchReasons();
+                this.checkPaymentStatus().then(() => this.fetchPremiumStatus()).then(() => {
+                    if (this.justPaid) {
+                        this.showPremiumModal = true;
+                        this.justPaid = false;
+                    }
+                });
+                this.searchUsers();
+                this.buildAvailableBorders();
             }
 
             // Watchers remain the same, but guard quests watchers to avoid GSAP errors
@@ -2204,7 +3168,8 @@ function userDashboard() {
 
             if (!this.isGuest) {
                 this.$watch('showQuestsPanel', value => {
-                    if (value) {
+                    if (value && typeof gsap !== 'undefined') {
+                        this.loadMissions();
                         this.$nextTick(() => {
                             gsap.fromTo('.quest-item',
                                 { x: 100, opacity: 0, scale: 0.8, rotationY: 45 },
@@ -2219,12 +3184,14 @@ function userDashboard() {
                 });
 
                 this.$watch('questActiveTab', value => {
-                    this.$nextTick(() => {
-                        gsap.fromTo('.quest-item',
-                            { x: 50, opacity: 0, scale: 0.95 },
-                            { x: 0, opacity: 1, scale: 1, duration: 0.5, stagger: 0.05, ease: 'power3.out' }
-                        );
-                    });
+                    if (typeof gsap !== 'undefined') {
+                        this.$nextTick(() => {
+                            gsap.fromTo('.quest-item',
+                                { x: 50, opacity: 0, scale: 0.95 },
+                                { x: 0, opacity: 1, scale: 1, duration: 0.5, stagger: 0.05, ease: 'power3.out' }
+                            );
+                        });
+                    }
                 });
             }
             // 5. Global Event Listeners
@@ -2235,91 +3202,94 @@ function userDashboard() {
             // 6. Initial GSAP UI Animations 
             // Uses a single $nextTick to ensure Alpine has finished rendering the HTML
             this.$nextTick(() => {
-                
-                // A. Animated Number Counters
-                const counters = this.$root.querySelectorAll('.stat-counter');
-                counters.forEach(counter => {
-                    const target = parseFloat(counter.getAttribute('data-target'));
-                    const obj = { val: 0 };
-                    
-                    gsap.to(obj, {
-                        val: target,
-                        duration: 2.5,
-                        ease: "power3.out",
-                        delay: 0.8,
-                        onUpdate: () => {
-                            counter.innerText = Math.floor(obj.val);
-                        }
-                    });
-                });
-                
-                // B. Intro Animations
-                const tl = gsap.timeline();
-                tl.fromTo(".gs-header-item", 
-                    { y: -40, opacity: 0, scale: 0.95 }, 
-                    { y: 0, opacity: 1, scale: 1, stagger: 0.1, duration: 0.8, ease: "back.out(1.5)" }, 
-                    0.2
-                )
-                .fromTo(".stagger-item", 
-                    { opacity: 0, y: 80, rotationY: 15, scale: 0.9 }, 
-                    { opacity: 1, y: 0, rotationY: 0, scale: 1, stagger: 0.1, duration: 0.9, ease: "back.out(1.2)" }, 
-                    "-=0.6"
-                );
-
-                // C. Split text animation for welcome header
-                const welcomeText = this.$root.querySelector('.welcome-text');
-                if (welcomeText) {
-                    const text = welcomeText.innerText;
-                    welcomeText.innerHTML = '';
-                    [...text].forEach(char => {
-                        const span = document.createElement('span');
-                        span.innerText = char;
-                        span.style.opacity = '0';
-                        span.style.display = 'inline-block';
-                        if (char === ' ') span.innerHTML = '&nbsp;';
-                        welcomeText.appendChild(span);
+                if (typeof gsap !== 'undefined') {
+                    // A. Animated Number Counters
+                    const counters = this.$root.querySelectorAll('.stat-counter');
+                    counters.forEach(counter => {
+                        const target = parseFloat(counter.getAttribute('data-target'));
+                        const obj = { val: 0 };
+                        
+                        gsap.to(obj, {
+                            val: target,
+                            duration: 2.5,
+                            ease: "power3.out",
+                            delay: 0.8,
+                            onUpdate: () => {
+                                counter.innerText = Math.floor(obj.val);
+                            }
+                        });
                     });
                     
-                    gsap.fromTo(welcomeText.querySelectorAll('span'), 
-                        { opacity: 0, y: 30, rotationX: 90 },
-                        { opacity: 1, y: 0, rotationX: 0, stagger: 0.04, duration: 0.7, ease: "back.out(2)", delay: 0.5 }
+                    // B. Intro Animations
+                    const tl = gsap.timeline();
+                    tl.fromTo(".gs-header-item", 
+                        { y: -40, opacity: 0, scale: 0.95 }, 
+                        { y: 0, opacity: 1, scale: 1, stagger: 0.1, duration: 0.8, ease: "back.out(1.5)" }, 
+                        0.2
+                    )
+                    .fromTo(".stagger-item", 
+                        { opacity: 0, y: 80, rotationY: 15, scale: 0.9 }, 
+                        { opacity: 1, y: 0, rotationY: 0, scale: 1, stagger: 0.1, duration: 0.9, ease: "back.out(1.2)" }, 
+                        "-=0.6"
                     );
-                }
 
-                // D. Continuous pulse micro-animation for activity feed items
-                gsap.to('.activity-item .dot-pulse', {
-                    scale: 1.8,
-                    opacity: 0,
-                    repeat: -1,
-                    duration: 1.5,
-                    ease: "power2.out",
-                    stagger: 0.3
-                });
+                    // C. Split text animation for welcome header
+                    const welcomeText = this.$root.querySelector('.welcome-text');
+                    if (welcomeText) {
+                        const text = welcomeText.innerText;
+                        welcomeText.innerHTML = '';
+                        [...text].forEach(char => {
+                            const span = document.createElement('span');
+                            span.innerText = char;
+                            span.style.opacity = '0';
+                            span.style.display = 'inline-block';
+                            if (char === ' ') span.innerHTML = '&nbsp;';
+                            welcomeText.appendChild(span);
+                        });
+                        
+                        gsap.fromTo(welcomeText.querySelectorAll('span'), 
+                            { opacity: 0, y: 30, rotationX: 90 },
+                            { opacity: 1, y: 0, rotationX: 0, stagger: 0.04, duration: 0.7, ease: "back.out(2)", delay: 0.5 }
+                        );
+                    }
+
+                    // D. Continuous pulse micro-animation for activity feed items
+                    gsap.to('.activity-item .dot-pulse', {
+                        scale: 1.8,
+                        opacity: 0,
+                        repeat: -1,
+                        duration: 1.5,
+                        ease: "power2.out",
+                        stagger: 0.3
+                    });
+                }
             });
 
             // 7. Interval Animations
             // Random glitch effect on dashboard stat numbers periodically
-            setInterval(() => {
-                const stats = this.$root.querySelectorAll('.stat-counter');
-                if (stats.length > 0) {
-                    const randomStat = stats[Math.floor(Math.random() * stats.length)];
-                    gsap.to(randomStat, {
-                        x: () => Math.random() * 8 - 4,
-                        y: () => Math.random() * 8 - 4,
-                        duration: 0.05,
-                        yoyo: true,
-                        repeat: 5,
-                        onComplete: () => {
-                            gsap.set(randomStat, {x: 0, y: 0});
-                        }
-                    });
-                }
-            }, 6000);
+            if (typeof gsap !== 'undefined') {
+                setInterval(() => {
+                    const stats = this.$root.querySelectorAll('.stat-counter');
+                    if (stats.length > 0) {
+                        const randomStat = stats[Math.floor(Math.random() * stats.length)];
+                        gsap.to(randomStat, {
+                            x: () => Math.random() * 8 - 4,
+                            y: () => Math.random() * 8 - 4,
+                            duration: 0.05,
+                            yoyo: true,
+                            repeat: 5,
+                            onComplete: () => {
+                                gsap.set(randomStat, {x: 0, y: 0});
+                            }
+                        });
+                    }
+                }, 6000);
+            }
         }
     };
 }
 
-function watchParty() {
+function __legacyWatchPartyStub() {
     return {
         isYouTubeUrl(url) {
             if (!url) return false;
@@ -2408,23 +3378,11 @@ function watchParty() {
         showInviteMenu: false,
 
         async init() { 
-            const savedBorder = localStorage.getItem('activeBorder');
-            if (savedBorder) {
-                this.activeBorderId = parseInt(savedBorder, 10);
-            }
-            // Fetch friends right when the room loads
-            await this.fetchRoomDetails();
-            await this.fetchFriends();
-            
-            if (this.$refs.videoPlayer) {
-                this.$refs.videoPlayer.onloadedmetadata = () => {
-                    this.duration = this.$refs.videoPlayer.duration;
-                };
-            }
-            await this.startLocalMedia();
+            localStorage.removeItem('activeBorder');
+            this.fetchRoomDetails();
+            this.fetchFriends();
+            this.startLocalMedia();
             this.connectSignaling();
-            
-            // Fetch movies for selection
             this.fetchMovies();
         },
 
@@ -2435,13 +3393,12 @@ function watchParty() {
 
         async fetchMovies() {
             try {
-                const res = await fetch('/user_backend/movies_api.php?t=' + Date.now());
+                const res = await fetch('/user_backend/movies_api.php');
                 if (res.status === 401) {
                     window.location.href = '/frontend/login.php';
                     return;
                 }
                 const data = await res.json();
-                console.log("Watch Party Movies:", data);
                 if (Array.isArray(data)) {
                     this.allMovies = data;
                 }
@@ -2496,18 +3453,20 @@ function watchParty() {
             
             // Use dynamic user name from PHP
             this.socket.emit('send-lobby-invite', {
-                targetUserId: friendId,
+                targetUserId: Number(friendId),
                 hostName: window.USER_NAME || 'Someone', 
-                roomId: roomId
+                hostId: Number(window.CURRENT_USER_ID) || null,
+                roomId: Number(roomId),
+                room_id: Number(roomId),
+                sender_id: Number(window.CURRENT_USER_ID) || null,
+                sender_name: window.USER_NAME || 'Someone',
+                message: 'invited you to a watch party.'
             });
             
             this.showInviteMenu = false;
             
-            // Optional: Trigger your custom toast here instead of an alert!
             if (window.showToast) {
                 window.showToast("Invite sent!", "success");
-            } else {
-                alert("Invite sent!"); 
             }
         },
 
@@ -2535,7 +3494,11 @@ function watchParty() {
         },
 
        connectSignaling() {
-            this.socket = io(); 
+            const signalingUrl = window.NEXUS_SIGNALING_URL
+                || (location.port && location.port !== '3000'
+                    ? `${location.protocol}//${location.hostname}:3000`
+                    : undefined);
+            this.socket = signalingUrl ? io(signalingUrl) : io();
 
             this.socket.on('connect', () => {
                 console.log("Connected to signaling server with ID:", this.socket.id);
@@ -2546,6 +3509,10 @@ function watchParty() {
                 if (myUserId) {
                     this.socket.emit('register-user', myUserId);
                 }
+            });
+
+            this.socket.on('connect_error', (err) => {
+                console.warn("Signaling server connection error:", err.message);
             });
 
             this.socket.on('receive-invite', (data) => {
@@ -2736,7 +3703,7 @@ window.initAnimations = function(container = document) {
         let html = '';
         for (let i = 0; i < 8; i++) {
             const dir = i % 2 === 0 ? 'up' : 'down';
-            const duration = 40 + (i * 5);
+            const duration = 120 + (i * 15);
             const shuffled = shuffleArray(POSTER_IMAGES);
             // Duplicate for seamless loop
             const doubled = [...shuffled, ...shuffled];
@@ -2836,6 +3803,7 @@ window.initAnimations = function(container = document) {
         );
     }
 
+    if (typeof gsap !== 'undefined') {
     // Smooth Floating & Parallax Effect
     const card = container.querySelector('#glass-card');
     const mainContainer = container.querySelector('#main-container');
@@ -2857,7 +3825,6 @@ window.initAnimations = function(container = document) {
             const x = e.clientX - rect.left;
             const y = e.clientY - rect.top;
             
-            // Subtle content shift (parallax)
             gsap.to(container.querySelectorAll('.glass-card > *'), {
                 x: (x - rect.width / 2) * 0.03,
                 y: (y - rect.height / 2) * 0.03,
@@ -2885,10 +3852,8 @@ window.initAnimations = function(container = document) {
         });
     }
 
-    // Input field focus animations
     const inputFields = container.querySelectorAll('.input-field');
     inputFields.forEach(input => {
-        const label = input.nextElementSibling;
         const icon = input.nextElementSibling ? input.nextElementSibling.nextElementSibling : null;
         
         input.addEventListener('focus', () => {
@@ -2926,7 +3891,6 @@ window.initAnimations = function(container = document) {
         });
     });
 
-    // Social button hover animations
     const socialBtns = container.querySelectorAll('.grid.grid-cols-2 button');
     socialBtns.forEach(btn => {
         const icon = btn.querySelector('svg');
@@ -2965,13 +3929,10 @@ window.initAnimations = function(container = document) {
         });
     });
 
-    // Button hover effect
     const submitBtn = container.querySelector('#submitBtn');
     const ripple = container.querySelector('#btnRipple');
     const btnIcon = submitBtn ? submitBtn.querySelector('span.material-symbols-outlined') : null;
     
-    // Check if it's the register page to avoid some button conflicts? 
-    // Just wrap in try/catch or if
     if (submitBtn) {
         submitBtn.addEventListener('mouseenter', (e) => {
             if (ripple) gsap.to(ripple, { scale: 1.5, opacity: 1, duration: 0.4, ease: 'power2.out' });
@@ -2983,7 +3944,6 @@ window.initAnimations = function(container = document) {
             if (btnIcon) gsap.to(btnIcon, { x: 0, duration: 0.3, ease: 'power2.out' });
         });
         
-        // Button click animation
         submitBtn.addEventListener('mousedown', () => {
             gsap.to(submitBtn, { scale: 0.95, duration: 0.1, ease: 'power2.inOut' });
         });
@@ -2993,14 +3953,12 @@ window.initAnimations = function(container = document) {
         });
     }
 
-    // Next-Level Magnetic Back Button
     const backBtn = container.querySelector('.gs-back-btn');
     const backHit = container.querySelector('.gs-back-hit');
     const backRing = container.querySelector('.gs-back-ring');
     const backIcon = container.querySelector('.gs-back-icon');
     
     if (backBtn && backHit) {
-        // Initial entrance
         gsap.fromTo(backBtn, 
              { x: -50, opacity: 0, scale: 0 }, 
              { x: 0, opacity: 1, scale: 1, duration: 1.5, ease: "elastic.out(1, 0.4)", delay: 0.3 }
@@ -3013,7 +3971,6 @@ window.initAnimations = function(container = document) {
             const x = e.clientX - rect.left - rect.width / 2;
             const y = e.clientY - rect.top - rect.height / 2;
 
-            // Move the button itself
             gsap.to(backBtn, {
                 x: x * 0.4,
                 y: y * 0.4,
@@ -3024,7 +3981,6 @@ window.initAnimations = function(container = document) {
                 borderColor: "rgba(239, 68, 68, 0.5)"
             });
             
-            // Move icon slightly more for parallax
             if (backIcon) {
                 gsap.to(backIcon, {
                     x: x * 0.3,
@@ -3076,6 +4032,7 @@ window.initAnimations = function(container = document) {
             gsap.to(backBtn, { scale: 1.1, duration: 0.4, ease: "elastic.out(1, 0.4)" });
             if (backIcon) gsap.to(backIcon, { scale: 1, duration: 0.4 });
         });
+    }
     }
 }
 
@@ -3317,7 +4274,7 @@ window.otpForm = function() {
             this.isResending = true;
             
             // GSAP Animation for resend button
-            if (this.$refs.resendIcon) {
+            if (this.$refs.resendIcon && typeof gsap !== 'undefined') {
                 gsap.to(this.$refs.resendIcon, { rotation: "+=360", duration: 1, ease: "power2.inOut" });
             }
 
@@ -3387,40 +4344,142 @@ window.otpForm = function() {
     }
 };
 
-window.handleLogout = async function() {
+window.handleLogout = function() {
     try {
-        const response = await fetch('/backend/logout.php', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' }
-        });
-        const data = await response.json();
-        if (data.success) {
-            if (typeof barba !== 'undefined') {
-                barba.go(data.redirect);
-            } else {
-                window.location.href = data.redirect;
-            }
-        } else {
-            console.error('Logout failed');
-            if (typeof window.hidePageLoader === 'function') window.hidePageLoader();
+        if (typeof window.hidePageLoader === 'function') {
+            window.hidePageLoader();
         }
-    } catch (err) {
-        console.error('Logout error:', err);
-        if (typeof window.hidePageLoader === 'function') window.hidePageLoader();
-    }
+    } catch (e) { /* ignore */ }
+    window.location.href = '/backend/logout.php';
 };
-
 function adminDashboard(userData = {}) {
+    const bootName = userData.user_name || 'Admin';
+    const bootAvatarRaw = userData.avatar_url || '';
+    const bootBorderPreview = userData.border_preview || '';
+    const resolveBootAdminAvatar = (url, name) => {
+        if (!url) {
+            return `https://ui-avatars.com/api/?name=${encodeURIComponent(name || 'Admin')}&background=ef4444&color=fff&bold=true`;
+        }
+        if (/^(https?:)?\/\//i.test(url) || url.startsWith('data:') || url.startsWith('blob:')) {
+            return url;
+        }
+        if (url.startsWith('/user_backend/media.php') || url.startsWith('/uploads/')) {
+            return url;
+        }
+        if (url.startsWith('/')) {
+            return url;
+        }
+        return '/uploads/avatars/' + String(url).replace(/^\/+/, '');
+    };
+
     return {
         // Merged the duplicate init() logic here so both GSAP and fetchMovies() run properly
 
-        modalMode: 'add',         // Missing variable 1
-        formData: {               // Missing variable 2
-            name: '',
-            price: '',
-            rarity: '',
-            image: null
+        resolveShopImage(image) {
+            if (!image) return '';
+            if (/^(https?:)?\/\//i.test(image) || image.startsWith('/') || image.startsWith('data:') || image.startsWith('blob:')) {
+                return image;
+            }
+            return '/uploads/shop/' + image;
         },
+
+        avatarCache: {},
+        mediaFileKey(url) {
+            if (!url) return '';
+            const raw = String(url);
+            const pathMatch = raw.match(/[?&]path=([^&]+)/);
+            if (pathMatch) {
+                try { return decodeURIComponent(pathMatch[1]); } catch (e) { return pathMatch[1]; }
+            }
+            return raw.split('?')[0];
+        },
+        loadMediaCaches() {
+            try {
+                this.avatarCache = JSON.parse(sessionStorage.getItem('nexus_avatar_cache') || '{}');
+            } catch (e) {
+                this.avatarCache = {};
+            }
+        },
+        persistAvatarCache() {
+            try { sessionStorage.setItem('nexus_avatar_cache', JSON.stringify(this.avatarCache)); } catch (e) {}
+        },
+        applyCachedMedia(row, userIdKey = 'user_id') {
+            if (!row || typeof row !== 'object') return row;
+            const id = Number(row[userIdKey] || row.user_id || row.sender_id || row.id || 0);
+            if (!id) return row;
+            const cached = this.avatarCache[id] || {};
+            const incomingAvatar = row.avatar_url || '';
+            const incomingBorder = row.border_preview || '';
+            const cachedAvatar = cached.avatar_url || '';
+            const cachedBorder = cached.border_preview || '';
+
+            if (cachedAvatar && (!incomingAvatar || this.mediaFileKey(cachedAvatar) === this.mediaFileKey(incomingAvatar))) {
+                row.avatar_url = cachedAvatar;
+            } else if (incomingAvatar) {
+                this.avatarCache[id] = { ...cached, avatar_url: incomingAvatar };
+                row.avatar_url = incomingAvatar;
+            }
+
+            if (cachedBorder && (!incomingBorder || this.mediaFileKey(cachedBorder) === this.mediaFileKey(incomingBorder))) {
+                row.border_preview = cachedBorder;
+            } else if (incomingBorder) {
+                this.avatarCache[id] = { ...(this.avatarCache[id] || {}), border_preview: incomingBorder };
+                row.border_preview = incomingBorder;
+            }
+
+            if (Array.isArray(row.replies)) {
+                row.replies = row.replies.map(r => this.applyCachedMedia(r, userIdKey));
+            }
+            return row;
+        },
+        forceSetCachedMedia(userId, media = {}) {
+            const id = Number(userId);
+            if (!id) return;
+            const prev = this.avatarCache[id] || {};
+            this.avatarCache[id] = {
+                avatar_url: media.avatar_url !== undefined && media.avatar_url !== null
+                    ? media.avatar_url
+                    : (prev.avatar_url || ''),
+                border_preview: media.border_preview !== undefined && media.border_preview !== null
+                    ? media.border_preview
+                    : (prev.border_preview || '')
+            };
+            this.persistAvatarCache();
+        },
+        cacheOwnAdminMedia() {
+            const id = Number(window.CURRENT_USER_ID);
+            if (!id) return;
+            const avatar = this.selectedAvatar && !String(this.selectedAvatar).includes('ui-avatars.com')
+                ? this.selectedAvatar
+                : '';
+            this.forceSetCachedMedia(id, {
+                avatar_url: avatar,
+                border_preview: this.selectedBorder || ''
+            });
+        },
+        applyCachedReportMedia(report) {
+            if (!report) return report;
+            const reportedId = Number(report.reported_user_id || 0);
+            if (reportedId) {
+                const row = this.applyCachedMedia({
+                    user_id: reportedId,
+                    avatar_url: report.reported_avatar_url || '',
+                    border_preview: report.reported_border_preview || ''
+                });
+                report.reported_avatar_url = row.avatar_url;
+                report.reported_border_preview = row.border_preview;
+            }
+            return report;
+        },
+        keepExistingMediaUrl(current, incoming) {
+            if (!incoming) return current || incoming;
+            if (!current) return incoming;
+            return this.mediaFileKey(current) === this.mediaFileKey(incoming) ? current : incoming;
+        },
+
+        pusherClient: null,
+        _adminPusherBound: false,
+
         //comments
         comments: [],
         commentsLoading: false,
@@ -3484,8 +4543,9 @@ function adminDashboard(userData = {}) {
             try {
                 const res = await fetch('/backend/comments_api.php');
                 const data = await res.json();
-                if (data.success) {
-                    this.comments = data.comments;
+                    if (data.success) {
+                    this.comments = (data.comments || []).map(c => this.applyCachedMedia(c));
+                    this.persistAvatarCache();
                 } else {
                     this.commentError = data.error || 'Failed to load comments';
                 }
@@ -3502,7 +4562,8 @@ function adminDashboard(userData = {}) {
                 const res = await fetch(`/backend/comments_api.php?movie_id=${movieId}`);
                 const data = await res.json();
                 if (data.success) {
-                    this.movieComments = data.comments;
+                    this.movieComments = (data.comments || []).map(c => this.applyCachedMedia(c));
+                    this.persistAvatarCache();
                 }
             } catch (e) {
                 console.error('Failed to load movie comments:', e);
@@ -3534,7 +4595,6 @@ function adminDashboard(userData = {}) {
             }
         },
 
-        currentTab: 'dashboard',
         isNavOpen: false,
         notificationsOpen: false,
         unreadNotifications: 0,
@@ -3551,19 +4611,27 @@ function adminDashboard(userData = {}) {
         notifications: [],
         async fetchNotifications() {
             try {
-                const response = await fetch('/user_backend/get_notifications.php');
-                if (!response.ok) return;
-
-                const rawText = await response.text(); // Read raw text first
-                
-                try {
-                    const data = JSON.parse(rawText);
+                const response = await fetch('/backend/get_admin_notifications.php');
+                if (!response.ok) {
+                    // Fallback to shared notifications endpoint
+                    const fallback = await fetch('/user_backend/get_notifications.php');
+                    if (!fallback.ok) return;
+                    const data = await fallback.json();
                     if (data.success && Array.isArray(data.notifications)) {
-                        this.notifications = data.notifications;
-                        this.unreadNotifCount = this.notifications.filter(n => Number(n.is_read) === 0).length;
+                        this.notifications = data.notifications.map(n => this.applyCachedMedia(n, 'sender_id'));
+                        this.unreadNotifications = this.notifications.filter(n => Number(n.is_read) === 0).length;
+                        this.unreadNotifCount = this.unreadNotifications;
+                        this.persistAvatarCache();
                     }
-                } catch (jsonErr) {
-                    console.error('Notification JSON Parse Error. Raw response:', rawText);
+                    return;
+                }
+
+                const data = await response.json();
+                if (data.success && Array.isArray(data.notifications)) {
+                    this.notifications = data.notifications.map(n => this.applyCachedMedia(n, 'sender_id'));
+                    this.unreadNotifications = this.notifications.filter(n => Number(n.is_read) === 0).length;
+                    this.unreadNotifCount = this.unreadNotifications;
+                    this.persistAvatarCache();
                 }
             } catch (err) {
                 console.error('Notification network error:', err);
@@ -3638,7 +4706,7 @@ function adminDashboard(userData = {}) {
             } catch (err) {
                 console.error('Network error fetching dashboard stats:', err);
             } finally {
-                setTimeout(() => { this.statsLoading = false; }, 800);
+                this.statsLoading = false;
             }
         },
 
@@ -3654,7 +4722,8 @@ function adminDashboard(userData = {}) {
                 try {
                     const data = JSON.parse(text);
                     if (response.ok) {
-                        this.users = data;
+                        this.users = (Array.isArray(data) ? data : []).map(u => this.applyCachedMedia(u, 'id'));
+                        this.persistAvatarCache();
                     } else {
                         this.errorMessage = data.error || 'Failed to load user directory.';
                     }
@@ -3687,26 +4756,42 @@ function adminDashboard(userData = {}) {
             genre_ids: []  
         },
 
-        // --- Initialization ---
-        async init() { 
-            const savedBorder = localStorage.getItem('activeBorder');
-            if (savedBorder) {
-                this.activeBorderId = parseInt(savedBorder, 10);
-            }
-            await this.fetchMovies();
-            await this.fetchGenres();
+        init() {
+            localStorage.removeItem('activeBorder');
+            this.loadMediaCaches();
+            this.cacheOwnAdminMedia();
         },
 
-        switchTab(tab) {
-            this.currentTab = tab;
-            this.isNavOpen = false;
+        ensureAdminTabData(tabId) {
+            if (tabId === 'users' && !(this.users || []).length) {
+                this.fetchUsers();
+            }
+            if (tabId === 'movies') {
+                if (!(this.movies || []).length) this.fetchMovies();
+                if (!(this.availableGenres || []).length) this.fetchGenres();
+            }
+            if (tabId === 'sessions' && !(this.rooms || []).length) {
+                this.fetchRooms();
+            }
+            if ((tabId === 'shop' || tabId === 'profile') && !(this.shopItems || []).length) {
+                this.fetchShopItems();
+            }
+            if (tabId === 'profile') {
+                this.fetchAdminProfile();
+            }
+            if (tabId === 'reports' && !(this.reportsList || []).length) {
+                this.fetchReports();
+            }
+            if (tabId === 'comments' && !(this.comments || []).length) {
+                this.fetchComments();
+            }
         },
 
         // --- Fetch API Methods ---
        async fetchMovies() {
             this.isLoading = true;
             try {
-                const response = await fetch(`/backend/movies_api.php?t=${Date.now()}`);
+                const response = await fetch('/backend/movies_api.php');
                 const text = await response.text();
                 const data = JSON.parse(text);
                 if (response.ok) {
@@ -3769,8 +4854,10 @@ function adminDashboard(userData = {}) {
                 duration: '', 
                 genre_ids: [] 
             };
+            this.movieTab = 'details';   
             this.movieModalOpen = true;
         },
+
         async saveMovie() {
             this.isLoading = true;
             this.errorMessage = '';
@@ -3898,6 +4985,87 @@ function adminDashboard(userData = {}) {
         reportsList: [],
         reportStats: { total: 0, pending: 0, read: 0 },
         filterStatus: 'all',
+        reportCommentDetails: null,
+        loadingReportComment: false,
+        commentsCache: {},
+
+        preloadReportComments() {
+            const movieIds = [...new Set(
+                this.reportsList
+                    .filter(r => r.reported_movie_id && r.reported_comment_id)
+                    .map(r => r.reported_movie_id)
+            )];
+
+            movieIds.forEach(async (movieId) => {
+                if (this.commentsCache[movieId]) return;
+                try {
+                    const res = await fetch(`/backend/comments_api.php?movie_id=${movieId}`);
+                    const data = await res.json();
+                    if (data.success) {
+                        this.commentsCache[movieId] = data.comments;
+                    }
+                } catch (e) {
+                    console.error('Failed to preload comments for movie', movieId, e);
+                }
+            });
+        },
+
+        viewReport(report) {
+            this.selectedReport = report;
+            this.viewModalOpen = true;
+            this.reportCommentDetails = null;
+
+            // Mark as read if pending
+            if (report.status === 'Pending') {
+                try {
+                    fetch('/backend/update_report_status.php', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ report_id: report.id, status: 'Read' })
+                    }).then(res => res.json()).then(data => {
+                        if (data.success) {
+                            report.status = 'Read';
+                            this.updateReportStats();
+                        }
+                    });
+                } catch (e) {
+                    console.error("Failed to mark report as read:", e);
+                }
+            }
+
+            // Load comment details from cache
+            if (report.reported_comment_id && report.reported_movie_id) {
+                const movieComments = this.commentsCache[report.reported_movie_id];
+                if (movieComments) {
+                    const found = movieComments.find(c => c.id == report.reported_comment_id);
+                    if (found) this.reportCommentDetails = found;
+                } else {
+                    this.fetchReportComment(report);
+                }
+            }
+        },
+
+        async fetchReportComment(report) {
+            this.loadingReportComment = true;
+            this.reportCommentDetails = null;
+            try {
+                const movieId = report.reported_movie_id;
+                const commentId = report.reported_comment_id;
+                const res = await fetch(`/backend/comments_api.php?movie_id=${movieId}`);
+                const data = await res.json();
+                if (data.success) {
+                    this.commentsCache[movieId] = data.comments;
+                    const found = data.comments.find(c => c.id == commentId);
+                    if (found) this.reportCommentDetails = found;
+                }
+            } catch (e) {
+                console.error('Failed to fetch reported comment:', e);
+            } finally {
+                this.loadingReportComment = false;
+            }
+        },
+
+        // Optionally update resolveReport if needed (it's fine as is)
 
         async fetchReports() {
             try {
@@ -3905,7 +5073,8 @@ function adminDashboard(userData = {}) {
                 const data = await response.json();
                 
                 if (data.success) {
-                    this.reportsList = data.reports;
+                    this.reportsList = (data.reports || []).map(r => this.applyCachedReportMedia(r));
+                    this.persistAvatarCache();
                     this.updateReportStats();
                 }
             } catch (error) {
@@ -3919,31 +5088,6 @@ function adminDashboard(userData = {}) {
             this.reportStats.read = this.reportsList.filter(r => r.status === 'Read').length;
         },
 
-        // UPDATED: Opens the modal and marks the report as "Read" in the database
-        async viewReport(report) {
-            this.selectedReport = report;
-            this.viewModalOpen = true;
-
-            // If it's a new report, mark it as read when the admin opens it
-            if (report.status === 'Pending') {
-                try {
-                    const res = await fetch('/backend/update_report_status.php', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ report_id: report.id, status: 'Read' })
-                    });
-                    const data = await res.json();
-                    
-                    if (data.success) {
-                        report.status = 'Read';
-                        this.updateReportStats();
-                    }
-                } catch (e) {
-                    console.error("Failed to mark report as read:", e);
-                }
-            }
-        },
-
         // UPDATED: Sends a request to the backend to mark the report as "Resolved"
         async resolveReport() {
             if (!this.selectedReport) return;
@@ -3952,13 +5096,13 @@ function adminDashboard(userData = {}) {
                 const res = await fetch('/backend/update_report_status.php', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ report_id: this.selectedReport.id, status: 'Resolved' })
+                    body: JSON.stringify({ report_id: this.selectedReport.id, status: 'Read' })
                 });
                 
                 const data = await res.json();
                 
                 if (data.success) {
-                    this.selectedReport.status = 'Resolved';
+                    this.selectedReport.status = 'Read';
                     this.viewModalOpen = false;
                     this.updateReportStats();
                     
@@ -4024,35 +5168,252 @@ function adminDashboard(userData = {}) {
         modalOpen: false,
         modalMode: 'add',
         formData: { name: '', price: 0, rarity: 'Common', image: '' },
-        shopItems: [
-            { id: 1, name: 'Gold Border', price: 500, rarity: 'Legendary' }
-        ],
-        selectedAvatar: null,
-        selectedBorder: null,
-        avatarModalOpen: false,
+        shopItems: [],
         borders: [],
+        shopImageFile: null,   // holds File object for shop item image
+
+        async fetchShopItems() {
+            try {
+                const res = await fetch('/backend/shop_items_api.php?action=list');
+                const data = await res.json();
+                if (data.success) {
+                    this.shopItems = data.items.map(item => {
+                        const image = this.resolveShopImage(item.image);
+                        const prev = (this.shopItems || []).find(existing => Number(existing.id) === Number(item.id));
+                        return {
+                            id: item.id,
+                            name: item.name,
+                            price: item.price,
+                            rarity: item.rarity,
+                            image: prev ? this.keepExistingMediaUrl(prev.image, image) : image,
+                            category: item.category
+                        };
+                    });
+                } else {
+                    this.showToast(data.error || 'Failed to load shop items', 'error');
+                }
+            } catch (e) {
+                console.error('Fetch shop items error:', e);
+                this.showToast('Network error loading shop items', 'error');
+            }
+        },
+
+        handleShopImageSelect(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            this.shopImageFile = file;
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                this.formData.image = e.target.result;  // base64 preview
+            };
+            reader.readAsDataURL(file);
+        },
+
+        async saveItem() {
+            if (!this.formData.name || this.formData.price <= 0) {
+                this.showToast('Name and positive price required', 'error');
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('action', this.modalMode === 'add' ? 'create' : 'update');
+            formData.append('name', this.formData.name);
+            formData.append('price', this.formData.price);
+            formData.append('rarity', this.formData.rarity);
+            formData.append('category', this.formData.category || 'border');
+            if (this.modalMode === 'edit' && this.formData.id) {
+                formData.append('id', this.formData.id);
+            }
+            if (this.shopImageFile) {
+                formData.append('image', this.shopImageFile);
+            }
+
+            try {
+                const res = await fetch('/backend/shop_items_api.php', {
+                    method: 'POST',
+                    body: formData   // do NOT set Content-Type header
+                });
+                const data = await res.json();
+                if (data.success) {
+                    this.showToast(this.modalMode === 'add' ? 'Item added' : 'Item updated', 'success');
+                    this.modalOpen = false;
+                    await this.fetchShopItems();
+                } else {
+                    this.showToast(data.error || 'Save failed', 'error');
+                }
+            } catch (e) {
+                console.error('Save item error:', e);
+                this.showToast('Network error saving item', 'error');
+            }
+        },
+
+        async deleteItem(id) {
+            if (!confirm('Are you sure you want to delete this item?')) return;
+            try {
+                const formData = new FormData();
+                formData.append('action', 'delete');
+                formData.append('id', id);
+                const res = await fetch('/backend/shop_items_api.php', {
+                    method: 'POST',
+                    body: formData
+                });
+                const data = await res.json();
+                if (data.success) {
+                    this.showToast('Item deleted', 'success');
+                    await this.fetchShopItems();
+                } else {
+                    this.showToast(data.error || 'Delete failed', 'error');
+                }
+            } catch (e) {
+                console.error('Delete item error:', e);
+                this.showToast('Network error deleting item', 'error');
+            }
+        },
 
         // Profile
         currentTab: 'dashboard',
         avatarModalOpen: false,
-        selectedBorder: null,
+        selectedBorder: bootBorderPreview || null,
+        hasCustomAvatar: !!bootAvatarRaw,
         deleteAccountModalOpen: false,
         deleteAccountPassword: '',
         deleteAccountError: '',
         
-        // Generates dynamic avatar based on user's name
-        selectedAvatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(userData.user_name || 'Admin')}&background=ef4444&color=fff&bold=true`,
+        // Booted from PHP so header shows avatar immediately
+        selectedAvatar: resolveBootAdminAvatar(bootAvatarRaw, bootName),
 
-        notification: {
+        resolveAvatarUrl(url, name = 'Admin') {
+            if (!url) return this.getAvatarUrl(name);
+            if (/^(https?:)?\/\//i.test(url) || url.startsWith('data:') || url.startsWith('blob:')) {
+                return url;
+            }
+            if (url.startsWith('/user_backend/media.php') || url.startsWith('/uploads/')) {
+                return url;
+            }
+            if (url.startsWith('/')) {
+                return url;
+            }
+            return '/uploads/avatars/' + String(url).replace(/^\/+/, '');
+        },
+
+        getAvatarUrl(name, background = 'ef4444') {
+            return `https://ui-avatars.com/api/?name=${encodeURIComponent(name || 'Admin')}&background=${background}&color=fff&bold=true`;
+        },
+
+        async fetchAdminProfile() {
+            try {
+                const res = await fetch('/user_backend/get_user_profile.php');
+                const data = await res.json();
+                if (!data.success) return;
+                if (data.avatar_url) {
+                    const nextAvatar = this.resolveAvatarUrl(data.avatar_url, this.displayName);
+                    this.selectedAvatar = this.keepExistingMediaUrl(this.selectedAvatar, nextAvatar);
+                    this.hasCustomAvatar = true;
+                } else if (!this.hasCustomAvatar) {
+                    this.selectedAvatar = this.getAvatarUrl(this.displayName);
+                }
+                if (data.active_border_id) {
+                    const border = (this.shopItems || []).find(i => Number(i.id) === Number(data.active_border_id) && String(i.category || '').toLowerCase() === 'border');
+                    const nextBorder = border ? border.image : (data.border_preview || null);
+                    this.selectedBorder = this.keepExistingMediaUrl(this.selectedBorder, nextBorder);
+                } else if (!this.selectedBorder) {
+                    this.selectedBorder = null;
+                }
+                this.forceSetCachedMedia(window.CURRENT_USER_ID, {
+                    avatar_url: this.hasCustomAvatar ? this.selectedAvatar : '',
+                    border_preview: this.selectedBorder || ''
+                });
+                this.borders = [
+                    { id: 0, url: null },
+                    ...(this.shopItems || [])
+                        .filter(i => String(i.category || '').toLowerCase() === 'border')
+                        .map(i => ({ id: Number(i.id), url: i.image }))
+                ];
+            } catch (e) {
+                console.error('Failed to load admin profile media:', e);
+            }
+        },
+
+        async uploadAvatar(event) {
+            const file = event?.target?.files?.[0];
+            if (!file) return;
+            const formData = new FormData();
+            formData.append('avatar', file);
+            try {
+                const res = await fetch('/user_backend/upload_avatar.php', {
+                    method: 'POST',
+                    body: formData
+                });
+                const data = await res.json();
+                if (data.success) {
+                    this.selectedAvatar = this.resolveAvatarUrl(data.avatar_url, this.displayName);
+                    this.hasCustomAvatar = true;
+                    this.forceSetCachedMedia(window.CURRENT_USER_ID, {
+                        avatar_url: this.selectedAvatar,
+                        border_preview: this.selectedBorder || ''
+                    });
+                    this.showToast('Profile picture updated!', 'success');
+                } else {
+                    this.showToast(data.message || 'Upload failed', 'error');
+                }
+            } catch (e) {
+                console.error('Admin avatar upload error:', e);
+                this.showToast('Network error uploading avatar', 'error');
+            } finally {
+                if (event?.target) event.target.value = '';
+            }
+        },
+
+        async removeAvatar() {
+            try {
+                const res = await fetch('/user_backend/remove_avatar.php', { method: 'POST' });
+                const data = await res.json();
+                if (data.success) {
+                    this.selectedAvatar = this.getAvatarUrl(this.displayName);
+                    this.hasCustomAvatar = false;
+                    this.forceSetCachedMedia(window.CURRENT_USER_ID, {
+                        avatar_url: '',
+                        border_preview: this.selectedBorder || ''
+                    });
+                    this.showToast('Profile picture removed', 'success');
+                } else {
+                    this.showToast(data.message || 'Failed to remove avatar', 'error');
+                }
+            } catch (e) {
+                console.error('Admin remove avatar error:', e);
+                this.showToast('Network error removing avatar', 'error');
+            }
+        },
+
+        async applyAdminBorder(border) {
+            const borderId = Number(border?.id || 0);
+            this.selectedBorder = border?.url || null;
+            this.avatarModalOpen = false;
+            try {
+                const res = await fetch('/user_backend/update_active_border.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ border_id: borderId })
+                });
+                const data = await res.json();
+                if (!data.success && borderId !== 0) {
+                    this.showToast(data.message || 'Could not save border (must own it)', 'error');
+                }
+            } catch (e) {
+                console.error('Admin border save error:', e);
+            }
+        },
+
+        profileAlert: {
             show: false,
             type: 'error',
             message: ''
         },
 
         showNotification(message, type = 'error') {
-            this.notification.message = message;
-            this.notification.type = type;
-            this.notification.show = true;
+            this.profileAlert.message = message;
+            this.profileAlert.type = type;
+            this.profileAlert.show = true;
             window.scrollTo({ top: 0, behavior: 'smooth' });
         },
 
@@ -4070,7 +5431,7 @@ function adminDashboard(userData = {}) {
         },
 
         async saveProfile() {
-            this.notification.show = false;
+            this.profileAlert.show = false;
 
             // Run validation
             const errors = typeof window.validateProfileForm === 'function' 
@@ -4111,7 +5472,7 @@ function adminDashboard(userData = {}) {
         async confirmDeleteAccount() {
             // Reset previous errors
             this.deleteAccountError = '';
-            this.notification.show = false;
+            this.profileAlert.show = false;
 
             // 1. Client-side check: No password entered
             if (!this.deleteAccountPassword.trim()) {
@@ -4149,6 +5510,7 @@ function adminDashboard(userData = {}) {
             if (this.currentTab === tabId) return;
             const oldTab = this.currentTab;
             this.currentTab = tabId;
+            this.ensureAdminTabData(tabId);
             const oldPanel = document.querySelector(`[data-tab-panel="${oldTab}"]`);
             const newPanel = document.querySelector(`[data-tab-panel="${tabId}"]`);
             
@@ -4492,18 +5854,25 @@ function adminDashboard(userData = {}) {
 
         openModal(mode, item = null) {
             this.modalMode = mode;
-            this.formData = item ? { ...item } : { name: '', price: 0, rarity: 'Common', image: '' };
+            if (item) {
+                this.formData = {
+                    id: item.id,
+                    name: item.name,
+                    price: item.price,
+                    rarity: item.rarity,
+                    image: item.image || '',
+                    category: item.category || 'border'
+                };
+            } else {
+                this.formData = { name: '', price: 0, rarity: 'Common', image: '', category: 'border' };
+            }
+            this.shopImageFile = null;
             this.modalOpen = true;
         },
         closeModal() {
             this.modalOpen = false;
         },
-        deleteItem(id) {
-            this.shopItems = this.shopItems.filter(i => i.id !== id);
-        },
-        saveItem() {
-            this.modalOpen = false;
-        },
+       
         async compressImage(file, maxWidth = 800, quality = 0.8) {
             return new Promise((resolve, reject) => {
                 const reader = new FileReader();
@@ -4606,18 +5975,37 @@ function adminDashboard(userData = {}) {
             return url;
         },
 
-         initDashboard() {
-            this.fetchReports();
-            this.fetchStats();
-            this.fetchMovies();
-            this.fetchGenres();
-            this.fetchUsers();
-            this.fetchNotifications();
-            this.fetchRooms();
+         async initDashboard() {
+            this.loadMediaCaches();
+            this.cacheOwnAdminMedia();
             this.initPusher();
-            this.fetchComments();
 
-            
+            const loadingSafety = setTimeout(() => {
+                this.statsLoading = false;
+                this.isLoading = false;
+                this.commentsLoading = false;
+            }, 4000);
+
+            try {
+                await Promise.allSettled([
+                    this.fetchStats(),
+                    this.fetchNotifications(),
+                    this.fetchRooms(),
+                    this.fetchMovies(),
+                    this.fetchGenres(),
+                    this.fetchUsers(),
+                    this.fetchShopItems(),
+                    this.fetchAdminProfile(),
+                    this.fetchReports(),
+                    this.fetchComments()
+                ]);
+            } finally {
+                clearTimeout(loadingSafety);
+                this.statsLoading = false;
+                this.isLoading = false;
+                this.commentsLoading = false;
+            }
+
             this.$watch('movieModalOpen', (isOpen) => {
                 if (!isOpen) {
                     this.currentMovieId = null;
@@ -4630,30 +6018,103 @@ function adminDashboard(userData = {}) {
             });
         },
 
-        initPusher() {
-            if (!window.CURRENT_USER_ID || typeof Pusher === 'undefined') return;
+        handleProfileChanged(data) {
+            this.forceSetCachedMedia(data.user_id, {
+                avatar_url: data.avatar_url !== undefined ? this.resolveAvatarUrl(data.avatar_url || '', 'User') : undefined,
+                border_preview: data.border_preview
+            });
+
+            // Update users list (admin user management)
+            this.users = this.users.map(user => {
+                const userId = user.id || user.user_id;
+                if (Number(userId) === Number(data.user_id)) {
+                    if (data.avatar_url !== undefined && data.avatar_url !== null) {
+                        user.avatar_url = data.avatar_url;
+                    }
+                    if (data.border_preview !== undefined && data.border_preview !== null) {
+                        user.border_preview = data.border_preview;
+                    }
+                }
+                return user;
+            });
+
+            // Update comments if viewing
+            if (this.comments) {
+                this.comments = this.comments.map(comment => {
+                    if (Number(comment.user_id) === Number(data.user_id)) {
+                        if (data.avatar_url !== undefined && data.avatar_url !== null) {
+                            comment.avatar_url = data.avatar_url;
+                        }
+                        if (data.border_preview !== undefined && data.border_preview !== null) {
+                            comment.border_preview = data.border_preview;
+                        }
+                    }
+                    return comment;
+                });
+            }
+
+            // Update selected report if it shows the user
+            if (this.selectedReport && Number(this.selectedReport.reported_user_id) === Number(data.user_id)) {
+                if (data.avatar_url !== undefined && data.avatar_url !== null) {
+                    this.selectedReport.reported_avatar_url = data.avatar_url;
+                }
+                if (data.border_preview !== undefined && data.border_preview !== null) {
+                    this.selectedReport.reported_border_preview = data.border_preview;
+                }
+            }
+
+            if (Array.isArray(this.notifications)) {
+                this.notifications = this.notifications.map(n => {
+                    if (Number(n.sender_id) === Number(data.user_id)) {
+                        if (data.avatar_url !== undefined && data.avatar_url !== null) n.avatar_url = data.avatar_url;
+                        if (data.border_preview !== undefined && data.border_preview !== null) n.border_preview = data.border_preview;
+                    }
+                    return n;
+                });
+            }
+
+            if (window.CURRENT_USER_ID && Number(data.user_id) === Number(window.CURRENT_USER_ID)) {
+                if (data.avatar_url !== undefined && data.avatar_url !== null) {
+                    if (data.avatar_url) {
+                        this.selectedAvatar = this.resolveAvatarUrl(data.avatar_url, this.displayName);
+                        this.hasCustomAvatar = true;
+                    } else {
+                        this.selectedAvatar = this.getAvatarUrl(this.displayName);
+                        this.hasCustomAvatar = false;
+                    }
+                }
+                if (data.border_preview !== undefined) {
+                    this.selectedBorder = data.border_preview || null;
+                }
+            }
+        },
+
+       initPusher() {
+            if (typeof Pusher === 'undefined') return;
+            if (this._adminPusherBound) return;
 
             if (!this.pusherClient) {
                 this.pusherClient = new Pusher('f4b5637ef4b8952b6eb8', {
                     cluster: 'ap1',
                     encrypted: true
                 });
-            }   
+            }
 
-            const channel = this.pusherClient.subscribe(`user-${window.CURRENT_USER_ID}`);
-
-            channel.bind('force_logout', (data) => {
-                // Optional: Show an alert so they know why they are being kicked
-                alert(data.message || 'Your account has been banned.');
-                
-                // Redirect them to your logout script to destroy the local PHP session
-                window.location.href = '/backend/logout.php'; 
+            this.pusherClient.connection.bind('connected', () => {
+                console.log('Admin Pusher connected');
+            });
+            this.pusherClient.connection.bind('error', (err) => {
+                console.error('Admin Pusher connection error:', err);
             });
 
+            this._adminPusherBound = true;
+
+            // ---- PUBLIC CHANNELS (always subscribe) ----
+
+            // Admin comments channel
             const adminCommentsChannel = this.pusherClient.subscribe('admin-comments');
 
             adminCommentsChannel.bind('new_comment', (data) => {
-                // Add new comment to the top of the list
                 this.comments.unshift({
                     id: data.id,
                     movie_id: data.movie_id,
@@ -4667,7 +6128,6 @@ function adminDashboard(userData = {}) {
             });
 
             adminCommentsChannel.bind('new_reply', () => {
-                // Simplest: refresh the entire list to include the reply
                 this.fetchComments();
             });
 
@@ -4675,27 +6135,72 @@ function adminDashboard(userData = {}) {
                 const comment = this.comments.find(c => c.id == data.comment_id);
                 if (comment) comment.likes_count = data.likes_count;
             });
+
+            // Shop updates channel
+            const shopChannel = this.pusherClient.subscribe('shop-updates');
+
+            shopChannel.bind('shop_changed', (data) => {
+                if (data.action === 'create') {
+                    if (!this.shopItems.some(item => item.id === data.item.id)) {
+                        this.shopItems.push(data.item);
+                    }
+                } else if (data.action === 'update') {
+                    const index = this.shopItems.findIndex(item => item.id === data.item.id);
+                    if (index !== -1) {
+                        this.shopItems.splice(index, 1, data.item);
+                    } else {
+                        this.shopItems.push(data.item);
+                    }
+                } else if (data.action === 'delete') {
+                    this.shopItems = this.shopItems.filter(item => item.id !== data.item_id);
+                }
+
+                // Ensure Alpine reactivity
+                this.shopItems = [...this.shopItems];
+            });
+
+            // Movie updates channel (optional, but recommended for live movie changes)
+            const movieChannel = this.pusherClient.subscribe('movie-updates');
+            movieChannel.bind('movie_changed', (data) => {
+                if (data.action === 'delete') {
+                    const movieId = Number(data.movie_id);
+                    this.movies = this.movies.filter(m => Number(m.id || m.movie_id) !== movieId);
+                } else {
+                    this.fetchMovies();
+                }
+            });
+
+            const profileChannel = this.pusherClient.subscribe('profile-updates');
+            profileChannel.bind('profile_changed', (data) => {
+                this.handleProfileChanged(data);
+            });
+
+            const moderationChannel = this.pusherClient.subscribe('admin-moderation-channel');
+            moderationChannel.bind('new-report-event', (data) => {
+                if (this.currentTab === 'reports' || (this.reportsList || []).length) {
+                    this.fetchReports();
+                }
+                if (data && data.notification) {
+                    this.notifications.unshift(data.notification);
+                    this.unreadNotifications = this.notifications.filter(n => Number(n.is_read) === 0).length;
+                    this.unreadNotifCount = this.unreadNotifications;
+                } else {
+                    this.fetchNotifications();
+                }
+            });
+
+            // ---- USER-SPECIFIC CHANNEL (only if logged in) ----
+            if (!window.CURRENT_USER_ID) return;
+
+            const userChannel = this.pusherClient.subscribe(`user-${window.CURRENT_USER_ID}`);
+
+            userChannel.bind('force_logout', (data) => {
+                alert(data.message || 'Your account has been banned.');
+                window.location.href = '/backend/logout.php';
+            });
         }
     };
 }
-
-window.shopPage = function() {
-    return {
-        modalOpen: false,
-        modalMode: 'add',
-        formData: { name: '', price: 0, rarity: 'Common', image: '' },
-        shopItems: [
-            { id: 1, name: 'Gold Border', price: 500, rarity: 'Legendary', image: '' }
-        ],
-        openModal(mode, item = null) {
-            this.modalMode = mode;
-            this.modalOpen = true;
-        },
-        closeModal() {
-            this.modalOpen = false;
-        }
-    };
-};
 
 window.createParty = async function(movieId = null) {
     try {
@@ -4741,11 +6246,9 @@ window.createParty = async function(movieId = null) {
         
         if (data.success) {
             console.log(`Room created successfully using path ${successfulPath}! Code: ${data.room_code}`);
-            if (typeof barba !== 'undefined' && barba.go) {
-                barba.go(`watch_party.php?room_id=${data.room_id}`);
-            } else {
-                window.location.href = `watch_party.php?room_id=${data.room_id}`;
-            }
+            // Full page load is required so socket.io + watch_party.js initialize Alpine.
+            // Barba swaps the container without those scripts, which breaks video call and movie share.
+            window.location.href = `/user/watch_party.php?room_id=${encodeURIComponent(data.room_id)}`;
         } else {
             console.error("Room creation failed:", data.error);
             if (typeof window.showToast === 'function') {

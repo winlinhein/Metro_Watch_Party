@@ -24,44 +24,123 @@ io.on("connection", (socket) => {
   });
   
   socket.on("send_message", (data) => {
-    // broadcast to everyone in the room
-    io.to(data.room).emit("new_message", data);
+    const room = String(data?.room ?? (socket as any)._roomId ?? "");
+    if (!room) return;
+    socket.to(room).emit("new_message", {
+      ...data,
+      isSelf: false,
+      senderId: (socket as any)._userId ?? data?.senderId,
+      fromSocketId: socket.id
+    });
   });
 
   // --- Lobby & Invite Events ---
   socket.on('register-user', (userId) => {
-      socket.join(`user_channel_${userId}`); 
-      console.log(`User ${userId} is online and ready for invites.`);
+      const id = Number(userId);
+      if (!id) return;
+      socket.join(`user_channel_${id}`); 
+      console.log(`User ${id} is online and ready for invites.`);
   });
 
   socket.on('send-lobby-invite', (data) => {
-      console.log(`Invite sent to User ${data.targetUserId} for Room ${data.roomId}`);
-      socket.to(`user_channel_${data.targetUserId}`).emit('receive-invite', {
-          hostName: data.hostName,
-          roomId: data.roomId
+      const targetUserId = Number(data.targetUserId);
+      console.log(`Invite sent to User ${targetUserId} for Room ${data.roomId || data.room_id}`);
+      if (!targetUserId) return;
+      socket.to(`user_channel_${targetUserId}`).emit('receive-invite', {
+          hostName: data.hostName || data.sender_name,
+          hostId: data.hostId || data.sender_id || null,
+          sender_name: data.hostName || data.sender_name,
+          sender_id: data.hostId || data.sender_id || null,
+          roomId: data.roomId || data.room_id,
+          room_id: data.roomId || data.room_id,
+          message: data.message || 'invited you to a watch party.'
       });
   });
 
   // --- Watch Party Room & WebRTC Signaling Events ---
-  socket.on('join-room', (roomId, userId) => {
-      socket.join(roomId);
-      console.log(`User ${userId} joined room ${roomId}`);
-      socket.to(roomId).emit('user-connected', userId);
+  socket.on('join-room', async (roomId, userId, userName) => {
+      const room = String(roomId ?? '');
+      if (!room) return;
+
+      const payload = {
+          socketId: socket.id,
+          userId,
+          userName: userName || 'Guest'
+      };
+
+      const existing: Array<{ socketId: string; userId: unknown; userName: string }> = [];
+      const roomSet = io.sockets.adapter.rooms.get(room);
+      if (roomSet) {
+          for (const id of roomSet) {
+              if (id === socket.id) continue;
+              const peer = io.sockets.sockets.get(id) as any;
+              existing.push({
+                  socketId: id,
+                  userId: peer?._userId,
+                  userName: peer?._userName || 'Guest'
+              });
+          }
+      }
+
+      await socket.join(room);
+      (socket as any)._roomId = room;
+      (socket as any)._userId = userId;
+      (socket as any)._userName = payload.userName;
+      console.log(`User ${userId} (${socket.id}) joined room ${room}`);
+
+      socket.emit('existing-users', existing);
+      socket.to(room).emit('user-connected', payload);
   });
 
   socket.on('offer', (data) => {
-      socket.to(data.targetSocketId).emit('offer', data);
+      if (!data?.targetSocketId) return;
+      io.to(data.targetSocketId).emit('offer', {
+          ...data,
+          fromSocketId: data.fromSocketId || socket.id
+      });
   });
 
   socket.on('answer', (data) => {
-      socket.to(data.targetSocketId).emit('answer', data);
+      if (!data?.targetSocketId) return;
+      io.to(data.targetSocketId).emit('answer', {
+          ...data,
+          fromSocketId: data.fromSocketId || socket.id
+      });
   });
 
   socket.on('ice-candidate', (data) => {
-      socket.to(data.targetSocketId).emit('ice-candidate', data);
+      if (!data?.targetSocketId) return;
+      io.to(data.targetSocketId).emit('ice-candidate', {
+          ...data,
+          fromSocketId: data.fromSocketId || socket.id
+      });
+  });
+
+  socket.on('toggle-mic', (isMuted) => {
+      const roomId = (socket as any)._roomId;
+      const userId = (socket as any)._userId;
+      if (roomId) {
+          socket.to(roomId).emit('peer-mic-changed', { userId, socketId: socket.id, isMuted });
+      }
+  });
+
+  socket.on('toggle-video', (isVideoOn) => {
+      const roomId = (socket as any)._roomId;
+      const userId = (socket as any)._userId;
+      if (roomId) {
+          socket.to(roomId).emit('peer-video-changed', { userId, socketId: socket.id, isVideoOn });
+      }
   });
 
   socket.on('disconnect', () => {
+      const roomId = (socket as any)._roomId;
+      const userId = (socket as any)._userId;
+      if (roomId) {
+          socket.to(roomId).emit('user-disconnected', {
+              userId,
+              socketId: socket.id
+          });
+      }
       console.log(`User disconnected: ${socket.id}`);
   });
 });
@@ -204,6 +283,10 @@ app.post("/user_backend/send_chat.php", (req, res) => {
 
 app.post("/user_backend/mark_as_read.php", (req, res) => {
   res.json({ success: true });
+});
+
+app.post("/user_backend/leave_room.php", (req, res) => {
+  res.json({ success: true, message: "Left room (mock)." });
 });
 
 

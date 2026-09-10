@@ -17,7 +17,7 @@
     <!-- HTMX -->
     <script src="https://unpkg.com/htmx.org@1.9.10/dist/htmx.min.js" crossorigin="anonymous"></script>
     <!-- GSAP -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js" crossorigin="anonymous"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js" crossorigin="anonymous" onerror="window.gsap=window.gsap||{to:()=>({to:()=>({}),fromTo:()=>({})}),fromTo:()=>({}),from:()=>({}),set:()=>{},timeline:()=>({to:()=>({}),fromTo:()=>({}),add:()=>({}),set:()=>({})}),config:()=>{},killTweensOf:()=>{}}"></script>
     <script>if(window.gsap) gsap.config({nullTargetWarn: false});</script>
     <script>if(window.gsap) gsap.config({nullTargetWarn: false});</script>
 
@@ -25,7 +25,7 @@
 
 
 
-    <script src="../js/nexus_scripts.js?v=1787387210"></script>
+    <script src="../js/nexus_scripts.js?v=1788159000"></script>
 </head>
 <body class="bg-[#050505] text-white flex items-center justify-center font-sans antialiased relative overflow-hidden min-h-screen" data-barba="wrapper">
     <?php include __DIR__ . '/components/page_loader.php'; ?>
@@ -92,7 +92,7 @@
             var html = '';
             for (var i = 0; i < 8; i++) {
                 var dir = i % 2 === 0 ? 'up' : 'down';
-                var dur = 40 + (i * 5);
+                var dur = 120 + (i * 15);
                 var imgs = shuffle(POSTER_IMAGES).concat(shuffle(POSTER_IMAGES));
                 var posters = '';
                 imgs.forEach(function(f) {

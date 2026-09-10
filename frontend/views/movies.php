@@ -1,5 +1,5 @@
 <!-- Movies View Container -->
-<div data-tab-panel="movies"  style="display: none;" class="relative w-full min-h-full p-8 lg:p-12">
+<div data-tab-panel="movies"  style="display: none;" class="relative w-full min-h-full p-8 lg:p-12 overflow-y-auto">
     <!-- Section Header -->
     <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-10 stagger-item">
         <div>
@@ -30,7 +30,7 @@
                     class="group relative rounded-2xl bg-[#08080c] border border-white/[0.08] hover:border-red-500/40 transition-all duration-300 hover:-translate-y-1.5 shadow-xl hover:shadow-[0_12px_30px_rgba(239,68,68,0.15)] overflow-hidden">
                     
                     <div class="aspect-[2/3] w-full relative overflow-hidden bg-white/5">
-                        <img :src="movie.img || movie.cover_image || 'https://via.placeholder.com/300x450/0d0d12/ffffff?text=No+Poster'" alt="Poster" class="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110">
+                        <img :src="movie.img || movie.cover_image || 'https://via.placeholder.com/300x450/0d0d12/ffffff?text=No+Poster'" alt="Poster" loading="lazy" decoding="async" class="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110">
                         
                         <!-- 2. INSERT THE TRAILER IFRAME HERE -->
                         <template x-if="isHovered && movie.trailer && isYouTubeUrl(movie.trailer)">
@@ -226,8 +226,16 @@
                                         <!-- Header -->
                                         <div class="flex justify-between items-start mb-2">
                                             <div class="flex items-center gap-2">
-                                                <div class="w-8 h-8 rounded-full bg-gradient-to-tr from-red-500 to-indigo-600 flex items-center justify-center font-bold text-xs text-white uppercase"
-                                                    x-text="comment.user_name ? comment.user_name.charAt(0) : 'U'"></div>
+                                                <div class="relative w-8 h-8 shrink-0 overflow-visible" style="width: 2rem; height: 2rem;">
+                                                    <div class="absolute inset-0 z-0 overflow-hidden rounded-full scale-[1.18] bg-gradient-to-tr from-red-500 to-indigo-600">
+                                                        <img x-show="comment.avatar_url" :src="resolveAvatarUrl ? resolveAvatarUrl(comment.avatar_url, comment.user_name || 'User') : comment.avatar_url" @error="$el.style.display='none'" class="absolute inset-0 h-full w-full object-cover" alt="">
+                                                        <div x-show="!comment.avatar_url" class="absolute inset-0 flex items-center justify-center font-bold text-xs text-white uppercase"
+                                                            x-text="comment.user_name ? comment.user_name.charAt(0) : 'U'"></div>
+                                                    </div>
+                                                    <template x-if="comment.border_preview">
+                                                        <img :src="comment.border_preview" class="absolute inset-0 z-10 h-full w-full scale-[1.38] object-contain pointer-events-none" alt="">
+                                                    </template>
+                                                </div>
                                                 <div>
                                                     <p class="font-bold text-xs text-white" x-text="comment.user_name"></p>
                                                     <p class="text-[10px] text-white/40 font-mono" x-text="new Date(comment.created_at).toLocaleString()"></p>
@@ -268,8 +276,16 @@
                                                 <div class="rounded-lg p-3 transition-all duration-700 border" :class="highlightCommentId == reply.id ? 'bg-red-500/10 border-red-500/50 shadow-[0_0_20px_rgba(239,68,68,0.2)]' : 'bg-black/30 border-white/5'" :id="'admin-comment-' + reply.id">
                                                     <div class="flex justify-between items-start mb-1">
                                                         <div class="flex items-center gap-2">
-                                                            <div class="w-6 h-6 rounded-full bg-gradient-to-tr from-red-500 to-indigo-600 flex items-center justify-center font-bold text-[10px] text-white uppercase"
-                                                                x-text="reply.user_name ? reply.user_name.charAt(0) : 'U'"></div>
+                                                            <div class="relative w-6 h-6 shrink-0 overflow-visible" style="width: 1.5rem; height: 1.5rem;">
+                                                                <div class="absolute inset-0 z-0 overflow-hidden rounded-full scale-[1.18] bg-gradient-to-tr from-red-500 to-indigo-600">
+                                                                    <img x-show="reply.avatar_url" :src="resolveAvatarUrl ? resolveAvatarUrl(reply.avatar_url, reply.user_name || 'User') : reply.avatar_url" @error="$el.style.display='none'" class="absolute inset-0 h-full w-full object-cover" alt="">
+                                                                    <div x-show="!reply.avatar_url" class="absolute inset-0 flex items-center justify-center font-bold text-[10px] text-white uppercase"
+                                                                        x-text="reply.user_name ? reply.user_name.charAt(0) : 'U'"></div>
+                                                                </div>
+                                                                <template x-if="reply.border_preview">
+                                                                    <img :src="reply.border_preview" class="absolute inset-0 z-10 h-full w-full scale-[1.38] object-contain pointer-events-none" alt="">
+                                                                </template>
+                                                            </div>
                                                             <span class="text-[11px] font-bold text-white/90" x-text="reply.user_name"></span>
                                                         </div>
                                                         <button @click="deleteComment(reply.id)"

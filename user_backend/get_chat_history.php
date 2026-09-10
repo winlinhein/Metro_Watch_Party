@@ -2,13 +2,14 @@
 session_start();
 header('Content-Type: application/json');
 
-if (empty($_SESSION['authenticated']) || empty($_SESSION['user_id'])) {
+if (empty($_SESSION['user_id'])) {
     echo json_encode(['success' => false, 'message' => 'Unauthorized']);
     exit();
 }
 
 $userId = (int)$_SESSION['user_id'];
 $friendId = isset($_GET['friend_id']) ? (int)$_GET['friend_id'] : 0;
+session_write_close();
 
 if (!$friendId) {
     echo json_encode(['success' => false, 'message' => 'Invalid friend ID']);
@@ -16,6 +17,7 @@ if (!$friendId) {
 }
 
 require_once __DIR__ . '/../conn.php';
+require_once __DIR__ . '/../media_store_helper.php';
 
 try {
     $stmt = $conn->prepare("
@@ -25,7 +27,8 @@ try {
         FROM friends_message 
         WHERE (sender_id = :user_id_1 AND receiver_id = :friend_id_1)
            OR (sender_id = :friend_id_2 AND receiver_id = :user_id_2)
-        ORDER BY created_at ASC
+        ORDER BY created_at DESC
+        LIMIT 100
     ");
     
     $stmt->execute([
@@ -36,11 +39,14 @@ try {
     ]);
     
     $messages = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    $messages = array_reverse($messages);
 
     foreach ($messages as &$msg) {
         $msg['message_type'] = $msg['message_type'] ?? 'text';
-        $msg['image_url'] = $msg['image_url'] ?? null;
+        $img = $msg['image_url'] ?? null;
+        $msg['image_url'] = $img ? mediaServeUrlFromStored($img) : null;
     }
+    unset($msg);
 
     echo json_encode(['success' => true, 'messages' => $messages ?: []]);
 } catch (PDOException $e) {

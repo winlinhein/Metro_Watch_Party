@@ -28,7 +28,7 @@
                     
                     <!-- Poster Image & Trailer Container -->
                     <div class="aspect-[2/3] w-full relative overflow-hidden bg-[#050508]">
-                        <img :src="movie.img || movie.cover_image || 'https://via.placeholder.com/300x450/0d0d12/ffffff?text=No+Poster'" alt="Poster" class="w-full h-full object-cover transition-all duration-700 absolute inset-0 z-10 group-hover:scale-110" :class="hovered && (movie.trailer || movie.video_url) ? 'opacity-0' : 'opacity-100'">
+                        <img :src="movie.img || movie.cover_image || 'https://via.placeholder.com/300x450/0d0d12/ffffff?text=No+Poster'" alt="Poster" loading="lazy" decoding="async" class="w-full h-full object-cover transition-all duration-700 absolute inset-0 z-10 group-hover:scale-110" :class="hovered && (movie.trailer || movie.video_url) ? 'opacity-0' : 'opacity-100'">
                         
                         <div class="absolute inset-0 z-0 transition-opacity duration-500 overflow-hidden pointer-events-none" :class="hovered ? 'opacity-100' : 'opacity-0'">
                             <template x-if="hovered && (movie.trailer || movie.video_url)">
@@ -111,36 +111,51 @@
                 <div class="flex flex-col h-full overflow-y-auto custom-scrollbar">
                     
                     <div class="relative aspect-video w-full bg-black">
-                        <template x-if="selectedMovie?.actual_video_url && isYouTubeUrl(selectedMovie?.actual_video_url)">
-                            <div x-data="{}"
-                                x-init="let p; $nextTick(() => { const iframe = $el.querySelector('iframe'); if(iframe) iframe.src = getYouTubeEmbedUrl(selectedMovie?.actual_video_url, false); p = new Plyr($el.querySelector('.plyr-target'), { autoplay: true, controls: ['play-large', 'play', 'progress', 'current-time', 'mute', 'volume', 'fullscreen'], youtube: { noCookie: false, rel: 0, showinfo: 0, iv_load_policy: 3, modestbranding: 1 } }); }); return () => { try { if (p) p.destroy(); } catch(e) {} }"
+                       <template x-if="selectedMovie?.actual_video_url && isYouTubeUrl(selectedMovie?.actual_video_url)">
+                            <div x-init="let p; 
+                                        $nextTick(() => { 
+                                            const iframe = $el.querySelector('iframe'); 
+                                            if(iframe) iframe.src = getYouTubeEmbedUrl(selectedMovie?.actual_video_url, false); 
+                                            p = new Plyr($el.querySelector('.plyr-target'), { 
+                                                autoplay: true, 
+                                                controls: ['play-large', 'play', 'progress', 'current-time', 'mute', 'volume', 'fullscreen'], 
+                                                youtube: { noCookie: false, rel: 0, showinfo: 0, iv_load_policy: 3, modestbranding: 1 } 
+                                            }); 
+                                            // View counting trigger
+                                            p.on('timeupdate', () => {
+                                                if (p.currentTime >= viewThresholdSeconds && !viewRecorded) {
+                                                    recordView(selectedMovie?.id || selectedMovie?.movie_id);
+                                                }
+                                            });
+                                        }); 
+                                        return () => { try { if (p) p.destroy(); } catch(e) {} }"
                                 class="absolute inset-0 w-full h-full">
                                 <div class="plyr__video-embed w-full h-full plyr-target">
-                                    <iframe
-                                        class="w-full h-full"
-                                        frameborder="0"
-                                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                                        allowfullscreen>
-                                    </iframe>
+                                    <iframe class="w-full h-full" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
                                 </div>
                             </div>
                         </template>
 
                        <!-- Non-YouTube direct video file -->
                         <template x-if="selectedMovie?.actual_video_url && !isYouTubeUrl(selectedMovie?.actual_video_url)">
-                            <div x-data="{ movieUrl: selectedMovie?.actual_video_url }"
-                                x-init="let player;
+                            <div x-init="let player;
                                         $nextTick(() => {
                                             const video = $el.querySelector('video');
-                                            if (video && movieUrl) {
-                                                video.src = movieUrl;
+                                            if (video && selectedMovie?.actual_video_url) {
+                                                video.src = selectedMovie.actual_video_url;
                                                 player = new Plyr(video, {
-                                                    autoplay: false,   // or true, but browsers may block
+                                                    autoplay: false,
                                                     controls: ['play-large', 'play', 'progress', 'current-time', 'mute', 'volume', 'fullscreen']
+                                                });
+                                                // View counting trigger
+                                                player.on('timeupdate', () => {
+                                                    if (player.currentTime >= viewThresholdSeconds && !viewRecorded) {
+                                                        recordView(selectedMovie?.id || selectedMovie?.movie_id);
+                                                    }
                                                 });
                                             }
                                         });
-                                        $cleanup(() => { if (player) player.destroy(); });"
+                                        return () => { if (player) player.destroy(); }"
                                 class="absolute inset-0 w-full h-full">
                                 <video class="w-full h-full object-contain"></video>
                             </div>
@@ -288,10 +303,12 @@
                                             <div class="flex justify-between items-start mb-1">
                                                 <div class="flex items-center gap-2.5">
                                                     <!-- Comment Profile Avatar & Border -->
-                                                    <div class="relative w-8 h-8 flex items-center justify-center shrink-0">
-                                                        <img :src="'https://ui-avatars.com/api/?name=' + encodeURIComponent(comment.user_name || 'User') + '&background=ef4444&color=fff&bold=true'" class="w-8 h-8 rounded-full border border-red-500/50 absolute z-0">
-                                                        <template x-if="comment.border_preview || (comment.user_name === '<?php echo htmlspecialchars($userName); ?>' && activeBorderId !== 1)">
-                                                            <img :src="comment.border_preview || availableBorders.find(b => b.id === activeBorderId)?.preview" class="absolute inset-0 w-11 h-11 max-w-none -ml-1.5 -mt-1.5 pointer-events-none object-contain z-10">
+                                                    <div class="relative w-8 h-8 shrink-0 overflow-visible" style="width: 2rem; height: 2rem;">
+                                                        <div class="absolute inset-0 z-0 overflow-hidden rounded-full scale-[1.18]">
+                                                            <img :src="resolveAvatarUrl(comment.avatar_url, comment.user_name || 'User')" class="absolute inset-0 h-full w-full object-cover" style="object-fit: cover;">
+                                                        </div>
+                                                        <template x-if="comment.border_preview">
+                                                            <img :src="comment.border_preview" class="absolute inset-0 z-10 h-full w-full scale-[1.38] object-contain pointer-events-none">
                                                         </template>
                                                     </div>
                                                     <div>
@@ -371,10 +388,12 @@
                                                         <div class="flex justify-between items-start mb-1">
                                                             <div class="flex items-center gap-2">
                                                                 <!-- Reply Profile Avatar & Border -->
-                                                                <div class="relative w-6 h-6 flex items-center justify-center shrink-0">
-                                                                    <img :src="'https://ui-avatars.com/api/?name=' + encodeURIComponent(reply.user_name || 'User') + '&background=ef4444&color=fff&bold=true'" class="w-6 h-6 rounded-full border border-red-500/50 absolute z-0">
-                                                                    <template x-if="reply.border_preview || (reply.user_name === '<?php echo htmlspecialchars($userName); ?>' && activeBorderId !== 1)">
-                                                                        <img :src="reply.border_preview || availableBorders.find(b => b.id === activeBorderId)?.preview" class="absolute inset-0 w-8 h-8 max-w-none -ml-1 -mt-1 pointer-events-none object-contain z-10">
+                                                                <div class="relative w-6 h-6 shrink-0 overflow-visible" style="width: 1.5rem; height: 1.5rem;">
+                                                                    <div class="absolute inset-0 z-0 overflow-hidden rounded-full scale-[1.18]">
+                                                                        <img :src="resolveAvatarUrl(reply.avatar_url, reply.user_name || 'User')" class="absolute inset-0 h-full w-full object-cover" style="object-fit: cover;">
+                                                                    </div>
+                                                                    <template x-if="reply.border_preview">
+                                                                        <img :src="reply.border_preview" class="absolute inset-0 z-10 h-full w-full scale-[1.38] object-contain pointer-events-none">
                                                                     </template>
                                                                 </div>
                                                                 <span class="text-[11px] font-bold text-white/90" x-text="reply.user_name || 'User'"></span>

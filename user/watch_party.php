@@ -9,6 +9,17 @@ if (empty($_SESSION['authenticated']) || empty($_SESSION['user_id'])) {
 $userId = $_SESSION['user_id'] ?? 0;
 $userName = $_SESSION['user_name'] ?? 'Agent';
 $userEmail = $_SESSION['user_email'] ?? '';
+$userAvatar = '';
+$userBorder = '';
+try {
+    require_once __DIR__ . '/../conn.php';
+    require_once __DIR__ . '/../profile_media_helper.php';
+    $media = getUserProfileMedia($conn, (int)$userId);
+    $userAvatar = $media['avatar_url'] ?? '';
+    $userBorder = $media['border_preview'] ?? '';
+} catch (Throwable $e) {
+    error_log('watch_party profile media: ' . $e->getMessage());
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -20,13 +31,21 @@ $userEmail = $_SESSION['user_email'] ?? '';
     <script>
         window.CURRENT_USER_ID = <?php echo json_encode($userId); ?>;
         window.USER_NAME = <?php echo json_encode($userName); ?>;
-        window.USER_EMAIL = <?php echo json_encode($userEmail); ?>;
+        window.USER_AVATAR = <?php echo json_encode($userAvatar); ?>;
+        window.USER_BORDER = <?php echo json_encode($userBorder); ?>;
+        window.PUSHER_KEY = 'f4b5637ef4b8952b6eb8';
+        window.PUSHER_CLUSTER = 'ap1';
+        window.NEXUS_SIGNALING_URL = window.NEXUS_SIGNALING_URL || (
+            (location.port && location.port !== '3000')
+                ? (location.protocol + '//' + location.hostname + ':3000')
+                : ''
+        );
     </script>
     
     <script src="https://cdn.tailwindcss.com/3.4.17"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.1/dist/cdn.min.js" crossorigin="anonymous"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js" crossorigin="anonymous"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/ScrollTrigger.min.js" crossorigin="anonymous"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js" crossorigin="anonymous" onerror="window.gsap=window.gsap||{to:()=>({to:()=>({}),fromTo:()=>({})}),fromTo:()=>({}),from:()=>({}),set:()=>{},timeline:()=>({to:()=>({}),fromTo:()=>({}),add:()=>({}),set:()=>({})}),config:()=>{},killTweensOf:()=>{}}"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js" crossorigin="anonymous" onerror="if(window.gsap)window.gsap.ScrollTrigger=window.gsap.ScrollTrigger||{create:()=>{},refresh:()=>{},kill:()=>{}}"></script>
     <script>if(window.gsap) gsap.config({nullTargetWarn: false});</script>
     
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
@@ -85,11 +104,19 @@ $userEmail = $_SESSION['user_email'] ?? '';
 
 
    <!-- 1. Third-Party Libraries First -->
+<script src="https://js.pusher.com/8.2.0/pusher.min.js"></script>
 <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+<script>
+    if (typeof io !== 'function') {
+        document.write('<script src="' + (window.NEXUS_SIGNALING_URL || (location.protocol + '//' + location.hostname + ':3000')) + '/socket.io/socket.io.js"><\/script>');
+    }
+    if (typeof io !== 'function') {
+        document.write('<script src="https://cdn.jsdelivr.net/npm/socket.io-client@4.7.5/dist/socket.io.min.js"><\/script>');
+    }
+</script>
 <script src="https://unpkg.com/htmx.org@1.9.10/dist/htmx.min.js" crossorigin="anonymous"></script>
 
 <!-- 2. Your Custom Scripts Last -->
-<script src="../js/nexus_scripts.js?v=1787387210"></script>
 <script src="watch_party.js?v=<?php echo time(); ?>"></script>
 </head>
 <body class="h-screen w-screen flex relative selection:bg-red-500/30" data-barba="wrapper">
@@ -105,21 +132,26 @@ $userEmail = $_SESSION['user_email'] ?? '';
 
     <!-- Sidebar / Server List (Discord style) -->
     <div class="w-20 shrink-0 h-full bg-[#030305]/90 backdrop-blur-xl border-r border-white/5 flex flex-col items-center py-6 gap-4 z-20 relative">
-        <a href="dashboard.php" class="w-12 h-12 rounded-[16px] bg-gradient-to-tr from-indigo-500 to-red-600 flex items-center justify-center shadow-[0_0_20px_rgba(239,68,68,0.3)] hover:scale-105 hover:rounded-[12px] transition-all duration-300 cursor-pointer">
+        <button type="button" @click="leaveRoom()" class="w-12 h-12 rounded-[16px] bg-gradient-to-tr from-indigo-500 to-red-600 flex items-center justify-center shadow-[0_0_20px_rgba(239,68,68,0.3)] hover:scale-105 hover:rounded-[12px] transition-all duration-300 cursor-pointer" title="Leave room">
             <span class="material-symbols-outlined text-white font-bold">arrow_back</span>
-        </a>
+        </button>
         <div class="w-8 h-[2px] bg-white/10 rounded-full my-2"></div>
-        <div class="flex-1 w-full flex flex-col items-center gap-3 overflow-y-auto custom-scrollbar">
-            <!-- Mock other parties/servers -->
-            <template x-for="i in 3">
-                <div class="w-12 h-12 rounded-[24px] bg-white/5 hover:bg-white/10 hover:rounded-[16px] flex items-center justify-center transition-all duration-300 cursor-pointer relative group">
-                    <img :src="`https://ui-avatars.com/api/?name=U${i}&background=random&color=fff`" class="w-full h-full object-cover rounded-[inherit]">
-                    <div class="absolute left-0 w-1 bg-white rounded-r-full transition-all duration-300 h-0 group-hover:h-6 top-1/2 -translate-y-1/2"></div>
+        <div class="flex-1 w-full flex flex-col items-center gap-4 overflow-y-auto custom-scrollbar py-2 px-1">
+            <template x-for="user in participants" :key="user.peerId || user.socketId || user.id">
+                <div class="w-12 h-12 rounded-[24px] hover:rounded-[16px] flex items-center justify-center transition-all duration-300 relative group overflow-visible"
+                     :title="user.name">
+                    <div class="absolute inset-0 z-0 overflow-hidden rounded-[inherit] scale-[1.05] bg-white/5 border border-white/10">
+                        <img :src="user.avatar" class="absolute inset-0 h-full w-full object-cover" alt="">
+                    </div>
+                    <template x-if="user.border">
+                        <img :src="user.border" class="absolute inset-0 z-10 h-full w-full scale-[1.45] object-contain pointer-events-none" alt="">
+                    </template>
+                    <div class="absolute left-0 w-1 bg-white rounded-r-full transition-all duration-300 h-0 group-hover:h-6 top-1/2 -translate-y-1/2 z-20"></div>
                 </div>
             </template>
-            <div class="w-12 h-12 rounded-[24px] bg-white/5 hover:bg-emerald-500 hover:text-white text-emerald-400 hover:rounded-[16px] flex items-center justify-center transition-all duration-300 cursor-pointer relative group shadow-[0_0_15px_rgba(16,185,129,0.1)] hover:shadow-[0_0_20px_rgba(16,185,129,0.4)]">
+            <button type="button" @click="showInviteMenu = true" class="w-12 h-12 rounded-[24px] bg-white/5 hover:bg-emerald-500 hover:text-white text-emerald-400 hover:rounded-[16px] flex items-center justify-center transition-all duration-300 relative group shadow-[0_0_15px_rgba(16,185,129,0.1)] hover:shadow-[0_0_20px_rgba(16,185,129,0.4)]" title="Invite a friend">
                 <span class="material-symbols-outlined">add</span>
-            </div>
+            </button>
         </div>
     </div>
 
@@ -135,6 +167,8 @@ $userEmail = $_SESSION['user_email'] ?? '';
                     <p class="text-xs text-white/50 mono flex items-center gap-2">
                         <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
                         <span x-text="participants.length + ' online'"></span>
+                        <span class="text-white/30">·</span>
+                        <span x-text="liveStatus"></span>
                     </p>
                 </div>
             </div>
@@ -152,11 +186,18 @@ $userEmail = $_SESSION['user_email'] ?? '';
         <div class="max-h-60 overflow-y-auto custom-scrollbar flex flex-col gap-1">
             <template x-for="friend in friends" :key="friend.user_id">
                 <div class="flex items-center justify-between p-2 rounded-lg hover:bg-white/5 transition-colors group">
-                    <div class="flex items-center gap-2">
-                        <div class="w-8 h-8 rounded-full bg-gradient-to-tr from-indigo-500 to-red-600 flex items-center justify-center text-xs font-bold" x-text="friend.user_name.charAt(0)"></div>
-                        <span class="text-sm font-medium" x-text="friend.user_name"></span>
+                    <div class="flex items-center gap-2 min-w-0">
+                        <div class="relative shrink-0 w-9 h-9 overflow-visible">
+                            <div class="absolute inset-0 z-0 overflow-hidden rounded-full scale-[1.1] border border-white/10">
+                                <img :src="resolveAvatarUrl(friend.avatar_url, friend.user_name)" class="absolute inset-0 h-full w-full object-cover" alt="">
+                            </div>
+                            <template x-if="friend.border_preview">
+                                <img :src="friend.border_preview" class="absolute inset-0 z-10 h-full w-full scale-[1.45] object-contain pointer-events-none" alt="">
+                            </template>
+                        </div>
+                        <span class="text-sm font-medium truncate" x-text="friend.user_name"></span>
                     </div>
-                    <button @click="inviteFriend(friend.user_id)" class="text-emerald-400 hover:text-white hover:bg-emerald-500 p-1.5 rounded-lg transition-all opacity-0 group-hover:opacity-100">
+                    <button @click="inviteFriend(friend.user_id, friend.user_name)" class="text-emerald-400 hover:text-white hover:bg-emerald-500 p-1.5 rounded-lg transition-all opacity-0 group-hover:opacity-100">
                         <span class="material-symbols-outlined text-[16px]">send</span>
                     </button>
                 </div>
@@ -176,7 +217,10 @@ $userEmail = $_SESSION['user_email'] ?? '';
             <!-- Main Movie Player Background -->
             <div class="absolute inset-0 bg-black overflow-hidden group video-container z-0" @mousemove="showControls = true; clearTimeout(controlsTimeout); controlsTimeout = setTimeout(() => { if (isPlaying) showControls = false }, 2500)" @mouseleave="if (isPlaying) showControls = false">
                     
-                    <template x-if="videoUrl">
+                    <template x-if="videoUrl && isYouTubeUrl(videoUrl)">
+                        <iframe class="w-full h-full bg-black" :src="getYouTubeWatchEmbed(videoUrl)" title="Watch party movie" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe>
+                    </template>
+                    <template x-if="videoUrl && !isYouTubeUrl(videoUrl)">
                         <video id="main-player" class="w-full h-full object-contain bg-black cursor-pointer" x-ref="videoPlayer" @click="togglePlay" @timeupdate="updateProgress" @ended="isPlaying = false" :src="videoUrl" playsinline preload="metadata" poster="https://images.unsplash.com/photo-1536440136628-849c177e76a1?auto=format&fit=crop&q=80&w=1600&h=900"></video>
                     </template>
                     
@@ -205,14 +249,14 @@ $userEmail = $_SESSION['user_email'] ?? '';
                     </div>
 
                     <!-- Giant Play Button Overlay (when paused) -->
-                    <div class="absolute inset-0 bg-black/40 flex items-center justify-center z-10 transition-opacity duration-300 cursor-pointer" x-show="videoUrl && !isPlaying && !isLoading" @click="togglePlay" x-transition.opacity>
+                    <div class="absolute inset-0 bg-black/40 flex items-center justify-center z-10 transition-opacity duration-300 cursor-pointer" x-show="videoUrl && !isYouTubeUrl(videoUrl) && !isPlaying && !isLoading" @click="togglePlay" x-transition.opacity>
                         <div class="w-24 h-24 bg-red-500/90 rounded-full flex items-center justify-center shadow-[0_0_40px_rgba(239,68,68,0.6)] backdrop-blur-md transform transition-transform hover:scale-110">
                             <span class="material-symbols-outlined text-[48px] text-white ml-2">play_arrow</span>
                         </div>
                     </div>
 
                     <!-- Player Controls Overlay -->
-                    <div class="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent flex flex-col justify-end p-6 z-20 transition-opacity duration-500 pointer-events-none" :class="(showControls && videoUrl) ? 'opacity-100' : 'opacity-0'" x-show="videoUrl">
+                    <div class="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent flex flex-col justify-end p-6 z-20 transition-opacity duration-500 pointer-events-none" :class="(showControls && videoUrl && !isYouTubeUrl(videoUrl)) ? 'opacity-100' : 'opacity-0'" x-show="videoUrl && !isYouTubeUrl(videoUrl)">
                         
                         <!-- Progress Bar -->
                         <div class="w-full h-1.5 bg-white/20 rounded-full mb-6 cursor-pointer relative group/progress pointer-events-auto" @click="seek" x-ref="progressBar">
@@ -284,16 +328,54 @@ $userEmail = $_SESSION['user_email'] ?? '';
 
                     <!-- Video Grid (Participants) -->
                     <div class="flex flex-col gap-3 origin-top pointer-events-auto overflow-y-auto custom-scrollbar pr-1 pb-4" x-show="showParticipants" x-transition:enter="transition ease-out duration-300" x-transition:enter-start="opacity-0 scale-y-90" x-transition:enter-end="opacity-100 scale-y-100" x-transition:leave="transition ease-in duration-200" x-transition:leave-start="opacity-100 scale-y-100" x-transition:leave-end="opacity-0 scale-y-90">
-                        <template x-for="(user, index) in participants" :key="index">
-                            <div class="participant-card w-full aspect-video hover:scale-105 transition-transform duration-300 bg-white/5 rounded-xl border border-white/10 overflow-hidden relative group shadow-lg shrink-0">
-                                <video x-init="$el.srcObject = user.stream" autoplay playsinline class="w-full h-full object-cover" :muted="user.isSelf"></video>
-                                <div class="absolute bottom-1 left-1 bg-black/60 backdrop-blur px-1.5 py-0.5 rounded text-[9px] font-bold text-white flex items-center gap-1 border border-white/10">
-                                    <span class="truncate max-w-[60px]" x-text="user.name"></span>
-                                    <span class="material-symbols-outlined text-[10px]" :class="user.muted ? 'text-red-500' : 'text-green-500'" x-text="user.muted ? 'mic_off' : 'mic'"></span>
-                                    <span class="material-symbols-outlined text-[10px]" :class="!user.videoOn ? 'text-red-500' : 'text-green-500'" x-text="!user.videoOn ? 'videocam_off' : 'videocam'"></span>
+                        <template x-for="user in participants" :key="user.peerId || user.socketId || user.id">
+                            <div class="participant-card w-full aspect-video hover:scale-105 transition-transform duration-300 bg-[#0a0a0f] rounded-xl border border-white/10 overflow-hidden relative group shadow-lg shrink-0">
+                                <template x-if="user.stream && user.isSelf">
+                                    <video x-show="user.videoOn !== false" x-effect="$el.srcObject = user.stream; $el.muted = true; $el.volume = 0; $el.defaultMuted = true; $el.play && $el.play().catch(()=>{});" autoplay playsinline muted class="absolute inset-0 w-full h-full object-cover"></video>
+                                </template>
+                                <template x-if="user.stream && !user.isSelf">
+                                    <video x-show="user.videoOn !== false" x-effect="$el.srcObject = user.stream; $el.muted = !!user.muted; $el.play && $el.play().catch(()=>{});" autoplay playsinline class="absolute inset-0 w-full h-full object-cover"></video>
+                                </template>
+                                <div x-show="!user.stream || user.videoOn === false" class="absolute inset-0 z-[5] flex items-center justify-center bg-[#0a0a0f]">
+                                    <div class="relative w-14 h-14 overflow-visible">
+                                        <div class="absolute inset-0 z-0 overflow-hidden rounded-full scale-[1.1] border border-white/10">
+                                            <img :src="user.avatar" class="absolute inset-0 h-full w-full object-cover" alt="">
+                                        </div>
+                                        <template x-if="user.border">
+                                            <img :src="user.border" class="absolute inset-0 z-10 h-full w-full scale-[1.45] object-contain pointer-events-none" alt="">
+                                        </template>
+                                    </div>
                                 </div>
-                                <!-- Speaking indicator -->
-                                <div class="absolute inset-0 border-[1.5px] border-emerald-500 rounded-xl opacity-0 transition-opacity" :class="{'opacity-100': user.speaking}"></div>
+                                <div class="absolute bottom-1 left-1 z-20 bg-black/60 backdrop-blur px-1.5 py-0.5 rounded text-[9px] font-bold text-white flex items-center gap-1 border border-white/10">
+                                    <div class="relative w-4 h-4 overflow-visible shrink-0">
+                                        <div class="absolute inset-0 z-0 overflow-hidden rounded-full">
+                                            <img :src="user.avatar" class="absolute inset-0 h-full w-full object-cover" alt="">
+                                        </div>
+                                        <template x-if="user.border">
+                                            <img :src="user.border" class="absolute inset-0 z-10 h-full w-full scale-[1.5] object-contain pointer-events-none" alt="">
+                                        </template>
+                                    </div>
+                                    <span class="truncate max-w-[52px]" x-text="user.name"></span>
+                                    <span x-show="user.isHost || (user.isSelf && isHost)" class="text-[8px] text-amber-400 uppercase tracking-wider">Host</span>
+                                    <span class="material-symbols-outlined text-[10px]" :class="user.muted ? 'text-red-500' : 'text-green-500'" x-text="user.muted ? 'mic_off' : 'mic'"></span>
+                                    <span class="material-symbols-outlined text-[10px]" :class="user.videoOn === false ? 'text-red-500' : 'text-green-500'" x-text="user.videoOn === false ? 'videocam_off' : 'videocam'"></span>
+                                    <span x-show="user.chatBanned" class="material-symbols-outlined text-[10px] text-red-400">comments_disabled</span>
+                                </div>
+                                <div x-show="isHost && !user.isSelf" class="absolute top-1 right-1 z-30 grid grid-cols-2 gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                    <button type="button" @click.stop="hostMuteMember(user)" class="w-7 h-7 rounded-lg bg-black/70 border border-white/15 text-white hover:bg-red-500 hover:border-red-400 flex items-center justify-center" :title="user.muted ? 'Unmute member' : 'Mute member'">
+                                        <span class="material-symbols-outlined text-[15px]" x-text="user.muted ? 'mic_off' : 'mic'"></span>
+                                    </button>
+                                    <button type="button" @click.stop="hostVideoMember(user)" class="w-7 h-7 rounded-lg bg-black/70 border border-white/15 text-white hover:bg-red-500 hover:border-red-400 flex items-center justify-center" :title="user.videoOn === false ? 'Turn camera on' : 'Turn camera off'">
+                                        <span class="material-symbols-outlined text-[15px]" x-text="user.videoOn === false ? 'videocam_off' : 'videocam'"></span>
+                                    </button>
+                                    <button type="button" @click.stop="hostBanChat(user)" class="w-7 h-7 rounded-lg bg-black/70 border border-white/15 text-white hover:bg-red-500 hover:border-red-400 flex items-center justify-center" :title="user.chatBanned ? 'Allow chat' : 'Ban from chat'">
+                                        <span class="material-symbols-outlined text-[15px]" x-text="user.chatBanned ? 'comments_disabled' : 'chat'"></span>
+                                    </button>
+                                    <button type="button" @click.stop="kickMember(user)" class="w-7 h-7 rounded-lg bg-black/70 border border-white/15 text-white hover:bg-red-600 hover:border-red-400 flex items-center justify-center" title="Remove from room">
+                                        <span class="material-symbols-outlined text-[15px]">person_remove</span>
+                                    </button>
+                                </div>
+                                <div class="absolute inset-0 border-[1.5px] border-emerald-500 rounded-xl opacity-0 transition-opacity pointer-events-none z-10" :class="{'opacity-100': user.speaking}"></div>
                             </div>
                         </template>
                     </div>
@@ -309,6 +391,8 @@ $userEmail = $_SESSION['user_email'] ?? '';
                     x-transition:enter-start="opacity-0 translate-x-4"
                     x-transition:enter-end="opacity-100 translate-x-0">
                 <span class="material-symbols-outlined">chevron_left</span>
+                <span x-show="isHost && currentJoinRequest"
+                      class="absolute top-1 left-1 w-2 h-2 rounded-full bg-indigo-400 shadow-[0_0_8px_#818cf8] animate-pulse"></span>
             </button>
 
             <!-- Right: Chat & Activities -->
@@ -324,6 +408,10 @@ $userEmail = $_SESSION['user_email'] ?? '';
                 <div class="h-14 border-b border-white/5 flex items-center justify-between px-4 gap-2 text-sm font-bold text-white/90">
                     <div class="flex items-center gap-2">
                         <span class="material-symbols-outlined text-[18px]">chat</span> Room Chat
+                        <span x-show="isHost && currentJoinRequest"
+                              class="px-1.5 py-0.5 rounded bg-indigo-500/20 border border-indigo-500/30 text-indigo-300 text-[9px] font-black uppercase tracking-wider">
+                            Request
+                        </span>
                     </div>
                     <button @click="showChat = false" class="text-white/50 hover:text-white transition-colors bg-white/5 hover:bg-white/10 rounded-lg p-1 flex items-center justify-center">
                         <span class="material-symbols-outlined text-[18px]">chevron_right</span>
@@ -332,15 +420,46 @@ $userEmail = $_SESSION['user_email'] ?? '';
                 
                 <!-- Messages -->
                 <div class="flex-1 overflow-y-auto custom-scrollbar p-4 flex flex-col gap-4" id="chat-container">
-                    <template x-for="(msg, i) in messages" :key="i">
-                        <div class="flex gap-3 chat-msg-item">
-                            <img :src="msg.avatar" class="w-8 h-8 rounded-full border border-white/10 shrink-0">
-                            <div>
+                    <template x-for="(msg, i) in messages" :key="msg.id || msg.request_id || i">
+                        <div class="flex gap-3 chat-msg-item py-1">
+                            <div class="relative w-8 h-8 shrink-0 overflow-visible mt-0.5">
+                                <div class="absolute inset-0 z-0 overflow-hidden rounded-full scale-[1.1] border border-white/10">
+                                    <img :src="msg.avatar" class="absolute inset-0 h-full w-full object-cover" alt="">
+                                </div>
+                                <template x-if="msg.border">
+                                    <img :src="msg.border" class="absolute inset-0 z-10 h-full w-full scale-[1.45] object-contain pointer-events-none" alt="">
+                                </template>
+                            </div>
+                            <div class="min-w-0 flex-1">
                                 <div class="flex items-baseline gap-2 mb-0.5">
                                     <span class="text-xs font-bold" :class="msg.isSelf ? 'text-red-400' : 'text-white'" x-text="msg.name"></span>
                                     <span class="text-[9px] text-white/40 mono" x-text="msg.time"></span>
                                 </div>
-                                <p class="text-sm text-white/70 leading-relaxed" x-text="msg.text"></p>
+                                <template x-if="msg.type === 'join_request'">
+                                    <div class="rounded-xl border border-indigo-500/25 bg-indigo-500/10 px-3 py-2.5 mt-1">
+                                        <p class="text-[10px] font-bold uppercase tracking-widest text-indigo-300 mb-1">Join request</p>
+                                        <p class="text-sm text-white/80 leading-relaxed" x-text="msg.text || 'wants to join the watch party.'"></p>
+                                        <div class="flex gap-2 mt-3" x-show="isHost && (msg.request_status || 'pending') === 'pending'">
+                                            <button type="button"
+                                                    @click="respondJoinRequest('decline', msg)"
+                                                    class="flex-1 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-white/70 text-[10px] font-black uppercase tracking-wider">
+                                                Decline
+                                            </button>
+                                            <button type="button"
+                                                    @click="respondJoinRequest('accept', msg)"
+                                                    class="flex-1 py-1.5 rounded-lg bg-indigo-500 hover:bg-indigo-400 text-white text-[10px] font-black uppercase tracking-wider">
+                                                Accept
+                                            </button>
+                                        </div>
+                                        <p class="text-[11px] font-bold uppercase tracking-wider mt-2 text-emerald-400"
+                                           x-show="msg.request_status === 'accepted'">Accepted</p>
+                                        <p class="text-[11px] font-bold uppercase tracking-wider mt-2 text-white/35"
+                                           x-show="msg.request_status === 'declined'">Declined</p>
+                                    </div>
+                                </template>
+                                <template x-if="msg.type !== 'join_request'">
+                                    <p class="text-sm text-white/70 leading-relaxed" x-text="msg.text"></p>
+                                </template>
                             </div>
                         </div>
                     </template>
@@ -352,7 +471,7 @@ $userEmail = $_SESSION['user_email'] ?? '';
                         <button class="w-8 h-8 flex items-center justify-center text-white/40 hover:text-white transition-colors">
                             <span class="material-symbols-outlined text-[18px]">add_circle</span>
                         </button>
-                        <input type="text" x-model="newMessage" @keydown.enter="sendMessage" placeholder="Message room..." class="flex-1 bg-transparent border-none outline-none text-sm text-white px-2 placeholder-white/30">
+                        <input type="text" x-model="newMessage" @keydown.enter="sendMessage" :disabled="chatBanned" :placeholder="chatBanned ? 'The host banned you from chat' : 'Message room...'" class="flex-1 bg-transparent border-none outline-none text-sm text-white px-2 placeholder-white/30 disabled:opacity-50">
                         <button class="w-8 h-8 flex items-center justify-center text-white/40 hover:text-white transition-colors">
                             <span class="material-symbols-outlined text-[18px]">mood</span>
                         </button>
@@ -363,10 +482,10 @@ $userEmail = $_SESSION['user_email'] ?? '';
 
         <!-- Bottom Controls (Voice/Video toggles) -->
         <div class="h-20 border-t border-white/5 bg-[#050508]/90 backdrop-blur-xl flex items-center justify-center gap-4 px-6 relative z-30 gs-controls">
-            <button @click="toggleMic($event)" class="w-12 h-12 rounded-xl flex items-center justify-center transition-all duration-300 shadow-lg border" :class="isMuted ? 'bg-red-500/10 border-red-500/20 text-red-500 hover:bg-red-500/20' : 'bg-white/10 border-white/10 text-white hover:bg-white/20'">
+            <button @click="toggleMic($event)" class="w-12 h-12 rounded-xl flex items-center justify-center transition-all duration-300 shadow-lg border" :class="isMuted ? 'bg-red-500/10 border-red-500/20 text-red-500 hover:bg-red-500/20' : 'bg-white/10 border-white/10 text-white hover:bg-white/20'" :title="forcedMuted ? 'The host muted your microphone' : (isMuted ? 'Unmute' : 'Mute')">
                 <span class="material-symbols-outlined" x-text="isMuted ? 'mic_off' : 'mic'"></span>
             </button>
-            <button @click="toggleVideo($event)" class="w-12 h-12 rounded-xl flex items-center justify-center transition-all duration-300 shadow-lg border" :class="!isVideoOn ? 'bg-red-500/10 border-red-500/20 text-red-500 hover:bg-red-500/20' : 'bg-white/10 border-white/10 text-white hover:bg-white/20'">
+            <button @click="toggleVideo($event)" class="w-12 h-12 rounded-xl flex items-center justify-center transition-all duration-300 shadow-lg border" :class="!isVideoOn ? 'bg-red-500/10 border-red-500/20 text-red-500 hover:bg-red-500/20' : 'bg-white/10 border-white/10 text-white hover:bg-white/20'" :title="forcedVideoOff ? 'The host turned off your camera' : (isVideoOn ? 'Turn camera off' : 'Turn camera on')">
                 <span class="material-symbols-outlined" x-text="!isVideoOn ? 'videocam_off' : 'videocam'"></span>
             </button>
             <button @click="showMovieModal = true" class="w-12 h-12 rounded-xl bg-indigo-500/10 border-indigo-500/20 text-indigo-400 hover:bg-indigo-500/20 flex items-center justify-center transition-all duration-300 shadow-lg border">
@@ -486,6 +605,7 @@ $userEmail = $_SESSION['user_email'] ?? '';
                              
                             <!-- Poster Image -->
                             <img :src="movie.img || movie.cover_image" 
+                                 loading="lazy" decoding="async" 
                                  class="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
                                  :class="hoveredMovieId === movie.id && (movie.trailer || movie.actual_video_url) ? 'opacity-0' : 'opacity-100'">
                                  
@@ -517,16 +637,44 @@ $userEmail = $_SESSION['user_email'] ?? '';
             </div>
         </div>
     </div>
+
+    <div x-show="showInviteSentModal"
+         class="fixed inset-0 z-[200] flex items-center justify-center p-4"
+         style="display: none;">
+        <div class="absolute inset-0 bg-black/75 backdrop-blur-sm"
+             @click="showInviteSentModal = false"
+             x-show="showInviteSentModal"
+             x-transition.opacity></div>
+        <div class="relative w-full max-w-sm bg-[#0a0a0f] border border-emerald-500/30 rounded-2xl p-6 shadow-[0_0_60px_rgba(16,185,129,0.2)] overflow-hidden"
+             x-show="showInviteSentModal"
+             x-transition:enter="transition ease-out duration-300"
+             x-transition:enter-start="opacity-0 scale-90 translate-y-4"
+             x-transition:enter-end="opacity-100 scale-100 translate-y-0">
+            <div class="absolute inset-0 bg-gradient-to-br from-emerald-500/10 via-transparent to-indigo-500/10 pointer-events-none"></div>
+            <div class="relative z-10 text-center">
+                <div class="w-14 h-14 mx-auto mb-4 rounded-2xl bg-emerald-500/15 border border-emerald-500/40 flex items-center justify-center shadow-[0_0_30px_rgba(16,185,129,0.35)]">
+                    <span class="material-symbols-outlined text-emerald-400 text-3xl">mark_email_read</span>
+                </div>
+                <h3 class="text-xl font-black text-white tracking-tight mb-1">Invite sent</h3>
+                <p class="text-sm text-white/55 mb-6">
+                    <span class="text-white font-semibold" x-text="inviteSentName"></span>
+                    will see it in their notifications.
+                </p>
+                <button type="button"
+                        @click="showInviteSentModal = false"
+                        class="w-full py-3 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-black font-black uppercase tracking-wider text-xs transition-colors">
+                    Got it
+                </button>
+            </div>
+        </div>
+    </div>
 </div>
 
-
-
     <script src="https://unpkg.com/@barba/core@2.9.7/dist/barba.umd.js" crossorigin="anonymous"></script>
-    <script src="https://cdn.socket.io/4.7.4/socket.io.min.js"></script>
 <!-- Your external script file loaded at the bottom of the body -->
 
     
-    <script src="../js/barba_setup.js?v=4"></script>
+    <script src="../js/barba_setup.js?v=5"></script>
    
 
 
