@@ -75,7 +75,10 @@ a, button, input, textarea, select, .cursor-pointer, .top-nav-item, [x-ref="prog
     document.addEventListener('fullscreenchange', handleFullscreenChange);
     document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
 
-    document.addEventListener('DOMContentLoaded', () => {
+    const bootNexusCursor = () => {
+        if (window.__nexusCursorInit) return;
+        window.__nexusCursorInit = true;
+
         // Prevent duplicate cursors
         if(document.querySelectorAll('#cursor-glow').length > 1) {
             document.querySelectorAll('#cursor-glow')[1].remove();
@@ -90,25 +93,19 @@ a, button, input, textarea, select, .cursor-pointer, .top-nav-item, [x-ref="prog
         }
 
         if(typeof gsap !== 'undefined') {
-            // Start invisible — we don't know the real cursor position yet, so
-            // showing anything now would show it in the wrong place (top-left,
-            // per the CSS default) until the first mousemove ever fires.
-            gsap.set(cursor, { xPercent: -50, yPercent: -50, opacity: 0 });
-            gsap.set(innerCursor, { xPercent: -50, yPercent: -50, opacity: 0 });
+            const saved = window.__nexusPointer;
+            let mouseX = saved && typeof saved.x === 'number' ? saved.x : window.innerWidth / 2;
+            let mouseY = saved && typeof saved.y === 'number' ? saved.y : window.innerHeight / 2;
+            let hasPositioned = !!(saved && typeof saved.x === 'number');
 
-            let mouseX = window.innerWidth / 2;
-            let mouseY = window.innerHeight / 2;
-            let hasPositioned = false;
+            gsap.set(cursor, { xPercent: -50, yPercent: -50, x: mouseX, y: mouseY, opacity: hasPositioned ? 1 : 0 });
+            gsap.set(innerCursor, { xPercent: -50, yPercent: -50, x: mouseX, y: mouseY, opacity: hasPositioned ? 1 : 0 });
 
             document.addEventListener('mousemove', (e) => {
                 mouseX = e.clientX;
                 mouseY = e.clientY;
 
                 if (!hasPositioned) {
-                    // First real mouse position we've seen this page load:
-                    // snap both cursors straight there (no tween) and reveal
-                    // them in the same tick, so there's nothing to see travel
-                    // in from the corner.
                     hasPositioned = true;
                     gsap.set(cursor, { x: mouseX, y: mouseY, opacity: 1 });
                     gsap.set(innerCursor, { x: mouseX, y: mouseY, opacity: 1 });
@@ -153,5 +150,11 @@ a, button, input, textarea, select, .cursor-pointer, .top-nav-item, [x-ref="prog
             
             window.initInteractiveElements();
         }
-    });
+    };
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', bootNexusCursor);
+    } else {
+        bootNexusCursor();
+    }
 </script>

@@ -48,6 +48,7 @@ session_write_close();
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <?php include __DIR__ . '/components/head_boot.php'; ?>
     <title>Nexus - Admin Dashboard</title>
     
     <script src="https://cdn.tailwindcss.com/3.4.17"></script>
@@ -64,7 +65,7 @@ session_write_close();
             background-color: #030305; 
             color: #ffffff; 
             overflow: hidden; 
-            cursor: default; 
+            cursor: none; 
         }
         .mono { font-family: 'JetBrains Mono', monospace; }
         
@@ -304,9 +305,8 @@ session_write_close();
         </div>
     </main>
 
-    <script src="https://unpkg.com/@barba/core@2.9.7/dist/barba.umd.js" crossorigin="anonymous"></script>
     <script src="../js/admin_animations.js?v=1"></script>
-    <script src="../js/barba_setup.js?v=4"></script>
+    <?php include __DIR__ . '/components/barba_scripts.php'; ?>
     
 </body>
 </html>

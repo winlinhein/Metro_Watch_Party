@@ -1,10 +1,76 @@
 // Barba.js Initialization
-if (typeof barba !== 'undefined') {
+(function initNexusBarba() {
+    if (typeof barba === 'undefined') {
+        console.warn('[Nexus] Barba.js did not load; clicks will do a full page reload.');
+        return;
+    }
+    if (window.__nexusBarbaInit) return;
+    window.__nexusBarbaInit = true;
+
+    function mergeHeadFromNextPage(html) {
+        const parser = new DOMParser();
+        const htmlDoc = parser.parseFromString(html, 'text/html');
+
+        if (htmlDoc.title) {
+            document.title = htmlDoc.title;
+        }
+
+        if (htmlDoc.body && htmlDoc.body.className) {
+            document.body.className = htmlDoc.body.className.replace(/is-loading/g, '').trim();
+        }
+
+        // Keep existing <style> tags (Tailwind CDN + cursor boot). Only add new ones.
+        const existingStyleText = new Set(
+            Array.from(document.head.querySelectorAll('style')).map((s) => s.textContent)
+        );
+        htmlDoc.head.querySelectorAll('style').forEach((newStyle) => {
+            if (newStyle.id === 'nexus-cursor-boot') return;
+            if (existingStyleText.has(newStyle.textContent)) return;
+            const style = document.createElement('style');
+            if (newStyle.id) style.id = newStyle.id;
+            style.textContent = newStyle.textContent;
+            document.head.appendChild(style);
+            existingStyleText.add(newStyle.textContent);
+        });
+
+        const currentLinks = new Set(
+            Array.from(document.head.querySelectorAll('link[rel="stylesheet"]')).map((l) => l.href)
+        );
+        htmlDoc.head.querySelectorAll('link[rel="stylesheet"]').forEach((newLink) => {
+            if (!newLink.href || currentLinks.has(newLink.href)) return;
+            const link = document.createElement('link');
+            link.rel = 'stylesheet';
+            link.href = newLink.href;
+            document.head.appendChild(link);
+            currentLinks.add(newLink.href);
+        });
+
+        const currentScripts = new Set(
+            Array.from(document.querySelectorAll('script[src]')).map((s) => s.src)
+        );
+        htmlDoc.querySelectorAll('script[src]').forEach((newScript) => {
+            if (!newScript.src || currentScripts.has(newScript.src)) return;
+            if (/barba(\.umd)?\.js/i.test(newScript.src) || /barba_setup\.js/i.test(newScript.src)) return;
+            const script = document.createElement('script');
+            script.src = newScript.src;
+            script.type = newScript.type || 'text/javascript';
+            document.body.appendChild(script);
+            currentScripts.add(newScript.src);
+        });
+    }
+
     barba.init({
+        // Render (especially after idle spin-down) can take well over Barba's 2s default.
+        timeout: 30000,
+        // Prefetch on hover stamps PHP session locks and races the  click request.
+        prefetchIgnore: true,
+        cacheIgnore: false,
+        // A second click while a slow fetch is in-flight would otherwise force a hard reload.
+        preventRunning: true,
         prevent: ({ el, href }) => {
             if (el && el.hasAttribute('data-barba-prevent')) return true;
             if (el && el.getAttribute('href') && el.getAttribute('href').startsWith('#')) return true;
-            if (el && el.href && el.href.includes('backend/')) return true;
+            if (el && el.href && el.href.includes('/backend/')) return true;
             const url = href || (el && el.href) || '';
             if (String(url).includes('watch_party.php')) return true;
             return false;
@@ -25,9 +91,8 @@ if (typeof barba !== 'undefined') {
         transitions: [{
             name: 'opacity-transition',
             leave(data) {
-                // Stop any playing videos in the old container
                 const oldVideos = data.current.container.querySelectorAll('video');
-                oldVideos.forEach(v => {
+                oldVideos.forEach((v) => {
                     v.pause();
                     v.removeAttribute('src');
                     v.load();
@@ -38,18 +103,16 @@ if (typeof barba !== 'undefined') {
                     window.destroyHomePage();
                 }
 
-                // Kill all ScrollTriggers before leaving to prevent memory leaks and conflicts
                 if (typeof ScrollTrigger !== 'undefined') {
-                    ScrollTrigger.getAll().forEach(t => t.kill());
+                    ScrollTrigger.getAll().forEach((t) => t.kill());
                 }
-                
-                // Reset custom cursor state if present
+
                 const innerCursor = document.querySelector('.inner-cursor');
                 if (innerCursor && typeof gsap !== 'undefined') {
                     gsap.to(innerCursor, { scale: 1, backgroundColor: '#ef4444', border: 'none', duration: 0.2 });
                 }
-                
-                return new Promise(resolve => {
+
+                return new Promise((resolve) => {
                     if (typeof window.showPageLoader === 'function') {
                         window.showPageLoader(resolve);
                     } else if (typeof gsap !== 'undefined') {
@@ -64,10 +127,6 @@ if (typeof barba !== 'undefined') {
                 });
             },
             enter(data) {
-                // Alpine v3 automatically detects new elements via MutationObserver when data.next.container is inserted.
-                // We do not manually call Alpine.start() or Alpine.initTree() to avoid duplicate errors.
-
-                // Start entering animation
                 if (typeof gsap !== 'undefined') {
                     if (data.next.namespace === 'index') {
                         gsap.from(data.next.container, {
@@ -83,76 +142,23 @@ if (typeof barba !== 'undefined') {
                         });
                     }
                 }
-                
-                // Update body classes safely
+
                 if (data.next.html) {
-                    const parser = new DOMParser();
-                    const htmlDoc = parser.parseFromString(data.next.html, 'text/html');
-                    
-                    if (htmlDoc.title) {
-                        document.title = htmlDoc.title;
-                    }
-
-                    if (htmlDoc.body.className) {
-                        let newClass = htmlDoc.body.className;
-                        newClass = newClass.replace(/is-loading/g, '').trim();
-                        document.body.className = newClass;
-                    }
-
-                    // Swap inline styles
-                    const oldStyles = document.head.querySelectorAll('style');
-                    oldStyles.forEach(s => s.remove());
-                    htmlDoc.head.querySelectorAll('style').forEach(newStyle => {
-                        const style = document.createElement('style');
-                        style.innerHTML = newStyle.innerHTML;
-                        document.head.appendChild(style);
-                    });
-
-                    // Swap external stylesheets
-                    const newLinkHrefs = Array.from(htmlDoc.head.querySelectorAll('link[rel="stylesheet"]')).map(l => l.href);
-                    document.head.querySelectorAll('link[rel="stylesheet"]').forEach(link => {
-                        if (!newLinkHrefs.includes(link.href)) {
-                            link.remove();
-                        }
-                    });
-                    
-                    const currentLinks = Array.from(document.head.querySelectorAll('link[rel="stylesheet"]')).map(l => l.href);
-                    htmlDoc.head.querySelectorAll('link[rel="stylesheet"]').forEach(newLink => {
-                        if (newLink.href && !currentLinks.includes(newLink.href)) {
-                            const link = document.createElement('link');
-                            link.rel = 'stylesheet';
-                            link.href = newLink.href;
-                            document.head.appendChild(link);
-                        }
-                    });
-
-                    // Swap external scripts dynamically
-                    const currentScripts = Array.from(document.querySelectorAll('script')).map(s => s.src).filter(Boolean);
-                    htmlDoc.querySelectorAll('script').forEach(newScript => {
-                        if (newScript.src && !currentScripts.includes(newScript.src)) {
-                            const script = document.createElement('script');
-                            script.src = newScript.src;
-                            script.type = newScript.type || 'text/javascript';
-                            document.body.appendChild(script);
-                        }
-                    });
+                    mergeHeadFromNextPage(data.next.html);
                 }
 
-                // Re-bind HTMX strictly as requested
                 if (typeof htmx !== 'undefined') {
                     htmx.process(data.next.container);
                 }
-                
-                // Re-bind cursor interactivity
+
                 if (typeof window.initInteractiveElements === 'function') {
                     window.initInteractiveElements();
                 }
-                
-                // Re-initialize GSAP scoped strictly to the new container
+
                 if (typeof initAnimations === 'function') {
                     initAnimations(data.next.container);
                 }
-                
+
                 if (typeof initLocalAnimations === 'function') {
                     initLocalAnimations(data.next.container);
                 }
@@ -161,7 +167,6 @@ if (typeof barba !== 'undefined') {
                     requestAnimationFrame(() => window.initHomePage(data.next.container));
                 }
 
-                // Check for URL parameters (error/success messages) after Barba transition
                 setTimeout(() => {
                     const urlParams = new URLSearchParams(window.location.search);
                     const phpError = urlParams.get('error');
@@ -174,8 +179,7 @@ if (typeof barba !== 'undefined') {
                         window.history.replaceState({}, document.title, window.location.pathname);
                     }
                 }, 100);
-                
-                // Hide loader after enter
+
                 if (typeof window.hidePageLoader === 'function') {
                     window.hidePageLoader();
                 }
@@ -191,8 +195,7 @@ if (typeof barba !== 'undefined') {
             throw new Error('Hard navigation to watch party');
         }
     });
-}
-
+})();
 
 document.addEventListener('DOMContentLoaded', () => {
     if (typeof initAnimations === 'function') {
@@ -202,23 +205,22 @@ document.addEventListener('DOMContentLoaded', () => {
         initLocalAnimations(document);
     }
 });
-if(typeof gsap !== 'undefined') gsap.config({nullTargetWarn: false});
+if (typeof gsap !== 'undefined') gsap.config({ nullTargetWarn: false });
 
-// Global Form Submission Interceptor for Barba.js
 document.addEventListener('submit', async (e) => {
     const form = e.target;
     if (form && form.tagName === 'FORM') {
         if (e.defaultPrevented) return;
         if (form.hasAttribute('data-barba-prevent')) return;
         if (typeof barba === 'undefined' || !barba.go) return;
-        
+
         e.preventDefault();
         const formData = new FormData(form);
         const action = form.getAttribute('action') || window.location.href;
         const method = (form.getAttribute('method') || 'GET').toUpperCase();
-        
+
         if (typeof window.showPageLoader === 'function') window.showPageLoader();
-        
+
         try {
             let fetchOpts = { method, redirect: 'follow', credentials: 'same-origin' };
             let finalAction = action;
@@ -228,36 +230,31 @@ document.addEventListener('submit', async (e) => {
                 const params = new URLSearchParams(formData).toString();
                 finalAction += (finalAction.includes('?') ? '&' : '?') + params;
             }
-            
+
             const response = await fetch(finalAction, fetchOpts);
-            const finalUrl = response.url;
-            
-            // Re-hide loader is handled by Barba's enter hook
-            barba.go(finalUrl);
-        } catch(err) {
+            barba.go(response.url);
+        } catch (err) {
             console.error('Form submission error:', err);
             if (typeof window.hidePageLoader === 'function') window.hidePageLoader();
         }
     }
 });
 
-
-// Global Link Interceptor for backend/ links
 document.addEventListener('click', async (e) => {
     const link = e.target.closest('a');
-    if (link && link.href && link.href.includes('backend/')) {
+    if (link && link.href && link.href.includes('/backend/')) {
         if (e.defaultPrevented) return;
         if (link.hasAttribute('data-barba-prevent')) return;
         if (typeof barba === 'undefined' || !barba.go) return;
-        
+
         e.preventDefault();
-        
+
         if (typeof window.showPageLoader === 'function') window.showPageLoader();
-        
+
         try {
             const response = await fetch(link.href, { redirect: 'follow', credentials: 'same-origin' });
             barba.go(response.url);
-        } catch(err) {
+        } catch (err) {
             console.error('Link fetch error:', err);
             if (typeof window.hidePageLoader === 'function') window.hidePageLoader();
         }

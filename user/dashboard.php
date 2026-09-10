@@ -63,6 +63,7 @@ session_write_close();
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <?php include __DIR__ . '/../frontend/components/head_boot.php'; ?>
     <title>Nexus - User Dashboard</title>
     
     <!-- Tailwind CSS -->
@@ -205,7 +206,7 @@ session_write_close();
 
     <link rel="stylesheet" href="https://cdn.plyr.io/3.7.8/plyr.css" />
     <script src="https://cdn.plyr.io/3.7.8/plyr.polyfilled.js"></script>
-    <script src="../js/nexus_scripts.js?v=1788180500"></script>
+    <script src="../js/nexus_scripts.js?v=1788180700"></script>
 </head>
 <body class="h-screen w-screen flex flex-col relative selection:bg-red-500/30" data-barba="wrapper">
     <?php include __DIR__ . '/../frontend/components/page_loader.php'; ?>
@@ -945,10 +946,9 @@ session_write_close();
 
 </div>
 
-<script src="https://unpkg.com/@barba/core@2.9.7/dist/barba.umd.js" crossorigin="anonymous"></script>
-<script src="../js/barba_setup.js?v=5"></script>
+<?php include __DIR__ . '/../frontend/components/barba_scripts.php'; ?>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js" onerror="window.gsap=window.gsap||{to:()=>({to:()=>({}),fromTo:()=>({})}),fromTo:()=>({}),from:()=>({}),set:()=>{},timeline:()=>({to:()=>({}),fromTo:()=>({}),add:()=>({}),set:()=>({})}),config:()=>{},killTweensOf:()=>{}}"></script>
-<script src="../js/nexus_scripts.js?v=1788180500"></script>
+<script src="../js/nexus_scripts.js?v=1788180700"></script>
 
 </body>
 </html>
