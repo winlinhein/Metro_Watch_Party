@@ -161,13 +161,18 @@ session_write_close();
         :root {
             --plyr-color-main: #ef4444; /* Nexus Red */
         }
+        .dash-row-scroll {
+            scrollbar-width: none;
+            -ms-overflow-style: none;
+        }
+        .dash-row-scroll::-webkit-scrollbar { display: none; }
     </style>
 
 
 
     <link rel="stylesheet" href="https://cdn.plyr.io/3.7.8/plyr.css" />
     <script src="https://cdn.plyr.io/3.7.8/plyr.polyfilled.js"></script>
-    <script src="../js/nexus_scripts.js?v=1789041000"></script>
+    <script src="../js/nexus_scripts.js?v=1789042200"></script>
     <script src="https://unpkg.com/htmx.org@1.9.10/dist/htmx.min.js" crossorigin="anonymous"></script>
 </head>
 <body class="h-screen w-screen flex relative selection:bg-red-500/30" data-barba="wrapper">
