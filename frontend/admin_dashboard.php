@@ -162,13 +162,18 @@ session_write_close();
         :root {
             --plyr-color-main: #ef4444; /* Nexus Red */
         }
+        .dash-row-scroll {
+            scrollbar-width: none;
+            -ms-overflow-style: none;
+        }
+        .dash-row-scroll::-webkit-scrollbar { display: none; }
     </style>
 
 
 
     <link rel="stylesheet" href="https://cdn.plyr.io/3.7.8/plyr.css" />
     <script src="https://cdn.plyr.io/3.7.8/plyr.polyfilled.js"></script>
-    <script src="../js/nexus_scripts.js?v=1789041000"></script>
+    <script src="../js/nexus_scripts.js?v=1789042200"></script>
     <script src="https://unpkg.com/htmx.org@1.9.10/dist/htmx.min.js" crossorigin="anonymous"></script>
 </head>
 <body class="h-screen w-screen flex relative selection:bg-red-500/30" data-barba="wrapper">
@@ -195,7 +200,7 @@ session_write_close();
 
     <!-- Sidebar -->
     <aside class="sidebar w-64 h-full glass-panel flex flex-col relative z-20 shrink-0">
-        <a href="/index.php" class="p-8 flex items-center gap-4 sidebar-brand group">
+        <a href="/index.php" data-barba-prevent class="p-8 flex items-center gap-4 sidebar-brand group">
             <div class="w-10 h-10 bg-gradient-to-tr from-indigo-500 to-red-600 rounded-xl flex items-center justify-center shadow-[0_0_20px_rgba(239,68,68,0.4)] relative overflow-hidden cursor-pointer">
                 <div class="absolute inset-0 bg-white/20 scale-0 group-hover:scale-100 transition-transform rounded-xl rounded-full opacity-0 group-hover:opacity-100 duration-300"></div>
                 <span class="material-symbols-outlined text-white font-bold relative z-10 text-[20px]">dashboard_customize</span>

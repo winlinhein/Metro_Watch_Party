@@ -1,80 +1,90 @@
 <div x-show="showPremiumModal"
      x-transition:enter="transition ease-out duration-300"
-     x-transition:enter-start="opacity-0 translate-y-8"
-     x-transition:enter-end="opacity-100 translate-y-0"
+     x-transition:enter-start="opacity-0"
+     x-transition:enter-end="opacity-100"
      x-transition:leave="transition ease-in duration-200"
-     x-transition:leave-start="opacity-100 translate-y-0"
-     x-transition:leave-end="opacity-0 -translate-y-8"
-     class="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md"
+     x-transition:leave-start="opacity-100"
+     x-transition:leave-end="opacity-0"
+     class="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md overflow-y-auto"
      style="display: none;">
 
-    <!-- Premium Activation Container -->
-    <div class="relative w-full max-w-4xl mx-auto min-h-[600px] flex items-center justify-center p-6"
+    <div class="relative w-full max-w-4xl mx-auto my-8"
          @click.outside="if(!isActivating) showPremiumModal = false">
 
-        <!-- Close Button -->
-        <button @click="showPremiumModal = false"
-                class="absolute top-4 right-4 z-[60] w-10 h-10 bg-white/10 hover:bg-white/20 border border-white/20 rounded-full flex items-center justify-center text-white/70 hover:text-white transition-all backdrop-blur-md">
+        <button type="button" @click="showPremiumModal = false"
+                class="absolute -top-2 right-0 z-[60] w-10 h-10 bg-white/10 hover:bg-white/20 border border-white/20 rounded-full flex items-center justify-center text-white/70 hover:text-white transition-all backdrop-blur-md">
             <span class="material-symbols-outlined text-[20px]">close</span>
         </button>
 
-        <!-- Glowing background blobs -->
-        <div class="premium-blob-1 absolute top-1/2 left-1/3 -translate-x-1/2 -translate-y-1/2 w-[300px] h-[400px] md:w-[600px] md:h-[600px] bg-indigo-600/30 rounded-full blur-[100px] pointer-events-none"></div>
-        <div class="premium-blob-2 absolute top-1/2 right-1/3 translate-x-1/4 -translate-y-1/3 w-[250px] h-[350px] md:w-[500px] md:h-[500px] bg-fuchsia-600/30 rounded-full blur-[100px] pointer-events-none mix-blend-screen"></div>
-        <div class="premium-blob-3 absolute bottom-0 left-1/2 -translate-x-1/2 w-[400px] h-[200px] bg-amber-500/20 rounded-full blur-[120px] pointer-events-none mix-blend-screen"></div>
+        <div class="absolute left-1/2 top-0 -translate-x-1/2 w-[520px] h-[520px] bg-indigo-600/20 rounded-full blur-[140px] pointer-events-none"></div>
+        <div class="absolute right-1/4 bottom-0 w-[320px] h-[320px] bg-fuchsia-600/15 rounded-full blur-[120px] pointer-events-none"></div>
 
-        <!-- Glassmorphism Card -->
-        <div class="premium-card relative z-10 w-full bg-[#0a0a0f]/60 backdrop-blur-3xl border border-indigo-500/20 rounded-[2.5rem] p-8 md:p-14 overflow-hidden shadow-[0_0_80px_rgba(79,70,229,0.15)] text-center transition-all duration-700">
+        <div class="relative z-10 text-center mb-8 pt-6">
+            <h2 class="text-sm font-bold text-indigo-400 tracking-widest uppercase mb-2 mono">Uplink Tiers</h2>
+            <h3 class="text-2xl md:text-4xl font-bold tracking-tight mb-3">Stay free. Or go Premium.</h3>
+            <p class="text-white/50 leading-relaxed text-sm max-w-xl mx-auto">Guest rooms are open to everyone. Premium unlocks cosmetics, unlimited hosting, and a badge that says you run the night.</p>
+        </div>
 
-            <div x-show="!isPremium">
-                <div class="premium-badge inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-gradient-to-r from-indigo-500/20 to-fuchsia-500/20 border border-indigo-500/30 text-indigo-300 text-sm font-bold tracking-widest uppercase mb-6 shadow-[0_0_15px_rgba(99,102,241,0.3)]">
-                    <span class="material-symbols-outlined text-[16px]">stars</span>
-                    Unlock Nexus Premium
+        <div class="relative z-10 grid md:grid-cols-2 gap-4 items-stretch">
+            <article class="home-plan-card glass-card rounded-2xl p-5 md:p-6 flex flex-col bg-[#0a0a0f]/80"
+                     :class="!isPremium && 'home-plan-current'">
+                <p class="text-[10px] mono tracking-[0.25em] text-white/40 uppercase mb-3">Signal</p>
+                <h4 class="text-xl font-bold mb-1">Free</h4>
+                <p class="text-sm text-white/45 mb-4">Drop in, watch, chat. No card required.</p>
+                <div class="flex items-end gap-1 mb-5">
+                    <span class="text-4xl font-black tracking-tighter">$0</span>
+                    <span class="text-sm text-white/40 mb-1.5 mono">/ forever</span>
                 </div>
+                <ul class="space-y-2.5 mb-5 flex-1 text-sm text-white/70">
+                    <li class="flex items-start gap-3"><span class="material-symbols-outlined text-emerald-400 text-[18px] mt-0.5">check</span>Guest or account join</li>
+                    <li class="flex items-start gap-3"><span class="material-symbols-outlined text-emerald-400 text-[18px] mt-0.5">check</span>Millisecond sync playback</li>
+                    <li class="flex items-start gap-3"><span class="material-symbols-outlined text-emerald-400 text-[18px] mt-0.5">check</span>Live room chat</li>
+                    <li class="flex items-start gap-3"><span class="material-symbols-outlined text-emerald-400 text-[18px] mt-0.5">check</span>Invite-only rooms</li>
+                    <li class="flex items-start gap-3"><span class="material-symbols-outlined text-white/25 text-[18px] mt-0.5">check</span><span class="text-white/35">Profile cosmetics locked</span></li>
+                </ul>
+                <a x-show="isGuest" href="/frontend/register.php" class="w-full rounded-xl border border-white/15 bg-white/5 hover:bg-white/10 py-3 text-center font-bold cursor-pointer transition-colors">Start for free</a>
+                <div x-show="!isGuest && !isPremium" class="w-full rounded-xl border border-emerald-400/30 bg-emerald-500/10 py-3 text-center font-bold text-emerald-300">Your current plan</div>
+                <div x-show="!isGuest && isPremium" class="w-full rounded-xl border border-white/10 bg-white/5 py-3 text-center font-bold text-white/40">Included in Premium</div>
+            </article>
 
-                <h1 class="premium-title text-5xl md:text-6xl font-black text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 via-fuchsia-400 to-indigo-400 mb-4 drop-shadow-lg">
-                    Ascend Your Reality
-                </h1>
-
-                <p class="premium-desc text-white/60 text-lg max-w-xl mx-auto mb-10">
-                    Experience movies in ultimate fidelity, unlock exclusive profile customization, host endless watch parties, and rule the Nexus without limits.
+            <article class="home-plan-card home-plan-featured glass-card rounded-2xl p-5 md:p-6 flex flex-col relative overflow-hidden bg-[#0a0a0f]/80"
+                     :class="isPremium && 'home-plan-current'">
+                <div class="absolute top-4 right-4 text-[9px] font-bold tracking-[0.2em] uppercase px-2.5 py-1 rounded-full bg-gradient-to-r from-indigo-500/30 to-fuchsia-500/30 border border-indigo-400/40 text-indigo-200"
+                     x-text="isPremium ? 'Active' : 'Most chosen'">Most chosen</div>
+                <p class="text-[10px] mono tracking-[0.25em] text-indigo-300 uppercase mb-3 inline-flex items-center gap-2">
+                    <span class="material-symbols-outlined text-[16px]">stars</span>Nexus Premium
                 </p>
-
-                <ul class="premium-features grid grid-cols-1 md:grid-cols-2 gap-4 max-w-2xl mx-auto mb-12 text-left">
-                    <!-- Feature items unchanged -->
+                <h4 class="text-xl font-bold mb-1 text-transparent bg-clip-text bg-gradient-to-r from-indigo-300 via-fuchsia-300 to-indigo-300">Ascend</h4>
+                <p class="text-sm text-white/50 mb-4">Ultimate fidelity, unlimited hosting, and a profile that stands out.</p>
+                <div class="flex items-end gap-2 mb-5">
+                    <span class="text-4xl font-black tracking-tighter">$4.99</span>
+                    <span class="text-sm text-white/45 mb-1.5 mono">/ month</span>
+                </div>
+                <ul class="space-y-2.5 mb-5 flex-1 text-sm text-white/80">
+                    <li class="flex items-start gap-3"><span class="material-symbols-outlined text-fuchsia-400 text-[18px] mt-0.5">check</span>Everything in Free</li>
+                    <li class="flex items-start gap-3"><span class="material-symbols-outlined text-fuchsia-400 text-[18px] mt-0.5">check</span>Exclusive profile cosmetics &amp; borders</li>
+                    <li class="flex items-start gap-3"><span class="material-symbols-outlined text-fuchsia-400 text-[18px] mt-0.5">check</span>Unlimited watch-party hosting</li>
+                    <li class="flex items-start gap-3"><span class="material-symbols-outlined text-fuchsia-400 text-[18px] mt-0.5">check</span>Premium badge on your identity</li>
+                    <li class="flex items-start gap-3"><span class="material-symbols-outlined text-fuchsia-400 text-[18px] mt-0.5">check</span>Priority uplink — no protocol limits</li>
                 </ul>
 
-                <button @click="activatePremium()" :disabled="isActivating"
-                        class="premium-btn relative group inline-flex items-center justify-center gap-3 bg-white text-black px-10 py-4 rounded-2xl font-black text-lg tracking-wider uppercase transition-all duration-300 hover:scale-105 hover:shadow-[0_0_40px_rgba(255,255,255,0.4)] overflow-hidden">
-                    <div class="absolute inset-0 bg-gradient-to-r from-indigo-500 via-fuchsia-500 to-indigo-500 opacity-0 group-hover:opacity-10 transition-opacity duration-500"></div>
-                    <span class="relative z-10">Activate Premium Plan</span>
-                    <span class="material-symbols-outlined relative z-10">bolt</span>
+                <div x-show="isPremium" class="rounded-xl border border-emerald-400/25 bg-emerald-500/10 px-4 py-3 mb-4 text-center">
+                    <p class="text-[10px] mono tracking-widest uppercase text-emerald-300/80 mb-1">Renews / ends</p>
+                    <p class="text-sm font-bold text-white" x-text="premiumEndsLabel">Ends —</p>
+                    <p class="text-lg font-black tracking-tight text-emerald-300 mono mt-1" x-text="premiumCountdown">--</p>
+                </div>
+
+                <a x-show="isGuest" href="/frontend/register.php" class="w-full rounded-xl bg-white text-black hover:shadow-[0_0_40px_rgba(255,255,255,0.28)] py-3 text-center font-black tracking-wide uppercase cursor-pointer inline-flex items-center justify-center gap-2">
+                    Unlock Premium <span class="material-symbols-outlined text-[18px]">bolt</span>
+                </a>
+                <button x-show="!isGuest && !isPremium" type="button" @click="activatePremium()" :disabled="isActivating"
+                        class="premium-btn w-full rounded-xl bg-white text-black hover:shadow-[0_0_40px_rgba(255,255,255,0.28)] py-3 text-center font-black tracking-wide uppercase cursor-pointer inline-flex items-center justify-center gap-2 disabled:opacity-60">
+                    <span x-text="isActivating ? 'Redirecting…' : 'Unlock Premium'"></span>
+                    <span class="material-symbols-outlined text-[18px]">bolt</span>
                 </button>
-            </div>
-
-            <!-- Loading State -->
-            <div class="premium-loader absolute inset-0 flex flex-col items-center justify-center opacity-0 scale-0 pointer-events-none">
-                <!-- spinner unchanged -->
-            </div>
-
-            <!-- Success State -->
-            <div x-show="isPremium" class="absolute inset-0 flex flex-col items-center justify-center p-10 bg-[#0a0a0f]">
-                <div class="relative">
-                    <div class="premium-success-burst absolute inset-0 rounded-full border-[10px] border-indigo-500 opacity-0 pointer-events-none"></div>
-                    <div class="premium-success-icon w-32 h-32 rounded-full bg-gradient-to-br from-indigo-500 to-fuchsia-500 flex items-center justify-center shadow-[0_0_80px_rgba(99,102,241,0.6)] mb-8 opacity-0">
-                        <span class="material-symbols-outlined text-white text-6xl">verified</span>
-                    </div>
-                </div>
-                <div class="premium-welcome-text opacity-0 text-center">
-                    <h2 class="text-4xl font-black text-white mb-3">Welcome to Premium</h2>
-                    <p class="text-indigo-300 text-lg mb-8">Your account has been upgraded successfully.</p>
-                    <button @click="showPremiumModal = false"
-                            class="px-8 py-3 bg-white/10 hover:bg-white/20 text-white rounded-xl font-bold tracking-wider transition-all duration-300 hover:shadow-[0_0_20px_rgba(255,255,255,0.1)]">
-                        Close
-                    </button>
-                </div>
-            </div>
-
+                <div x-show="!isGuest && isPremium" class="w-full rounded-xl border border-indigo-400/30 bg-indigo-500/10 py-3 text-center font-bold text-indigo-200">Your current plan</div>
+                <p class="text-[11px] text-white/35 text-center mt-3" x-show="!isPremium">Billed monthly · cancel any time · 30-day cycle</p>
+            </article>
         </div>
     </div>
 </div>

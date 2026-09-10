@@ -22,6 +22,64 @@
     }
 })();
 
+function pickTrendingMovies(movies, limit) {
+    const cap = limit || 10;
+    const list = Array.isArray(movies) ? movies.slice() : [];
+    if (!list.length) return [];
+    const viewed = list.filter((m) => Number(m.view_count) > 0)
+        .sort((a, b) => Number(b.view_count || 0) - Number(a.view_count || 0));
+    const picked = [];
+    const seen = {};
+    const keyOf = (m) => Number(m.id || m.movie_id) || String(m.title || '');
+    viewed.forEach((m) => {
+        if (picked.length >= cap) return;
+        const key = keyOf(m);
+        if (seen[key]) return;
+        seen[key] = true;
+        picked.push(m);
+    });
+    if (picked.length < cap) {
+        const rest = list.filter((m) => !seen[keyOf(m)]);
+        for (let i = rest.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            const tmp = rest[i];
+            rest[i] = rest[j];
+            rest[j] = tmp;
+        }
+        rest.forEach((m) => {
+            if (picked.length >= cap) return;
+            picked.push(m);
+        });
+    }
+    return picked;
+}
+
+function parsePremiumEndDate(raw) {
+    if (!raw) return null;
+    const date = new Date(String(raw).replace(' ', 'T'));
+    return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function formatPremiumCountdown(end) {
+    if (!end) return '';
+    const diff = end.getTime() - Date.now();
+    if (diff <= 0) return 'Expired';
+    const d = Math.floor(diff / 86400000);
+    const h = Math.floor((diff % 86400000) / 3600000);
+    const m = Math.floor((diff % 3600000) / 60000);
+    const s = Math.floor((diff % 60000) / 1000);
+    return d + 'd ' + String(h).padStart(2, '0') + 'h ' + String(m).padStart(2, '0') + 'm ' + String(s).padStart(2, '0') + 's';
+}
+
+function formatPremiumEndsLabel(end) {
+    if (!end) return '';
+    try {
+        return 'Ends ' + end.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+    } catch (e) {
+        return 'Ends ' + end.toDateString();
+    }
+}
+
 function userDashboard() {
     const bootUser = window.NEXUS_USER || {};
     const bootName = bootUser.username || 'User';
@@ -399,9 +457,13 @@ function userDashboard() {
         selectedItemReasonIds: [],
 
         //Premium Plan
-        isPremium: false,
+        isPremium: !!bootUser.is_premium,
         isActivating: false,
         justPaid: false,
+        premiumExpiresAt: bootUser.premium_expires_at || '',
+        premiumCountdown: '',
+        premiumEndsLabel: '',
+        _premiumTimer: null,
 
         get isGuest() {
             return window.NEXUS_USER?.isGuest === true;
@@ -510,16 +572,7 @@ function userDashboard() {
 
         initPremium() {
             if (typeof gsap === 'undefined') return;
-            if (this.isPremium) {
-                gsap.set('.premium-success-icon', { opacity: 1, scale: 1, rotation: 0 });
-                gsap.set('.premium-welcome-text', { opacity: 1, y: 0 });
-                return;
-            }
-            gsap.fromTo('.premium-badge', { y: -20, opacity: 0 }, { y: 0, opacity: 1, duration: 0.8, ease: 'elastic.out(1, 0.5)', delay: 0.2 });
-            gsap.fromTo('.premium-title', { y: 20, opacity: 0, scale: 0.9 }, { y: 0, opacity: 1, scale: 1, duration: 0.8, ease: 'power3.out', delay: 0.3 });
-            gsap.fromTo('.premium-desc', { y: 20, opacity: 0 }, { y: 0, opacity: 1, duration: 0.6, ease: 'power3.out', delay: 0.5 });
-            gsap.fromTo('.premium-features li', { x: -30, opacity: 0, scale: 0.9 }, { x: 0, opacity: 1, scale: 1, duration: 0.6, stagger: 0.1, ease: 'back.out(1.2)', delay: 0.7 });
-            gsap.fromTo('.premium-btn', { scale: 0, opacity: 0 }, { scale: 1, opacity: 1, duration: 0.8, ease: 'elastic.out(1, 0.4)', delay: 1.2 });
+            gsap.fromTo('.home-plan-card', { y: 24, opacity: 0 }, { y: 0, opacity: 1, duration: 0.55, stagger: 0.08, ease: 'power3.out' });
         },
 
         async checkPaymentStatus() {
@@ -540,10 +593,15 @@ function userDashboard() {
                         console.error('Verification error:', e);
                     }
                 }
-                history.replaceState({}, document.title, window.location.pathname);
+                params.delete('payment');
+                params.delete('session_id');
+                const next = params.toString();
+                history.replaceState({}, document.title, window.location.pathname + (next ? '?' + next : ''));
             } else if (params.get('payment') === 'cancelled') {
                 if (window.showToast) window.showToast('Payment cancelled.', 'info');
-                history.replaceState({}, document.title, window.location.pathname);
+                params.delete('payment');
+                const next = params.toString();
+                history.replaceState({}, document.title, window.location.pathname + (next ? '?' + next : ''));
             }
         },
 
@@ -552,13 +610,29 @@ function userDashboard() {
                 const res = await fetch('/user_backend/get_premium_status.php');
                 const data = await res.json();
                 if (data.success) {
-                    this.isPremium = data.is_premium;
+                    this.isPremium = !!data.is_premium;
+                    this.premiumExpiresAt = data.premium_expires_at || '';
+                    this.tickPremiumCountdown();
                     localStorage.setItem('nexus_premium', data.is_premium ? 'true' : 'false');
-                    if (window.NEXUS_USER) window.NEXUS_USER.is_premium = data.is_premium;
+                    if (window.NEXUS_USER) {
+                        window.NEXUS_USER.is_premium = data.is_premium;
+                        window.NEXUS_USER.premium_expires_at = this.premiumExpiresAt;
+                    }
                 }
             } catch (e) {
                 console.error('Premium status check failed', e);
             }
+        },
+
+        tickPremiumCountdown() {
+            const end = parsePremiumEndDate(this.premiumExpiresAt);
+            if (!this.isPremium || !end) {
+                this.premiumCountdown = '';
+                this.premiumEndsLabel = '';
+                return;
+            }
+            this.premiumEndsLabel = formatPremiumEndsLabel(end);
+            this.premiumCountdown = formatPremiumCountdown(end);
         },
 
         getAvatarUrl(name, background = 'ef4444') {
@@ -578,6 +652,10 @@ function userDashboard() {
             });
         },
 
+        get trendingMovies() {
+            return pickTrendingMovies(this.movies, 10);
+        },
+
         // Normalize movies returned by the API: ensure genres=array, add year/genre helpers
         _normalizeMovie(m) {
             if (!m || typeof m !== 'object') return m;
@@ -589,7 +667,8 @@ function userDashboard() {
                 ...m,
                 genres,
                 year,
-                genre: m.genre || genres[0] || 'Movie'
+                genre: m.genre || genres[0] || 'Movie',
+                inWatchlist: !!m.inWatchlist
             };
         },
 
@@ -1837,7 +1916,10 @@ function userDashboard() {
             if (this.currentTab === tabId) return;
             const oldTab = this.currentTab;
             this.currentTab = tabId;
-            if (tabId === 'movies' && !this.movies.length) this.fetchMovies();
+            if (tabId === 'movies') {
+                if (!this.movies.length) this.fetchMovies();
+                if (!this.isGuest) this.fetchWatchlist();
+            }
             if (tabId === 'watchlist') this.fetchWatchlist();
             if (tabId === 'shop' || tabId === 'account') {
                 if (!this.shopItems.length) {
@@ -2880,13 +2962,17 @@ function userDashboard() {
         },
 
         syncWatchlistState() {
-            if (!this.movies.length || !this.watchlist.length) return;
-            const watchlistIds = new Set(this.watchlist.map(w => Number(w.id)));
-            
+            if (!this.movies.length) return;
+            const watchlistIds = new Set((this.watchlist || []).map(w => Number(w.id || w.movie_id)));
+
             this.movies.forEach(movie => {
                 const id = Number(this.getMovieId(movie));
                 movie.inWatchlist = watchlistIds.has(id);
             });
+            if (this.selectedMovie) {
+                const selectedId = Number(this.getMovieId(this.selectedMovie));
+                this.selectedMovie.inWatchlist = watchlistIds.has(selectedId);
+            }
         },
         openWatchlistMovie(item) {
             // Set the flag so we return to watchlist after closing the modal
@@ -2900,6 +2986,56 @@ function userDashboard() {
             setTimeout(() => {
                 this.openMovieDetail(fullMovie);
             }, 100);
+        },
+
+        scrollTrendingRow(dir) {
+            const row = this.$refs.trendingRow;
+            if (!row) return;
+            const amount = Math.min(row.clientWidth * 0.8, 720) * dir;
+            row.scrollBy({ left: amount, behavior: 'smooth' });
+        },
+
+        async openTrendingMovie(movie) {
+            const movieId = this.getMovieId(movie);
+            if (!this.movies.length) {
+                await this.fetchMovies();
+            }
+            const fullMovie = this.movies.find(m => Number(this.getMovieId(m)) === Number(movieId)) || movie;
+            this.switchTab('movies');
+            setTimeout(() => this.openMovieDetail(fullMovie), 120);
+        },
+
+        async applyDeepLink() {
+            const params = new URLSearchParams(window.location.search);
+            const tab = params.get('tab');
+            const movieId = params.get('movie');
+            const premium = params.get('premium');
+            let dirty = false;
+
+            if (tab && tab !== this.currentTab) {
+                this.switchTab(tab);
+                dirty = true;
+            }
+            if (movieId) {
+                if (!this.movies.length) await this.fetchMovies();
+                const movie = this.movies.find(m => Number(this.getMovieId(m)) === Number(movieId));
+                if (movie) {
+                    this.switchTab('movies');
+                    setTimeout(() => this.openMovieDetail(movie), 120);
+                }
+                dirty = true;
+            }
+            if (premium === '1' && !this.isGuest) {
+                this.showPremiumModal = true;
+                dirty = true;
+            }
+            if (dirty) {
+                params.delete('tab');
+                params.delete('movie');
+                params.delete('premium');
+                const next = params.toString();
+                history.replaceState({}, document.title, window.location.pathname + (next ? '?' + next : ''));
+            }
         },
          // Real-Time Listener with Alpine Reactivity Fixes
         subscribeToLiveMovieEvents(movieId) {
@@ -3425,7 +3561,15 @@ function userDashboard() {
             this.loadMediaCaches();
             this.cacheOwnMedia();
             this.hydrateLocalCaches();
-            this.fetchMovies();
+            this.tickPremiumCountdown();
+            if (this._premiumTimer) clearInterval(this._premiumTimer);
+            this._premiumTimer = setInterval(() => this.tickPremiumCountdown(), 1000);
+            const bootMovies = this.fetchMovies();
+            if (!this.isGuest) {
+                Promise.allSettled([bootMovies, this.fetchWatchlist()]).finally(() => this.applyDeepLink());
+            } else {
+                bootMovies.finally(() => this.applyDeepLink());
+            }
 
             this._partyInviteHandler = (e) => this.handleIncomingPartyInvite(e.detail || {});
             window.addEventListener('incoming-party-invite', this._partyInviteHandler);
@@ -5293,6 +5437,53 @@ function adminDashboard(userData = {}) {
             }
         },
 
+        get trendingMovies() {
+            return pickTrendingMovies(this.movies, 10);
+        },
+
+        scrollTrendingRow(dir) {
+            const row = this.$refs.trendingRow;
+            if (!row) return;
+            const amount = Math.min(row.clientWidth * 0.8, 720) * dir;
+            row.scrollBy({ left: amount, behavior: 'smooth' });
+        },
+
+        async openTrendingMovie(movie) {
+            const movieId = movie?.id || movie?.movie_id;
+            if (!this.movies.length) {
+                await this.fetchMovies();
+            }
+            const fullMovie = this.movies.find(m => Number(m.id || m.movie_id) === Number(movieId)) || movie;
+            this.switchTab('movies');
+            setTimeout(() => this.openEditMovieModal(fullMovie), 120);
+        },
+
+        async applyDeepLink() {
+            const params = new URLSearchParams(window.location.search);
+            const tab = params.get('tab');
+            const movieId = params.get('movie');
+            let dirty = false;
+            if (tab && tab !== this.currentTab) {
+                this.switchTab(tab);
+                dirty = true;
+            }
+            if (movieId) {
+                if (!this.movies.length) await this.fetchMovies();
+                const movie = this.movies.find(m => Number(m.id || m.movie_id) === Number(movieId));
+                if (movie) {
+                    this.switchTab('movies');
+                    setTimeout(() => this.openEditMovieModal(movie), 120);
+                }
+                dirty = true;
+            }
+            if (dirty) {
+                params.delete('tab');
+                params.delete('movie');
+                const next = params.toString();
+                history.replaceState({}, document.title, window.location.pathname + (next ? '?' + next : ''));
+            }
+        },
+
         async fetchGenres() {
             try {
                 const response = await fetch('/backend/genres_api.php');
@@ -6543,6 +6734,8 @@ function adminDashboard(userData = {}) {
                     }
                 }
             });
+
+            await this.applyDeepLink();
         },
 
         handleProfileChanged(data) {
