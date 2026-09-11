@@ -84,7 +84,6 @@ async function mergeHeadFromNextPage(html) {
         Array.from(document.head.querySelectorAll('style')).map((s) => s.textContent)
     );
     htmlDoc.head.querySelectorAll('style').forEach((newStyle) => {
-        if (newStyle.id === 'nexus-cursor-boot') return;
         if (existingStyleText.has(newStyle.textContent)) return;
         const style = document.createElement('style');
         if (newStyle.id) style.id = newStyle.id;
@@ -221,14 +220,6 @@ async function mergeHeadFromNextPage(html) {
 
                     if (typeof htmx !== 'undefined') {
                         htmx.process(data.next.container);
-                    }
-
-                    if (typeof window.nexusLockNativeCursor === 'function') {
-                        window.nexusLockNativeCursor(data.next.container);
-                    }
-
-                    if (typeof window.initInteractiveElements === 'function') {
-                        window.initInteractiveElements();
                     }
 
                     const ns = data.next && data.next.namespace;

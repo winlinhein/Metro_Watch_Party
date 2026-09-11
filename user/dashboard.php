@@ -117,8 +117,7 @@ session_write_close();
             font-family: 'Space Grotesk', sans-serif; 
             background-color: #030305; 
             color: #ffffff; 
-            overflow: hidden; 
-            cursor: none;
+            overflow: hidden;
         }
 
         [x-cloak] { display: none !important; }
@@ -241,6 +240,10 @@ session_write_close();
             border-color: rgba(16,185,129,0.45) !important;
             box-shadow: 0 0 0 1px rgba(16,185,129,0.2), 0 20px 50px -24px rgba(16,185,129,0.25);
         }
+        .aspect-video .plyr {
+            height: 100%;
+            width: 100%;
+        }
     </style>
 
     <link rel="stylesheet" href="https://cdn.plyr.io/3.7.8/plyr.css" />
@@ -249,7 +252,6 @@ session_write_close();
 </head>
 <body class="h-screen w-screen flex flex-col relative selection:bg-red-500/30" data-barba="wrapper">
     <?php include __DIR__ . '/../frontend/components/page_loader.php'; ?>
-    <?php include __DIR__ . '/../frontend/components/cursor.php'; ?>
     <?php include __DIR__ . '/../frontend/components/toast.php'; ?>
 
 <div id="barba-container" class="flex w-full h-full" data-barba="container" data-barba-namespace="dashboard" x-data="userDashboard()" x-init="init()" data-current-user-id="<?php echo htmlspecialchars($userId ?? '', ENT_QUOTES, 'UTF-8'); ?>"

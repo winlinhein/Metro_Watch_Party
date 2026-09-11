@@ -37,7 +37,6 @@
 
 <body class="bg-[#050505] text-white flex items-center justify-center font-sans antialiased relative overflow-hidden min-h-screen" data-barba="wrapper">
     <?php include __DIR__ . '/components/page_loader.php'; ?>
-    <?php include __DIR__ . '/components/cursor.php'; ?>
     <?php include __DIR__ . '/components/toast.php'; ?>
 <div id="barba-container" data-barba="container" data-barba-namespace="register" x-data="{ showPassword: false }">
     <!-- Floating Back Button -->

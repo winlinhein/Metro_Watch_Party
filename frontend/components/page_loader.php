@@ -59,10 +59,6 @@
         overflow: hidden;
         background: #030305;
         pointer-events: auto;
-        cursor: none !important;
-    }
-    #nexus-page-loader, #nexus-page-loader * {
-        cursor: none !important;
     }
     #nexus-page-loader .loader-panel {
         position: absolute;

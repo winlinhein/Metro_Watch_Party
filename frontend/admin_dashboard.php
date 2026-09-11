@@ -64,8 +64,7 @@ session_write_close();
             font-family: 'Space Grotesk', sans-serif; 
             background-color: #030305; 
             color: #ffffff; 
-            overflow: hidden; 
-            cursor: none; 
+            overflow: hidden;
         }
         .mono { font-family: 'JetBrains Mono', monospace; }
         
@@ -123,9 +122,6 @@ session_write_close();
         ::-webkit-scrollbar-track { background: transparent; }
         ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 10px; }
         ::-webkit-scrollbar-thumb:hover { background: rgba(239,68,68,0.5); }
-        
-        /* Cursor Follower */
-        
 
         /* Movie Card 3D Effect */
         .movie-card-container {
@@ -178,7 +174,6 @@ session_write_close();
 </head>
 <body class="h-screen w-screen flex relative selection:bg-red-500/30" data-barba="wrapper">
     <?php include __DIR__ . '/components/page_loader.php'; ?>
-    <?php include __DIR__ . '/components/cursor.php'; ?>
     <?php include __DIR__ . '/components/toast.php'; ?>
 <div id="barba-container" 
      class="flex h-full w-full" 

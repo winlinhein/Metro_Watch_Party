@@ -124,7 +124,6 @@ session_write_close();
 </head>
 <body class="h-screen w-screen flex relative selection:bg-red-500/30" data-barba="wrapper">
     <?php include __DIR__ . '/../frontend/components/page_loader.php'; ?>
-    <?php include __DIR__ . '/../frontend/components/cursor.php'; ?>
     <?php include __DIR__ . '/../frontend/components/toast.php'; ?>
 <div id="barba-container" class="flex w-full h-full" data-barba="container" data-barba-namespace="watch_party" x-data="watchParty()" >
 
@@ -524,23 +523,6 @@ session_write_close();
         </div>
     </div>
 
-    
-    <script>
-        document.addEventListener('fullscreenchange', () => {
-            const cursorGlow = document.getElementById('cursor-glow');
-            const innerCursor = document.querySelector('.inner-cursor');
-            const contentArea = document.getElementById('content-area');
-            
-            if (document.fullscreenElement === contentArea) {
-                if (cursorGlow) contentArea.appendChild(cursorGlow);
-                if (innerCursor) contentArea.appendChild(innerCursor);
-            } else {
-                if (cursorGlow) document.body.appendChild(cursorGlow);
-                if (innerCursor) document.body.appendChild(innerCursor);
-            }
-        });
-    </script>
-    
     <!-- Movie Selection Modal -->
     <div x-show="showMovieModal" class="fixed inset-0 z-[100] flex flex-col justify-end pointer-events-auto" style="display: none;">
         <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" x-show="showMovieModal" x-transition.opacity @click="showMovieModal = false"></div>

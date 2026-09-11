@@ -76,7 +76,6 @@ if ($sessionAuthed && $sessionUserId > 0 && in_array($sessionRole, ['user', 'adm
             background-color: #030305;
             color: #ffffff;
             overflow-x: hidden;
-            cursor: none;
         }
 
         .mono { font-family: 'JetBrains Mono', monospace; }
@@ -408,8 +407,6 @@ if ($sessionAuthed && $sessionUserId > 0 && in_array($sessionRole, ['user', 'adm
             pointer-events: none;
         }
 
-        .hide-mobile-cursor body { cursor: none; }
-
         @media (prefers-reduced-motion: reduce) {
             .animated-border::before,
             .home-protocol-marquee,
@@ -459,7 +456,6 @@ if ($sessionAuthed && $sessionUserId > 0 && in_array($sessionRole, ['user', 'adm
     <script>
         window.NEXUS_HOME = <?php echo json_encode($homeBoot, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE); ?>;
     </script>
-    <?php include __DIR__ . '/frontend/components/cursor.php'; ?>
     <?php include __DIR__ . '/frontend/components/toast.php'; ?>
 <div id="barba-container" data-barba="container" data-barba-namespace="index" x-data="nexusHome()">
 
