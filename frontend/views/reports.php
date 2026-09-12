@@ -1,5 +1,5 @@
 <!-- Reports View -->
-<div data-tab-panel="reports" style="display: none;" class="absolute inset-0 p-10 w-full min-h-full overflow-y-auto">
+<div data-tab-panel="reports" style="display: none; padding-top: 7.5rem;" class="absolute inset-0 px-10 pb-10 w-full min-h-full overflow-y-auto">
     
     <!-- Header -->
     <div class="flex items-center justify-between mb-10 stagger-item">
@@ -63,16 +63,8 @@
 
     <!-- Reports Table -->
     <div class="glass-card rounded-2xl overflow-hidden stagger-item">
-        <div class="p-6 border-b border-white/5 flex justify-between items-center bg-white/[0.02]">
+        <div class="p-6 border-b border-white/5 bg-white/[0.02]">
             <h3 class="text-lg font-bold text-white">Recent Reports</h3>
-            <div class="flex gap-2 relative">
-                <select x-model="filterStatus" class="appearance-none bg-black/40 border border-white/10 rounded-xl pl-4 pr-10 py-2 text-sm text-white outline-none cursor-pointer focus:border-red-500/50 transition-colors shadow-inner">
-                    <option class="bg-[#030305] text-white" value="all">All Status</option>
-                    <option class="bg-[#030305] text-white" value="pending">Pending</option>
-                    <option class="bg-[#030305] text-white" value="read">Read</option>
-                </select>
-                <span class="material-symbols-outlined absolute right-3 top-2.5 text-white/40 pointer-events-none text-[18px]">expand_more</span>
-            </div>
         </div>
         <div class="overflow-x-auto">
             <table class="w-full text-left border-collapse">
@@ -87,8 +79,8 @@
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-white/5 text-sm">
-                    <template x-for="report in filteredReports" :key="report.id">
-                        <tr x-show="filterStatus === 'all' || filterStatus === report.status.toLowerCase()" class="hover:bg-white/5 border-b border-white/5 transition-colors group">
+                    <template x-for="report in pagedReports" :key="report.id">
+                        <tr class="hover:bg-white/5 border-b border-white/5 transition-colors group">
                             <td class="p-5">
                                 <div class="font-bold text-white mono mb-0.5" x-text="report.id"></div>
                                 <div class="text-xs text-white/40" x-text="report.date"></div>
@@ -127,6 +119,7 @@
                 </tbody>
             </table>
         </div>
+        <?php $pagerKey = 'reports'; include __DIR__ . '/../components/admin_pagination.php'; ?>
     </div>
 
     <!-- View Report Modal (Teleported to body) -->

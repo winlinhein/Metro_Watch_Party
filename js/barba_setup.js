@@ -154,6 +154,9 @@ async function mergeHeadFromNextPage(html) {
                 if (typeof window.destroyHomePage === 'function') {
                     window.destroyHomePage();
                 }
+                if (window.NexusAdminMotion && typeof window.NexusAdminMotion.destroy === 'function') {
+                    window.NexusAdminMotion.destroy();
+                }
             }
         }],
         transitions: [{
@@ -173,6 +176,9 @@ async function mergeHeadFromNextPage(html) {
 
                 if (typeof window.destroyHomePage === 'function') {
                     window.destroyHomePage();
+                }
+                if (window.NexusAdminMotion && typeof window.NexusAdminMotion.destroy === 'function') {
+                    window.NexusAdminMotion.destroy();
                 }
 
                 if (typeof ScrollTrigger !== 'undefined') {

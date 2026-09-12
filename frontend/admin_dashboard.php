@@ -52,8 +52,12 @@ session_write_close();
     <title>Nexus - Admin Dashboard</title>
     
     <script src="https://cdn.tailwindcss.com/3.4.17"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js" crossorigin="anonymous" onerror="window.gsap=window.gsap||{to:()=>({to:()=>({}),fromTo:()=>({})}),fromTo:()=>({}),from:()=>({}),set:()=>{},timeline:()=>({to:()=>({}),fromTo:()=>({}),add:()=>({}),set:()=>({})}),config:()=>{},killTweensOf:()=>{}}"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js" crossorigin="anonymous" onerror="if(window.gsap)window.gsap.ScrollTrigger=window.gsap.ScrollTrigger||{create:()=>{},refresh:()=>{},kill:()=>{}}"></script>
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.13.0/dist/gsap.min.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.13.0/dist/ScrollTrigger.min.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.13.0/dist/SplitText.min.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.13.0/dist/ScrambleTextPlugin.min.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.13.0/dist/CustomEase.min.js" crossorigin="anonymous"></script>
+    <script>if (window.gsap) gsap.config({ nullTargetWarn: false });</script>
     <script defer src="https://cdn.jsdelivr.net/npm/@alpinejs/teleport@3.14.1/dist/cdn.min.js"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.1/dist/cdn.min.js" crossorigin="anonymous"></script>
     <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -74,12 +78,42 @@ session_write_close();
             -webkit-backdrop-filter: blur(24px);
             border-right: 1px solid rgba(255, 255, 255, 0.04);
         }
+        .admin-main {
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+            overflow: hidden;
+            position: relative;
+        }
+        .admin-main > .header {
+            position: absolute !important;
+            top: 0 !important;
+            left: 0 !important;
+            right: 0 !important;
+            height: 6rem;
+            z-index: 50;
+            background: rgba(3, 3, 5, 0.28);
+            backdrop-filter: blur(24px);
+            -webkit-backdrop-filter: blur(24px);
+        }
+        .admin-main > .tab-content {
+            position: absolute !important;
+            inset: 0 !important;
+            overflow: hidden;
+            z-index: 0;
+        }
+        .admin-main [data-tab-panel] {
+            padding-top: 7.5rem !important;
+        }
         .glass-card {
             background: linear-gradient(135deg, rgba(255,255,255,0.04) 0%, rgba(255,255,255,0.01) 100%);
             border: 1px solid rgba(255,255,255,0.05);
             box-shadow: 0 10px 40px -10px rgba(0,0,0,0.5);
             position: relative;
             overflow: hidden;
+        }
+        .glass-card.allow-overflow {
+            overflow: visible;
         }
         .glass-card::before {
             content: "";
@@ -89,35 +123,96 @@ session_write_close();
         }
         
         .nav-item {
-            transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+            transition: color 0.35s cubic-bezier(0.16, 1, 0.3, 1), background 0.35s cubic-bezier(0.16, 1, 0.3, 1);
             position: relative;
             overflow: hidden;
+            z-index: 1;
         }
         .nav-item.active {
-            background: rgba(239, 68, 68, 0.08);
-            border-left: 3px solid #ef4444;
             color: #fff;
-            box-shadow: inset 20px 0 30px -20px rgba(239,68,68,0.2);
-        }
-        .nav-item::after {
-            content: '';
-            position: absolute;
-            left: 0; top: 0; bottom: 0; width: 3px;
-            background: #ef4444;
-            transform: scaleY(0);
-            transition: transform 0.3s ease;
-            transform-origin: bottom;
-        }
-        .nav-item:hover:not(.active)::after {
-            transform: scaleY(1);
+            background: transparent;
         }
         .nav-item:not(.active):hover {
-            background: rgba(255,255,255,0.03);
             color: #fff;
-            transform: translateX(4px);
         }
         .nav-item.active .icon { color: #ef4444; text-shadow: 0 0 10px rgba(239,68,68,0.5); }
+        [data-admin-nav] { position: relative; }
+        .admin-nav-indicator {
+            position: absolute;
+            left: 1rem;
+            right: 1rem;
+            top: 0;
+            height: 3rem;
+            border-radius: 0.75rem;
+            background: rgba(239, 68, 68, 0.1);
+            border-left: 3px solid #ef4444;
+            box-shadow: inset 24px 0 32px -20px rgba(239,68,68,0.28), 0 0 24px rgba(239,68,68,0.08);
+            pointer-events: none;
+            z-index: 0;
+            opacity: 0;
+            will-change: transform;
+        }
+        .glass-card,
+        .gs-stat-card,
+        .movie-card-container {
+            --mx: 50%;
+            --my: 50%;
+        }
+        .glass-card::after {
+            content: "";
+            position: absolute;
+            inset: 0;
+            pointer-events: none;
+            background: radial-gradient(420px circle at var(--mx) var(--my), rgba(255,255,255,0.07), transparent 42%);
+            opacity: 0;
+            transition: opacity 0.35s ease;
+            z-index: 2;
+        }
+        .glass-card:hover::after { opacity: 1; }
+        .admin-cursor {
+            position: fixed;
+            width: 280px;
+            height: 280px;
+            margin: -140px 0 0 -140px;
+            border-radius: 50%;
+            pointer-events: none;
+            z-index: 30;
+            background: radial-gradient(circle, rgba(239,68,68,0.14), transparent 68%);
+            mix-blend-mode: screen;
+            opacity: 0;
+            will-change: transform;
+        }
+        .ambient-orb {
+            position: fixed;
+            width: 42vw;
+            height: 42vw;
+            border-radius: 50%;
+            pointer-events: none;
+            z-index: -1;
+            filter: blur(80px);
+            opacity: 0.45;
+            will-change: transform;
+        }
+        .ambient-orb-a {
+            top: -12%;
+            left: -8%;
+            background: rgba(239, 68, 68, 0.16);
+        }
+        .ambient-orb-b {
+            right: -10%;
+            bottom: -16%;
+            background: rgba(79, 70, 229, 0.16);
+        }
+        @media (prefers-reduced-motion: reduce) {
+            .admin-cursor,
+            .ambient-orb,
+            .admin-nav-indicator { display: none !important; }
+            .chart-bar { transform: none !important; }
+            .nav-item, .glass-card, .movie-card-container { transition: none !important; }
+        }
         
+        [x-cloak] { display: none !important; }
+
         ::-webkit-scrollbar { width: 4px; }
         ::-webkit-scrollbar-track { background: transparent; }
         ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 10px; }
@@ -169,7 +264,7 @@ session_write_close();
 
     <link rel="stylesheet" href="https://cdn.plyr.io/3.7.8/plyr.css" />
     <script src="https://cdn.plyr.io/3.7.8/plyr.polyfilled.js"></script>
-    <script src="../js/nexus_scripts.js?v=1789042200"></script>
+    <script src="../js/nexus_scripts.js?v=1789042700"></script>
     <script src="https://unpkg.com/htmx.org@1.9.10/dist/htmx.min.js" crossorigin="anonymous"></script>
 </head>
 <body class="h-screen w-screen flex relative selection:bg-red-500/30" data-barba="wrapper">
@@ -192,6 +287,9 @@ session_write_close();
 
 <div class="bg-mesh"></div>
     <div class="noise"></div>
+    <div class="ambient-orb ambient-orb-a" aria-hidden="true"></div>
+    <div class="ambient-orb ambient-orb-b" aria-hidden="true"></div>
+    <div class="admin-cursor" aria-hidden="true"></div>
 
     <!-- Sidebar -->
     <aside class="sidebar w-64 h-full glass-panel flex flex-col relative z-20 shrink-0">
@@ -206,7 +304,8 @@ session_write_close();
             </div>
         </a>
         
-        <nav class="flex-1 px-4 mt-4 space-y-1 overflow-y-auto">
+        <nav class="flex-1 px-4 mt-4 space-y-1 overflow-y-auto" data-admin-nav>
+            <div class="admin-nav-indicator" aria-hidden="true"></div>
             <template x-for="item in navItems" :key="item.id">
                 <a href="#" @click.prevent="switchTab(item.id)" 
                    :class="{'active': currentTab === item.id}"
@@ -227,14 +326,25 @@ session_write_close();
     </aside>
 
     <!-- Main Content -->
-    <main class="flex-1 flex flex-col h-full overflow-hidden relative z-10 bg-[#030305]/50">
+    <main class="admin-main flex-1 z-10 bg-[#030305]/50">
         
         <!-- Header -->
-        <header class="header h-24 flex items-center justify-between px-10 shrink-0 border-b border-white/5 backdrop-blur-md relative z-50">
-            <div class="flex items-center gap-4 bg-white/[0.03] border border-white/10 rounded-2xl px-5 py-3 w-[400px] focus-within:border-red-500/50 focus-within:bg-white/[0.05] transition-all duration-300 shadow-inner gs-header-item group">
+        <header class="header h-24 flex items-center justify-between px-10 border-b border-white/5">
+            <div class="flex items-center gap-3 bg-white/[0.03] border border-white/10 rounded-2xl px-5 py-3 w-[400px] focus-within:border-red-500/50 focus-within:bg-white/[0.05] transition-all duration-300 shadow-inner gs-header-item group">
                 <span class="material-symbols-outlined text-white/40 group-focus-within:text-red-400 transition-colors">search</span>
-                <input type="text" placeholder="Search databases..." class="bg-transparent border-none outline-none text-white text-sm w-full placeholder-white/30 font-medium">
-                <div class="px-2 py-0.5 rounded bg-white/10 text-[10px] text-white/50 mono border border-white/5">ðŸ˜˜</div>
+                <input type="text"
+                       x-model="searchQuery"
+                       @input="onAdminSearch()"
+                       :placeholder="adminSearchPlaceholder"
+                       class="bg-transparent border-none outline-none text-white text-sm w-full placeholder-white/30 font-medium">
+                <button type="button"
+                        x-show="(searchQuery || '').trim()"
+                        @click="searchQuery = ''; onAdminSearch()"
+                        class="text-white/30 hover:text-white transition-colors"
+                        style="display: none;"
+                        title="Clear search">
+                    <span class="material-symbols-outlined text-[18px]">close</span>
+                </button>
             </div>
             
             <div class="flex items-center gap-6 relative">
@@ -296,8 +406,8 @@ session_write_close();
             </div>
         </header>
 
-        <!-- Content Area -->
-        <div class="flex-1 min-h-0 overflow-y-auto p-10 tab-content relative scroll-smooth">
+        <!-- Content Area sits below the frosted top bar in normal flow -->
+        <div class="tab-content">
             <?php include __DIR__ . '/views/dashboard.php'; ?>
             <?php include __DIR__ . '/views/movies.php'; ?>
             <?php include __DIR__ . '/views/users.php'; ?>
@@ -305,10 +415,11 @@ session_write_close();
             <?php include __DIR__ . '/views/reports.php'; ?>
             <?php include __DIR__ . '/views/profile.php'; ?>
             <?php include __DIR__ . '/views/shop.php'; ?>
+            <?php include __DIR__ . '/views/transactions.php'; ?>
         </div>
     </main>
 
-    <script src="../js/admin_animations.js?v=1"></script>
+    <script src="../js/admin_animations.js?v=3"></script>
     <?php include __DIR__ . '/components/barba_scripts.php'; ?>
     
 </body>

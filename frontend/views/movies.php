@@ -1,11 +1,11 @@
 <!-- Movies View Container -->
-<div data-tab-panel="movies"  style="display: none;" class="relative w-full min-h-full p-8 lg:p-12 overflow-y-auto">
+<div data-tab-panel="movies"  style="display: none; padding-top: 7.5rem;" class="absolute inset-0 w-full min-h-full px-8 lg:px-12 pb-8 lg:pb-12 overflow-y-auto">
     <!-- Section Header -->
     <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-10 stagger-item">
         <div>
             <div class="flex items-center gap-3 mb-1">
                 <h2 class="text-3xl font-black text-white tracking-tight">Movie Library</h2>
-                <span class="px-2.5 py-1 rounded-full text-xs font-semibold bg-red-500/10 text-red-400 border border-red-500/20" x-text="movies ? movies.length + ' titles' : '0 titles'"></span>
+                <span class="px-2.5 py-1 rounded-full text-xs font-semibold bg-red-500/10 text-red-400 border border-red-500/20" x-text="adminPage('movies').total + ' titles'"></span>
             </div>
             <p class="text-xs text-white/40 font-mono">Manage, edit, and organize movie catalog items</p>
         </div>
@@ -20,7 +20,7 @@
 
     <!-- Movie Cards Grid -->
     <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6 pb-12">
-        <template x-for="movie in movies" :key="movie.id">
+        <template x-for="movie in pagedMovies" :key="movie.id">
             <div class="movie-card-container stagger-item">
                 
                 <!-- 1. ADD x-data, @mouseenter, and @mouseleave HERE -->
@@ -78,7 +78,13 @@
                 </div>
             </div>
         </template>
+        <div x-show="adminPage('movies').total === 0" style="display: none;" class="col-span-full glass-card rounded-2xl p-16 flex flex-col items-center justify-center text-center border border-white/5">
+            <span class="material-symbols-outlined text-6xl text-white/20 mb-4">movie</span>
+            <h3 class="text-xl font-bold text-white mb-2">No movies found</h3>
+            <p class="text-white/40 max-w-sm">Try a different search, or add a new title to the library.</p>
+        </div>
     </div>
+    <?php $pagerKey = 'movies'; include __DIR__ . '/../components/admin_pagination.php'; ?>
     
     <!-- Redesigned Modal (Teleported to body) -->
     <template x-teleport="body">

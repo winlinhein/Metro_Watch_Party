@@ -1,42 +1,16 @@
 <!-- Users View -->
-<div data-tab-panel="users" style="display: none;" class="absolute inset-0 p-10 w-full min-h-full overflow-y-auto">
+<div data-tab-panel="users" style="display: none; padding-top: 7.5rem;" class="absolute inset-0 px-10 pb-10 w-full min-h-full overflow-y-auto">
 
-    <div class="flex flex-col md:flex-row items-start md:items-center justify-between mb-6 gap-4 stagger-item">
+    <div class="flex items-center justify-between mb-6 stagger-item">
         <div>
             <h2 class="text-3xl font-bold text-white tracking-tight mb-1">User Directory</h2>
-        </div>
-
-        <div class="flex gap-4 items-center">
-
-            <div class="bg-white/5 border border-white/10 rounded-xl px-4 py-2 flex items-center gap-2 focus-within:border-blue-500/50 transition-colors">
-                <span class="material-symbols-outlined text-white/40 text-[18px]">search</span>
-
-                <input
-                    type="text"
-                    x-model="searchQuery"
-                    placeholder="Search users..."
-                    class="bg-transparent border-none outline-none text-white text-sm w-48 placeholder-white/30 font-medium"
-                >
-            </div>
-
-            <select
-                x-model="roleFilter"
-                class="bg-[#030305] border border-white/10 rounded-xl px-4 py-2 text-sm text-white outline-none cursor-pointer focus:border-blue-500/50 transition-colors"
-            >
-                <option class="bg-[#030305] text-white" value="All">All Roles</option>
-                <option class="bg-[#030305] text-white" value="User">User / Standard</option>
-                <option class="bg-[#030305] text-white" value="Premium">Premium</option>
-                <option class="bg-[#030305] text-white" value="Admin">Admin</option>
-                <option class="bg-[#030305] text-white" value="Moderator">Moderator</option>
-            </select>
-
         </div>
     </div>
 
     <div class="flex gap-4 mb-6 border-b border-white/10 pb-3 stagger-item">
 
         <button
-            @click="userCategoryTab = 'Users'"
+            @click="userCategoryTab = 'Users'; adminPages.users = 1"
             class="px-4 py-2 text-sm font-bold transition-all rounded-lg"
             :class="userCategoryTab === 'Users'
                 ? 'bg-indigo-500/20 text-indigo-400 border border-indigo-500/30'
@@ -46,7 +20,7 @@
         </button>
 
         <button
-            @click="userCategoryTab = 'Moderators'"
+            @click="userCategoryTab = 'Moderators'; adminPages.users = 1"
             class="px-4 py-2 text-sm font-bold transition-all rounded-lg"
             :class="userCategoryTab === 'Moderators'
                 ? 'bg-indigo-500/20 text-indigo-400 border border-indigo-500/30'
@@ -111,7 +85,7 @@
                 <tbody>
 
                     <template
-                        x-for="(user, index) in filteredUsers"
+                        x-for="(user, index) in pagedUsers"
                         :key="user.id"
                     >
 
@@ -137,18 +111,19 @@
                             <td class="p-5 flex items-center gap-4">
 
                                 <div class="relative">
-                                    <div class="relative w-10 h-10 overflow-visible" style="width: 2.5rem; height: 2.5rem;">
-                                        <div class="absolute inset-0 z-0 overflow-hidden rounded-xl scale-[1.05]">
+                                    <div class="relative w-10 h-10 overflow-visible shrink-0" style="width: 2.5rem; height: 2.5rem;">
+                                        <div class="absolute inset-0 z-0 overflow-hidden rounded-full scale-[1.18] bg-white/5">
                                             <img
                                                 :src="(resolveAvatarUrl ? resolveAvatarUrl(user.avatar_url, user.name) : user.avatar_url) || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.name)}&background=random&color=fff&bold=true`"
                                                 loading="lazy"
                                                 decoding="async"
                                                 @error="$el.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(user.name)}&background=random&color=fff&bold=true`"
-                                                class="w-full h-full object-cover border border-white/10 group-hover:border-white/30 transition-colors"
+                                                class="absolute inset-0 h-full w-full object-cover"
+                                                :class="user.border_preview ? '' : 'ring-1 ring-white/10 group-hover:ring-white/30'"
                                             >
                                         </div>
                                         <template x-if="user.border_preview">
-                                            <img :src="user.border_preview" loading="lazy" decoding="async" class="absolute inset-0 z-10 h-full w-full scale-[1.45] object-contain pointer-events-none">
+                                            <img :src="user.border_preview" loading="lazy" decoding="async" class="absolute inset-0 z-10 h-full w-full scale-[1.38] object-contain pointer-events-none mix-blend-screen" alt="">
                                         </template>
                                     </div>
 
@@ -336,11 +311,13 @@
                         </td>
                     </tr>
 
-                </tbody>
+                    </tbody>
 
             </table>
 
         </div>
+
+        <?php $pagerKey = 'users'; include __DIR__ . '/../components/admin_pagination.php'; ?>
 
     </div>
 
@@ -395,15 +372,15 @@
                 <div class="bg-white/5 border border-white/10 rounded-xl p-4 mb-6 flex items-center gap-4">
 
                     <div class="relative w-10 h-10 overflow-visible shrink-0" style="width: 2.5rem; height: 2.5rem;">
-                        <div class="absolute inset-0 z-0 overflow-hidden rounded-lg">
+                        <div class="absolute inset-0 z-0 overflow-hidden rounded-full scale-[1.18] bg-white/5">
                             <img
                                 :src="(resolveAvatarUrl ? resolveAvatarUrl(userToBan.avatar_url, userToBan.name) : userToBan.avatar_url) || `https://ui-avatars.com/api/?name=${encodeURIComponent(userToBan.name)}&background=random&color=fff&bold=true`"
                                 @error="$el.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(userToBan.name)}&background=random&color=fff&bold=true`"
-                                class="w-full h-full object-cover"
+                                class="absolute inset-0 h-full w-full object-cover"
                             >
                         </div>
                         <template x-if="userToBan.border_preview">
-                            <img :src="userToBan.border_preview" class="absolute inset-0 z-10 h-full w-full scale-[1.4] object-contain pointer-events-none" alt="">
+                            <img :src="userToBan.border_preview" class="absolute inset-0 z-10 h-full w-full scale-[1.38] object-contain pointer-events-none mix-blend-screen" alt="">
                         </template>
                     </div>
 

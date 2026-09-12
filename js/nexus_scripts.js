@@ -5073,8 +5073,136 @@ function adminDashboard(userData = {}) {
             { id: 'shop', label: 'Avatar Shop', icon: 'storefront' },
             { id: 'reports', label: 'Reports', icon: 'flag' },
             { id: 'profile', label: 'Profile', icon: 'person' },
-            { id: 'comments', label: 'Comments', icon: 'comment' }
+            { id: 'transactions', label: 'Transaction History', icon: 'receipt_long' }
         ],
+        get adminSearchPlaceholder() {
+            const map = {
+                dashboard: 'Search movies, users, rooms...',
+                users: 'Search users by name, email, or role...',
+                movies: 'Search movies by title or genre...',
+                sessions: 'Search rooms by name, host, or movie...',
+                shop: 'Search shop items by name or rarity...',
+                reports: 'Search reports by user, type, or status...',
+                profile: 'Search...',
+                transactions: 'Search transactions by user, plan, or ID...'
+            };
+            return map[this.currentTab] || 'Search...';
+        },
+        adminMatches(values) {
+            const q = String(this.searchQuery || '').trim().toLowerCase();
+            if (!q) return true;
+            return (values || []).some((value) => String(value || '').toLowerCase().includes(q));
+        },
+        onAdminSearch() {
+            Object.keys(this.adminPages || {}).forEach((key) => {
+                this.adminPages[key] = 1;
+            });
+        },
+        transactions: [
+            { id: 'TXN-10041', gateway_txn_id: 'pi_3S9k2aQ4txrxX3Uy', user_name: 'Ava Chen', email: 'ava.chen@nexus.mail', avatar_url: '', plan: 'Nexus Premium', gateway: 'Stripe', amount: '$4.99', status: 'Success', date: '2026-09-11 09:14' },
+            { id: 'TXN-10040', gateway_txn_id: 'pi_3S8n1bQ4txrxX3Uy', user_name: 'Marcus Hale', email: 'marcus.h@nexus.mail', avatar_url: '', plan: 'Nexus Premium', gateway: 'Stripe', amount: '$4.99', status: 'Success', date: '2026-09-10 18:42' },
+            { id: 'TXN-10039', gateway_txn_id: 'pi_3S7m9cQ4txrxX3Uy', user_name: 'Lina Ortiz', email: 'lina.ortiz@nexus.mail', avatar_url: '', plan: 'Nexus Premium', gateway: 'Stripe', amount: '$4.99', status: 'Pending', date: '2026-09-10 12:08' },
+            { id: 'TXN-10038', gateway_txn_id: 'pi_3S6k4dQ4txrxX3Uy', user_name: 'Noah Kim', email: 'noah.kim@nexus.mail', avatar_url: '', plan: 'Nexus Premium', gateway: 'Stripe', amount: '$4.99', status: 'Failed', date: '2026-09-09 21:33' },
+            { id: 'TXN-10037', gateway_txn_id: 'pi_3S5j8eQ4txrxX3Uy', user_name: 'Sofia Rahman', email: 'sofia.r@nexus.mail', avatar_url: '', plan: 'Nexus Premium', gateway: 'Stripe', amount: '$4.99', status: 'Success', date: '2026-09-08 16:20' },
+            { id: 'TXN-10036', gateway_txn_id: 're_3S4h2fQ4txrxX3Uy', user_name: 'Eli Navarro', email: 'eli.navarro@nexus.mail', avatar_url: '', plan: 'Nexus Premium', gateway: 'Stripe', amount: '-$4.99', status: 'Refunded', date: '2026-09-07 11:05' },
+            { id: 'TXN-10035', gateway_txn_id: 'pi_3S3g7gQ4txrxX3Uy', user_name: 'Priya Shah', email: 'priya.shah@nexus.mail', avatar_url: '', plan: 'Nexus Premium', gateway: 'Stripe', amount: '$4.99', status: 'Success', date: '2026-09-06 08:51' },
+            { id: 'TXN-10034', gateway_txn_id: 'pi_3S2f1hQ4txrxX3Uy', user_name: 'Jonah Blake', email: 'jonah.b@nexus.mail', avatar_url: '', plan: 'Nexus Premium', gateway: 'Stripe', amount: '$4.99', status: 'Success', date: '2026-09-05 19:27' },
+            { id: 'TXN-10033', gateway_txn_id: 'pi_3S1e9iQ4txrxX3Uy', user_name: 'Mira Patel', email: 'mira.p@nexus.mail', avatar_url: '', plan: 'Nexus Premium', gateway: 'Stripe', amount: '$4.99', status: 'Success', date: '2026-09-04 14:12' },
+            { id: 'TXN-10032', gateway_txn_id: 'pi_3S0d3jQ4txrxX3Uy', user_name: 'Chris Vale', email: 'chris.vale@nexus.mail', avatar_url: '', plan: 'Nexus Premium', gateway: 'Stripe', amount: '$4.99', status: 'Pending', date: '2026-09-03 10:44' },
+            { id: 'TXN-10031', gateway_txn_id: 'pi_3R9c8kQ4txrxX3Uy', user_name: 'Hana Sato', email: 'hana.sato@nexus.mail', avatar_url: '', plan: 'Nexus Premium', gateway: 'Stripe', amount: '$4.99', status: 'Failed', date: '2026-09-02 22:19' },
+            { id: 'TXN-10030', gateway_txn_id: 'pi_3R8b2lQ4txrxX3Uy', user_name: 'Owen Diaz', email: 'owen.diaz@nexus.mail', avatar_url: '', plan: 'Nexus Premium', gateway: 'Stripe', amount: '$4.99', status: 'Success', date: '2026-09-01 07:55' }
+        ],
+        get filteredTransactions() {
+            return (this.transactions || []).filter((txn) => this.adminMatches([
+                txn.id, txn.gateway_txn_id, txn.user_name, txn.email, txn.plan, txn.gateway, txn.status, txn.amount, txn.date
+            ]));
+        },
+        get txnSummary() {
+            const rows = this.transactions || [];
+            const success = rows.filter((t) => t.status === 'Success').length;
+            const pending = rows.filter((t) => t.status === 'Pending').length;
+            const issues = rows.filter((t) => t.status === 'Failed' || t.status === 'Refunded').length;
+            const volume = rows
+                .filter((t) => t.status === 'Success')
+                .reduce((sum, t) => sum + (parseFloat(String(t.amount).replace(/[^0-9.-]/g, '')) || 0), 0);
+            return {
+                volume: '$' + volume.toFixed(2),
+                success,
+                pending,
+                issues
+            };
+        },
+        adminPageSize: {
+            movies: 10,
+            users: 10,
+            rooms: 6,
+            shop: 8,
+            reports: 10,
+            transactions: 10
+        },
+        adminPages: {
+            movies: 1,
+            users: 1,
+            rooms: 1,
+            shop: 1,
+            reports: 1,
+            transactions: 1
+        },
+        adminPage(key) {
+            const sources = {
+                movies: this.filteredAdminMovies || [],
+                users: this.filteredUsers || [],
+                rooms: this.filteredAdminRooms || [],
+                shop: this.filteredAdminShop || [],
+                reports: this.filteredReports || [],
+                transactions: this.filteredTransactions || []
+            };
+            const list = sources[key] || [];
+            const size = this.adminPageSize[key] || 10;
+            const total = list.length;
+            const pageCount = Math.max(1, Math.ceil(total / size) || 1);
+            const requested = this.adminPages[key] || 1;
+            const page = Math.min(Math.max(1, requested), pageCount);
+            const start = (page - 1) * size;
+            return {
+                items: list.slice(start, start + size),
+                page,
+                pageCount,
+                total,
+                showPager: total > size,
+                pages: Array.from({ length: pageCount }, (_, i) => i + 1)
+            };
+        },
+        setAdminPage(key, page) {
+            const data = this.adminPage(key);
+            this.adminPages[key] = Math.min(Math.max(1, Number(page) || 1), data.pageCount);
+            this.$nextTick(() => {
+                if (window.NexusAdminMotion && typeof window.NexusAdminMotion.pulseList === 'function') {
+                    window.NexusAdminMotion.pulseList(key);
+                }
+            });
+        },
+        get pagedMovies() { return this.adminPage('movies').items; },
+        get pagedUsers() { return this.adminPage('users').items; },
+        get pagedRooms() { return this.adminPage('rooms').items; },
+        get pagedShopItems() { return this.adminPage('shop').items; },
+        get pagedReports() { return this.adminPage('reports').items; },
+        get pagedTransactions() { return this.adminPage('transactions').items; },
+        get filteredAdminMovies() {
+            return (this.movies || []).filter((movie) => this.adminMatches([
+                movie.title, movie.genre, movie.year, movie.duration, movie.description, movie.id, movie.movie_id
+            ]));
+        },
+        get filteredAdminRooms() {
+            return (this.rooms || []).filter((room) => this.adminMatches([
+                room.name, room.host, room.movie_title, room.id, room.users
+            ]));
+        },
+        get filteredAdminShop() {
+            return (this.shopItems || []).filter((item) => this.adminMatches([
+                item.name, item.rarity, item.price, item.category, item.id
+            ]));
+        },
         notifications: [],
         unreadNotifCount: 0,
         syncUnreadFromList() {
@@ -5223,7 +5351,6 @@ function adminDashboard(userData = {}) {
 
         // Users
         searchQuery: '',
-        roleFilter: 'All',
         banModalOpen: false,
         userToBan: null,
         banReason: '',
@@ -5234,13 +5361,11 @@ function adminDashboard(userData = {}) {
         userCategoryTab: 'Users',
         get filteredUsers() { 
             return (this.users || []).filter(u => {
-                const searchMatch = u.name.toLowerCase().includes(this.searchQuery.toLowerCase()) || 
-                                    u.email.toLowerCase().includes(this.searchQuery.toLowerCase());
-                const roleMatch = this.roleFilter === 'All' || u.role === this.roleFilter;
+                const searchMatch = this.adminMatches([u.name, u.email, u.role, u.id, u.points, u.status]);
                 const tabMatch = this.userCategoryTab === 'Moderators' 
                                   ? (u.role === 'Moderator' || u.role === 'Admin') 
                                   : (u.role !== 'Moderator' && u.role !== 'Admin');
-                return searchMatch && roleMatch && tabMatch;
+                return searchMatch && tabMatch;
             }); 
         },
 
@@ -5414,9 +5539,6 @@ function adminDashboard(userData = {}) {
             }
             if (tabId === 'reports') {
                 this.fetchReports();
-            }
-            if (tabId === 'comments' && !(this.comments || []).length) {
-                this.fetchComments();
             }
         },
 
@@ -5687,7 +5809,6 @@ function adminDashboard(userData = {}) {
         selectedReport: null,
         reportsList: [],
         reportStats: { total: 0, pending: 0, read: 0 },
-        filterStatus: 'all',
         reportCommentDetails: null,
         loadingReportComment: false,
         commentsCache: {},
@@ -5820,10 +5941,10 @@ function adminDashboard(userData = {}) {
         },
 
         get filteredReports() {
-            if (this.filterStatus === 'all') {
-                return this.reportsList;
-            }
-            return this.reportsList.filter(report => report.status.toLowerCase() === this.filterStatus);
+            return (this.reportsList || []).filter((report) => this.adminMatches([
+                report.id, report.date, report.user, report.type, report.reported_user,
+                report.reported_user_name, report.excerpt, report.status, report.description, report.reason
+            ]));
         },
         
         highlightCommentId: null,
@@ -6212,61 +6333,42 @@ function adminDashboard(userData = {}) {
         switchTab(tabId) {
             if (this.currentTab === tabId) return;
             const oldTab = this.currentTab;
+            const order = (this.navItems || []).map((item) => item.id);
+            const from = order.indexOf(oldTab);
+            const to = order.indexOf(tabId);
+            const dir = to >= 0 && from >= 0 && to < from ? -1 : 1;
             this.currentTab = tabId;
             this.ensureAdminTabData(tabId);
             const oldPanel = document.querySelector(`[data-tab-panel="${oldTab}"]`);
             const newPanel = document.querySelector(`[data-tab-panel="${tabId}"]`);
-            
-            if (oldPanel && newPanel && typeof window.gsap !== 'undefined') {
-                // Outro animation for old panel
+
+            if (oldPanel && newPanel && window.NexusAdminMotion && typeof window.NexusAdminMotion.transitionTabs === 'function') {
+                window.NexusAdminMotion.transitionTabs(oldPanel, newPanel, dir);
+            } else if (oldPanel && newPanel && typeof window.gsap !== 'undefined') {
                 window.gsap.to(oldPanel, {
                     opacity: 0,
-                    y: -30,
-                    scale: 0.95,
-                    filter: "blur(10px)",
-                    duration: 0.4,
-                    ease: "power3.in",
+                    x: -24 * dir,
+                    duration: 0.28,
+                    ease: 'power3.in',
                     onComplete: () => {
                         oldPanel.style.display = 'none';
                         newPanel.style.display = 'block';
-                        
-                        // Set initial state for new panel to avoid flicker
-                        window.gsap.set(newPanel, { opacity: 0, y: 50, scale: 0.95, rotationX: 15, filter: "blur(15px)", transformPerspective: 1000 });
-                        
-                        // Intro animation for new panel
-                        window.gsap.to(newPanel, {
-                            opacity: 1, 
-                            y: 0, 
-                            scale: 1, 
-                            rotationX: 0, 
-                            filter: "blur(0px)", 
-                            duration: 0.8, 
-                            ease: "expo.out"
-                        });
-                        
-                        // Re-trigger internal staggered items (like charts, stats, tables, forms, etc)
-                        const staggers = newPanel.querySelectorAll('.gs-stat-card, .gs-table-row, .stagger-item, tbody tr, .card, .glass-card, .movie-card-container');
-                        if (staggers.length > 0) {
-                            window.gsap.fromTo(staggers,
-                                { opacity: 0, y: 40, scale: 0.9, rotationX: -15, transformPerspective: 1000 },
-                                { opacity: 1, y: 0, scale: 1, rotationX: 0, duration: 0.8, stagger: 0.05, ease: "back.out(1.5)", delay: 0.1 }
-                            );
-                        }
-                        
-                        // Re-trigger chart bars specifically
-                        const chartBars = newPanel.querySelectorAll('.chart-bar');
-                        if (chartBars.length > 0) {
-                            window.gsap.fromTo(chartBars,
-                                { scaleY: 0, transformOrigin: 'bottom' },
-                                { scaleY: 1, duration: 1, stagger: 0.05, ease: 'power3.out', delay: 0.4 }
-                            );
-                        }
+                        window.gsap.fromTo(newPanel,
+                            { opacity: 0, x: 28 * dir },
+                            { opacity: 1, x: 0, duration: 0.5, ease: 'power3.out', clearProps: 'transform' }
+                        );
                     }
                 });
             } else if (oldPanel && newPanel) {
                 oldPanel.style.display = 'none';
                 newPanel.style.display = 'block';
             }
+
+            this.$nextTick(() => {
+                if (window.NexusAdminMotion && typeof window.NexusAdminMotion.syncNav === 'function') {
+                    window.NexusAdminMotion.syncNav(false);
+                }
+            });
         },
         // Toggle genre ID in newMovie.genre_ids
         toggleGenre(genre) {
@@ -6685,6 +6787,12 @@ function adminDashboard(userData = {}) {
         },
 
          async initDashboard() {
+            this.$nextTick(() => {
+                if (window.NexusAdminMotion && typeof window.NexusAdminMotion.init === 'function') {
+                    window.NexusAdminMotion.init(this.$el || document);
+                    window.NexusAdminMotion.syncNav(true);
+                }
+            });
             this.loadMediaCaches();
             this.cacheOwnAdminMedia();
             this.initPusher();
