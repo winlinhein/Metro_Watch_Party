@@ -249,6 +249,7 @@ session_write_close();
     <link rel="stylesheet" href="https://cdn.plyr.io/3.7.8/plyr.css" />
     <script src="https://cdn.plyr.io/3.7.8/plyr.polyfilled.js"></script>
     <script src="../js/nexus_scripts.js?v=1789042200"></script>
+    <script src="../js/support_chatbot.js?v=1"></script>
 </head>
 <body class="h-screen w-screen flex flex-col relative selection:bg-red-500/30" data-barba="wrapper">
     <?php include __DIR__ . '/../frontend/components/page_loader.php'; ?>
@@ -986,6 +987,10 @@ session_write_close();
     </main>
 
     <?php include __DIR__ . '/../frontend/components/host_party_fab.php'; ?>
+
+    <div x-show="!showMovieDetailModal && !showChatPanel" x-transition>
+        <?php include __DIR__ . '/../frontend/components/support_chatbot.php'; ?>
+    </div>
 
     <?php include "user_chat.php"; ?>
     <?php include "profile_dropdown.php"; ?>
