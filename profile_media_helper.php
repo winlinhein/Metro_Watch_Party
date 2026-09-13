@@ -3,6 +3,7 @@
  * Shared helpers for avatar URLs and profile border previews.
  */
 require_once __DIR__ . '/shop_image_helper.php';
+require_once __DIR__ . '/premium_benefits_helper.php';
 
 function normalizeAvatarUrl(?string $avatarUrl): string
 {
@@ -62,6 +63,110 @@ function ensureUserCustomizationRow(PDO $conn, int $userId): int
     return 0;
 }
 
+function nexusUserIsStaff(PDO $conn, int $userId): bool
+{
+    static $cache = [];
+    if ($userId <= 0) {
+        return false;
+    }
+    if (array_key_exists($userId, $cache)) {
+        return $cache[$userId];
+    }
+    try {
+        $stmt = $conn->prepare("
+            SELECT LOWER(TRIM(r.role))
+            FROM users u
+            INNER JOIN roles r ON r.role_id = u.role_id
+            WHERE u.user_id = ?
+            LIMIT 1
+        ");
+        $stmt->execute([$userId]);
+        $role = (string)$stmt->fetchColumn();
+        $cache[$userId] = in_array($role, ['admin', 'moderator'], true);
+    } catch (Throwable $e) {
+        $cache[$userId] = false;
+    }
+    return $cache[$userId];
+}
+
+function nexusStaffBorderItemIds(PDO $conn): array
+{
+    static $ids = null;
+    if (is_array($ids)) {
+        return $ids;
+    }
+    try {
+        $stmt = $conn->query("SELECT item_id FROM shop_items WHERE LOWER(category) = 'border'");
+        $ids = array_values(array_filter(array_map('intval', $stmt->fetchAll(PDO::FETCH_COLUMN) ?: [])));
+    } catch (Throwable $e) {
+        $ids = [];
+    }
+    return $ids;
+}
+
+function nexusPremiumBorderItemIds(PDO $conn): array
+{
+    static $ids = null;
+    if (is_array($ids)) {
+        return $ids;
+    }
+    try {
+        $stmt = $conn->query("
+            SELECT item_id
+            FROM shop_items
+            WHERE LOWER(category) = 'border'
+              AND LOWER(TRIM(rarity)) = 'premium'
+        ");
+        $ids = array_values(array_filter(array_map('intval', $stmt->fetchAll(PDO::FETCH_COLUMN) ?: [])));
+    } catch (Throwable $e) {
+        $ids = [];
+    }
+    return $ids;
+}
+
+function nexusShopItemIsPremiumBorder(PDO $conn, int $itemId): bool
+{
+    if ($itemId <= 0) {
+        return false;
+    }
+    try {
+        $stmt = $conn->prepare("
+            SELECT rarity, category
+            FROM shop_items
+            WHERE item_id = ?
+            LIMIT 1
+        ");
+        $stmt->execute([$itemId]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC) ?: [];
+        return strtolower(trim((string)($row['category'] ?? ''))) === 'border'
+            && nexusIsPremiumRarity($row['rarity'] ?? '');
+    } catch (Throwable $e) {
+        return false;
+    }
+}
+
+function nexusPurchasedItemIds(PDO $conn, int $userId): array
+{
+    if ($userId <= 0) {
+        return [];
+    }
+    $stmt = $conn->prepare("SELECT item_id FROM user_inventory WHERE user_id = ?");
+    $stmt->execute([$userId]);
+    return array_values(array_filter(array_map('intval', $stmt->fetchAll(PDO::FETCH_COLUMN) ?: [])));
+}
+
+function nexusEffectiveInventory(PDO $conn, int $userId): array
+{
+    $bought = nexusPurchasedItemIds($conn, $userId);
+    $extra = [];
+    if (nexusUserIsStaff($conn, $userId)) {
+        $extra = nexusStaffBorderItemIds($conn);
+    } elseif (nexusIsPremium($conn, $userId)) {
+        $extra = nexusPremiumBorderItemIds($conn);
+    }
+    return array_values(array_unique(array_merge($bought, $extra)));
+}
+
 function userOwnsItem(PDO $conn, int $userId, int $itemId): bool
 {
     if ($itemId <= 0) {
@@ -69,7 +174,45 @@ function userOwnsItem(PDO $conn, int $userId, int $itemId): bool
     }
     $stmt = $conn->prepare("SELECT 1 FROM user_inventory WHERE user_id = ? AND item_id = ? LIMIT 1");
     $stmt->execute([$userId, $itemId]);
-    return (bool)$stmt->fetchColumn();
+    if ($stmt->fetchColumn()) {
+        return true;
+    }
+    if (nexusUserIsStaff($conn, $userId)) {
+        $check = $conn->prepare("SELECT 1 FROM shop_items WHERE item_id = ? AND LOWER(category) = 'border' LIMIT 1");
+        $check->execute([$itemId]);
+        return (bool)$check->fetchColumn();
+    }
+    return nexusShopItemIsPremiumBorder($conn, $itemId) && nexusIsPremium($conn, $userId);
+}
+
+function nexusRevertUnearnedStaffBorder(PDO $conn, int $userId): void
+{
+    if ($userId <= 0) {
+        return;
+    }
+    $borderId = ensureUserCustomizationRow($conn, $userId);
+    if ($borderId <= 0) {
+        return;
+    }
+    if (userOwnsItem($conn, $userId, $borderId)) {
+        return;
+    }
+
+    $themeStmt = $conn->prepare("SELECT active_theme_id FROM user_customizations WHERE user_id = ?");
+    $themeStmt->execute([$userId]);
+    $themeId = (int)($themeStmt->fetchColumn() ?: 0);
+    upsertUserCustomization($conn, $userId, 0, $themeId);
+
+    if (function_exists('triggerPusherEvent')) {
+        $avatarStmt = $conn->prepare("SELECT avatar_url FROM users WHERE user_id = ?");
+        $avatarStmt->execute([$userId]);
+        triggerPusherEvent('profile-updates', 'profile_changed', [
+            'user_id' => $userId,
+            'avatar_url' => normalizeAvatarUrl((string)($avatarStmt->fetchColumn() ?: '')),
+            'border_id' => 0,
+            'border_preview' => '',
+        ]);
+    }
 }
 
 function borderPreviewForId(PDO $conn, int $borderId): string
@@ -199,7 +342,7 @@ function attachProfileMedia(PDO $conn, array $rows, string $userIdKey = 'user_id
     }
 
     $stmt = $conn->prepare("
-        SELECT uc.user_id, uc.active_border_id, si.image_url, si.item_name
+        SELECT uc.user_id, uc.active_border_id, si.image_url, si.item_name, si.rarity, si.category
         FROM user_customizations uc
         LEFT JOIN shop_items si ON si.item_id = uc.active_border_id
         WHERE uc.user_id IN ($placeholders)
@@ -213,22 +356,64 @@ function attachProfileMedia(PDO $conn, array $rows, string $userIdKey = 'user_id
             ? shopImageUrl($b['image_url'] ?? '', $b['item_name'] ?? '')
             : '';
         $borders[$uid . '_id'] = $bid;
+        $borders[$uid . '_rarity'] = strtolower(trim((string)($b['rarity'] ?? '')));
+        $borders[$uid . '_category'] = strtolower(trim((string)($b['category'] ?? '')));
     }
 
-    // Drop borders the user no longer owns
+    // Drop borders the user no longer owns, except staff or active premium borders
     $stmt = $conn->prepare("SELECT user_id, item_id FROM user_inventory WHERE user_id IN ($placeholders)");
     $stmt->execute($ids);
     $owned = [];
     foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $inv) {
         $owned[(int)$inv['user_id']][(int)$inv['item_id']] = true;
     }
+    $staffIds = [];
+    try {
+        $roleStmt = $conn->prepare("
+            SELECT u.user_id
+            FROM users u
+            INNER JOIN roles r ON r.role_id = u.role_id
+            WHERE u.user_id IN ($placeholders)
+              AND LOWER(TRIM(r.role)) IN ('admin', 'moderator')
+        ");
+        $roleStmt->execute($ids);
+        foreach ($roleStmt->fetchAll(PDO::FETCH_COLUMN) as $staffId) {
+            $staffIds[(int)$staffId] = true;
+        }
+    } catch (Throwable $ignore) {
+    }
+    $premiumIds = [];
+    try {
+        $premStmt = $conn->prepare("
+            SELECT user_id, is_premium, premium_expires_at
+            FROM users
+            WHERE user_id IN ($placeholders)
+        ");
+        $premStmt->execute($ids);
+        foreach ($premStmt->fetchAll(PDO::FETCH_ASSOC) as $prem) {
+            $uid = (int)$prem['user_id'];
+            $active = !empty($prem['is_premium']);
+            $expires = $prem['premium_expires_at'] ?? null;
+            if ($active && $expires && strtotime((string)$expires) < time()) {
+                $active = false;
+            }
+            if ($active) {
+                $premiumIds[$uid] = true;
+            }
+        }
+    } catch (Throwable $ignore) {
+    }
 
     foreach ($rows as &$row) {
         $uid = (int)($row[$userIdKey] ?? 0);
         $row['avatar_url'] = $avatars[$uid] ?? '';
         $bid = (int)($borders[$uid . '_id'] ?? 0);
-        if ($bid > 0 && empty($owned[$uid][$bid])) {
-            $bid = 0;
+        if ($bid > 0 && empty($owned[$uid][$bid]) && empty($staffIds[$uid])) {
+            $isPremiumBorder = ($borders[$uid . '_category'] ?? '') === 'border'
+                && ($borders[$uid . '_rarity'] ?? '') === 'premium';
+            if (!($isPremiumBorder && !empty($premiumIds[$uid]))) {
+                $bid = 0;
+            }
         }
         $preview = $bid > 0 ? ($borders[$uid] ?? '') : '';
         $row['border_id'] = $preview !== '' ? $bid : 0;

@@ -1,4 +1,7 @@
-<?php // otp-login.php - Frontend view ?>
+<?php
+$otpPageType = 'register';
+require_once __DIR__ . '/components/otp_boot.php';
+?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -29,7 +32,7 @@
 
 
 
-    <script src="../js/nexus_scripts.js?v=1788153000"></script>
+    <script src="../js/nexus_scripts.js?v=1789044401"></script>
 </head>
 <body class="bg-[#050505] text-white flex items-center justify-center font-sans antialiased relative overflow-hidden min-h-screen" data-barba="wrapper">
     <?php include __DIR__ . '/components/page_loader.php'; ?>
@@ -146,7 +149,7 @@
                 <!-- Insane Visual Timer -->
                 <div class="relative w-full max-w-[200px] mx-auto h-1.5 bg-white/5 rounded-full overflow-hidden shadow-[inset_0_1px_3px_rgba(0,0,0,0.5)]">
                     <div class="absolute top-0 left-0 h-full bg-gradient-to-r from-red-500 to-indigo-500 rounded-full transition-all duration-1000 ease-linear shadow-[0_0_10px_rgba(220,38,38,0.5)]"
-                         :style="`width: ${(timeLeft / 180) * 100}%`"></div>
+                         :style="`width: ${otpProgress}%`"></div>
                 </div>
 
                 <div class="flex items-center justify-center gap-3">

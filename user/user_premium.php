@@ -40,7 +40,8 @@
                     <li class="flex items-start gap-3"><span class="material-symbols-outlined text-emerald-400 text-[18px] mt-0.5">check</span>Millisecond sync playback</li>
                     <li class="flex items-start gap-3"><span class="material-symbols-outlined text-emerald-400 text-[18px] mt-0.5">check</span>Live room chat</li>
                     <li class="flex items-start gap-3"><span class="material-symbols-outlined text-emerald-400 text-[18px] mt-0.5">check</span>Invite-only rooms</li>
-                    <li class="flex items-start gap-3"><span class="material-symbols-outlined text-white/25 text-[18px] mt-0.5">check</span><span class="text-white/35">Profile cosmetics locked</span></li>
+                    <li class="flex items-start gap-3"><span class="material-symbols-outlined text-emerald-400 text-[18px] mt-0.5">check</span>Host rooms for up to 5 people</li>
+                    <li class="flex items-start gap-3"><span class="material-symbols-outlined text-white/25 text-[18px] mt-0.5">check</span><span class="text-white/35">Premium movies, borders, and bonus points locked</span></li>
                 </ul>
                 <a x-show="isGuest" href="/frontend/register.php" class="w-full rounded-xl border border-white/15 bg-white/5 hover:bg-white/10 py-3 text-center font-bold cursor-pointer transition-colors">Start for free</a>
                 <div x-show="!isGuest && !isPremium" class="w-full rounded-xl border border-emerald-400/30 bg-emerald-500/10 py-3 text-center font-bold text-emerald-300">Your current plan</div>
@@ -62,10 +63,10 @@
                 </div>
                 <ul class="space-y-2.5 mb-5 flex-1 text-sm text-white/80">
                     <li class="flex items-start gap-3"><span class="material-symbols-outlined text-fuchsia-400 text-[18px] mt-0.5">check</span>Everything in Free</li>
-                    <li class="flex items-start gap-3"><span class="material-symbols-outlined text-fuchsia-400 text-[18px] mt-0.5">check</span>Exclusive profile cosmetics &amp; borders</li>
-                    <li class="flex items-start gap-3"><span class="material-symbols-outlined text-fuchsia-400 text-[18px] mt-0.5">check</span>Unlimited watch-party hosting</li>
-                    <li class="flex items-start gap-3"><span class="material-symbols-outlined text-fuchsia-400 text-[18px] mt-0.5">check</span>Premium badge on your identity</li>
-                    <li class="flex items-start gap-3"><span class="material-symbols-outlined text-fuchsia-400 text-[18px] mt-0.5">check</span>Priority uplink — no protocol limits</li>
+                    <li class="flex items-start gap-3"><span class="material-symbols-outlined text-fuchsia-400 text-[18px] mt-0.5">check</span>Extra premium movies in the catalog</li>
+                    <li class="flex items-start gap-3"><span class="material-symbols-outlined text-fuchsia-400 text-[18px] mt-0.5">check</span>Premium borders and exclusive cosmetics</li>
+                    <li class="flex items-start gap-3"><span class="material-symbols-outlined text-fuchsia-400 text-[18px] mt-0.5">check</span>Double mission points</li>
+                    <li class="flex items-start gap-3"><span class="material-symbols-outlined text-fuchsia-400 text-[18px] mt-0.5">check</span>Host rooms for up to 30 people</li>
                 </ul>
 
                 <div x-show="isPremium" class="rounded-xl border border-emerald-400/25 bg-emerald-500/10 px-4 py-3 mb-4 text-center">

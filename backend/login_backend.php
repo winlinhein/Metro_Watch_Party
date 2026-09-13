@@ -5,6 +5,8 @@ session_start();
 require_once __DIR__ . '/../vendor/autoload.php';
 require_once __DIR__ . '/../conn.php';
 require_once __DIR__ . '/../mail_helper.php';
+require_once __DIR__ . '/../account_lifecycle_helper.php';
+require_once __DIR__ . '/../schema_upgrade_helper.php';
 
 function test_input($data) {
     return htmlspecialchars(trim(stripslashes($data)), ENT_QUOTES, 'UTF-8');
@@ -48,12 +50,28 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
         $current_time = time();
 
         // Retrieve user credentials and lockout state
-        $stmt = $conn->prepare("
-            SELECT user_id, role_id, hashed_password, status, failed_login_attempts, lock_out_until 
-            FROM users 
-            WHERE email = :email
-        ");
-        $stmt->execute([':email' => $email]);
+        ensureAppSchema($conn);
+        try {
+            nexusPurgeExpiredDeletions($conn);
+        } catch (Throwable $ignore) {
+        }
+
+        try {
+            $stmt = $conn->prepare("
+                SELECT user_id, role_id, hashed_password, status, failed_login_attempts, lock_out_until,
+                       deletion_requested_at, ban_reason
+                FROM users 
+                WHERE email = :email
+            ");
+            $stmt->execute([':email' => $email]);
+        } catch (Throwable $e) {
+            $stmt = $conn->prepare("
+                SELECT user_id, role_id, hashed_password, status, failed_login_attempts, lock_out_until
+                FROM users 
+                WHERE email = :email
+            ");
+            $stmt->execute([':email' => $email]);
+        }
         $user = $stmt->fetch(PDO::FETCH_ASSOC);
 
         if ($user) {
@@ -79,15 +97,6 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
             // --- PASSWORD VERIFICATION ---
             if (password_verify($user_pass, $user['hashed_password'])) {
 
-                // Status Check
-                if ($user['status'] === 'pending') {
-                    header("Location: ../frontend/login.php?error=" . urlencode("Your account is not active."));
-                    exit();
-                } else if ($user['status'] === 'banned') {
-                    header("Location: ../frontend/login.php?error=" . urlencode("Your account has been banned by an admin."));
-                    exit();
-                }
-
                 // Retrieve Role
                 $roleID = $user['role_id'];
                 $user_type = $conn->prepare("SELECT role FROM roles WHERE role_id = :roleID");
@@ -95,7 +104,41 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                 $type = $user_type->fetch(PDO::FETCH_ASSOC);
                 $role = $type['role'] ?? 'user';
 
-                if ($user['status'] === 'active') {
+                if (!empty($user['deletion_requested_at'])) {
+                    if (nexusDeletionExpired($user['deletion_requested_at'])) {
+                        nexusPurgeUserAccount($conn, (int)$userID);
+                        header("Location: ../frontend/login.php?error=" . urlencode("This account was permanently deleted after the 24-hour waiting period."));
+                        exit();
+                    }
+                    $_SESSION['account_hold'] = [
+                        'user_id' => (int)$userID,
+                        'email' => $email,
+                        'role' => $role,
+                        'mode' => 'deletion',
+                        'deletion_requested_at' => $user['deletion_requested_at'],
+                    ];
+                    header("Location: ../frontend/account_hold.php");
+                    exit();
+                }
+
+                // Status Check
+                $accountStatus = strtolower((string)($user['status'] ?? ''));
+                if ($accountStatus === 'pending') {
+                    header("Location: ../frontend/login.php?error=" . urlencode("Your account is not active."));
+                    exit();
+                } else if ($accountStatus === 'banned') {
+                    $_SESSION['account_hold'] = [
+                        'user_id' => (int)$userID,
+                        'email' => $email,
+                        'role' => $role,
+                        'mode' => 'banned',
+                        'ban_reason' => (string)($user['ban_reason'] ?: 'Violation of community guidelines'),
+                    ];
+                    header("Location: ../frontend/account_hold.php");
+                    exit();
+                }
+
+                if ($accountStatus === 'active') {
                     $otp_code   = sprintf("%06d", random_int(100000, 999999));
                     $otp_type   = 'login';
                     $expires_at = $current_time + 180; // 3 minutes expiration
@@ -124,6 +167,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                     $_SESSION['verify_email'] = $email;
                     $_SESSION['otp_type'] = 'login';
                     $_SESSION['user_role'] = $role;
+                    $_SESSION['remember_login'] = !empty($_POST['remember']);
                     header("Location: ../frontend/otp-login.php");
                     exit();
                 }

@@ -1,5 +1,5 @@
 <?php
-session_start();
+require_once __DIR__ . '/../frontend/components/session_boot.php';
 // Ensure user is logged in, redirect if not...
 if (empty($_SESSION['authenticated']) || empty($_SESSION['user_id'])) {
     header("Location: ../frontend/login.php?error=" . urlencode("Access denied."));
@@ -11,12 +11,15 @@ $userName = $_SESSION['user_name'] ?? 'Agent';
 $userEmail = $_SESSION['user_email'] ?? '';
 $userAvatar = '';
 $userBorder = '';
+$isPremium = false;
 try {
     require_once __DIR__ . '/../conn.php';
     require_once __DIR__ . '/../profile_media_helper.php';
+    require_once __DIR__ . '/../premium_status_helper.php';
     $media = getUserProfileMedia($conn, (int)$userId);
     $userAvatar = $media['avatar_url'] ?? '';
     $userBorder = $media['border_preview'] ?? '';
+    $isPremium = !empty(resolveUserPremium($conn, (int)$userId)['is_premium']);
 } catch (Throwable $e) {
     error_log('watch_party profile media: ' . $e->getMessage());
 }
@@ -35,6 +38,7 @@ session_write_close();
         window.USER_NAME = <?php echo json_encode($userName); ?>;
         window.USER_AVATAR = <?php echo json_encode($userAvatar); ?>;
         window.USER_BORDER = <?php echo json_encode($userBorder); ?>;
+        window.IS_PREMIUM = <?php echo $isPremium ? 'true' : 'false'; ?>;
         window.PUSHER_KEY = 'f4b5637ef4b8952b6eb8';
         window.PUSHER_CLUSTER = 'ap1';
         window.NEXUS_SIGNALING_URL = window.NEXUS_SIGNALING_URL || (
@@ -53,11 +57,22 @@ session_write_close();
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0" />
     <style>
+        html, body { color-scheme: dark; }
         body {
             font-family: 'Plus Jakarta Sans', sans-serif;
             background-color: #050508;
             color: #ffffff;
             overflow: hidden;
+        }
+        select {
+            color-scheme: dark;
+            background-color: #0a0a0f;
+            color: #f5f5f5;
+        }
+        select option,
+        select optgroup {
+            background-color: #0a0a0f;
+            color: #f5f5f5;
         }
         .mono {
             font-family: 'Space Grotesk', monospace;
@@ -120,6 +135,7 @@ session_write_close();
 <script src="https://unpkg.com/htmx.org@1.9.10/dist/htmx.min.js" crossorigin="anonymous"></script>
 
 <!-- 2. Your Custom Scripts Last -->
+<script src="../js/chat_emojis.js?v=1"></script>
 <script src="watch_party.js?v=<?php echo time(); ?>"></script>
 </head>
 <body class="h-screen w-screen flex relative selection:bg-red-500/30" data-barba="wrapper">
@@ -481,7 +497,12 @@ session_write_close();
                                     </div>
                                 </template>
                                 <template x-if="msg.type !== 'join_request'">
-                                    <p class="text-sm text-white/70 leading-relaxed" x-text="msg.text"></p>
+                                    <div>
+                                        <template x-if="msg.type === 'image' || msg.image_url">
+                                            <img :src="msg.image_url" class="max-w-full max-h-48 rounded-lg mt-1 cursor-pointer hover:opacity-90" @click="msg.image_url && window.open(msg.image_url, '_blank')" alt="">
+                                        </template>
+                                        <p class="text-sm text-white/70 leading-relaxed" x-show="msg.text" x-text="msg.text"></p>
+                                    </div>
                                 </template>
                             </div>
                         </div>
@@ -490,14 +511,28 @@ session_write_close();
 
                 <!-- Chat Input -->
                 <div class="p-4 border-t border-white/5 bg-transparent">
-                    <div class="bg-white/5 border border-white/10 rounded-xl p-1 flex items-center focus-within:border-white/20 transition-colors">
-                        <button class="w-8 h-8 flex items-center justify-center text-white/40 hover:text-white transition-colors">
+                    <div x-show="roomImagePreview" class="mb-2 relative inline-block" style="display: none;">
+                        <img :src="roomImagePreview" class="h-16 w-16 object-cover rounded-lg border border-white/20" alt="">
+                        <button type="button" @click="clearRoomImage()" class="absolute -top-2 -right-2 w-5 h-5 bg-red-500 rounded-full text-white text-[10px]">✕</button>
+                    </div>
+                    <div class="bg-white/5 border border-white/10 rounded-xl p-1 flex items-center focus-within:border-white/20 transition-colors relative">
+                        <button type="button" @click="$refs.roomImageInput.click()" :disabled="chatBanned" class="w-8 h-8 flex items-center justify-center text-white/40 hover:text-white transition-colors disabled:opacity-40">
                             <span class="material-symbols-outlined text-[18px]">add_circle</span>
                         </button>
-                        <input type="text" x-model="newMessage" @keydown.enter="sendMessage" :disabled="chatBanned" :placeholder="chatBanned ? 'The host banned you from chat' : 'Message room...'" class="flex-1 bg-transparent border-none outline-none text-sm text-white px-2 placeholder-white/30 disabled:opacity-50">
-                        <button class="w-8 h-8 flex items-center justify-center text-white/40 hover:text-white transition-colors">
-                            <span class="material-symbols-outlined text-[18px]">mood</span>
-                        </button>
+                        <input type="file" x-ref="roomImageInput" accept="image/*" class="hidden" @change="handleRoomImageSelect($event)">
+                        <input type="text" x-model="newMessage" @keydown.enter="sendMessage()" :disabled="chatBanned" :placeholder="chatBanned ? 'The host banned you from chat' : 'Message room...'" class="flex-1 bg-transparent border-none outline-none text-sm text-white px-2 placeholder-white/30 disabled:opacity-50">
+                        <div class="relative" @click.away="showEmojiPicker = false">
+                            <button type="button" @click="showEmojiPicker = !showEmojiPicker" :disabled="chatBanned" class="w-8 h-8 flex items-center justify-center text-white/40 hover:text-white transition-colors disabled:opacity-40">
+                                <span class="material-symbols-outlined text-[18px]">mood</span>
+                            </button>
+                            <div x-show="showEmojiPicker"
+                                 x-cloak
+                                 class="absolute bottom-10 right-0 w-60 p-2 rounded-2xl border border-white/10 bg-[#0c0c12]/95 backdrop-blur-xl shadow-2xl grid grid-cols-8 gap-1 max-h-44 overflow-y-auto custom-scrollbar z-20">
+                                <template x-for="emo in chatEmojis" :key="emo">
+                                    <button type="button" class="h-7 rounded-lg text-base hover:bg-white/10" x-text="emo" @click="insertRoomEmoji(emo)"></button>
+                                </template>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -554,7 +589,7 @@ session_write_close();
                     <div class="relative" x-data="{ open: false }" @click.away="open = false">
                         <button @click="open = !open" class="h-[38px] px-4 bg-[#030305]/50 border border-white/10 rounded-xl text-sm text-white flex items-center gap-2 hover:bg-white/5 transition-colors whitespace-nowrap">
                             <span class="material-symbols-outlined text-[16px] text-red-400">filter_list</span>
-                            <span x-text="movieFilter === 'all' ? 'All Genres' : movieFilter"></span>
+                            <span x-text="movieFilter === 'all' ? 'All types' : movieFilter"></span>
                             <span class="material-symbols-outlined text-[16px] transition-transform duration-200" :class="open ? 'rotate-180' : ''">expand_more</span>
                         </button>
                         
@@ -567,27 +602,21 @@ session_write_close();
                              x-transition:leave-end="opacity-0 translate-y-2"
                              class="absolute right-0 top-full mt-2 w-48 bg-[#0a0a0f] border border-white/10 rounded-xl shadow-xl overflow-hidden z-50">
                              
-                            <div class="p-1 flex flex-col">
+                            <div class="p-1 flex flex-col max-h-64 overflow-y-auto">
                                 <button @click="movieFilter = 'all'; open = false" class="flex items-center gap-2 px-3 py-2 text-sm rounded-lg transition-colors" :class="movieFilter === 'all' ? 'bg-red-500/10 text-red-400' : 'text-white/70 hover:bg-white/5 hover:text-white'">
                                     <span class="material-symbols-outlined text-[16px]">category</span>
-                                    All Genres
+                                    All types
                                 </button>
-                                <button @click="movieFilter = 'Action'; open = false" class="flex items-center gap-2 px-3 py-2 text-sm rounded-lg transition-colors" :class="movieFilter === 'Action' ? 'bg-red-500/10 text-red-400' : 'text-white/70 hover:bg-white/5 hover:text-white'">
-                                    <span class="material-symbols-outlined text-[16px]">sports_martial_arts</span>
-                                    Action
+                                <button @click="movieFilter = 'premium'; open = false" class="flex items-center gap-2 px-3 py-2 text-sm rounded-lg transition-colors" :class="movieFilter === 'premium' ? 'bg-red-500/10 text-red-400' : 'text-white/70 hover:bg-white/5 hover:text-white'">
+                                    <span class="material-symbols-outlined text-[16px]">workspace_premium</span>
+                                    Premium
                                 </button>
-                                <button @click="movieFilter = 'Sci-Fi'; open = false" class="flex items-center gap-2 px-3 py-2 text-sm rounded-lg transition-colors" :class="movieFilter === 'Sci-Fi' ? 'bg-red-500/10 text-red-400' : 'text-white/70 hover:bg-white/5 hover:text-white'">
-                                    <span class="material-symbols-outlined text-[16px]">rocket_launch</span>
-                                    Sci-Fi
-                                </button>
-                                <button @click="movieFilter = 'Horror'; open = false" class="flex items-center gap-2 px-3 py-2 text-sm rounded-lg transition-colors" :class="movieFilter === 'Horror' ? 'bg-red-500/10 text-red-400' : 'text-white/70 hover:bg-white/5 hover:text-white'">
-                                    <span class="material-symbols-outlined text-[16px]">psychology_alt</span>
-                                    Horror
-                                </button>
-                                <button @click="movieFilter = 'Comedy'; open = false" class="flex items-center gap-2 px-3 py-2 text-sm rounded-lg transition-colors" :class="movieFilter === 'Comedy' ? 'bg-red-500/10 text-red-400' : 'text-white/70 hover:bg-white/5 hover:text-white'">
-                                    <span class="material-symbols-outlined text-[16px]">theater_comedy</span>
-                                    Comedy
-                                </button>
+                                <template x-for="genre in movieGenreOptions" :key="genre">
+                                    <button @click="movieFilter = genre; open = false" class="flex items-center gap-2 px-3 py-2 text-sm rounded-lg transition-colors" :class="movieFilter === genre ? 'bg-red-500/10 text-red-400' : 'text-white/70 hover:bg-white/5 hover:text-white'">
+                                        <span class="material-symbols-outlined text-[16px]">movie</span>
+                                        <span x-text="genre"></span>
+                                    </button>
+                                </template>
                             </div>
                         </div>
                     </div>

@@ -1,4 +1,11 @@
-<?php // register.php - Frontend view ?>
+<?php
+require_once __DIR__ . '/components/session_boot.php';
+if (!empty($_SESSION['authenticated']) && !empty($_SESSION['user_id'])) {
+    $role = strtolower((string)($_SESSION['user_role'] ?? 'user'));
+    header('Location: ' . (in_array($role, ['admin', 'moderator'], true) ? 'admin_dashboard.php' : '../user/dashboard.php'));
+    exit();
+}
+?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -35,10 +42,10 @@
     <script src="../js/nexus_scripts.js?v=1788159000"></script>
 </head>
 
-<body class="bg-[#050505] text-white flex items-center justify-center font-sans antialiased relative overflow-hidden min-h-screen" data-barba="wrapper">
+<body class="bg-[#050505] text-white font-sans antialiased" data-barba="wrapper">
     <?php include __DIR__ . '/components/page_loader.php'; ?>
     <?php include __DIR__ . '/components/toast.php'; ?>
-<div id="barba-container" data-barba="container" data-barba-namespace="register" x-data="{ showPassword: false }">
+<div id="barba-container" class="relative overflow-hidden min-h-screen flex items-center justify-center" data-barba="container" data-barba-namespace="register" x-data="{ showPassword: false }">
     <!-- Floating Back Button -->
     <a href="/index.php" class="fixed top-8 left-8 sm:top-12 sm:left-12 z-50 flex items-center justify-center w-14 h-14 rounded-full bg-black/40 border border-white/10 backdrop-blur-xl gs-back-btn overflow-visible" id="floating-back">
         <!-- Magnetic hit area -->
@@ -209,6 +216,15 @@
                 </button>
                 
             </form>
+
+            <div class="relative my-8 gs-stagger">
+                <div class="absolute inset-0 flex items-center"><div class="w-full border-t border-white/10"></div></div>
+                <div class="relative flex justify-center text-[10px] uppercase tracking-widest"><span class="bg-[#111] px-4 text-white/40 rounded">Or continue with</span></div>
+            </div>
+            <a href="../backend/google_start.php?from=register" class="flex items-center justify-center gap-2 bg-white/5 border border-white/10 py-3 rounded-xl hover:bg-indigo-600/20 hover:border-indigo-500/50 transition-all group relative overflow-hidden w-full gs-stagger">
+                <svg class="w-4 h-4 text-red-500 group-hover:scale-110 transition-transform" fill="currentColor" viewBox="0 0 24 24"><path d="M12.48 10.92v3.28h7.84c-.24 1.84-.853 3.187-1.787 4.133-1.147 1.147-2.933 2.4-6.053 2.4-4.827 0-8.6-3.893-8.6-8.72s3.773-8.72 8.6-8.72c2.6 0 4.507 1.027 5.907 2.347l2.307-2.307C18.747 1.44 16.133 0 12.48 0 5.867 0 .307 5.387.307 12s5.56 12 12.173 12c3.573 0 6.267-1.173 8.373-3.36 2.16-2.16 2.84-5.213 2.84-7.667 0-.76-.053-1.467-.173-2.053H12.48z"/></svg>
+                <span class="text-[10px] font-bold uppercase tracking-wider text-white/70 group-hover:text-white">Google</span>
+            </a>
 
             <!-- Login link -->
             <div class="text-center gs-stagger mt-6">

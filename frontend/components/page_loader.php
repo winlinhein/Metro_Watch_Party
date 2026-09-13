@@ -244,6 +244,8 @@
             return;
         }
 
+        document.body.classList.remove('is-loading');
+
         const finish = () => {
             document.body.classList.remove('is-loading');
             loader.style.pointerEvents = 'none';

@@ -4,6 +4,8 @@ function nexusHardNavigateUrl(url) {
         if (path.endsWith('/guest_login.php')) return false;
         return (
             path.endsWith('/watch_party.php')
+            || path.endsWith('/dashboard.php')
+            || path.endsWith('/admin_dashboard.php')
             || path.includes('/backend/')
             || path.includes('/user_backend/')
         );
@@ -50,8 +52,64 @@ function nexusRunContainerScripts(container) {
     });
 }
 
+function nexusPatchAlpineEvaluate() {
+    if (typeof window.Alpine === 'undefined' || Alpine.__nexusSafeEval) return;
+    Alpine.__nexusSafeEval = true;
+
+    const originalEvaluate = Alpine.evaluate;
+    if (typeof originalEvaluate === 'function') {
+        Alpine.evaluate = function (el, expression, extras) {
+            try {
+                return originalEvaluate.call(this, el, expression, extras);
+            } catch (err) {
+                if (err && err.name === 'ReferenceError') return undefined;
+                throw err;
+            }
+        };
+    }
+
+    const originalLater = Alpine.evaluateLater;
+    if (typeof originalLater === 'function') {
+        Alpine.evaluateLater = function (el, expression) {
+            const run = originalLater.call(this, el, expression);
+            return function (receiver, extras) {
+                try {
+                    run(receiver, extras);
+                } catch (err) {
+                    if (err && err.name === 'ReferenceError') {
+                        if (typeof receiver === 'function') receiver(undefined);
+                        return;
+                    }
+                    throw err;
+                }
+            };
+        };
+    }
+}
+
+function nexusStopAlpineNode(el) {
+    if (!el) return;
+    try {
+        if (el._x_effects) {
+            Array.from(el._x_effects).forEach((effect) => {
+                try {
+                    if (typeof effect.stop === 'function') effect.stop();
+                } catch (e) {}
+            });
+            try { el._x_effects.clear(); } catch (e) {}
+        }
+    } catch (e) {}
+    try {
+        if (Array.isArray(el._x_cleanups)) el._x_cleanups.length = 0;
+    } catch (e) {}
+}
+
 function nexusInitAlpine(container) {
+    nexusPatchAlpineEvaluate();
     if (!container || typeof window.Alpine === 'undefined') return;
+    if (container.dataset && container.dataset.nexusUser && !window.NEXUS_USER) {
+        try { window.NEXUS_USER = JSON.parse(container.dataset.nexusUser); } catch (e) {}
+    }
     try {
         if (typeof Alpine.destroyTree === 'function' && container._x_dataStack) {
             Alpine.destroyTree(container);
@@ -63,8 +121,88 @@ function nexusInitAlpine(container) {
 }
 
 function nexusDestroyAlpine(container) {
-    if (!container || typeof window.Alpine === 'undefined' || typeof Alpine.destroyTree !== 'function') return;
+    if (!container) return;
+    const walk = (node) => {
+        nexusStopAlpineNode(node);
+        if (node.children) Array.from(node.children).forEach(walk);
+    };
+    try { walk(container); } catch (e) {}
+    try { container.setAttribute('x-ignore', ''); } catch (e) {}
+    if (typeof window.Alpine === 'undefined' || typeof Alpine.destroyTree !== 'function') return;
     try { Alpine.destroyTree(container); } catch (e) {}
+}
+
+const NEXUS_AUTH_NAMESPACES = {
+    login: true,
+    register: true,
+    'otp-login': true,
+    'otp-register': true,
+    'otp-forgot': true,
+    'forgot-password': true
+};
+
+function nexusClearInlineScrollLocks(el) {
+    if (!el || !el.style) return;
+    [
+        'overflow', 'overflow-x', 'overflow-y', 'height', 'max-height',
+        'position', 'top', 'left', 'right', 'bottom', 'width',
+        'touch-action', 'perspective', 'min-height'
+    ].forEach((prop) => el.style.removeProperty(prop));
+}
+
+function nexusRemoveIndexScrollReset() {
+    document.documentElement.classList.remove('nexus-home');
+    const reset = document.getElementById('nexus-index-scroll-reset');
+    if (reset) reset.remove();
+}
+
+function nexusRestoreIndexScroll() {
+    let reset = document.getElementById('nexus-index-scroll-reset');
+    if (!reset) {
+        reset = document.createElement('style');
+        reset.id = 'nexus-index-scroll-reset';
+        document.head.appendChild(reset);
+    }
+    // Scoped to html.nexus-home so this cannot collapse app shells like the dashboard.
+    reset.textContent = [
+        'html.nexus-home { overflow-x: hidden !important; overflow-y: auto !important; height: auto !important; }',
+        'html.nexus-home body { overflow-x: hidden !important; overflow-y: visible !important; height: auto !important; min-height: 0 !important; perspective: none !important; position: static !important; }',
+        'html.nexus-home body.is-loading { overflow: hidden !important; }'
+    ].join('');
+
+    document.documentElement.className = 'scroll-smooth nexus-home';
+    document.body.className = 'overflow-x-hidden';
+    nexusClearInlineScrollLocks(document.documentElement);
+    nexusClearInlineScrollLocks(document.body);
+    document.body.classList.remove('is-loading');
+}
+
+function nexusUnlockPageScroll(htmlDoc, namespace) {
+    const ns = String(namespace || (htmlDoc && htmlDoc.querySelector && htmlDoc.querySelector('[data-barba-namespace]')?.getAttribute('data-barba-namespace')) || '');
+
+    if (ns === 'index') {
+        nexusRestoreIndexScroll();
+        return;
+    }
+
+    nexusRemoveIndexScrollReset();
+
+    const nextHtmlClass = htmlDoc && htmlDoc.documentElement
+        ? String(htmlDoc.documentElement.className || '')
+        : '';
+    let nextBodyClass = htmlDoc && htmlDoc.body
+        ? String(htmlDoc.body.className || '').replace(/\bis-loading\b/g, '').trim()
+        : '';
+
+    if (NEXUS_AUTH_NAMESPACES[ns]) {
+        nextBodyClass = nextBodyClass.replace(/\boverflow-hidden\b/g, '').replace(/\s+/g, ' ').trim();
+    }
+
+    document.documentElement.className = nextHtmlClass;
+    document.body.className = nextBodyClass;
+    nexusClearInlineScrollLocks(document.documentElement);
+    nexusClearInlineScrollLocks(document.body);
+    document.body.classList.remove('is-loading');
 }
 
 async function mergeHeadFromNextPage(html) {
@@ -76,9 +214,10 @@ async function mergeHeadFromNextPage(html) {
         document.title = htmlDoc.title;
     }
 
-    if (htmlDoc.body && htmlDoc.body.className) {
-        document.body.className = htmlDoc.body.className.replace(/is-loading/g, '').trim();
-    }
+    const ns = htmlDoc && htmlDoc.querySelector
+        ? (htmlDoc.querySelector('[data-barba-namespace]')?.getAttribute('data-barba-namespace') || '')
+        : '';
+    nexusUnlockPageScroll(htmlDoc, ns);
 
     const existingStyleText = new Set(
         Array.from(document.head.querySelectorAll('style')).map((s) => s.textContent)
@@ -130,6 +269,7 @@ async function mergeHeadFromNextPage(html) {
     }
     if (window.__nexusBarbaInit) return;
     window.__nexusBarbaInit = true;
+    nexusPatchAlpineEvaluate();
 
     barba.init({
         timeout: 30000,
@@ -201,20 +341,21 @@ async function mergeHeadFromNextPage(html) {
             },
             async enter(data) {
                 try {
+                    const nextNs = data.next && data.next.namespace;
+                    if (data.next && data.next.html) {
+                        const preview = new DOMParser().parseFromString(data.next.html, 'text/html');
+                        nexusUnlockPageScroll(preview, nextNs);
+                    } else {
+                        nexusUnlockPageScroll(null, nextNs);
+                    }
+
                     if (typeof gsap !== 'undefined') {
-                        if (data.next.namespace === 'index') {
-                            gsap.from(data.next.container, {
-                                opacity: 0,
-                                y: 20,
-                                duration: 0.55,
-                                ease: 'power3.out'
-                            });
-                        } else {
-                            gsap.from(data.next.container, {
-                                opacity: 0,
-                                duration: 0.3
-                            });
-                        }
+                        gsap.fromTo(data.next.container, { opacity: 0 }, {
+                            opacity: 1,
+                            duration: nextNs === 'index' ? 0.55 : 0.3,
+                            ease: 'power3.out',
+                            clearProps: 'transform,opacity'
+                        });
                     }
 
                     if (data.next.html) {
@@ -237,8 +378,17 @@ async function mergeHeadFromNextPage(html) {
                         initLocalAnimations(data.next.container);
                     }
 
-                    if (data.next.namespace === 'index' && typeof window.initHomePage === 'function') {
-                        requestAnimationFrame(() => window.initHomePage(data.next.container));
+                    if (nextNs === 'index') {
+                        nexusRestoreIndexScroll();
+                        if (typeof window.initHomePage === 'function') {
+                            requestAnimationFrame(() => {
+                                nexusRestoreIndexScroll();
+                                window.initHomePage(data.next.container);
+                                if (typeof ScrollTrigger !== 'undefined' && typeof ScrollTrigger.refresh === 'function') {
+                                    ScrollTrigger.refresh();
+                                }
+                            });
+                        }
                     }
 
                     setTimeout(() => {
@@ -258,10 +408,34 @@ async function mergeHeadFromNextPage(html) {
                 }
 
                 if (typeof window.hidePageLoader === 'function') {
-                    window.hidePageLoader();
+                    window.hidePageLoader(() => {
+                        if (data.next && data.next.namespace === 'index') {
+                            nexusRestoreIndexScroll();
+                            if (typeof ScrollTrigger !== 'undefined' && typeof ScrollTrigger.refresh === 'function') {
+                                ScrollTrigger.refresh();
+                            }
+                        }
+                    });
+                } else if (data.next && data.next.namespace === 'index') {
+                    nexusRestoreIndexScroll();
                 }
             }
         }]
+    });
+
+    barba.hooks.after((data) => {
+        if (data?.next?.namespace === 'index') {
+            nexusRestoreIndexScroll();
+            window.scrollTo(0, 0);
+            requestAnimationFrame(() => {
+                nexusRestoreIndexScroll();
+                if (typeof ScrollTrigger !== 'undefined' && typeof ScrollTrigger.refresh === 'function') {
+                    ScrollTrigger.refresh();
+                }
+            });
+            return;
+        }
+        nexusRemoveIndexScrollReset();
     });
 
     barba.hooks.before((data) => {
@@ -273,6 +447,9 @@ async function mergeHeadFromNextPage(html) {
         }
     });
 })();
+
+document.addEventListener('alpine:init', nexusPatchAlpineEvaluate);
+nexusPatchAlpineEvaluate();
 
 document.addEventListener('DOMContentLoaded', () => {
     const ns = document.querySelector('[data-barba-namespace]')?.getAttribute('data-barba-namespace');

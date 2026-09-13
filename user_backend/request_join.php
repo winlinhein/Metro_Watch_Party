@@ -59,7 +59,11 @@ try {
         } catch (Throwable $ignore) {}
     }
 
-    $roomStmt = $conn->prepare("SELECT room_id, host_id, room_code, status FROM rooms WHERE room_id = :id LIMIT 1");
+    require_once __DIR__ . '/../premium_benefits_helper.php';
+    require_once __DIR__ . '/../schema_upgrade_helper.php';
+    ensureAppSchema($conn);
+
+    $roomStmt = $conn->prepare("SELECT room_id, host_id, room_code, status, max_members FROM rooms WHERE room_id = :id LIMIT 1");
     $roomStmt->execute(['id' => $roomId]);
     $room = $roomStmt->fetch(PDO::FETCH_ASSOC);
 
@@ -67,6 +71,13 @@ try {
         http_response_code(404);
         ob_end_clean();
         echo json_encode(['success' => false, 'message' => 'This watch party has ended.']);
+        exit;
+    }
+
+    if (nexusRoomIsFull($conn, $room, $requesterId)) {
+        http_response_code(403);
+        ob_end_clean();
+        echo json_encode(['success' => false, 'message' => 'This room is full (' . nexusRoomMaxMembers($conn, $room) . ' people).']);
         exit;
     }
 

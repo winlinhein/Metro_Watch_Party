@@ -23,9 +23,7 @@ try {
         exit;
     }
 
-    $stmt = $conn->prepare("SELECT item_id FROM user_inventory WHERE user_id = ?");
-    $stmt->execute([$userId]);
-    $inventory = array_map('intval', $stmt->fetchAll(PDO::FETCH_COLUMN));
+    $inventory = nexusEffectiveInventory($conn, $userId);
 
     $activeBorderId = getActiveBorderId($conn, $userId);
 

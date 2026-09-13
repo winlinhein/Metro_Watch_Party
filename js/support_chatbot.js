@@ -4,17 +4,20 @@ function nexusSupportChat() {
         input: '',
         typing: false,
         unread: true,
+        context: { intent: '', genres: [], movie_ids: [] },
         messages: [
             {
                 id: 1,
                 from: 'bot',
-                text: 'Hey! I am Nex, your watch-party guide. Ask me how to host a room, find a movie, or get around the dashboard.'
+                text: 'Hey! I am Nex. Talk like you would to a friend — “what are you,” “my crush rejected me,” a rainy-night pick, or how rooms and Premium work.',
+                movies: []
             }
         ],
         suggestions: [
-            'How do I host a party?',
-            'Where are movies?',
-            'What is Premium?'
+            'What are you?',
+            "It's raining",
+            'My crush rejected me',
+            'How do I host?'
         ],
 
         toggle() {
@@ -29,50 +32,111 @@ function nexusSupportChat() {
             this.open = false;
         },
 
-        send(preset) {
+        async send(preset) {
             const text = String(preset || this.input || '').trim();
             if (!text || this.typing) return;
 
-            this.messages.push({ id: Date.now(), from: 'user', text });
+            this.messages.push({ id: Date.now(), from: 'user', text, movies: [] });
             this.input = '';
             this.typing = true;
             this.$nextTick(() => this.scrollToBottom());
 
-            const reply = this.replyFor(text);
+            let reply = 'Give me a second.';
+            let movies = [];
+            let suggestions = this.suggestions;
+
+            try {
+                const res = await fetch('/user_backend/chatbot.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'same-origin',
+                    body: JSON.stringify({
+                        message: text,
+                        context: this.context
+                    })
+                });
+                const data = await res.json();
+                reply = (data && data.reply) || reply;
+                movies = Array.isArray(data && data.movies) ? data.movies : [];
+                if (Array.isArray(data && data.suggestions) && data.suggestions.length) {
+                    suggestions = data.suggestions;
+                }
+                this.context = {
+                    intent: (data && data.intent) || '',
+                    genres: Array.isArray(data && data.genres) ? data.genres : [],
+                    movie_ids: movies.map((m) => Number(m.id || m.movie_id) || 0).filter(Boolean)
+                };
+            } catch (e) {
+                reply = this.offlineReply(text);
+            }
+
             window.setTimeout(() => {
                 this.typing = false;
-                this.messages.push({ id: Date.now() + 1, from: 'bot', text: reply });
+                this.suggestions = suggestions;
+                this.messages.push({
+                    id: Date.now() + 1,
+                    from: 'bot',
+                    text: reply,
+                    movies
+                });
                 this.$nextTick(() => this.scrollToBottom());
-            }, 650);
+            }, 280);
         },
 
-        replyFor(text) {
-            const q = text.toLowerCase();
-            if (/(hello|hi|hey|yo)\b/.test(q)) {
-                return 'Hey there. I can walk you through hosting a party, finding movies, Premium, friends, or your account.';
+        dashboard() {
+            const root = document.querySelector('[data-barba-namespace="dashboard"]');
+            if (!root || !root._x_dataStack || !root._x_dataStack[0]) return null;
+            return root._x_dataStack[0];
+        },
+
+        openMovie(movie) {
+            const dash = this.dashboard();
+            this.close();
+            if (!dash) return;
+            if (typeof dash.switchTab === 'function') dash.switchTab('movies');
+            if (typeof dash.openMovieDetail === 'function') {
+                dash.openMovieDetail(movie);
             }
-            if (/(host|create).*(party|room)|start.*(watch|party)|how.*party/.test(q)) {
-                return 'Tap Host Party in the bottom-right, pick a title, then share the invite. Friends can jump in from the room link.';
+        },
+
+        hostMovie(movie) {
+            const dash = this.dashboard();
+            this.close();
+            if (dash && dash.isGuest && typeof dash.requireLogin === 'function') {
+                dash.requireLogin('Login to host a party.');
+                return;
             }
-            if (/(movie|film|watchlist|catalog|library)/.test(q)) {
-                return 'Open the Movies tab to browse the catalog, or use Watchlist to keep titles you want to play later.';
+            if (typeof window.createParty === 'function') {
+                window.createParty(movie);
             }
-            if (/(premium|plan|upgrade|subscribe|payment)/.test(q)) {
-                return 'Premium unlocks extra perks on the Premium tab. Guests can start free from the plan card; members can manage their plan there.';
+        },
+
+        genreLine(movie) {
+            const genres = Array.isArray(movie && movie.genres) ? movie.genres : [];
+            return genres.filter(Boolean).slice(0, 3).join(' · ');
+        },
+
+        offlineReply(text) {
+            const q = String(text || '').toLowerCase();
+            if (/(what are you|who are you|are you)/.test(q)) {
+                return 'I am Nex, the Nexus guide. Ask me for a movie, how you feel, or how rooms and Premium work.';
             }
-            if (/(friend|invite|chat|message)/.test(q)) {
-                return 'Open Friends from the header to add people, send invites, and start a private chat.';
+            if (/(crush|reject|dumped|break ?up|sad|lonely)/.test(q)) {
+                return 'That is rough. I could not reach the catalog just now — try the Drama or Romance rows, or ask me again in a moment.';
             }
-            if (/(quest|point|shop|reward)/.test(q)) {
-                return 'Quests live in the right-hand drawer. Finish daily, weekly, or monthly tasks to earn points you can spend in the Shop.';
+            if (/(rain|sad|happy|movie|film|recommend)/.test(q)) {
+                return 'I could not reach the catalog just now. Open the Movies tab, or try me again in a moment.';
             }
-            if (/(account|profile|avatar|setting)/.test(q)) {
-                return 'Your avatar and account controls are in the header profile menu. The Account tab has the rest of your settings.';
+            if (/(host|room)/.test(q)) {
+                return 'Tap Host Party in the bottom-right, pick a title, and share the invite. Friends join the same playhead.';
             }
-            if (/(help|support|what can you)/.test(q)) {
-                return 'I can help with parties, movies, Premium, friends, quests, and your account. Try one of the suggestions below.';
+            if (/(premium)/.test(q)) {
+                return 'Premium is $4.99 a month: cosmetics, unlimited hosting, and a Premium badge. Open the Premium tab to unlock.';
             }
-            return 'I am a local guide for now, so I cannot look that up live. Try asking about hosting, movies, Premium, friends, or quests.';
+            if (/(mission|quest)/.test(q)) {
+                return 'Missions reset daily, weekly, or monthly. Hit the target, claim the points, spend them in the Shop.';
+            }
+            return 'I am Nex. Ask about a movie, the weather, how you feel, hosting, missions, or Premium.';
         },
 
         scrollToBottom() {

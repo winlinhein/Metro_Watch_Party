@@ -6,9 +6,17 @@ if ($userId > 0) {
     try {
         require_once __DIR__ . '/../conn.php';
         require_once __DIR__ . '/../presence_helper.php';
+        require_once __DIR__ . '/../auth_flow_helper.php';
         clearUserPresence($conn, $userId);
+        nexusClearPersistentSession($conn, $userId);
     } catch (Throwable $e) {
         // Still sign out even if presence update fails.
+    }
+} else {
+    try {
+        require_once __DIR__ . '/../auth_flow_helper.php';
+        nexusClearPersistentSession();
+    } catch (Throwable $ignore) {
     }
 }
 

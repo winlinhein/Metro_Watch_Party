@@ -163,15 +163,15 @@
                                     class="px-3 py-1 rounded-md text-xs font-bold border"
                                     :class="{
                                         'bg-green-500/10 text-green-400 border-green-500/20':
-                                            user.status === 'Active',
+                                            !isUserBanned(user) && String(user.status || '').toLowerCase() !== 'pending',
 
                                         'bg-red-500/10 text-red-400 border-red-500/20':
-                                            user.status === 'Banned',
+                                            isUserBanned(user),
 
                                         'bg-yellow-500/10 text-yellow-400 border-yellow-500/20':
-                                            user.status === 'Pending'
+                                            String(user.status || '').toLowerCase() === 'pending'
                                     }"
-                                    x-text="user.status"
+                                    x-text="isUserBanned(user) ? 'Banned' : (String(user.status || '').toLowerCase() === 'pending' ? 'Pending' : 'Active')"
                                 ></span>
 
                             </td>
@@ -268,20 +268,30 @@
 
                                         </template>
 
-                                        <!-- Only non-elevated users can be suspended -->
+                                        <!-- Only non-elevated users can be suspended or restored -->
                                         <template x-if="user.role !== 'Moderator' && user.role !== 'Admin'">
-
-                                            <button
-                                                @click="openBanModal(user); dropdownOpen = false;"
-                                                :disabled="user.status === 'Banned'"
-                                                class="flex items-center gap-3 px-4 py-3 hover:bg-red-500/10 text-white hover:text-red-400 text-sm font-bold transition-colors text-left w-full disabled:opacity-50 disabled:cursor-not-allowed"
-                                            >
-                                                <span class="material-symbols-outlined text-[18px]">
-                                                    block
-                                                </span>
-                                                Suspend User
-                                            </button>
-
+                                            <div>
+                                                <button
+                                                    x-show="!isUserBanned(user)"
+                                                    @click="openBanModal(user); dropdownOpen = false;"
+                                                    class="flex items-center gap-3 px-4 py-3 hover:bg-red-500/10 text-white hover:text-red-400 text-sm font-bold transition-colors text-left w-full"
+                                                >
+                                                    <span class="material-symbols-outlined text-[18px]">
+                                                        block
+                                                    </span>
+                                                    Suspend User
+                                                </button>
+                                                <button
+                                                    x-show="isUserBanned(user)"
+                                                    @click="confirmUnban(user); dropdownOpen = false;"
+                                                    class="flex items-center gap-3 px-4 py-3 hover:bg-emerald-500/10 text-white hover:text-emerald-400 text-sm font-bold transition-colors text-left w-full"
+                                                >
+                                                    <span class="material-symbols-outlined text-[18px]">
+                                                        lock_open
+                                                    </span>
+                                                    Restore Account
+                                                </button>
+                                            </div>
                                         </template>
 
                                     </div>

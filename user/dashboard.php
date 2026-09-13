@@ -1,5 +1,5 @@
 <?php
-session_start();
+require_once __DIR__ . '/../frontend/components/session_boot.php';
 
 // Block access if not authenticated OR if the user's role is not 'user'
 $allowedRoles = ['user', 'guest'];
@@ -39,6 +39,12 @@ if (!empty($userId) && $userRole !== 'guest') {
         $premium = resolveUserPremium($conn, $uid);
         $isPremium = (bool)$premium['is_premium'];
         $premiumExpiresAt = (string)($premium['premium_expires_at'] ?? '');
+        require_once __DIR__ . '/../account_lifecycle_helper.php';
+        nexusReleasePremiumBorderIfNeeded($conn, $uid, $isPremium);
+        if (!$isPremium && (int)$activeBorderId > 0) {
+            $activeBorderId = getActiveBorderId($conn, $uid);
+            $borderPreview = borderPreviewForId($conn, $activeBorderId);
+        }
     } catch (Throwable $e) {
         error_log('dashboard boot profile media: ' . $e->getMessage());
     }
@@ -113,11 +119,22 @@ session_write_close();
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.1/dist/cdn.min.js" crossorigin="anonymous"></script>
     
     <style>
+        html, body { color-scheme: dark; }
         body { 
             font-family: 'Space Grotesk', sans-serif; 
             background-color: #030305; 
             color: #ffffff; 
             overflow: hidden;
+        }
+        select {
+            color-scheme: dark;
+            background-color: #0a0a0f;
+            color: #f5f5f5;
+        }
+        select option,
+        select optgroup {
+            background-color: #0a0a0f;
+            color: #f5f5f5;
         }
 
         [x-cloak] { display: none !important; }
@@ -248,8 +265,9 @@ session_write_close();
 
     <link rel="stylesheet" href="https://cdn.plyr.io/3.7.8/plyr.css" />
     <script src="https://cdn.plyr.io/3.7.8/plyr.polyfilled.js"></script>
-    <script src="../js/nexus_scripts.js?v=1789042200"></script>
-    <script src="../js/support_chatbot.js?v=1"></script>
+    <script src="../js/chat_emojis.js?v=1"></script>
+    <script src="../js/nexus_scripts.js?v=1789044701"></script>
+    <script src="../js/support_chatbot.js?v=3"></script>
 </head>
 <body class="h-screen w-screen flex flex-col relative selection:bg-red-500/30" data-barba="wrapper">
     <?php include __DIR__ . '/../frontend/components/page_loader.php'; ?>
@@ -760,14 +778,19 @@ session_write_close();
                 </div>
                 <?php else: ?>
 
-                <!-- Login button for guests -->
-                <a href="../frontend/login.php" 
-                class="relative z-[60] flex items-center gap-3 p-2 bg-[#050508]/40 border border-white/5 rounded-xl hover:bg-white/[0.05] transition-all">
-                    <div class="w-10 h-10 rounded-full bg-gradient-to-tr from-indigo-500 to-red-600 flex items-center justify-center">
-                        <span class="material-symbols-outlined text-white">login</span>
-                    </div>
-                    <span class="text-sm font-bold text-white">Login</span>
-                </a>
+                <!-- Login / Register for guests -->
+                <div class="relative z-[60] flex items-center gap-2">
+                    <a href="../frontend/login.php"
+                       class="flex items-center gap-2 px-4 py-2 bg-[#050508]/40 border border-white/5 rounded-xl hover:bg-white/[0.05] transition-all">
+                        <span class="material-symbols-outlined text-white text-[18px]">login</span>
+                        <span class="text-sm font-bold text-white">Login</span>
+                    </a>
+                    <a href="../frontend/register.php"
+                       class="flex items-center gap-2 px-4 py-2 bg-white text-black hover:bg-red-500 hover:text-white rounded-xl transition-all">
+                        <span class="material-symbols-outlined text-[18px]">person_add</span>
+                        <span class="text-sm font-bold">Register</span>
+                    </a>
+                </div>
                 <?php endif; ?>
             </div>
         </header>
@@ -829,13 +852,38 @@ session_write_close();
                         <div class="flex items-center justify-between">
                             <h2 class="text-xl font-bold tracking-wide uppercase flex items-center gap-2">
                                 <span class="w-2 h-2 rounded-full"
-                                      :class="friendRooms.length ? 'bg-red-500 shadow-[0_0_10px_#ef4444]' : 'bg-white/20'"></span>
+                                      :class="!isGuest && friendRooms.length ? 'bg-red-500 shadow-[0_0_10px_#ef4444]' : 'bg-white/20'"></span>
                                 Active Directives (Stream Rooms)
                             </h2>
-                            <button type="button" @click="fetchFriendRooms()" class="text-xs text-red-400 hover:text-white uppercase tracking-widest font-bold mono">Refresh</button>
+                            <button type="button" x-show="!isGuest" @click="fetchFriendRooms()" class="text-xs text-red-400 hover:text-white uppercase tracking-widest font-bold mono">Refresh</button>
+                        </div>
+
+                        <div class="glass-card rounded-2xl flex-1 min-h-[280px] p-8 flex flex-col items-center justify-center text-center relative overflow-hidden"
+                             x-show="isGuest"
+                             x-cloak>
+                            <div class="absolute inset-0 bg-gradient-to-br from-red-500/5 via-transparent to-indigo-500/5 pointer-events-none"></div>
+                            <div class="absolute inset-6 rounded-xl border border-dashed border-white/10 pointer-events-none"></div>
+
+                            <div class="relative z-10 w-20 h-20 rounded-full border border-white/10 flex items-center justify-center mb-5 shadow-[0_0_40px_rgba(239,68,68,0.08)]">
+                                <span class="material-symbols-outlined text-[32px] text-white/35">lock</span>
+                            </div>
+
+                            <p class="relative z-10 text-[10px] font-bold tracking-[0.28em] uppercase text-white/40 mono mb-2">Guest session</p>
+                            <h3 class="relative z-10 text-2xl font-black tracking-wide uppercase text-white mb-2">Login to join rooms</h3>
+                            <p class="relative z-10 text-sm text-white/45 max-w-sm mb-6">Live watch parties from friends show up here after you sign in or create an account.</p>
+                            <div class="relative z-10 flex flex-wrap items-center justify-center gap-3">
+                                <a href="../frontend/login.php" class="px-6 py-3 bg-white text-black hover:bg-red-500 hover:text-white font-bold rounded-xl transition-all flex items-center gap-2">
+                                    <span class="material-symbols-outlined text-[18px]">login</span>
+                                    Login
+                                </a>
+                                <a href="../frontend/register.php" class="px-6 py-3 bg-white/5 hover:bg-white/10 border border-white/10 text-white font-bold rounded-xl transition-all flex items-center gap-2">
+                                    <span class="material-symbols-outlined text-[18px]">person_add</span>
+                                    Register
+                                </a>
+                            </div>
                         </div>
                         
-                        <div class="space-y-4" x-show="friendRooms.length > 0">
+                        <div class="space-y-4" x-show="!isGuest && friendRooms.length > 0">
                             <template x-for="party in friendRooms" :key="party.room_id">
                                 <div class="glass-card hover-glow animated-gradient-border rounded-2xl p-5 flex flex-col sm:flex-row gap-6 items-center group">
                                     <div class="w-full sm:w-48 h-32 rounded-xl overflow-hidden relative shrink-0">
@@ -885,7 +933,7 @@ session_write_close();
                         </div>
 
                         <div class="glass-card rounded-2xl flex-1 min-h-[280px] p-8 flex flex-col items-center justify-center text-center relative overflow-hidden"
-                             x-show="friendRooms.length === 0"
+                             x-show="!isGuest && friendRooms.length === 0"
                              x-cloak>
                             <div class="absolute inset-0 bg-gradient-to-br from-red-500/5 via-transparent to-indigo-500/5 pointer-events-none"></div>
                             <div class="absolute inset-6 rounded-xl border border-dashed border-white/10 pointer-events-none"></div>
@@ -978,9 +1026,9 @@ session_write_close();
         <!-- Watchlist Section Included -->
         <?php include "user_movies.php"; ?>
         <?php include "user_premium.php"; ?>
+        <?php include "user_shop.php"; ?>
         <?php if ($userRole !== 'guest'): ?>
             <?php include "watchlist.php"; ?>
-            <?php include "user_shop.php"; ?>
             <?php include "account.php"; ?>
         <?php endif; ?>
         </div>
@@ -996,6 +1044,7 @@ session_write_close();
     <?php include "profile_dropdown.php"; ?>
     <?php include "report_user_modal.php"; ?>
     <?php include "report_item_modal.php"; ?>
+    <?php include __DIR__ . '/../frontend/components/guest_login_modal.php'; ?>
 
 </div>
 

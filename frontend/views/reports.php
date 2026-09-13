@@ -5,7 +5,7 @@
     <div class="flex items-center justify-between mb-10 stagger-item">
         <div>
             <h2 class="text-3xl font-bold text-white tracking-tight mb-1">Reports Analysis</h2>
-            <p class="text-white/40 text-sm">Review and resolve user and room infractions.</p>
+            <p class="text-white/40 text-sm">Review user, room, comment, and ban-appeal cases.</p>
         </div>
         <button class="relative px-6 py-3 overflow-hidden rounded-xl group hover:scale-105 active:scale-95 transition-all duration-300 shadow-xl shadow-red-500/20">
             <span class="absolute inset-0 w-full h-full bg-gradient-to-r from-red-600 via-red-500 to-red-800 opacity-80 group-hover:opacity-100 transition-opacity"></span>
@@ -92,7 +92,8 @@
                                           'bg-red-500/10 text-red-400 border-red-500/20 shadow-[0_0_10px_rgba(239,68,68,0.15)]': report.type === 'Room' || report.type === 'High',
                                           'bg-yellow-500/10 text-yellow-400 border-yellow-500/20 shadow-[0_0_10px_rgba(234,179,8,0.15)]': report.type === 'Medium',
                                           'bg-purple-500/10 text-purple-300 border-purple-500/20': report.type === 'User',
-                                          'bg-blue-500/10 text-blue-400 border-blue-500/20 shadow-[0_0_10px_rgba(59,130,246,0.15)]': !['High','Medium','Room','User'].includes(report.type)
+                                          'bg-orange-500/10 text-orange-300 border-orange-500/20 shadow-[0_0_10px_rgba(249,115,22,0.15)]': report.type === 'Appeal',
+                                          'bg-blue-500/10 text-blue-400 border-blue-500/20 shadow-[0_0_10px_rgba(59,130,246,0.15)]': !['High','Medium','Room','User','Appeal'].includes(report.type)
                                       }" x-text="report.type || 'Standard'"></span>
                             </td>
                             <td class="p-5 text-white/60 truncate max-w-[220px]" x-text="report.reported_user || report.excerpt"></td>
@@ -147,7 +148,7 @@
                                     <span class="material-symbols-outlined text-2xl">gavel</span>
                                 </div>
                                 <div>
-                                    <h3 class="text-xl font-bold text-white">Incident Report</h3>
+                                    <h3 class="text-xl font-bold text-white" x-text="isAppealReport(selectedReport) ? 'Ban Appeal' : 'Incident Report'"></h3>
                                     <p class="text-sm text-red-400/60 uppercase mono" x-text="'ID: ' + selectedReport.id"></p>
                                 </div>
                             </div>
@@ -162,7 +163,7 @@
                                     <span class="text-white font-medium" x-text="selectedReport.user"></span>
                                 </div>
                                 <div class="bg-red-500/5 border border-red-500/10 rounded-xl p-4">
-                                    <p class="text-red-400/60 text-[10px] uppercase tracking-wider mb-2 font-bold" x-text="selectedReport.type === 'Room' ? 'Reported Room' : 'Reported Target'"></p>
+                                    <p class="text-red-400/60 text-[10px] uppercase tracking-wider mb-2 font-bold" x-text="isAppealReport(selectedReport) ? 'Banned Account' : (selectedReport.type === 'Room' ? 'Reported Room' : 'Reported Target')"></p>
                                     <div class="flex items-center gap-2.5">
                                         <div class="relative w-8 h-8 shrink-0 overflow-visible" style="width: 2rem; height: 2rem;">
                                             <div class="absolute inset-0 z-0 overflow-hidden rounded-full scale-[1.15] bg-red-500/20">
@@ -252,6 +253,9 @@
                             </button>
                             <button @click="viewModalOpen = false" class="px-5 py-2.5 rounded-xl border border-white/10 text-white/70 hover:bg-white/5 hover:text-white transition-colors text-sm font-bold">
                                 Dismiss
+                            </button>
+                            <button x-show="isAppealReport(selectedReport)" @click="restoreUserFromAppeal()" class="px-5 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white transition-all text-sm font-bold shadow-[0_0_15px_rgba(16,185,129,0.4)] flex items-center gap-2">
+                                <span class="material-symbols-outlined text-[18px]">lock_open</span> Restore Account
                             </button>
                             <button x-show="selectedReport.status === 'Pending'" @click="resolveReport()" class="px-5 py-2.5 rounded-xl bg-green-500 hover:bg-green-600 text-white transition-all text-sm font-bold shadow-[0_0_15px_rgba(34,197,94,0.4)] flex items-center gap-2">
                                 <span class="material-symbols-outlined text-[18px]">check_circle</span> Mark Resolved

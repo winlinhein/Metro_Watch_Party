@@ -3,9 +3,9 @@
     <div class="xl:col-span-2 glass-card rounded-2xl p-8 stagger-item">
         <div class="flex justify-between items-center mb-8">
             <h3 class="text-lg font-bold tracking-wide">Network Traffic</h3>
-            <select class="bg-[#030305] border border-white/10 rounded-lg px-3 py-1.5 text-xs text-white outline-none cursor-pointer focus:border-red-500/50 transition-colors">
-                <option class="bg-[#030305] text-white">Last 7 Days</option>
-                <option class="bg-[#030305] text-white">Last 30 Days</option>
+            <select class="bg-[#0a0a0f] border border-white/10 rounded-lg px-3 py-1.5 text-xs text-white outline-none cursor-pointer focus:border-red-500/50 transition-colors">
+                <option>Last 7 Days</option>
+                <option>Last 30 Days</option>
             </select>
         </div>
         <!-- Animated CSS Chart -->

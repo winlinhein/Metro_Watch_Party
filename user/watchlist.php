@@ -21,6 +21,15 @@
                 </h2>
                 <p class="text-white/40 mono text-sm uppercase tracking-widest pl-16">Queued for protocol initiation</p>
             </div>
+            <div class="flex items-center gap-3">
+                <select x-model="watchlistFilter" class="bg-[#0a0a0f] border border-white/10 rounded-2xl py-3 px-3 text-xs text-white outline-none">
+                    <option value="all">All types</option>
+                    <option value="premium">Premium</option>
+                    <option value="free">Standard</option>
+                    <template x-for="genre in movieGenreOptions" :key="'wl-'+genre">
+                        <option :value="genre" x-text="genre"></option>
+                    </template>
+                </select>
             <div class="flex items-center gap-3" x-data="{ searchOpen: false, searchFocused: false }">
                 <div class="relative group">
                     <!-- Animated Glow Behind -->
@@ -45,7 +54,8 @@
 
                         <!-- Input Field -->
                         <input x-ref="searchInput" 
-                               type="text" 
+                               type="text"
+                               x-model="watchlistSearchQuery"
                                @focus="searchFocused = true" 
                                @blur="searchFocused = false"
                                placeholder="INITIATE SEARCH..." 
@@ -61,7 +71,7 @@
         </div>
 
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
-            <template x-for="(item, index) in watchlist" :key="item.id || index">
+            <template x-for="(item, index) in filteredWatchlist" :key="item.id || index">
                 <div @click="openWatchlistMovie(item)"
                      class="relative group cursor-pointer perspective-container" 
                      :style="`animation-delay: ${index * 100}ms; perspective: 1000px;`">

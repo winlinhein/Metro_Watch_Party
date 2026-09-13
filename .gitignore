@@ -8,3 +8,4 @@ cache/posters/*.bin
 cache/posters/*.mime
 .env*
 !.env.example
+google_oauth.local.php

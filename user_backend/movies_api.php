@@ -8,6 +8,10 @@ session_write_close();
 
 require_once __DIR__ . '/../conn.php';
 require_once __DIR__ . '/../poster_helper.php';
+require_once __DIR__ . '/../schema_upgrade_helper.php';
+require_once __DIR__ . '/../premium_benefits_helper.php';
+
+ensureAppSchema($conn);
 
 try {
     $stmt = $conn->prepare("
@@ -21,6 +25,7 @@ try {
             m.duration,
             m.view_count,
             m.created_at,
+            COALESCE(m.is_premium, 0) AS is_premium,
             COALESCE((
                 SELECT ROUND(AVG(r.rating), 1)
                 FROM movie_rating r
@@ -49,6 +54,8 @@ try {
         $movie['user_rating'] = (int)$movie['user_rating'];
         $movie['genres'] = $movie['genres'] ? explode(', ', $movie['genres']) : [];
         $movie['comments'] = [];
+        $movie['is_premium'] = (int)($movie['is_premium'] ?? 0);
+        $movie['duration'] = (int)($movie['duration'] ?? 0);
         $posterUrl = moviePosterUrl($movie['id']);
         $movie['img'] = $posterUrl;
         $movie['cover_image'] = $posterUrl;

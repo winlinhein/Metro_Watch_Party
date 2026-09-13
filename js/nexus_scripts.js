@@ -116,6 +116,8 @@ function userDashboard() {
         chatInput: '',
         selectedImageFile: null,
         selectedImagePreview: null,
+        showEmojiPicker: false,
+        chatEmojis: window.NEXUS_CHAT_EMOJIS || [],
         
         // Drawer Panels & Modals State
         showFriendsPanel: false,
@@ -147,7 +149,16 @@ function userDashboard() {
         userPoints: 0,
         userInventory: [],
         shopItems: [],
-        showConfirmModal: false,  
+        shopSearchQuery: '',
+        shopRarityFilter: 'all',
+        borderSearchQuery: '',
+        borderRarityFilter: 'all',
+        watchlistSearchQuery: '',
+        watchlistFilter: 'all',
+        movieFilter: 'all',
+        showConfirmModal: false,
+        showGuestLoginModal: false,
+        guestLoginMessage: 'Please login to continue',
         selectedItem: null,        
 
         // Movie State & Modals
@@ -202,10 +213,113 @@ function userDashboard() {
 
         resolveShopImage(image) {
             if (!image) return '';
-            if (/^(https?:)?\/\//i.test(image) || image.startsWith('/') || image.startsWith('data:') || image.startsWith('blob:')) {
-                return image;
+            if (image.startsWith('data:') || image.startsWith('blob:')) return image;
+            if (/^(https?:)?\/\//i.test(image)) return image;
+            if (image.startsWith('/user_backend/media.php')) return image;
+            if (image.startsWith('/uploads/')) {
+                return '/user_backend/media.php?path=' + encodeURIComponent(image);
             }
-            return '/uploads/shop/' + image;
+            return '/user_backend/media.php?path=' + encodeURIComponent('/uploads/shop/' + image);
+        },
+
+        formatMovieDuration(mins) {
+            const n = parseInt(mins, 10);
+            if (!n) return '';
+            const h = Math.floor(n / 60);
+            const m = n % 60;
+            if (h && m) return h + 'h ' + m + 'm';
+            if (h) return h + 'h';
+            return m + 'm';
+        },
+
+        rarityClass(rarity) {
+            const key = String(rarity || '').toLowerCase();
+            if (key === 'premium') return 'text-amber-300';
+            if (key === 'epic') return 'text-fuchsia-300';
+            if (key === 'rare') return 'text-sky-300';
+            return 'text-white/40';
+        },
+
+        isPremiumLockedMovie(movie) {
+            return Number(movie?.is_premium) === 1 && !this.isPremium;
+        },
+
+        openMovieOrPremium(movie) {
+            if (this.isPremiumLockedMovie(movie)) {
+                this.showPremiumModal = true;
+                if (window.showToast) window.showToast('Upgrade to Premium to watch this title.', 'info');
+                return;
+            }
+            this.openMovieDetail(movie);
+        },
+
+        isPremiumBorder(item) {
+            return String(item?.rarity || '').toLowerCase() === 'premium';
+        },
+
+        isShopItemOwned(item) {
+            if (!item) return false;
+            if ((this.userInventory || []).map(Number).includes(Number(item.id))) return true;
+            return this.isPremiumBorder(item) && !!this.isPremium;
+        },
+
+        handleShopItemClick(item) {
+            if (this.isGuest) {
+                this.openGuestLogin('Login or register to buy items from the Point Shop.');
+                return;
+            }
+            if (this.isPremiumBorder(item)) {
+                if (!this.isPremium) {
+                    this.showPremiumModal = true;
+                    if (window.showToast) window.showToast('Premium borders are included with Premium and cannot be bought.', 'info');
+                    return;
+                }
+                if (typeof this.setActiveBorder === 'function') {
+                    this.setActiveBorder(item.id);
+                }
+                return;
+            }
+            if (this.isShopItemOwned(item)) return;
+            this.selectedItem = item;
+            this.showConfirmModal = true;
+        },
+
+        get movieGenreOptions() {
+            const set = new Set();
+            (this.movies || []).forEach((m) => {
+                const genres = Array.isArray(m.genres) ? m.genres : String(m.genre || '').split(',');
+                genres.forEach((g) => {
+                    const name = String(g || '').trim();
+                    if (name) set.add(name);
+                });
+            });
+            return Array.from(set).sort((a, b) => a.localeCompare(b));
+        },
+
+        get filteredShopItems() {
+            const q = String(this.shopSearchQuery || '').trim().toLowerCase();
+            const type = String(this.shopRarityFilter || 'all').toLowerCase();
+            return (this.shopItems || []).filter((item) => {
+                const rarity = String(item.rarity || '').toLowerCase();
+                const typeOk = type === 'all' || rarity === type;
+                const searchOk = !q || [item.name, item.rarity, item.category].some((v) => String(v || '').toLowerCase().includes(q));
+                return typeOk && searchOk;
+            });
+        },
+
+        get filteredWatchlist() {
+            const q = String(this.watchlistSearchQuery || '').trim().toLowerCase();
+            const type = String(this.watchlistFilter || 'all').toLowerCase();
+            return (this.watchlist || []).filter((item) => {
+                const genres = Array.isArray(item.genres) ? item.genres : String(item.genre || '').split(',').map((s) => s.trim());
+                const premium = Number(item.is_premium) === 1;
+                let typeOk = true;
+                if (type === 'premium') typeOk = premium;
+                else if (type === 'free') typeOk = !premium;
+                else if (type !== 'all') typeOk = genres.some((g) => String(g).toLowerCase() === type);
+                const searchOk = !q || [item.title, item.genre, ...(genres || [])].some((v) => String(v || '').toLowerCase().includes(q));
+                return typeOk && searchOk;
+            });
         },
 
         resolveAvatarUrl(url, name = 'User') {
@@ -254,15 +368,27 @@ function userDashboard() {
         },
 
         get borderPageCount() {
-            const n = (this.availableBorders || []).length;
+            const n = (this.filteredBorders || []).length;
             return Math.max(1, Math.ceil(n / this.borderPageSize));
+        },
+
+        get filteredBorders() {
+            const q = String(this.borderSearchQuery || '').trim().toLowerCase();
+            const type = String(this.borderRarityFilter || 'all').toLowerCase();
+            return (this.availableBorders || []).filter((border) => {
+                if (Number(border.id) === 0) return type === 'all' && !q;
+                const rarity = String(border.rarity || '').toLowerCase();
+                const typeOk = type === 'all' || rarity === type;
+                const searchOk = !q || [border.name, border.rarity].some((v) => String(v || '').toLowerCase().includes(q));
+                return typeOk && searchOk;
+            });
         },
 
         get pagedBorders() {
             const size = this.borderPageSize;
             const page = Math.min(Math.max(1, this.borderPage), this.borderPageCount);
             const start = (page - 1) * size;
-            return (this.availableBorders || []).slice(start, start + size);
+            return this.filteredBorders.slice(start, start + size);
         },
 
         get borderSlotFillers() {
@@ -288,7 +414,9 @@ function userDashboard() {
                     id: Number(item.id),
                     name: item.name,
                     preview: item.image,
-                    owned: ownedIds.has(Number(item.id))
+                    owned: ownedIds.has(Number(item.id)),
+                    rarity: item.rarity || 'Common',
+                    premiumOnly: String(item.rarity || '').toLowerCase() === 'premium'
                 }))
             ]);
             const active = this.availableBorders.find(b => Number(b.id) === Number(this.activeBorderId));
@@ -356,7 +484,17 @@ function userDashboard() {
             borderId = Number(borderId) || 0;
             const border = this.availableBorders.find(b => Number(b.id) === borderId);
             if (!border || !border.owned) {
+                if (border?.premiumOnly && !this.isPremium) {
+                    this.showPremiumModal = true;
+                    if (window.showToast) window.showToast('Premium membership is required for this border.', 'info');
+                    return;
+                }
                 if (window.showToast) window.showToast('You do not own this border', 'error');
+                return;
+            }
+            if (border.premiumOnly && !this.isPremium) {
+                this.showPremiumModal = true;
+                if (window.showToast) window.showToast('Premium membership is required to use this border.', 'info');
                 return;
             }
 
@@ -521,12 +659,25 @@ function userDashboard() {
             }
         },
 
-        requireLogin() {
-            if (this.isGuest) {
-                if (window.showToast) window.showToast('Please login to continue', 'info');
+        requireLogin(opts = {}) {
+            if (!this.isGuest) return true;
+            const message = opts.message || 'Please login to continue';
+            if (opts.modal) {
+                this.guestLoginMessage = message;
+                this.showGuestLoginModal = true;
                 return false;
             }
-            return true;
+            if (window.nexusNavigate) {
+                window.nexusNavigate('/frontend/login.php');
+            } else {
+                window.location.href = '/frontend/login.php';
+            }
+            return false;
+        },
+
+        openGuestLogin(message) {
+            this.guestLoginMessage = message || 'Please login to continue';
+            this.showGuestLoginModal = true;
         },
 
         
@@ -641,14 +792,19 @@ function userDashboard() {
 
        // Live filtered movies getter
         get filteredMovies() {
-            if (!this.movieSearchQuery.trim()) return this.movies;
-            const query = this.movieSearchQuery.toLowerCase();
-            return this.movies.filter(movie => {
-                const titleMatch = movie.title && movie.title.toLowerCase().includes(query);
+            const query = String(this.movieSearchQuery || '').trim().toLowerCase();
+            const type = String(this.movieFilter || 'all').toLowerCase();
+            return (this.movies || []).filter(movie => {
                 let genres = movie.genres;
                 if (typeof genres === 'string') genres = genres.split(',').map(s => s.trim()).filter(Boolean);
-                const genreMatch = Array.isArray(genres) && genres.some(g => (g || '').toLowerCase().includes(query));
-                return titleMatch || genreMatch;
+                if (!Array.isArray(genres)) genres = [];
+                const titleMatch = !query || (movie.title && movie.title.toLowerCase().includes(query)) || genres.some(g => (g || '').toLowerCase().includes(query));
+                const premium = Number(movie.is_premium) === 1;
+                let typeOk = true;
+                if (type === 'premium') typeOk = premium;
+                else if (type === 'free') typeOk = !premium;
+                else if (type !== 'all') typeOk = genres.some(g => String(g).toLowerCase() === type);
+                return titleMatch && typeOk;
             });
         },
 
@@ -885,7 +1041,7 @@ function userDashboard() {
                 const data = await res.json();
 
                 if (data.success) {
-                    if (window.showToast) window.showToast(data.message || 'Account deleted.', 'success');
+                    if (window.showToast) window.showToast(data.message || 'Account deletion scheduled for 24 hours.', 'success');
                     // Redirect to login page after short delay
                     setTimeout(() => {
                         window.nexusNavigate('/frontend/login.php');
@@ -1293,6 +1449,9 @@ function userDashboard() {
         },
 
         createParty(movieId = null) {
+            if (this.isGuest) {
+                return this.requireLogin();
+            }
             return window.createParty(movieId);
         },
 
@@ -1908,7 +2067,7 @@ function userDashboard() {
         },
         // Tab Navigation
         switchTab(tabId) {
-            if (this.isGuest && ['watchlist', 'account', 'shop'].includes(tabId)) {
+            if (this.isGuest && ['watchlist', 'account'].includes(tabId)) {
                 window.nexusNavigate('/frontend/login.php');
                 return;
             }
@@ -2435,6 +2594,7 @@ function userDashboard() {
         // 4. Updated closeChat Method
         closeChat() {
             this.showChatPanel = false;
+            this.showEmojiPicker = false;
             if (typeof gsap !== 'undefined' && this.$refs.chatPanel) {
                 gsap.to(this.$refs.chatPanel, {
                     x: '100%',
@@ -2524,6 +2684,7 @@ function userDashboard() {
             }
             
             this.chatInput = '';
+            this.showEmojiPicker = false;
             this.clearSelectedImage();
             
             try {
@@ -2574,6 +2735,10 @@ function userDashboard() {
         clearSelectedImage() {
             this.selectedImageFile = null;
             this.selectedImagePreview = null;
+        },
+
+        insertChatEmoji(emoji) {
+            this.chatInput = (this.chatInput || '') + emoji;
         },
 
         // Auto-scroll utility
@@ -2836,6 +3001,38 @@ function userDashboard() {
             }
         },
 
+        isOwnComment(item) {
+            return Number(item?.user_id) === Number(window.CURRENT_USER_ID);
+        },
+
+        async deleteOwnComment(commentId) {
+            if (!commentId || !confirm('Delete this comment?')) return;
+            try {
+                const res = await fetch('/user_backend/delete_comment.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ comment_id: commentId })
+                });
+                const data = await res.json();
+                if (!data.success) {
+                    if (window.showToast) window.showToast(data.message || 'Delete failed', 'error');
+                    return;
+                }
+                const strip = (list) => (list || []).filter((c) => {
+                    if (Number(c.id || c.comment_id) === Number(commentId)) return false;
+                    if (c.replies) c.replies = strip(c.replies);
+                    return true;
+                });
+                if (this.selectedMovie?.comments) {
+                    this.selectedMovie.comments = strip(this.selectedMovie.comments);
+                    this.selectedMovie = { ...this.selectedMovie };
+                }
+                if (window.showToast) window.showToast('Comment deleted', 'success');
+            } catch (e) {
+                if (window.showToast) window.showToast('Network error', 'error');
+            }
+        },
+
         // Like/Unlike Comment Method
         async likeComment(commentId) {
             // Optimistic UI update
@@ -2923,6 +3120,19 @@ function userDashboard() {
         },
 
         async purchaseItem(itemId) {
+            if (!this.requireLogin({ modal: true, message: 'Login or register to buy items from the Point Shop.' })) {
+                this.showConfirmModal = false;
+                return;
+            }
+            const shopItem = (this.shopItems || []).find((item) => Number(item.id) === Number(itemId));
+            if (this.isPremiumBorder(shopItem)) {
+                this.showConfirmModal = false;
+                if (!this.isPremium) {
+                    this.showPremiumModal = true;
+                }
+                if (window.showToast) window.showToast('Premium borders are included with Premium and cannot be bought.', 'info');
+                return;
+            }
             try {
                 const res = await fetch('/user_backend/purchase_item.php', {
                     method: 'POST',
@@ -2937,6 +3147,10 @@ function userDashboard() {
                     if (window.showToast) window.showToast('Purchase successful!', 'success');
                     this.fetchUserProfile();
                 } else {
+                    if (data.needs_premium) {
+                        this.showConfirmModal = false;
+                        this.showPremiumModal = true;
+                    }
                     if (window.showToast) window.showToast(data.message || 'Purchase failed', 'error');
                 }
             } catch (e) {
@@ -2984,7 +3198,7 @@ function userDashboard() {
             const fullMovie = this.movies.find(m => (m.id || m.movie_id) === movieId) || item;
 
             setTimeout(() => {
-                this.openMovieDetail(fullMovie);
+                this.openMovieOrPremium(fullMovie);
             }, 100);
         },
 
@@ -3588,6 +3802,7 @@ function userDashboard() {
                 this.watchlist = [];
                 this.notifications = [];
                 this.unreadNotifCount = 0;
+                this.fetchShopItems();
             } else {
                 const isRegularUser = window.NEXUS_USER?.role === 'user';
                 if (!isRegularUser) {
@@ -4710,31 +4925,63 @@ window.otpForm = function() {
     return {
         otpCode: '',
         inputs: [],
-        timeLeft: 180, // 3 minutes in seconds
+        timeLeft: 0,
+        otpDuration: 180,
+        expiresAtMs: 0,
         timerInterval: null,
         isResending: false,
         init() {
+            this.applyOtpStatus(window.NEXUS_OTP || null);
+            this.syncOtpTimerFromServer();
             this.$nextTick(() => {
                 this.inputs = Array.from(this.$el.querySelectorAll('#otp-inputs input'));
                 if(this.inputs.length > 0) this.inputs[0].focus();
-                this.startTimer();
             });
+        },
+        applyOtpStatus(status) {
+            const duration = Number(status?.duration) > 0 ? Number(status.duration) : 180;
+            this.otpDuration = duration;
+            const remaining = Math.max(0, Number(status?.remaining ?? 0));
+            this.expiresAtMs = Date.now() + (remaining * 1000);
+            this.tickOtpTimer();
+            this.startTimer();
+        },
+        tickOtpTimer() {
+            this.timeLeft = Math.max(0, Math.ceil((this.expiresAtMs - Date.now()) / 1000));
         },
         startTimer() {
             if (this.timerInterval) clearInterval(this.timerInterval);
-            this.timeLeft = 180;
+            this.tickOtpTimer();
             this.timerInterval = setInterval(() => {
-                if (this.timeLeft > 0) {
-                    this.timeLeft--;
-                } else {
+                this.tickOtpTimer();
+                if (this.timeLeft <= 0) {
                     clearInterval(this.timerInterval);
+                    this.timerInterval = null;
                 }
-            }, 1000);
+            }, 250);
+        },
+        async syncOtpTimerFromServer() {
+            try {
+                const res = await fetch('/backend/otp_status.php', {
+                    headers: { 'Accept': 'application/json' },
+                    credentials: 'same-origin'
+                });
+                const data = await res.json();
+                if (data) {
+                    this.applyOtpStatus(data);
+                }
+            } catch (e) {
+                if (!this.expiresAtMs) this.applyOtpStatus({ remaining: 0, duration: this.otpDuration });
+            }
         },
         get formattedTime() {
             const m = Math.floor(this.timeLeft / 60);
             const s = this.timeLeft % 60;
             return `${m}:${s < 10 ? '0' : ''}${s}`;
+        },
+        get otpProgress() {
+            if (!this.otpDuration) return 0;
+            return Math.max(0, Math.min(100, (this.timeLeft / this.otpDuration) * 100));
         },
         async resendOTP(url) {
             if (this.timeLeft > 0 || this.isResending) return;
@@ -4746,12 +4993,18 @@ window.otpForm = function() {
             }
 
             try {
-                const res = await fetch(url, { method: 'POST' });
-                // We're ignoring the response content to keep it simple, just reset timer
-                if (res.ok) {
-                    this.startTimer();
-                    // trigger a toast if available
-                    if (window.showToast) window.showToast('OTP Resent Successfully!', 'success');
+                const endpoint = url.includes('?') ? `${url}&format=json` : `${url}?format=json`;
+                const res = await fetch(endpoint, {
+                    method: 'POST',
+                    headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                    credentials: 'same-origin'
+                });
+                const data = await res.json().catch(() => null);
+                if (data && data.success) {
+                    this.applyOtpStatus(data);
+                    if (window.showToast) window.showToast(data.message || 'OTP Resent Successfully!', 'success');
+                } else {
+                    if (window.showToast) window.showToast((data && data.message) || 'Failed to resend OTP', 'error');
                 }
             } catch (e) {
                 console.error(e);
@@ -4844,10 +5097,23 @@ function adminDashboard(userData = {}) {
 
         resolveShopImage(image) {
             if (!image) return '';
-            if (/^(https?:)?\/\//i.test(image) || image.startsWith('/') || image.startsWith('data:') || image.startsWith('blob:')) {
-                return image;
+            if (image.startsWith('data:') || image.startsWith('blob:')) return image;
+            if (/^(https?:)?\/\//i.test(image)) return image;
+            if (image.startsWith('/user_backend/media.php')) return image;
+            if (image.startsWith('/uploads/')) {
+                return '/user_backend/media.php?path=' + encodeURIComponent(image);
             }
-            return '/uploads/shop/' + image;
+            return '/user_backend/media.php?path=' + encodeURIComponent('/uploads/shop/' + image);
+        },
+
+        formatMovieDuration(mins) {
+            const n = parseInt(mins, 10);
+            if (!n) return '';
+            const h = Math.floor(n / 60);
+            const m = n % 60;
+            if (h && m) return h + 'h ' + m + 'm';
+            if (h) return h + 'h';
+            return m + 'm';
         },
 
         avatarCache: {},
@@ -5088,6 +5354,7 @@ function adminDashboard(userData = {}) {
             };
             return map[this.currentTab] || 'Search...';
         },
+        adminSearchType: 'all',
         adminMatches(values) {
             const q = String(this.searchQuery || '').trim().toLowerCase();
             if (!q) return true;
@@ -5098,24 +5365,14 @@ function adminDashboard(userData = {}) {
                 this.adminPages[key] = 1;
             });
         },
-        transactions: [
-            { id: 'TXN-10041', gateway_txn_id: 'pi_3S9k2aQ4txrxX3Uy', user_name: 'Ava Chen', email: 'ava.chen@nexus.mail', avatar_url: '', plan: 'Nexus Premium', gateway: 'Stripe', amount: '$4.99', status: 'Success', date: '2026-09-11 09:14' },
-            { id: 'TXN-10040', gateway_txn_id: 'pi_3S8n1bQ4txrxX3Uy', user_name: 'Marcus Hale', email: 'marcus.h@nexus.mail', avatar_url: '', plan: 'Nexus Premium', gateway: 'Stripe', amount: '$4.99', status: 'Success', date: '2026-09-10 18:42' },
-            { id: 'TXN-10039', gateway_txn_id: 'pi_3S7m9cQ4txrxX3Uy', user_name: 'Lina Ortiz', email: 'lina.ortiz@nexus.mail', avatar_url: '', plan: 'Nexus Premium', gateway: 'Stripe', amount: '$4.99', status: 'Pending', date: '2026-09-10 12:08' },
-            { id: 'TXN-10038', gateway_txn_id: 'pi_3S6k4dQ4txrxX3Uy', user_name: 'Noah Kim', email: 'noah.kim@nexus.mail', avatar_url: '', plan: 'Nexus Premium', gateway: 'Stripe', amount: '$4.99', status: 'Failed', date: '2026-09-09 21:33' },
-            { id: 'TXN-10037', gateway_txn_id: 'pi_3S5j8eQ4txrxX3Uy', user_name: 'Sofia Rahman', email: 'sofia.r@nexus.mail', avatar_url: '', plan: 'Nexus Premium', gateway: 'Stripe', amount: '$4.99', status: 'Success', date: '2026-09-08 16:20' },
-            { id: 'TXN-10036', gateway_txn_id: 're_3S4h2fQ4txrxX3Uy', user_name: 'Eli Navarro', email: 'eli.navarro@nexus.mail', avatar_url: '', plan: 'Nexus Premium', gateway: 'Stripe', amount: '-$4.99', status: 'Refunded', date: '2026-09-07 11:05' },
-            { id: 'TXN-10035', gateway_txn_id: 'pi_3S3g7gQ4txrxX3Uy', user_name: 'Priya Shah', email: 'priya.shah@nexus.mail', avatar_url: '', plan: 'Nexus Premium', gateway: 'Stripe', amount: '$4.99', status: 'Success', date: '2026-09-06 08:51' },
-            { id: 'TXN-10034', gateway_txn_id: 'pi_3S2f1hQ4txrxX3Uy', user_name: 'Jonah Blake', email: 'jonah.b@nexus.mail', avatar_url: '', plan: 'Nexus Premium', gateway: 'Stripe', amount: '$4.99', status: 'Success', date: '2026-09-05 19:27' },
-            { id: 'TXN-10033', gateway_txn_id: 'pi_3S1e9iQ4txrxX3Uy', user_name: 'Mira Patel', email: 'mira.p@nexus.mail', avatar_url: '', plan: 'Nexus Premium', gateway: 'Stripe', amount: '$4.99', status: 'Success', date: '2026-09-04 14:12' },
-            { id: 'TXN-10032', gateway_txn_id: 'pi_3S0d3jQ4txrxX3Uy', user_name: 'Chris Vale', email: 'chris.vale@nexus.mail', avatar_url: '', plan: 'Nexus Premium', gateway: 'Stripe', amount: '$4.99', status: 'Pending', date: '2026-09-03 10:44' },
-            { id: 'TXN-10031', gateway_txn_id: 'pi_3R9c8kQ4txrxX3Uy', user_name: 'Hana Sato', email: 'hana.sato@nexus.mail', avatar_url: '', plan: 'Nexus Premium', gateway: 'Stripe', amount: '$4.99', status: 'Failed', date: '2026-09-02 22:19' },
-            { id: 'TXN-10030', gateway_txn_id: 'pi_3R8b2lQ4txrxX3Uy', user_name: 'Owen Diaz', email: 'owen.diaz@nexus.mail', avatar_url: '', plan: 'Nexus Premium', gateway: 'Stripe', amount: '$4.99', status: 'Success', date: '2026-09-01 07:55' }
-        ],
+        transactions: [],
         get filteredTransactions() {
-            return (this.transactions || []).filter((txn) => this.adminMatches([
-                txn.id, txn.gateway_txn_id, txn.user_name, txn.email, txn.plan, txn.gateway, txn.status, txn.amount, txn.date
-            ]));
+            return (this.transactions || []).filter((txn) => {
+                const searchOk = this.adminMatches([
+                    txn.id, txn.gateway_txn_id, txn.user_name, txn.email, txn.plan, txn.gateway, txn.status, txn.amount, txn.date
+                ]);
+                return searchOk;
+            });
         },
         get txnSummary() {
             const rows = this.transactions || [];
@@ -5189,19 +5446,25 @@ function adminDashboard(userData = {}) {
         get pagedReports() { return this.adminPage('reports').items; },
         get pagedTransactions() { return this.adminPage('transactions').items; },
         get filteredAdminMovies() {
-            return (this.movies || []).filter((movie) => this.adminMatches([
-                movie.title, movie.genre, movie.year, movie.duration, movie.description, movie.id, movie.movie_id
-            ]));
+            return (this.movies || []).filter((movie) => {
+                const searchOk = this.adminMatches([
+                    movie.title, movie.genre, movie.year, movie.duration, movie.description, movie.id, movie.movie_id
+                ]);
+                return searchOk;
+            });
         },
         get filteredAdminRooms() {
             return (this.rooms || []).filter((room) => this.adminMatches([
-                room.name, room.host, room.movie_title, room.id, room.users
+                room.name, room.host, room.movie_title, room.id, room.users, room.status
             ]));
         },
         get filteredAdminShop() {
-            return (this.shopItems || []).filter((item) => this.adminMatches([
-                item.name, item.rarity, item.price, item.category, item.id
-            ]));
+            return (this.shopItems || []).filter((item) => {
+                const searchOk = this.adminMatches([
+                    item.name, item.rarity, item.price, item.category, item.id
+                ]);
+                return searchOk;
+            });
         },
         notifications: [],
         unreadNotifCount: 0,
@@ -5531,14 +5794,19 @@ function adminDashboard(userData = {}) {
             if (tabId === 'sessions') {
                 this.fetchRooms();
             }
-            if ((tabId === 'shop' || tabId === 'profile') && !(this.shopItems || []).length) {
+            if (tabId === 'shop' && !(this.shopItems || []).length) {
                 this.fetchShopItems();
             }
             if (tabId === 'profile') {
-                this.fetchAdminProfile();
+                Promise.resolve()
+                    .then(() => (!(this.shopItems || []).length ? this.fetchShopItems() : null))
+                    .then(() => this.fetchAdminProfile());
             }
             if (tabId === 'reports') {
                 this.fetchReports();
+            }
+            if (tabId === 'transactions') {
+                this.fetchTransactions();
             }
         },
 
@@ -5654,6 +5922,7 @@ function adminDashboard(userData = {}) {
                 img_file: null, 
                 trailer: '', 
                 duration: '', 
+                is_premium: false,
                 genre_ids: [] 
             };
             this.movieTab = 'details';   
@@ -5671,6 +5940,7 @@ function adminDashboard(userData = {}) {
                 formData.append('trailer', this.newMovie.trailer);
                 formData.append('actual_video_url', this.newMovie.actual_video_url || '');
                 formData.append('duration', this.newMovie.duration || '');
+                formData.append('is_premium', this.newMovie.is_premium ? '1' : '0');
                 formData.append('genre_ids', JSON.stringify(this.newMovie.genre_ids || []));
                 
                 if (this.editingMovie) {
@@ -5906,6 +6176,22 @@ function adminDashboard(userData = {}) {
             }
         },
 
+        async fetchTransactions() {
+            try {
+                const response = await fetch('/backend/get_transactions.php');
+                const data = await response.json();
+                if (data && data.success) {
+                    this.transactions = (data.transactions || []).map((txn) => ({
+                        ...txn,
+                        avatar_url: this.resolveAvatarUrl(txn.avatar_url, txn.user_name || 'User')
+                    }));
+                    this.persistAvatarCache && this.persistAvatarCache();
+                }
+            } catch (error) {
+                console.error('Error fetching transactions:', error);
+            }
+        },
+
         updateReportStats() {
             this.reportStats.total = this.reportsList.length;
             this.reportStats.pending = this.reportsList.filter(r => r.status === 'Pending').length;
@@ -5941,10 +6227,13 @@ function adminDashboard(userData = {}) {
         },
 
         get filteredReports() {
-            return (this.reportsList || []).filter((report) => this.adminMatches([
-                report.id, report.date, report.user, report.type, report.reported_user,
-                report.reported_user_name, report.excerpt, report.status, report.description, report.reason
-            ]));
+            return (this.reportsList || []).filter((report) => {
+                const searchOk = this.adminMatches([
+                    report.id, report.date, report.user, report.type, report.reported_user,
+                    report.reported_user_name, report.excerpt, report.status, report.description, report.reason
+                ]);
+                return searchOk;
+            });
         },
         
         highlightCommentId: null,
@@ -6013,6 +6302,9 @@ function adminDashboard(userData = {}) {
                             category: item.category
                         };
                     });
+                    if (this.currentTab === 'profile' && typeof this.syncAdminBorders === 'function') {
+                        this.syncAdminBorders();
+                    }
                 } else {
                     this.showToast(data.error || 'Failed to load shop items', 'error');
                 }
@@ -6147,15 +6439,19 @@ function adminDashboard(userData = {}) {
                     avatar_url: this.hasCustomAvatar ? this.selectedAvatar : '',
                     border_preview: this.selectedBorder || ''
                 });
-                this.borders = [
-                    { id: 0, url: null },
-                    ...(this.shopItems || [])
-                        .filter(i => String(i.category || '').toLowerCase() === 'border')
-                        .map(i => ({ id: Number(i.id), url: i.image }))
-                ];
+                this.syncAdminBorders();
             } catch (e) {
                 console.error('Failed to load admin profile media:', e);
             }
+        },
+
+        syncAdminBorders() {
+            this.borders = [
+                { id: 0, url: null, name: 'None', rarity: '' },
+                ...(this.shopItems || [])
+                    .filter(i => String(i.category || '').toLowerCase() === 'border')
+                    .map(i => ({ id: Number(i.id), url: i.image, name: i.name, rarity: i.rarity }))
+            ];
         },
 
         async uploadAvatar(event) {
@@ -6212,7 +6508,6 @@ function adminDashboard(userData = {}) {
         async applyAdminBorder(border) {
             const borderId = Number(border?.id || 0);
             this.selectedBorder = border?.url || null;
-            this.avatarModalOpen = false;
             try {
                 const res = await fetch('/user_backend/update_active_border.php', {
                     method: 'POST',
@@ -6220,11 +6515,18 @@ function adminDashboard(userData = {}) {
                     body: JSON.stringify({ border_id: borderId })
                 });
                 const data = await res.json();
-                if (!data.success && borderId !== 0) {
-                    this.showToast(data.message || 'Could not save border (must own it)', 'error');
+                if (data.success) {
+                    this.forceSetCachedMedia(window.CURRENT_USER_ID, {
+                        avatar_url: this.hasCustomAvatar ? this.selectedAvatar : '',
+                        border_preview: this.selectedBorder || ''
+                    });
+                    this.showToast(borderId ? 'Border updated' : 'Border removed', 'success');
+                } else {
+                    this.showToast(data.message || 'Could not save border', 'error');
                 }
             } catch (e) {
                 console.error('Admin border save error:', e);
+                this.showToast('Network error saving border', 'error');
             }
         },
 
@@ -6316,7 +6618,7 @@ function adminDashboard(userData = {}) {
                 const data = await response.json();
 
                 if (data.success) {
-                    window.nexusNavigate('../frontend/login.php?account_deleted=1');
+                    window.nexusNavigate('../frontend/login.php?deletion_scheduled=1');
                 } else {
                     // 2. Server-side check: Incorrect password / session error
                     const errorMsg = data.message || data.error || 'Failed to delete account.';
@@ -6332,6 +6634,7 @@ function adminDashboard(userData = {}) {
     
         switchTab(tabId) {
             if (this.currentTab === tabId) return;
+            this.adminSearchType = 'all';
             const oldTab = this.currentTab;
             const order = (this.navItems || []).map((item) => item.id);
             const from = order.indexOf(oldTab);
@@ -6402,6 +6705,7 @@ function adminDashboard(userData = {}) {
             this.editingMovie = true;
             this.movieTab = 'details';
             this.newMovie = JSON.parse(JSON.stringify(movie));
+            this.newMovie.is_premium = Number(movie.is_premium) === 1;
 
             // Convert string genre to array if needed
             if (!Array.isArray(this.newMovie.genre_ids)) {
@@ -6425,6 +6729,37 @@ function adminDashboard(userData = {}) {
             // Fetch comments for this movie
             this.fetchMovieCommentsForAdmin(this.newMovie.id);
         },
+        isUserBanned(user) {
+            return String(user?.status || '').toLowerCase() === 'banned';
+        },
+        isAppealReport(report) {
+            return String(report?.type || '').toLowerCase() === 'appeal';
+        },
+        patchUserStatus(userId, status) {
+            const id = Number(userId);
+            if (!id) return;
+            this.users = (this.users || []).map((row) =>
+                Number(row.id || row.user_id || 0) === id ? { ...row, status } : row
+            );
+            if (this.userToBan && Number(this.userToBan.id) === id) {
+                this.userToBan = { ...this.userToBan, status };
+            }
+        },
+        markAppealReportsRead(userId) {
+            const id = Number(userId);
+            this.reportsList = (this.reportsList || []).map((report) => {
+                const matchesUser = Number(report.reported_user_id || report.reporter_id || 0) === id;
+                if (!this.isAppealReport(report) || !matchesUser) return report;
+                return { ...report, status: 'Read' };
+            });
+            if (this.selectedReport && this.isAppealReport(this.selectedReport)) {
+                const matchesSelected = Number(this.selectedReport.reported_user_id || this.selectedReport.reporter_id || 0) === id;
+                if (matchesSelected) {
+                    this.selectedReport = { ...this.selectedReport, status: 'Read' };
+                }
+            }
+            this.updateReportStats();
+        },
         openBanModal(user) {
             this.userToBan = user;
             this.banReason = '';
@@ -6436,8 +6771,8 @@ function adminDashboard(userData = {}) {
         // for installations where it lives under /backend.
         async postUserAction(payload) {
             const endpoints = [
-                '/user_backend/user_action.php',
-                '/backend/user_action.php'
+                '/backend/user_action.php',
+                '/user_backend/user_action.php'
             ];
 
             let lastError = null;
@@ -6492,18 +6827,19 @@ function adminDashboard(userData = {}) {
         },
 
         async confirmBan() {
-            if (!this.userToBan || !this.banReason) return;
+            const reason = String(this.banNotes || this.banReason || '').trim();
+            if (!this.userToBan || !reason) return;
 
             try {
                 const data = await this.postUserAction({
                     action: 'ban',
                     id: this.userToBan.id,
-                    reason: this.banReason,
+                    reason: reason,
                     notes: this.banNotes
                 });
 
                 if (data.success) {
-                    this.userToBan.status = 'Banned';
+                    this.patchUserStatus(this.userToBan.id, 'Banned');
 
                     window.showToast(
                         data.message || 'User suspended',
@@ -6526,6 +6862,46 @@ function adminDashboard(userData = {}) {
 
             } finally {
                 this.banModalOpen = false;
+            }
+        },
+
+        async confirmUnban(user) {
+            const target = user || this.userToBan;
+            if (!target || !target.id) return false;
+
+            try {
+                const data = await this.postUserAction({
+                    action: 'unban',
+                    id: target.id
+                });
+
+                if (data.success) {
+                    this.patchUserStatus(target.id, 'Active');
+                    this.markAppealReportsRead(target.id);
+                    window.showToast(data.message || 'Account restored', 'success');
+                    return true;
+                }
+                window.showToast(data.error || 'Failed to restore account', 'error');
+            } catch (e) {
+                console.error('Unban error:', e);
+                window.showToast(e.message || 'Network error', 'error');
+            }
+            return false;
+        },
+
+        async restoreUserFromAppeal() {
+            if (!this.selectedReport) return;
+            const userId = Number(this.selectedReport.reported_user_id || this.selectedReport.reporter_id || 0);
+            if (!userId) {
+                window.showToast('Could not find the banned account on this appeal.', 'error');
+                return;
+            }
+            const restored = await this.confirmUnban({ id: userId });
+            if (!restored) return;
+            if (this.selectedReport && this.selectedReport.status === 'Pending') {
+                await this.resolveReport();
+            } else {
+                this.viewModalOpen = false;
             }
         },
 
@@ -6821,7 +7197,8 @@ function adminDashboard(userData = {}) {
                     this.fetchShopItems(),
                     this.fetchAdminProfile(),
                     this.fetchReports(),
-                    this.fetchComments()
+                    this.fetchComments(),
+                    this.fetchTransactions()
                 ]);
             } finally {
                 clearTimeout(loadingSafety);
@@ -7065,6 +7442,16 @@ function adminDashboard(userData = {}) {
 }
 
 window.createParty = async function(movieOrId = null) {
+    if (window.NEXUS_USER?.isGuest) {
+        if (typeof window.hidePageLoader === 'function') window.hidePageLoader();
+        if (typeof window.nexusNavigate === 'function') {
+            window.nexusNavigate('/frontend/login.php');
+        } else {
+            window.location.href = '/frontend/login.php';
+        }
+        return;
+    }
+
     let movie = null;
     let movieId = 0;
     if (movieOrId && typeof movieOrId === 'object') {

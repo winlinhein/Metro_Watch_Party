@@ -77,19 +77,24 @@ if ($method === 'POST') {
         if ($action === 'delete') {
             $conn->beginTransaction();
 
-            // 1. Delete likes for the comment and its replies
-            $likeStmt = $conn->prepare("
-                DELETE FROM comment_likes 
-                WHERE comment_id IN (
-                    SELECT comment_id FROM movie_comments 
-                    WHERE comment_id = ? OR parent_comment_id = ?
-                )
-            ");
-            $likeStmt->execute([$commentId, $commentId]);
+            $idsStmt = $conn->prepare("SELECT comment_id FROM movie_comments WHERE comment_id = ? OR parent_comment_id = ?");
+            $idsStmt->execute([$commentId, $commentId]);
+            $ids = array_values(array_unique(array_map('intval', $idsStmt->fetchAll(PDO::FETCH_COLUMN))));
+            if (!$ids) {
+                $conn->rollBack();
+                echo json_encode(['success' => false, 'error' => 'Comment not found']);
+                exit;
+            }
 
-            // 2. Delete comments and replies
-            $deleteStmt = $conn->prepare("DELETE FROM movie_comments WHERE comment_id = ? OR parent_comment_id = ?");
-            $deleteStmt->execute([$commentId, $commentId]);
+            $placeholders = implode(',', array_fill(0, count($ids), '?'));
+            $conn->prepare("DELETE FROM comment_likes WHERE comment_id IN ($placeholders)")->execute($ids);
+            try {
+                $conn->prepare("DELETE FROM reports WHERE comment_id IN ($placeholders)")->execute($ids);
+            } catch (Throwable $ignore) {
+            }
+
+            $conn->prepare("DELETE FROM movie_comments WHERE parent_comment_id = ?")->execute([$commentId]);
+            $conn->prepare("DELETE FROM movie_comments WHERE comment_id = ?")->execute([$commentId]);
 
             $conn->commit();
             echo json_encode(['success' => true]);

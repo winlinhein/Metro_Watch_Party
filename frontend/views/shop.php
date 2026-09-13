@@ -98,11 +98,11 @@
                  </div>
                  <div>
                      <label class="block text-xs font-bold text-white/50 uppercase tracking-wider mb-2">Rarity</label>
-                     <select x-model="formData.rarity" class="w-full bg-[#030305] border border-white/10 rounded-xl px-4 py-3 text-sm text-white outline-none focus:border-purple-500/50 transition-colors">
+                     <select x-model="formData.rarity" class="w-full bg-[#0a0a0f] border border-white/10 rounded-xl px-4 py-3 text-sm text-white outline-none focus:border-purple-500/50 transition-colors">
                          <option value="Common">Common</option>
                          <option value="Rare">Rare</option>
                          <option value="Epic">Epic</option>
-                         <option value="Legendary">Legendary</option>
+                         <option value="Premium">Premium</option>
                      </select>
                  </div>
                  <div>

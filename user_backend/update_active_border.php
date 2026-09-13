@@ -26,6 +26,17 @@ try {
         exit;
     }
 
+    if ($borderId !== 0) {
+        require_once __DIR__ . '/../premium_benefits_helper.php';
+        $rarityStmt = $conn->prepare("SELECT rarity FROM shop_items WHERE item_id = ? LIMIT 1");
+        $rarityStmt->execute([$borderId]);
+        $rarity = (string)($rarityStmt->fetchColumn() ?: '');
+        if (nexusIsPremiumRarity($rarity) && !nexusIsPremium($conn, $userId) && !nexusUserIsStaff($conn, $userId)) {
+            echo json_encode(['success' => false, 'message' => 'Premium membership required to use this border', 'needs_premium' => true]);
+            exit;
+        }
+    }
+
     // Preserve existing theme id if present
     $stmt = $conn->prepare("SELECT active_theme_id FROM user_customizations WHERE user_id = ?");
     $stmt->execute([$userId]);

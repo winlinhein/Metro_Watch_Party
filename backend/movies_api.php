@@ -10,6 +10,9 @@ header('Content-Type: application/json');
 session_write_close();
 require_once __DIR__ . '/../conn.php';
 require_once __DIR__ . '/../poster_helper.php';
+require_once __DIR__ . '/../schema_upgrade_helper.php';
+
+ensureAppSchema($conn);
 
 $method = $_SERVER['REQUEST_METHOD'];
 
@@ -34,6 +37,7 @@ if ($method === 'GET') {
                 m.duration,
                 m.view_count,
                 m.created_at,
+                COALESCE(m.is_premium, 0) AS is_premium,
                 COALESCE(ROUND(AVG(r.rating), 1), 0) AS rating,
                 COALESCE(GROUP_CONCAT(DISTINCT g.genre_name SEPARATOR ', '), '') AS genre,
                 COALESCE(GROUP_CONCAT(DISTINCT g.genre_id), '') AS genre_ids
@@ -52,6 +56,7 @@ if ($method === 'GET') {
             $movie['genre_ids'] = $movie['genre_ids'] ? array_map('intval', explode(',', $movie['genre_ids'])) : [];
             $movie['duration'] = (int) $movie['duration'];
             $movie['view_count'] = (int) $movie['view_count'];
+            $movie['is_premium'] = (int)($movie['is_premium'] ?? 0);
             $movie['img'] = moviePosterUrl($movie['id']);
             $movie['cover_image'] = $movie['img'];
         }
@@ -113,6 +118,7 @@ if ($method === 'POST') {
     $videoUrl       = trim($_POST['trailer'] ?? '');
     $actualVideoUrl = trim($_POST['actual_video_url'] ?? '');
     $duration       = isset($_POST['duration']) ? (int)$_POST['duration'] : null;
+    $isPremiumMovie = !empty($_POST['is_premium']) ? 1 : 0;
 
     // Parse genre_ids if sent as JSON string or array
     $genreIds = [];
@@ -142,21 +148,21 @@ if ($method === 'POST') {
             // Update existing movie (only update poster BLOB if a new file was uploaded)
             if ($posterBytes !== null) {
                 $stmt = $conn->prepare("
-                    UPDATE movies SET title = ?, description = ?, poster = ?, video_url = ?, actual_video_url = ?, duration = ? WHERE movie_id = ?
+                    UPDATE movies SET title = ?, description = ?, poster = ?, video_url = ?, actual_video_url = ?, duration = ?, is_premium = ? WHERE movie_id = ?
                 ");
-                $stmt->execute([$title, $description, $posterBytes, $videoUrl, $actualVideoUrl, $duration, $movieId]);
+                $stmt->execute([$title, $description, $posterBytes, $videoUrl, $actualVideoUrl, $duration, $isPremiumMovie, $movieId]);
             } else {
                 $stmt = $conn->prepare("
-                    UPDATE movies SET title = ?, description = ?, video_url = ?, actual_video_url = ?, duration = ? WHERE movie_id = ?
+                    UPDATE movies SET title = ?, description = ?, video_url = ?, actual_video_url = ?, duration = ?, is_premium = ? WHERE movie_id = ?
                 ");
-                $stmt->execute([$title, $description, $videoUrl, $actualVideoUrl, $duration, $movieId]);
+                $stmt->execute([$title, $description, $videoUrl, $actualVideoUrl, $duration, $isPremiumMovie, $movieId]);
             }
         } else {
             // Insert new movie with uploaded poster bytes
             $stmt = $conn->prepare("
-                INSERT INTO movies (title, description, poster, video_url, actual_video_url, duration, view_count) VALUES (?, ?, ?, ?, ?, ?, 0)
+                INSERT INTO movies (title, description, poster, video_url, actual_video_url, duration, view_count, is_premium) VALUES (?, ?, ?, ?, ?, ?, 0, ?)
             ");
-            $stmt->execute([$title, $description, $posterBytes, $videoUrl, $actualVideoUrl, $duration]);
+            $stmt->execute([$title, $description, $posterBytes, $videoUrl, $actualVideoUrl, $duration, $isPremiumMovie]);
             $movieId = $conn->lastInsertId();
         }
         
@@ -184,6 +190,7 @@ if ($method === 'POST') {
                 m.duration,
                 m.view_count,
                 m.created_at,
+                COALESCE(m.is_premium, 0) AS is_premium,
                 COALESCE(ROUND(AVG(r.rating), 1), 0) AS rating,
                 COALESCE(GROUP_CONCAT(DISTINCT g.genre_name SEPARATOR ', '), '') AS genre,
                 COALESCE(GROUP_CONCAT(DISTINCT g.genre_id), '') AS genre_ids
@@ -201,6 +208,7 @@ if ($method === 'POST') {
             $movie['genre_ids'] = $movie['genre_ids'] ? array_map('intval', explode(',', $movie['genre_ids'])) : [];
             $movie['duration'] = (int)$movie['duration'];
             $movie['view_count'] = (int)$movie['view_count'];
+            $movie['is_premium'] = (int)($movie['is_premium'] ?? 0);
             $movie['img'] = moviePosterUrl($movie['id']);
             $movie['cover_image'] = $movie['img'];
         }

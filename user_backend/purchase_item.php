@@ -1,6 +1,7 @@
 <?php
 session_start();
 require_once __DIR__ . '/../conn.php';
+require_once __DIR__ . '/../premium_benefits_helper.php';
 header('Content-Type: application/json');
 
 if (empty($_SESSION['user_id'])) {
@@ -22,13 +23,24 @@ try {
     $conn->beginTransaction();
 
     // Get item cost
-    $stmt = $conn->prepare("SELECT point_cost FROM shop_items WHERE item_id = ?");
+    $stmt = $conn->prepare("SELECT point_cost, rarity FROM shop_items WHERE item_id = ?");
     $stmt->execute([$itemId]);
-    $cost = $stmt->fetchColumn();
+    $item = $stmt->fetch(PDO::FETCH_ASSOC);
 
-    if (!$cost) {
+    if (!$item) {
         $conn->rollBack();
         echo json_encode(['success' => false, 'message' => 'Item not found']);
+        exit;
+    }
+
+    $cost = (int)$item['point_cost'];
+    if (nexusIsPremiumRarity($item['rarity'] ?? '')) {
+        $conn->rollBack();
+        echo json_encode([
+            'success' => false,
+            'message' => 'Premium borders are included with Premium and cannot be bought.',
+            'needs_premium' => !nexusIsPremium($conn, (int)$userId),
+        ]);
         exit;
     }
 

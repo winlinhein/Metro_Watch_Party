@@ -160,9 +160,8 @@ try {
 
     // Notify admins (role_id 1 and 3)
     $noti_message = "New " . ucfirst($type) . " report submitted (Report #" . $report_id . ")";
-    $adminStmt = $conn->prepare("SELECT user_id FROM users WHERE role_id IN (1, 3)");
-    $adminStmt->execute();
-    $adminIds = array_map('intval', $adminStmt->fetchAll(PDO::FETCH_COLUMN));
+    require_once __DIR__ . '/../auth_flow_helper.php';
+    $adminIds = nexusStaffUserIds($conn);
 
     $stmt_noti = $conn->prepare("
         INSERT INTO notifications (user_id, sender_id, type, message, is_read, created_at)

@@ -1,5 +1,7 @@
 <?php
 require_once __DIR__ . '/pusher_helper.php';
+require_once __DIR__ . '/media_store_helper.php';
+require_once __DIR__ . '/room_chat_helper.php';
 
 function isRoomClosed(?string $status): bool
 {
@@ -45,6 +47,10 @@ function closeWatchPartyRoom(PDO $conn, int $roomId, array $opts = []): bool
     try {
         $conn->prepare("DELETE FROM room_join_requests WHERE room_id = :room_id")
              ->execute(['room_id' => $roomId]);
+    } catch (Throwable $ignore) {}
+
+    try {
+        deleteRoomChat($conn, $roomId);
     } catch (Throwable $ignore) {}
 
     $updated = $conn->prepare("UPDATE rooms SET status = 'deleted' WHERE room_id = :room_id AND status = 'active'");

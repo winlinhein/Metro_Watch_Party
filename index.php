@@ -1,5 +1,5 @@
 <?php
-session_start();
+require_once __DIR__ . '/frontend/components/session_boot.php';
 
 $homeLoggedIn = false;
 $homeUserName = '';
@@ -71,11 +71,22 @@ if ($sessionAuthed && $sessionUserId > 0 && in_array($sessionRole, ['user', 'adm
     <script src="/js/home_page.js?v=11"></script>
 
     <style>
+        html, body { color-scheme: dark; }
         body {
             font-family: 'Space Grotesk', sans-serif;
             background-color: #030305;
             color: #ffffff;
             overflow-x: hidden;
+        }
+        select {
+            color-scheme: dark;
+            background-color: #0a0a0f;
+            color: #f5f5f5;
+        }
+        select option,
+        select optgroup {
+            background-color: #0a0a0f;
+            color: #f5f5f5;
         }
 
         .mono { font-family: 'JetBrains Mono', monospace; }
@@ -354,7 +365,12 @@ if ($sessionAuthed && $sessionUserId > 0 && in_array($sessionRole, ['user', 'adm
             color: #fff;
             padding: 1.35rem 1rem 0.7rem;
             outline: none;
+            color-scheme: dark;
             transition: border-color 0.3s ease, box-shadow 0.3s ease, background 0.3s ease;
+        }
+        .home-field select option {
+            background-color: #0a0a0f;
+            color: #f5f5f5;
         }
         .home-field textarea { min-height: 132px; resize: none; }
         .home-field label {
@@ -421,7 +437,7 @@ if ($sessionAuthed && $sessionUserId > 0 && in_array($sessionRole, ['user', 'adm
     <script src="https://cdn.plyr.io/3.7.8/plyr.polyfilled.js"></script>
     <script src="https://unpkg.com/htmx.org@1.9.10/dist/htmx.min.js" crossorigin="anonymous"></script>
 </head>
-<body data-barba="wrapper">
+<body class="overflow-x-hidden" data-barba="wrapper">
     <?php include __DIR__ . '/frontend/components/page_loader.php'; ?>
     <?php
     try {
@@ -1209,58 +1225,58 @@ if ($sessionAuthed && $sessionUserId > 0 && in_array($sessionRole, ['user', 'adm
                 <h2 class="text-sm font-bold text-white/40 tracking-widest uppercase mb-1.5 mono">Signal Check</h2>
                 <h3 class="text-2xl font-bold tracking-tight">Questions, answered</h3>
             </div>
-            <div class="space-y-3">
+            <div class="space-y-3" x-data="{ faqOpen: null, toggleFaq(id) { this.faqOpen = this.faqOpen === id ? null : id; } }">
                 <div class="glass-card rounded-2xl px-5 py-4 cursor-pointer" @click="toggleFaq(1)">
                     <div class="flex items-center justify-between gap-4">
                         <h4 class="font-bold">Do we all need the same account?</h4>
-                        <span class="material-symbols-outlined text-white/40" x-text="faqOpen === 1 ? 'expand_less' : 'expand_more'">expand_more</span>
+                        <span class="material-symbols-outlined text-white/40" x-text="$data.faqOpen === 1 ? 'expand_less' : 'expand_more'">expand_more</span>
                     </div>
-                    <div x-show="faqOpen === 1" x-collapse>
+                    <div x-show="$data.faqOpen === 1" x-collapse>
                         <p class="text-sm text-white/50 mt-3 leading-relaxed">No. Guests can join a room from a link. Hosts get extra controls once signed in — invites, kick, and shop rewards.</p>
                     </div>
                 </div>
                 <div class="glass-card rounded-2xl px-5 py-4 cursor-pointer" @click="toggleFaq(2)">
                     <div class="flex items-center justify-between gap-4">
                         <h4 class="font-bold">Will playback drift?</h4>
-                        <span class="material-symbols-outlined text-white/40" x-text="faqOpen === 2 ? 'expand_less' : 'expand_more'">expand_more</span>
+                        <span class="material-symbols-outlined text-white/40" x-text="$data.faqOpen === 2 ? 'expand_less' : 'expand_more'">expand_more</span>
                     </div>
-                    <div x-show="faqOpen === 2" x-collapse>
+                    <div x-show="$data.faqOpen === 2" x-collapse>
                         <p class="text-sm text-white/50 mt-3 leading-relaxed">Nexus re-syncs continuously so pause, seek, and reconnect stay aligned across clients. The target offset is 0ms.</p>
                     </div>
                 </div>
                 <div class="glass-card rounded-2xl px-5 py-4 cursor-pointer" @click="toggleFaq(3)">
                     <div class="flex items-center justify-between gap-4">
                         <h4 class="font-bold">Is chat private?</h4>
-                        <span class="material-symbols-outlined text-white/40" x-text="faqOpen === 3 ? 'expand_less' : 'expand_more'">expand_more</span>
+                        <span class="material-symbols-outlined text-white/40" x-text="$data.faqOpen === 3 ? 'expand_less' : 'expand_more'">expand_more</span>
                     </div>
-                    <div x-show="faqOpen === 3" x-collapse>
+                    <div x-show="$data.faqOpen === 3" x-collapse>
                         <p class="text-sm text-white/50 mt-3 leading-relaxed">Rooms are invite-only. Hosts can mute, kick, and rotate the invite at any time. Chat never leaves the room.</p>
                     </div>
                 </div>
                 <div class="glass-card rounded-2xl px-5 py-4 cursor-pointer" @click="toggleFaq(4)">
                     <div class="flex items-center justify-between gap-4">
                         <h4 class="font-bold">Do I need to install anything?</h4>
-                        <span class="material-symbols-outlined text-white/40" x-text="faqOpen === 4 ? 'expand_less' : 'expand_more'">expand_more</span>
+                        <span class="material-symbols-outlined text-white/40" x-text="$data.faqOpen === 4 ? 'expand_less' : 'expand_more'">expand_more</span>
                     </div>
-                    <div x-show="faqOpen === 4" x-collapse>
+                    <div x-show="$data.faqOpen === 4" x-collapse>
                         <p class="text-sm text-white/50 mt-3 leading-relaxed">No. Nexus runs in the browser. Open a link, join the room, and the player + chat load together.</p>
                     </div>
                 </div>
                 <div class="glass-card rounded-2xl px-5 py-4 cursor-pointer" @click="toggleFaq(5)">
                     <div class="flex items-center justify-between gap-4">
                         <h4 class="font-bold">Can I host without a full account?</h4>
-                        <span class="material-symbols-outlined text-white/40" x-text="faqOpen === 5 ? 'expand_less' : 'expand_more'">expand_more</span>
+                        <span class="material-symbols-outlined text-white/40" x-text="$data.faqOpen === 5 ? 'expand_less' : 'expand_more'">expand_more</span>
                     </div>
-                    <div x-show="faqOpen === 5" x-collapse>
+                    <div x-show="$data.faqOpen === 5" x-collapse>
                         <p class="text-sm text-white/50 mt-3 leading-relaxed">Guest login lets you enter quickly. Creating an account keeps your watchlist, friends, and shop items between sessions.</p>
                     </div>
                 </div>
                 <div class="glass-card rounded-2xl px-5 py-4 cursor-pointer" @click="toggleFaq(6)">
                     <div class="flex items-center justify-between gap-4">
                         <h4 class="font-bold">What does Premium include?</h4>
-                        <span class="material-symbols-outlined text-white/40" x-text="faqOpen === 6 ? 'expand_less' : 'expand_more'">expand_more</span>
+                        <span class="material-symbols-outlined text-white/40" x-text="$data.faqOpen === 6 ? 'expand_less' : 'expand_more'">expand_more</span>
                     </div>
-                    <div x-show="faqOpen === 6" x-collapse>
+                    <div x-show="$data.faqOpen === 6" x-collapse>
                         <p class="text-sm text-white/50 mt-3 leading-relaxed">Premium is $4.99 a month. You keep every Free feature, plus exclusive cosmetics, unlimited hosting, a Premium badge, and no protocol caps. Activate it from your dashboard after you sign in.</p>
                     </div>
                 </div>

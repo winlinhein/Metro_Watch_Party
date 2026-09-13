@@ -1,5 +1,5 @@
 <?php
-session_start();
+require_once __DIR__ . '/components/session_boot.php';
 
 // Block access if not authenticated OR if the user's role is not admin or moderator
 if (
@@ -64,11 +64,22 @@ session_write_close();
     <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined" rel="stylesheet" />
     
     <style>
+        html, body { color-scheme: dark; }
         body { 
             font-family: 'Space Grotesk', sans-serif; 
             background-color: #030305; 
             color: #ffffff; 
             overflow: hidden;
+        }
+        select {
+            color-scheme: dark;
+            background-color: #0a0a0f;
+            color: #f5f5f5;
+        }
+        select option,
+        select optgroup {
+            background-color: #0a0a0f;
+            color: #f5f5f5;
         }
         .mono { font-family: 'JetBrains Mono', monospace; }
         
@@ -264,7 +275,7 @@ session_write_close();
 
     <link rel="stylesheet" href="https://cdn.plyr.io/3.7.8/plyr.css" />
     <script src="https://cdn.plyr.io/3.7.8/plyr.polyfilled.js"></script>
-    <script src="../js/nexus_scripts.js?v=1789042700"></script>
+    <script src="../js/nexus_scripts.js?v=1789044701"></script>
     <script src="https://unpkg.com/htmx.org@1.9.10/dist/htmx.min.js" crossorigin="anonymous"></script>
 </head>
 <body class="h-screen w-screen flex relative selection:bg-red-500/30" data-barba="wrapper">
@@ -330,6 +341,7 @@ session_write_close();
         
         <!-- Header -->
         <header class="header h-24 flex items-center justify-between px-10 border-b border-white/5">
+            <div class="flex items-center gap-3">
             <div class="flex items-center gap-3 bg-white/[0.03] border border-white/10 rounded-2xl px-5 py-3 w-[400px] focus-within:border-red-500/50 focus-within:bg-white/[0.05] transition-all duration-300 shadow-inner gs-header-item group">
                 <span class="material-symbols-outlined text-white/40 group-focus-within:text-red-400 transition-colors">search</span>
                 <input type="text"
@@ -345,6 +357,7 @@ session_write_close();
                         title="Clear search">
                     <span class="material-symbols-outlined text-[18px]">close</span>
                 </button>
+            </div>
             </div>
             
             <div class="flex items-center gap-6 relative">

@@ -155,7 +155,7 @@
                 <div class="p-6 rounded-2xl bg-red-500/[0.04] border border-red-500/20 backdrop-blur-md flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                     <div class="space-y-1">
                         <h5 class="text-sm font-bold text-white">Delete Account</h5>
-                        <p class="text-xs text-white/40">Permanently remove your account, profile details, and watchlist history. This action cannot be undone.</p>
+                        <p class="text-xs text-white/40">Starts a 24-hour countdown. Sign in again to reverse it. After the timer ends, everything related to this account is deleted.</p>
                     </div>
                     
                     <button @click="deleteAccountModalOpen = true; deleteAccountPassword = ''" 
@@ -177,9 +177,26 @@
         </button>
         
         <h3 class="text-xl font-bold text-white mb-6">Select Border</h3>
+        <div class="flex gap-2 mb-4">
+            <input type="text" x-model="searchQuery" placeholder="Search borders..." class="flex-1 bg-black/40 border border-white/10 rounded-xl px-3 py-2 text-xs text-white outline-none">
+            <select x-model="adminSearchType" class="bg-[#0a0a0f] border border-white/10 rounded-xl px-3 py-2 text-xs text-white outline-none">
+                <option value="all">All types</option>
+                <option value="common">Common</option>
+                <option value="rare">Rare</option>
+                <option value="epic">Epic</option>
+                <option value="premium">Premium</option>
+            </select>
+        </div>
         
         <div class="grid grid-cols-4 gap-3">
-            <template x-for="border in borders" :key="border.id">
+            <template x-for="border in (borders || []).filter(b => {
+                const q = String(searchQuery || '').toLowerCase();
+                const t = String(adminSearchType || 'all').toLowerCase();
+                const rarity = String(b.rarity || '').toLowerCase();
+                const typeOk = t === 'all' || rarity === t;
+                const searchOk = !q || String(b.name || '').toLowerCase().includes(q);
+                return typeOk && searchOk;
+            })" :key="border.id">
                 <button @click="applyAdminBorder(border)" 
                     :class="selectedBorder === border.url ? 'border-red-500 bg-red-500/10' : 'border-white/10 bg-white/5 hover:border-white/30'"
                     class="w-full aspect-square rounded-xl border transition-all flex items-center justify-center overflow-hidden relative group">
@@ -257,7 +274,7 @@
                 </button>
                 <button @click="confirmDeleteAccount()" 
                         class="px-6 py-2.5 rounded-xl bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 text-xs font-bold text-white shadow-lg shadow-red-600/30 transition-all hover:scale-105 active:scale-95">
-                    Permanently Delete
+                    Schedule 24h deletion
                 </button>
             </div>
         </div>

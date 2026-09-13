@@ -45,6 +45,14 @@ function scalarSum(PDO $conn, string $sql, array $params = []): float
     return (float) $stmt->fetchColumn();
 }
 
+function paymentAmountToDollars(float $amount): float
+{
+    if ($amount >= 50 && abs($amount - round($amount)) < 0.001) {
+        return $amount / 100;
+    }
+    return $amount;
+}
+
 try {
     // role_id 2 = regular user (exclude admins)
     $userRoleFilter = 'role_id = 2';
@@ -81,24 +89,24 @@ try {
            AND created_at < DATE_SUB(NOW(), INTERVAL 7 DAY)"
     );
 
-    $totalRevenue = scalarSum(
+    $totalRevenue = paymentAmountToDollars(scalarSum(
         $conn,
         "SELECT COALESCE(SUM(amount), 0) FROM payment_transactions WHERE status = 'success'"
-    );
+    ));
 
-    $revenueLast30 = scalarSum(
+    $revenueLast30 = paymentAmountToDollars(scalarSum(
         $conn,
         "SELECT COALESCE(SUM(amount), 0) FROM payment_transactions
          WHERE status = 'success'
            AND created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)"
-    );
-    $revenuePrev30 = scalarSum(
+    ));
+    $revenuePrev30 = paymentAmountToDollars(scalarSum(
         $conn,
         "SELECT COALESCE(SUM(amount), 0) FROM payment_transactions
          WHERE status = 'success'
            AND created_at >= DATE_SUB(NOW(), INTERVAL 60 DAY)
            AND created_at < DATE_SUB(NOW(), INTERVAL 30 DAY)"
-    );
+    ));
 
     $activeConnections = scalarCount(
         $conn,

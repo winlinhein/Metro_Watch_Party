@@ -22,6 +22,19 @@
                 <p class="text-white/50 text-xs max-w-xl font-medium tracking-wide">Redeem your hard-earned points for exclusive profile cosmetics, avatars, and special badges to stand out in the network.</p>
             </div>
 
+            <div class="flex flex-wrap items-center gap-2">
+                <div class="relative">
+                    <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-white/30 text-[16px]">search</span>
+                    <input type="text" x-model="shopSearchQuery" placeholder="Search items..." class="w-48 bg-black/40 border border-white/10 rounded-xl py-2.5 pl-9 pr-3 text-xs text-white placeholder-white/30 outline-none focus:border-violet-500/40">
+                </div>
+                <select x-model="shopRarityFilter" class="bg-[#0a0a0f] border border-white/10 rounded-xl py-2.5 px-3 text-xs text-white outline-none">
+                    <option value="all">All types</option>
+                    <option value="Common">Common</option>
+                    <option value="Rare">Rare</option>
+                    <option value="Epic">Epic</option>
+                    <option value="Premium">Premium</option>
+                </select>
+            </div>
             <div class="flex items-center gap-3 bg-black/40 backdrop-blur-xl border border-white/10 rounded-xl p-3 shadow-xl">
                 <div class="w-9 h-9 rounded-lg bg-yellow-500/20 border border-yellow-500/30 flex items-center justify-center">
                     <span class="material-symbols-outlined text-yellow-400 text-xl">toll</span>
@@ -41,9 +54,9 @@
              x-transition:enter="transition-all duration-500"
              x-transition:enter-start="opacity-0 scale-95"
              x-transition:enter-end="opacity-100 scale-100">
-            <template x-for="item in shopItems" :key="item.id">
+            <template x-for="item in filteredShopItems" :key="item.id">
                 <div class="group relative bg-[#050508] rounded-2xl border border-white/[0.05] p-3.5 hover:border-white/20 transition-all duration-500 hover:-translate-y-1 shadow-xl overflow-hidden cursor-pointer"
-                     @click="!userInventory.includes(item.id) ? (selectedItem = item, showConfirmModal = true) : null">
+                     @click="handleShopItemClick(item)">
                     
                     <!-- Background Glow (generic) -->
                     <div class="absolute inset-0 bg-gradient-to-br from-indigo-500/10 to-purple-500/10 opacity-0 group-hover:opacity-20 transition-opacity duration-700 pointer-events-none"></div>
@@ -73,11 +86,11 @@
                         </template>
                         
                         <!-- Purchased Overlay -->
-                        <div x-show="userInventory.includes(item.id)" class="absolute inset-0 bg-black/80 backdrop-blur-sm flex flex-col items-center justify-center z-10">
+                        <div x-show="isShopItemOwned(item)" class="absolute inset-0 bg-black/80 backdrop-blur-sm flex flex-col items-center justify-center z-10">
                             <div class="w-10 h-10 rounded-full bg-emerald-500/20 border border-emerald-500 flex items-center justify-center mb-1 shadow-[0_0_30px_rgba(16,185,129,0.5)]">
                                 <span class="material-symbols-outlined text-xl text-emerald-400">check_circle</span>
                             </div>
-                            <span class="text-emerald-400 font-bold uppercase tracking-widest text-[10px]">Owned</span>
+                            <span class="text-emerald-400 font-bold uppercase tracking-widest text-[10px]" x-text="isPremiumBorder(item) ? 'Included' : 'Owned'"></span>
                         </div>
                     </div>
 
@@ -85,12 +98,22 @@
                     <div class="flex items-end justify-between gap-2">
                         <div class="min-w-0">
                             <h3 class="text-sm font-bold text-white mb-0.5 truncate" x-text="item.name"></h3>
-                            <span class="text-[10px] font-mono uppercase text-white/40 tracking-wider" x-text="item.category"></span>
+                            <span class="text-[10px] font-mono uppercase tracking-wider" :class="rarityClass(item.rarity)" x-text="item.rarity || item.category"></span>
                         </div>
                         <div class="flex items-center gap-1 bg-black/60 px-2 py-1 rounded-md border border-white/10 group-hover:border-yellow-500/50 transition-colors shrink-0"
-                             x-show="!userInventory.includes(item.id)">
-                            <span class="material-symbols-outlined text-yellow-500 text-sm">toll</span>
-                            <span class="text-yellow-400 font-bold text-xs" x-text="item.price"></span>
+                             x-show="!isShopItemOwned(item)">
+                            <template x-if="isPremiumBorder(item)">
+                                <div class="flex items-center gap-1">
+                                    <span class="material-symbols-outlined text-amber-300 text-sm">workspace_premium</span>
+                                    <span class="text-amber-300 font-bold text-xs">Premium</span>
+                                </div>
+                            </template>
+                            <template x-if="!isPremiumBorder(item)">
+                                <div class="flex items-center gap-1">
+                                    <span class="material-symbols-outlined text-yellow-500 text-sm">toll</span>
+                                    <span class="text-yellow-400 font-bold text-xs" x-text="item.price"></span>
+                                </div>
+                            </template>
                         </div>
                     </div>
 
@@ -99,7 +122,7 @@
         </div>
 
         <!-- Empty State -->
-        <div x-show="shopItems.length === 0" class="py-20 flex flex-col items-center justify-center text-center opacity-50 relative z-10">
+        <div x-show="filteredShopItems.length === 0" class="py-20 flex flex-col items-center justify-center text-center opacity-50 relative z-10">
             <span class="material-symbols-outlined text-6xl text-white/20 mb-4 animate-pulse">inventory_2</span>
             <p class="text-lg font-bold text-white uppercase tracking-widest">No Items Available</p>
             <p class="text-sm text-white/60 mt-2">Check back later for new stock.</p>

@@ -71,7 +71,8 @@
                     <div class="p-4 space-y-2 relative z-20">
                         <h4 class="font-bold text-base text-white group-hover:text-red-400 transition-colors truncate" x-text="movie.title"></h4>
                         <div class="flex items-center gap-2 flex-wrap">
-                            <span class="px-2 py-0.5 rounded-md text-[10px] font-bold bg-white/[0.06] text-white/70 border border-white/5 font-mono" x-text="movie.year || movie.duration || 'N/A'"></span>
+                            <span class="px-2 py-0.5 rounded-md text-[10px] font-bold bg-white/[0.06] text-white/70 border border-white/5 font-mono" x-text="formatMovieDuration(movie.duration) || movie.year || 'N/A'"></span>
+                            <span x-show="Number(movie.is_premium) === 1" class="px-2 py-0.5 rounded-md text-[10px] font-bold bg-amber-500/15 text-amber-300 border border-amber-500/30">Premium</span>
                             <span class="px-2 py-0.5 rounded-md text-[10px] font-bold bg-indigo-500/10 text-indigo-300 border border-indigo-500/20 truncate max-w-[100px]" x-text="movie.genre || 'N/A'"></span>
                         </div>
                     </div>
@@ -164,12 +165,17 @@
                                         <div class="flex items-center justify-between bg-white/[0.02] border border-white/10 rounded-2xl px-4 py-3 select-none">
                                             <div class="flex items-center gap-2">
                                                 <span class="material-symbols-outlined text-yellow-400 text-[18px]">star</span>
-                                                <span class="text-sm font-bold text-white" x-text="newMovie.rating ? newMovie.rating + ' / 10' : '0.0'"></span>
+                                                <span class="text-sm font-bold text-white" x-text="newMovie.rating ? newMovie.rating + ' / 5' : '0.0'"></span>
                                             </div>
                                             <span class="material-symbols-outlined text-white/20 text-[16px]" title="Calculated automatically from audience ratings">lock</span>
                                         </div>
                                     </div>
                                 </div>
+
+                                <label class="flex items-center gap-3 p-3 rounded-2xl bg-white/[0.02] border border-white/10 cursor-pointer">
+                                    <input type="checkbox" x-model="newMovie.is_premium" class="accent-amber-400">
+                                    <span class="text-xs font-bold text-amber-300 uppercase tracking-wider">Premium catalog title</span>
+                                </label>
 
                                 <!-- Genre Tags Picker -->
                                 <div>

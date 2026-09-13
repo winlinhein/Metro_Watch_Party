@@ -154,26 +154,14 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
         $conn->commit();
 
-        /// Clear temporary verification state
-        unset($_SESSION['verify_email']);
+        require_once __DIR__ . '/../account_lifecycle_helper.php';
+        require_once __DIR__ . '/../auth_flow_helper.php';
 
-        // Store permanent session details
-        $_SESSION['authenticated'] = true;
-        $_SESSION['user_id']       = $user_record['user_id'];
-        $_SESSION['user_name']     = $user_record['user_name']; 
-        $_SESSION['user_email']    = $user_record['email'];
-        $_SESSION['user_role']     = $role;
-
-        require_once __DIR__ . '/../user_backend/mission_progress.php';
-        updateMissionProgress($user_record['user_id'] , 'daily_login', 1);
-
-        if ($role === 'admin') {
-            header("Location: ../frontend/admin_dashboard.php?success=" . urlencode("Welcome to Admin Dashboard"));
-            exit();
-        } else {
-            header("Location: ../user/dashboard.php?success=" . urlencode("Successfully logged in"));
-            exit();
-        }
+        $remember = !isset($_SESSION['remember_login']) || !empty($_SESSION['remember_login']);
+        unset($_SESSION['verify_email'], $_SESSION['remember_login'], $_SESSION['otp_type']);
+        $redirect = nexusFinishLogin($conn, $user_record, $remember);
+        header('Location: ' . $redirect);
+        exit();
 
     } catch (PDOException $e) {
         if ($conn->inTransaction()) {
