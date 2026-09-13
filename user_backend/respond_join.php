@@ -52,6 +52,20 @@ try {
         exit;
     }
 
+    if ($action === 'accept') {
+        require_once __DIR__ . '/../premium_benefits_helper.php';
+        require_once __DIR__ . '/../schema_upgrade_helper.php';
+        ensureAppSchema($conn);
+        $roomStmt = $conn->prepare("SELECT room_id, host_id, max_members FROM rooms WHERE room_id = ? LIMIT 1");
+        $roomStmt->execute([(int)$request['room_id']]);
+        $room = $roomStmt->fetch(PDO::FETCH_ASSOC) ?: [];
+        if ($room && nexusRoomIsFull($conn, $room, (int)$request['requester_id'])) {
+            http_response_code(403);
+            echo json_encode(['success' => false, 'message' => 'This room is full (' . nexusRoomMaxMembers($conn, $room) . ' people).']);
+            exit;
+        }
+    }
+
     $status = $action === 'accept' ? 'accepted' : 'declined';
     $conn->prepare("UPDATE room_join_requests SET status = :status WHERE id = :id")
         ->execute(['status' => $status, 'id' => (int)$request['id']]);

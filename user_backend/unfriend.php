@@ -5,6 +5,7 @@ session_start();
 
 require_once __DIR__ . '/../conn.php';
 require_once __DIR__ . '/../pusher_helper.php';
+require_once __DIR__ . '/../account_lifecycle_helper.php';
 
 header('Content-Type: application/json; charset=utf-8');
 
@@ -31,6 +32,8 @@ try {
     $stmt->execute([$user_id, $friend_id, $friend_id, $user_id]);
 
     if ($stmt->rowCount() > 0) {
+        nexusDeleteFriendshipChats($conn, $user_id, $friend_id);
+
         // Send real-time events to both users using the helper
         $payloadForCurrent = ['friend_id' => $friend_id];
         $payloadForFriend  = ['friend_id' => $user_id];

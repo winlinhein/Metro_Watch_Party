@@ -1,7 +1,9 @@
 <?php
 session_start();
 require_once __DIR__ . '/../conn.php';
-require_once __DIR__ . '/../admin_rooms_helper.php'; 
+require_once __DIR__ . '/../admin_rooms_helper.php';
+require_once __DIR__ . '/../premium_benefits_helper.php';
+require_once __DIR__ . '/../schema_upgrade_helper.php'; 
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'create_room') {
     
@@ -28,20 +30,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     
     // Insert into database (ensure table exists or just create room)
     try {
-        $stmt = $conn->prepare("INSERT INTO rooms (room_code, host_id, movie_id, status, created_at) VALUES (?, ?, ?, 'active', NOW())");
-        $stmt->execute([$room_code, $host_id, $movie_id]);
+        ensureAppSchema($conn);
+        $maxMembers = nexusRoomCapacityForUser($conn, $host_id);
+        try {
+            $stmt = $conn->prepare("INSERT INTO rooms (room_code, host_id, movie_id, status, created_at, max_members) VALUES (?, ?, ?, 'active', NOW(), ?)");
+            $stmt->execute([$room_code, $host_id, $movie_id, $maxMembers]);
+        } catch (PDOException $e) {
+            $stmt = $conn->prepare("INSERT INTO rooms (room_code, host_id, movie_id, status, created_at) VALUES (?, ?, ?, 'active', NOW())");
+            $stmt->execute([$room_code, $host_id, $movie_id]);
+        }
         $room_id = $conn->lastInsertId();
         broadcastAdminRoomsChanged('create', [
             'room_id' => (int)$room_id,
             'host_id' => (int)$host_id,
             'movie_id' => (int)$movie_id,
         ]);
+        try {
+            require_once __DIR__ . '/mission_progress.php';
+            updateMissionProgress($host_id, 'host_room', 1);
+        } catch (Throwable $e) {
+            error_log('host_room mission update: ' . $e->getMessage());
+        }
         
         echo json_encode([
             'success' => true,
             'room_code' => $room_code,
             'room_id' => $room_id,
             'movie_id' => (int)$movie_id,
+            'max_members' => (int)$maxMembers,
         ]);
     } catch (PDOException $e) {
         echo json_encode(['success' => false, 'error' => 'Database error: ' . $e->getMessage()]);

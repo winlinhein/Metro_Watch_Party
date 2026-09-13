@@ -37,14 +37,14 @@
                 <template x-for="reason in (availableReasons || [])" :key="'item-reason-'+reason.reason_id">
                     <label
                         class="relative group cursor-pointer flex items-center justify-center px-3 py-1.5 rounded-lg border transition-all duration-200"
-                        :class="(selectedItemReasonIds || []).includes(String(reason.reason_id)) || (selectedItemReasonIds || []).includes(Number(reason.reason_id))
+                        :class="($data.selectedItemReasonIds || []).includes(String(reason.reason_id)) || ($data.selectedItemReasonIds || []).includes(Number(reason.reason_id))
                             ? 'bg-red-500/20 border-red-500 text-red-400 shadow-[0_0_10px_rgba(239,68,68,0.2)]'
                             : 'bg-white/5 border-white/10 text-gray-300 hover:bg-white/10'"
                     >
                         <input
                             type="checkbox"
                             :value="reason.reason_id"
-                            x-model="selectedItemReasonIds"
+                            x-model="$data.selectedItemReasonIds"
                             class="hidden"
                         >
                         <span class="text-xs font-medium" x-text="reason.reason_title"></span>
@@ -65,7 +65,7 @@
             <button @click="submitItemReport()" 
                      id="submit-item-report-btn"
                      class="flex-1 py-2.5 rounded-xl bg-red-600 hover:bg-red-500 text-white shadow-[0_0_15px_rgba(220,38,38,0.5)] font-bold disabled:opacity-50 transition-all transform hover:scale-105 active:scale-95"
-                     :disabled="(selectedItemReasonIds || []).length === 0 && !(reportItemDescription || '').trim()">
+                     :disabled="($data.selectedItemReasonIds || []).length === 0 && !($data.reportItemDescription || '').trim()">
                 Obliterate
             </button>
         </div>

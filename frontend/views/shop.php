@@ -1,5 +1,5 @@
 <!-- Shop View -->
-<div data-tab-panel="shop" style="display: none;" class="absolute inset-0 p-10 w-full min-h-full overflow-y-auto">
+<div data-tab-panel="shop" style="display: none; padding-top: 7.5rem;" class="absolute inset-0 px-10 pb-10 w-full h-full overflow-y-auto">
     <div class="flex items-center justify-between mb-10 stagger-item">
         <div>
             <h2 class="text-3xl font-bold text-white tracking-tight mb-1">Avatar Borders</h2>
@@ -16,7 +16,7 @@
 
     <!-- Shop Grid -->
     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8 pb-10">
-        <template x-for="item in shopItems" :key="item.id">
+        <template x-for="item in pagedShopItems" :key="item.id">
             <div class="glass-card rounded-2xl relative group overflow-hidden border border-white/5 hover:border-purple-500/50 transition-all duration-500 stagger-item shadow-lg hover:shadow-[0_0_30px_rgba(168,85,247,0.2)]">
                 <!-- Glowing orb effect -->
                 <div class="absolute -top-10 -left-10 w-32 h-32 bg-purple-500/20 rounded-full blur-3xl opacity-0 group-hover:opacity-100 transition-opacity duration-700 pointer-events-none"></div>
@@ -54,7 +54,13 @@
                 </div>
             </div>
         </template>
+        <div x-show="adminPage('shop').total === 0" style="display: none;" class="col-span-full glass-card rounded-2xl p-16 flex flex-col items-center justify-center text-center border border-white/5">
+            <span class="material-symbols-outlined text-6xl text-white/20 mb-4">storefront</span>
+            <h3 class="text-xl font-bold text-white mb-2">No shop items found</h3>
+            <p class="text-white/40 max-w-sm">Try a different search, or add a new avatar border.</p>
+        </div>
     </div>
+    <?php $pagerKey = 'shop'; include __DIR__ . '/../components/admin_pagination.php'; ?>
 
     <!-- Add/Edit Modal -->
     <div x-show="modalOpen" style="display: none;" class="fixed inset-0 z-[100] flex items-center justify-center">
@@ -92,11 +98,11 @@
                  </div>
                  <div>
                      <label class="block text-xs font-bold text-white/50 uppercase tracking-wider mb-2">Rarity</label>
-                     <select x-model="formData.rarity" class="w-full bg-[#030305] border border-white/10 rounded-xl px-4 py-3 text-sm text-white outline-none focus:border-purple-500/50 transition-colors">
+                     <select x-model="formData.rarity" class="w-full bg-[#0a0a0f] border border-white/10 rounded-xl px-4 py-3 text-sm text-white outline-none focus:border-purple-500/50 transition-colors">
                          <option value="Common">Common</option>
                          <option value="Rare">Rare</option>
                          <option value="Epic">Epic</option>
-                         <option value="Legendary">Legendary</option>
+                         <option value="Premium">Premium</option>
                      </select>
                  </div>
                  <div>

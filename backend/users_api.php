@@ -20,6 +20,7 @@ session_write_close();
 require_once __DIR__ . '/../conn.php';
 require_once __DIR__ . '/../profile_media_helper.php';
 require_once __DIR__ . '/../presence_helper.php';
+require_once __DIR__ . '/../schema_upgrade_helper.php';
 
 $method = $_SERVER['REQUEST_METHOD'];
 
@@ -28,6 +29,7 @@ $method = $_SERVER['REQUEST_METHOD'];
 // -------------------------------------------------------------
 if ($method === 'GET') {
     try {
+        ensureAppSchema($conn);
         ensureUserLastSeenColumn($conn);
         $sql = "
             SELECT 
@@ -113,6 +115,8 @@ if ($method === 'POST') {
 
     if ($action === 'ban') {
         try {
+            require_once __DIR__ . '/../schema_upgrade_helper.php';
+            ensureAppSchema($conn);
             $stmt = $conn->prepare("UPDATE users SET status = 'banned' WHERE user_id = ?");
             $stmt->execute([$userId]);
 
@@ -125,6 +129,24 @@ if ($method === 'POST') {
         } catch (Exception $e) {
             http_response_code(500);
             echo json_encode(['error' => 'Failed to suspend user: ' . $e->getMessage()]);
+            exit();
+        }
+    }
+
+    if ($action === 'unban') {
+        try {
+            require_once __DIR__ . '/../account_lifecycle_helper.php';
+            nexusUnbanUser($conn, (int)$userId);
+
+            echo json_encode([
+                'success' => true,
+                'message' => "User ID {$userId} has been restored.",
+                'user_id' => (int)$userId
+            ]);
+            exit();
+        } catch (Exception $e) {
+            http_response_code(500);
+            echo json_encode(['error' => 'Failed to restore user: ' . $e->getMessage()]);
             exit();
         }
     }

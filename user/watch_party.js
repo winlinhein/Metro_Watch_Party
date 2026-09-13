@@ -41,6 +41,11 @@ function watchParty() {
         participants: [],
         messages: [],
         newMessage: '',
+        showEmojiPicker: false,
+        chatEmojis: window.NEXUS_CHAT_EMOJIS || [],
+        roomImageFile: null,
+        roomImagePreview: null,
+        _roomChatLoaded: false,
         
         // --- Dynamic Room State ---
         roomId: new URLSearchParams(window.location.search).get('room_id'),
@@ -182,6 +187,11 @@ function watchParty() {
                 // 2. Set Movie / Media Source if assigned
                 if (movie) {
                     this.applyMovie(movie);
+                }
+
+                if (!quiet && Array.isArray(result.data.messages) && !this._roomChatLoaded) {
+                    this.hydrateRoomChat(result.data.messages);
+                    this._roomChatLoaded = true;
                 }
 
             } catch (e) {
@@ -730,13 +740,29 @@ function watchParty() {
             }
         },
 
+        get movieGenreOptions() {
+            const set = new Set();
+            (this.allMovies || []).forEach((m) => {
+                const genres = Array.isArray(m.genres) ? m.genres : String(m.genre || '').split(',');
+                genres.forEach((g) => {
+                    const name = String(g || '').trim();
+                    if (name) set.add(name);
+                });
+            });
+            return Array.from(set).sort((a, b) => a.localeCompare(b));
+        },
+
         get filteredMovies() {
             const query = (this.movieSearchQuery || '').toLowerCase();
+            const type = String(this.movieFilter || 'all').toLowerCase();
             return (this.allMovies || []).filter(movie => {
                 const genres = Array.isArray(movie.genres) ? movie.genres : String(movie.genre || '').split(',').map(s => s.trim());
-                const genreOk = this.movieFilter === 'all' || genres.includes(this.movieFilter);
+                const premium = Number(movie.is_premium) === 1;
+                let typeOk = true;
+                if (type === 'premium') typeOk = premium;
+                else if (type !== 'all') typeOk = genres.some((g) => String(g).toLowerCase() === type);
                 const titleOk = !query || (movie.title && movie.title.toLowerCase().includes(query));
-                return genreOk && titleOk;
+                return typeOk && titleOk;
             });
         },
 
@@ -756,6 +782,10 @@ function watchParty() {
 
         async selectMovie(movie) {
             if (!movie) return;
+            if (Number(movie.is_premium) === 1 && !window.IS_PREMIUM) {
+                alert('Premium membership is required to play this title.');
+                return;
+            }
             this.movieSwitching = true;
             this.showMovieModal = false;
             this.applyMovie(movie);
@@ -1526,15 +1556,12 @@ function watchParty() {
                     return;
                 }
                 if (data.senderId && Number(data.senderId) === Number(window.CURRENT_USER_ID)) return;
-                const mk = 'msg:' + (data.senderId || '') + ':' + (data.text || '') + ':' + (data.time || '');
+                const mk = 'msg:' + (data.id || '') + ':' + (data.senderId || '') + ':' + (data.image_url || data.text || '') + ':' + (data.time || '');
                 this._seenSignals = this._seenSignals || {};
                 if (this._seenSignals[mk]) return;
                 this._seenSignals[mk] = true;
                 this.messages.push(this.enrichChatMessage({ ...data, isSelf: false }));
-                this.$nextTick(() => {
-                    const container = document.getElementById('chat-container');
-                    if (container) container.scrollTop = container.scrollHeight;
-                });
+                this.scrollRoomChat();
                 return;
             }
             if (event === 'movie-changed') {
@@ -1847,16 +1874,70 @@ function watchParty() {
             return { ...data, name, avatar, border };
         },
 
-        sendMessage() {
+        hydrateRoomChat(rows) {
+            const keep = (this.messages || []).filter((m) => m.type === 'join_request');
+            const chats = (rows || []).map((row) => this.enrichChatMessage({
+                ...row,
+                isSelf: Number(row.senderId) === Number(window.CURRENT_USER_ID)
+            }));
+            this.messages = [...chats, ...keep];
+            this.scrollRoomChat();
+        },
+
+        scrollRoomChat() {
+            this.$nextTick(() => {
+                const container = document.getElementById('chat-container');
+                if (container) container.scrollTop = container.scrollHeight;
+            });
+        },
+
+        insertRoomEmoji(emoji) {
+            this.newMessage = (this.newMessage || '') + emoji;
+        },
+
+        handleRoomImageSelect(event) {
+            const file = event.target.files && event.target.files[0];
+            if (!file) return;
+            if (!['image/jpeg', 'image/png', 'image/gif', 'image/webp'].includes(file.type)) {
+                if (window.showToast) window.showToast('Use a JPG, PNG, GIF, or WebP image.', 'error');
+                event.target.value = '';
+                return;
+            }
+            if (file.size > 5 * 1024 * 1024) {
+                if (window.showToast) window.showToast('Image too large (max 5MB).', 'error');
+                event.target.value = '';
+                return;
+            }
+            this.roomImageFile = file;
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                this.roomImagePreview = e.target.result;
+            };
+            reader.readAsDataURL(file);
+            event.target.value = '';
+        },
+
+        clearRoomImage() {
+            this.roomImageFile = null;
+            this.roomImagePreview = null;
+        },
+
+        async sendMessage() {
             if (this.chatBanned) {
                 if (window.showToast) window.showToast('The host banned you from room chat.', 'info');
                 return;
             }
-            if (this.newMessage.trim() === '') return;
-            
+            const text = this.newMessage.trim();
+            if (text === '' && !this.roomImageFile) return;
+
+            const localPreview = this.roomImagePreview;
+            const file = this.roomImageFile;
             const msg = this.enrichChatMessage({
+                id: 'local-' + Date.now(),
                 name: window.USER_NAME || 'You',
-                text: this.newMessage.trim(),
+                text,
+                type: file ? 'image' : 'text',
+                image_url: localPreview || null,
                 time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
                 avatar: this.selfAvatar(),
                 border: this.selfBorder(),
@@ -1865,20 +1946,44 @@ function watchParty() {
             });
 
             this.messages.push(msg);
+            this.newMessage = '';
+            this.showEmojiPicker = false;
+            this.clearRoomImage();
+            this.scrollRoomChat();
+
+            let livePayload = { ...msg };
+            try {
+                const form = new FormData();
+                form.append('room_id', this.roomId || '');
+                form.append('message', text);
+                if (file) form.append('image', file);
+                const res = await fetch('../user_backend/send_room_chat.php', { method: 'POST', body: form });
+                const data = await res.json();
+                if (data && data.success && data.data) {
+                    msg.id = data.data.id || msg.id;
+                    msg.image_url = data.data.image_url || msg.image_url;
+                    msg.type = data.data.type || msg.type;
+                    livePayload = { ...msg, ...data.data, isSelf: true };
+                } else if (file) {
+                    this.messages = this.messages.filter((m) => m !== msg);
+                    if (window.showToast) window.showToast((data && data.message) || 'Could not send photo.', 'error');
+                    return;
+                }
+            } catch (e) {
+                if (file) {
+                    this.messages = this.messages.filter((m) => m !== msg);
+                    if (window.showToast) window.showToast('Could not send photo.', 'error');
+                    return;
+                }
+            }
 
             if (this.roomId) {
                 this.signal('send_message', {
                     room: this.roomId,
-                    ...msg
+                    ...livePayload,
+                    isSelf: false
                 });
             }
-
-            this.newMessage = '';
-            
-            this.$nextTick(() => {
-                const container = document.getElementById('chat-container');
-                if (container) container.scrollTop = container.scrollHeight;
-            });
         },
 
         toggleMic() {

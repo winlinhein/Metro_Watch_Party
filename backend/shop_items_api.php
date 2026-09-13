@@ -78,7 +78,7 @@ switch ($action) {
             'name'   => $name,
             'price'  => $price,
             'rarity' => $rarity,
-            'image'  => $imageUrl,
+            'image'  => shopImageUrl($imageUrl, $name),
             'category' => $category
         ];
 
@@ -134,7 +134,7 @@ switch ($action) {
             'name'   => $name,
             'price'  => $price,
             'rarity' => $rarity,
-            'image'  => $imageUrl,
+            'image'  => shopImageUrl($imageUrl, $name),
             'category' => $category
         ];
 

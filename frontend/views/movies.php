@@ -1,11 +1,11 @@
 <!-- Movies View Container -->
-<div data-tab-panel="movies"  style="display: none;" class="relative w-full min-h-full p-8 lg:p-12 overflow-y-auto">
+<div data-tab-panel="movies"  style="display: none; padding-top: 7.5rem;" class="absolute inset-0 w-full min-h-full px-8 lg:px-12 pb-8 lg:pb-12 overflow-y-auto">
     <!-- Section Header -->
     <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-10 stagger-item">
         <div>
             <div class="flex items-center gap-3 mb-1">
                 <h2 class="text-3xl font-black text-white tracking-tight">Movie Library</h2>
-                <span class="px-2.5 py-1 rounded-full text-xs font-semibold bg-red-500/10 text-red-400 border border-red-500/20" x-text="movies ? movies.length + ' titles' : '0 titles'"></span>
+                <span class="px-2.5 py-1 rounded-full text-xs font-semibold bg-red-500/10 text-red-400 border border-red-500/20" x-text="adminPage('movies').total + ' titles'"></span>
             </div>
             <p class="text-xs text-white/40 font-mono">Manage, edit, and organize movie catalog items</p>
         </div>
@@ -20,7 +20,7 @@
 
     <!-- Movie Cards Grid -->
     <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6 pb-12">
-        <template x-for="movie in movies" :key="movie.id">
+        <template x-for="movie in pagedMovies" :key="movie.id">
             <div class="movie-card-container stagger-item">
                 
                 <!-- 1. ADD x-data, @mouseenter, and @mouseleave HERE -->
@@ -71,14 +71,21 @@
                     <div class="p-4 space-y-2 relative z-20">
                         <h4 class="font-bold text-base text-white group-hover:text-red-400 transition-colors truncate" x-text="movie.title"></h4>
                         <div class="flex items-center gap-2 flex-wrap">
-                            <span class="px-2 py-0.5 rounded-md text-[10px] font-bold bg-white/[0.06] text-white/70 border border-white/5 font-mono" x-text="movie.year || movie.duration || 'N/A'"></span>
+                            <span class="px-2 py-0.5 rounded-md text-[10px] font-bold bg-white/[0.06] text-white/70 border border-white/5 font-mono" x-text="formatMovieDuration(movie.duration) || movie.year || 'N/A'"></span>
+                            <span x-show="Number(movie.is_premium) === 1" class="px-2 py-0.5 rounded-md text-[10px] font-bold bg-amber-500/15 text-amber-300 border border-amber-500/30">Premium</span>
                             <span class="px-2 py-0.5 rounded-md text-[10px] font-bold bg-indigo-500/10 text-indigo-300 border border-indigo-500/20 truncate max-w-[100px]" x-text="movie.genre || 'N/A'"></span>
                         </div>
                     </div>
                 </div>
             </div>
         </template>
+        <div x-show="adminPage('movies').total === 0" style="display: none;" class="col-span-full glass-card rounded-2xl p-16 flex flex-col items-center justify-center text-center border border-white/5">
+            <span class="material-symbols-outlined text-6xl text-white/20 mb-4">movie</span>
+            <h3 class="text-xl font-bold text-white mb-2">No movies found</h3>
+            <p class="text-white/40 max-w-sm">Try a different search, or add a new title to the library.</p>
+        </div>
     </div>
+    <?php $pagerKey = 'movies'; include __DIR__ . '/../components/admin_pagination.php'; ?>
     
     <!-- Redesigned Modal (Teleported to body) -->
     <template x-teleport="body">
@@ -158,12 +165,17 @@
                                         <div class="flex items-center justify-between bg-white/[0.02] border border-white/10 rounded-2xl px-4 py-3 select-none">
                                             <div class="flex items-center gap-2">
                                                 <span class="material-symbols-outlined text-yellow-400 text-[18px]">star</span>
-                                                <span class="text-sm font-bold text-white" x-text="newMovie.rating ? newMovie.rating + ' / 10' : '0.0'"></span>
+                                                <span class="text-sm font-bold text-white" x-text="newMovie.rating ? newMovie.rating + ' / 5' : '0.0'"></span>
                                             </div>
                                             <span class="material-symbols-outlined text-white/20 text-[16px]" title="Calculated automatically from audience ratings">lock</span>
                                         </div>
                                     </div>
                                 </div>
+
+                                <label class="flex items-center gap-3 p-3 rounded-2xl bg-white/[0.02] border border-white/10 cursor-pointer">
+                                    <input type="checkbox" x-model="newMovie.is_premium" class="accent-amber-400">
+                                    <span class="text-xs font-bold text-amber-300 uppercase tracking-wider">Premium catalog title</span>
+                                </label>
 
                                 <!-- Genre Tags Picker -->
                                 <div>

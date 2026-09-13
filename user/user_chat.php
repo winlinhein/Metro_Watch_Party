@@ -86,15 +86,28 @@
                 <button @click="clearSelectedImage()" class="absolute -top-2 -right-2 w-6 h-6 bg-red-500 rounded-full text-white text-xs">✕</button>
             </div>
 
-            <form @submit.prevent="sendMessage()" class="relative flex items-center group">
-                <!-- Image button -->
-                <button type="button" @click="$refs.imageInput.click()" class="absolute left-2 w-10 h-10 rounded-xl text-white/50 hover:text-emerald-400 hover:bg-white/5 flex items-center justify-center transition-all z-10">
-                    <span class="material-symbols-outlined text-[20px]">image</span>
-                </button>
+            <form @submit.prevent="sendMessage(); showEmojiPicker = false" class="relative flex items-center group">
+                <div class="absolute left-2 flex items-center z-10">
+                    <button type="button" @click="$refs.imageInput.click()" class="w-10 h-10 rounded-xl text-white/50 hover:text-emerald-400 hover:bg-white/5 flex items-center justify-center transition-all">
+                        <span class="material-symbols-outlined text-[20px]">image</span>
+                    </button>
+                    <div class="relative" @click.away="showEmojiPicker = false">
+                        <button type="button" @click="showEmojiPicker = !showEmojiPicker" class="w-10 h-10 rounded-xl text-white/50 hover:text-emerald-400 hover:bg-white/5 flex items-center justify-center transition-all">
+                            <span class="material-symbols-outlined text-[20px]">mood</span>
+                        </button>
+                        <div x-show="showEmojiPicker"
+                             x-cloak
+                             class="absolute bottom-12 left-0 w-64 p-2 rounded-2xl border border-white/10 bg-[#0c0c12]/95 backdrop-blur-xl shadow-2xl grid grid-cols-8 gap-1 max-h-48 overflow-y-auto custom-scrollbar">
+                            <template x-for="emo in chatEmojis" :key="emo">
+                                <button type="button" class="h-8 rounded-lg text-lg hover:bg-white/10" x-text="emo" @click="insertChatEmoji(emo)"></button>
+                            </template>
+                        </div>
+                    </div>
+                </div>
                 <input type="file" x-ref="imageInput" accept="image/*" class="hidden" @change="handleImageSelect($event)" />
 
                 <input type="text" x-model="chatInput" placeholder="Transmit secure message..." 
-                    class="w-full bg-white/5 border border-white/10 rounded-2xl py-4 pl-14 pr-14 text-sm text-white placeholder-white/30 outline-none focus:border-emerald-500/50 focus:bg-white/10 transition-all shadow-inner">
+                    class="w-full bg-white/5 border border-white/10 rounded-2xl py-4 pl-24 pr-14 text-sm text-white placeholder-white/30 outline-none focus:border-emerald-500/50 focus:bg-white/10 transition-all shadow-inner">
                 <button type="submit" 
                         class="absolute right-2 w-10 h-10 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-white flex items-center justify-center shadow-[0_0_15px_rgba(16,185,129,0.4)] transition-all hover:scale-105 active:scale-95 disabled:opacity-50 disabled:pointer-events-none"
                         :disabled="!chatInput.trim() && !selectedImagePreview">

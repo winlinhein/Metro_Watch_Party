@@ -3,7 +3,7 @@ session_start();
 header('Content-Type: application/json');
 
 if (empty($_SESSION['user_id'])) {
-    echo json_encode(['success' => false, 'is_premium' => false]);
+    echo json_encode(['success' => false, 'is_premium' => false, 'premium_expires_at' => null]);
     exit();
 }
 
@@ -11,15 +11,12 @@ $userId = (int)$_SESSION['user_id'];
 session_write_close();
 
 require_once __DIR__ . '/../conn.php';
+require_once __DIR__ . '/../premium_status_helper.php';
 
-$stmt = $conn->prepare("SELECT is_premium, premium_expires_at FROM users WHERE user_id = ?");
-$stmt->execute([$userId]);
-$row = $stmt->fetch(PDO::FETCH_ASSOC);
+$premium = resolveUserPremium($conn, $userId);
 
-$isPremium = (bool)$row['is_premium'];
-if ($isPremium && $row['premium_expires_at'] && strtotime($row['premium_expires_at']) < time()) {
-    $conn->prepare("UPDATE users SET is_premium = 0 WHERE user_id = ?")->execute([$userId]);
-    $isPremium = false;
-}
-
-echo json_encode(['success' => true, 'is_premium' => $isPremium]);
+echo json_encode([
+    'success' => true,
+    'is_premium' => $premium['is_premium'],
+    'premium_expires_at' => $premium['premium_expires_at'],
+]);

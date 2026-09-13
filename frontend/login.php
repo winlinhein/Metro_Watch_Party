@@ -1,4 +1,11 @@
-<?php // index.php - Frontend view ?>
+<?php
+require_once __DIR__ . '/components/session_boot.php';
+if (!empty($_SESSION['authenticated']) && !empty($_SESSION['user_id'])) {
+    $role = strtolower((string)($_SESSION['user_role'] ?? 'user'));
+    header('Location: ' . (in_array($role, ['admin', 'moderator'], true) ? 'admin_dashboard.php' : '../user/dashboard.php'));
+    exit();
+}
+?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -28,15 +35,14 @@
 
     <script src="../js/nexus_scripts.js?v=1788159000"></script>
 </head>
-<body class="bg-[#050505] text-white flex items-center justify-center font-sans antialiased relative overflow-hidden min-h-screen" data-barba="wrapper">
+<body class="bg-[#050505] text-white font-sans antialiased" data-barba="wrapper">
     <?php include __DIR__ . '/components/page_loader.php'; ?>
-    <?php include __DIR__ . '/components/cursor.php'; ?>
     <?php include __DIR__ . '/components/toast.php'; ?>
-<div id="barba-container" data-barba="container" data-barba-namespace="login" x-data="{ showPassword: false }">
+<div id="barba-container" class="relative overflow-hidden min-h-screen flex items-center justify-center" data-barba="container" data-barba-namespace="login" x-data="{ showPassword: false }">
 
 
 <!-- Floating Back Button -->
-    <a href="/index.php" data-barba-prevent class="fixed top-8 left-8 sm:top-12 sm:left-12 z-50 flex items-center justify-center w-14 h-14 rounded-full bg-black/40 border border-white/10 backdrop-blur-xl gs-back-btn overflow-visible" id="floating-back">
+    <a href="/index.php" class="fixed top-8 left-8 sm:top-12 sm:left-12 z-50 flex items-center justify-center w-14 h-14 rounded-full bg-black/40 border border-white/10 backdrop-blur-xl gs-back-btn overflow-visible" id="floating-back">
         <!-- Magnetic hit area -->
         <div class="absolute -inset-6 bg-transparent rounded-full gs-back-hit"></div>
         <!-- Rotating ring -->
@@ -110,7 +116,7 @@
     <main class="w-full max-w-md p-6 z-10" id="main-container">
         
         <!-- Logo / Branding -->
-        <a href="/index.php" data-barba-prevent class="text-center mb-10 gs-reveal block group">
+        <a href="/index.php" class="text-center mb-10 gs-reveal block group">
             <h1 class="text-5xl font-black tracking-tighter uppercase italic flex items-center justify-center gap-3">
                 <div class="w-10 h-10 bg-gradient-to-tr from-red-600 to-indigo-600 rounded-xl flex items-center justify-center shadow-[0_0_30px_rgba(220,38,38,0.4)] relative overflow-hidden">
                     <svg class="w-6 h-6 text-white relative z-10" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5">
@@ -175,7 +181,7 @@
                 <div class="flex items-center justify-between text-sm text-gray-400 gs-stagger">
                     <label class="flex items-center gap-2 cursor-pointer group">
                         <div class="relative flex items-center">
-                            <input type="checkbox" name="remember" class="peer sr-only">
+                            <input type="checkbox" name="remember" value="1" checked class="peer sr-only">
                             <div class="w-4 h-4 border border-gray-500 rounded bg-transparent peer-checked:bg-red-600 peer-checked:border-red-600 transition-all"></div>
                             <span class="material-symbols-outlined absolute left-[1px] top-[1px] text-[14px] text-white opacity-0 peer-checked:opacity-100 transition-opacity">check</span>
                         </div>
@@ -209,10 +215,10 @@
             <!-- Social Logins -->
             <div class="flex justify-center w-full gs-stagger mb-6">
                 
-                <button class="flex items-center justify-center gap-2 bg-white/5 border border-white/10 py-3 rounded-xl hover:bg-red-600/20 hover:border-red-500/50 transition-all group relative overflow-hidden w-full">
+                <a href="../backend/google_start.php?from=login" class="flex items-center justify-center gap-2 bg-white/5 border border-white/10 py-3 rounded-xl hover:bg-red-600/20 hover:border-red-500/50 transition-all group relative overflow-hidden w-full">
                     <svg class="w-4 h-4 text-red-500 group-hover:scale-110 transition-transform relative z-10" fill="currentColor" viewBox="0 0 24 24"><path d="M12.48 10.92v3.28h7.84c-.24 1.84-.853 3.187-1.787 4.133-1.147 1.147-2.933 2.4-6.053 2.4-4.827 0-8.6-3.893-8.6-8.72s3.773-8.72 8.6-8.72c2.6 0 4.507 1.027 5.907 2.347l2.307-2.307C18.747 1.44 16.133 0 12.48 0 5.867 0 .307 5.387.307 12s5.56 12 12.173 12c3.573 0 6.267-1.173 8.373-3.36 2.16-2.16 2.84-5.213 2.84-7.667 0-.76-.053-1.467-.173-2.053H12.48z"/></svg>
                     <span class="text-[10px] font-bold uppercase tracking-wider text-white/70 group-hover:text-white relative z-10">Google</span>
-                </button>
+                </a>
             </div>
 
             <!-- Create account link -->

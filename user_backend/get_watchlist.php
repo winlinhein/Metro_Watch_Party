@@ -12,6 +12,8 @@ session_write_close();
 
 require_once __DIR__ . '/../conn.php';
 require_once __DIR__ . '/../poster_helper.php';
+require_once __DIR__ . '/../schema_upgrade_helper.php';
+ensureAppSchema($conn);
 
 try {
     $stmt = $conn->prepare("
@@ -19,6 +21,8 @@ try {
             m.movie_id AS id,
             m.title,
             m.created_at,
+            m.duration,
+            COALESCE(m.is_premium, 0) AS is_premium,
             COALESCE((
                 SELECT GROUP_CONCAT(g.genre_name SEPARATOR ', ')
                 FROM movie_and_genres mag
@@ -39,6 +43,8 @@ try {
         $item['rating'] = 'N/A';
         $item['genre'] = !empty($item['genre']) ? $item['genre'] : 'Movie';
         $item['status'] = 'Saved';
+        $item['is_premium'] = (int)($item['is_premium'] ?? 0);
+        $item['duration'] = (int)($item['duration'] ?? 0);
         $item['img'] = moviePosterUrl($item['id']);
         $item['cover_image'] = $item['img'];
     }

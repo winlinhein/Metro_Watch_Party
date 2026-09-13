@@ -1,5 +1,5 @@
 <?php
-session_start();
+require_once __DIR__ . '/../frontend/components/session_boot.php';
 
 // Block access if not authenticated OR if the user's role is not 'user'
 $allowedRoles = ['user', 'guest'];
@@ -23,17 +23,28 @@ $userId = $_SESSION['user_id'] ?? null;
 $avatarUrl = '';
 $borderPreview = '';
 $activeBorderId = 0;
+$isPremium = false;
+$premiumExpiresAt = '';
 if (!empty($userId) && $userRole !== 'guest') {
     try {
         require_once __DIR__ . '/../conn.php';
         require_once __DIR__ . '/../profile_media_helper.php';
+        require_once __DIR__ . '/../premium_status_helper.php';
         $uid = (int)$userId;
         $avatarStmt = $conn->prepare("SELECT avatar_url FROM users WHERE user_id = ? LIMIT 1");
         $avatarStmt->execute([$uid]);
         $avatarUrl = normalizeAvatarUrl((string)($avatarStmt->fetchColumn() ?: ''));
-        // Same path as get_user_profile so boot matches what fetch would return
         $activeBorderId = getActiveBorderId($conn, $uid);
         $borderPreview = borderPreviewForId($conn, $activeBorderId);
+        $premium = resolveUserPremium($conn, $uid);
+        $isPremium = (bool)$premium['is_premium'];
+        $premiumExpiresAt = (string)($premium['premium_expires_at'] ?? '');
+        require_once __DIR__ . '/../account_lifecycle_helper.php';
+        nexusReleasePremiumBorderIfNeeded($conn, $uid, $isPremium);
+        if (!$isPremium && (int)$activeBorderId > 0) {
+            $activeBorderId = getActiveBorderId($conn, $uid);
+            $borderPreview = borderPreviewForId($conn, $activeBorderId);
+        }
     } catch (Throwable $e) {
         error_log('dashboard boot profile media: ' . $e->getMessage());
     }
@@ -47,6 +58,8 @@ $nexusUserBoot = [
     'avatar_url' => $avatarUrl,
     'active_border_id' => $activeBorderId,
     'border_preview' => $borderPreview,
+    'is_premium' => $isPremium,
+    'premium_expires_at' => $premiumExpiresAt,
 ];
 session_write_close();
 ?>
@@ -106,12 +119,22 @@ session_write_close();
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.1/dist/cdn.min.js" crossorigin="anonymous"></script>
     
     <style>
+        html, body { color-scheme: dark; }
         body { 
             font-family: 'Space Grotesk', sans-serif; 
             background-color: #030305; 
             color: #ffffff; 
-            overflow: hidden; 
-            cursor: none;
+            overflow: hidden;
+        }
+        select {
+            color-scheme: dark;
+            background-color: #0a0a0f;
+            color: #f5f5f5;
+        }
+        select option,
+        select optgroup {
+            background-color: #0a0a0f;
+            color: #f5f5f5;
         }
 
         [x-cloak] { display: none !important; }
@@ -215,15 +238,39 @@ session_write_close();
         .stat-loader-orbit-inner {
             animation: nexus-stat-spin-rev 1s linear infinite;
         }
+        .dash-row-scroll {
+            scrollbar-width: none;
+            -ms-overflow-style: none;
+        }
+        .dash-row-scroll::-webkit-scrollbar { display: none; }
+        .home-plan-featured {
+            background:
+                linear-gradient(180deg, rgba(79,70,229,0.16) 0%, rgba(8,8,12,0.92) 42%),
+                rgba(8,8,12,0.85);
+            border: 1px solid rgba(167,139,250,0.4);
+            box-shadow:
+                0 30px 80px -24px rgba(79,70,229,0.45),
+                0 0 60px rgba(217,70,239,0.12),
+                inset 0 1px 0 rgba(255,255,255,0.1);
+        }
+        .home-plan-current {
+            border-color: rgba(16,185,129,0.45) !important;
+            box-shadow: 0 0 0 1px rgba(16,185,129,0.2), 0 20px 50px -24px rgba(16,185,129,0.25);
+        }
+        .aspect-video .plyr {
+            height: 100%;
+            width: 100%;
+        }
     </style>
 
     <link rel="stylesheet" href="https://cdn.plyr.io/3.7.8/plyr.css" />
     <script src="https://cdn.plyr.io/3.7.8/plyr.polyfilled.js"></script>
-    <script src="../js/nexus_scripts.js?v=1789041000"></script>
+    <script src="../js/chat_emojis.js?v=1"></script>
+    <script src="../js/nexus_scripts.js?v=1789044701"></script>
+    <script src="../js/support_chatbot.js?v=3"></script>
 </head>
 <body class="h-screen w-screen flex flex-col relative selection:bg-red-500/30" data-barba="wrapper">
     <?php include __DIR__ . '/../frontend/components/page_loader.php'; ?>
-    <?php include __DIR__ . '/../frontend/components/cursor.php'; ?>
     <?php include __DIR__ . '/../frontend/components/toast.php'; ?>
 
 <div id="barba-container" class="flex w-full h-full" data-barba="container" data-barba-namespace="dashboard" x-data="userDashboard()" x-init="init()" data-current-user-id="<?php echo htmlspecialchars($userId ?? '', ENT_QUOTES, 'UTF-8'); ?>"
@@ -731,14 +778,19 @@ session_write_close();
                 </div>
                 <?php else: ?>
 
-                <!-- Login button for guests -->
-                <a href="../frontend/login.php" 
-                class="relative z-[60] flex items-center gap-3 p-2 bg-[#050508]/40 border border-white/5 rounded-xl hover:bg-white/[0.05] transition-all">
-                    <div class="w-10 h-10 rounded-full bg-gradient-to-tr from-indigo-500 to-red-600 flex items-center justify-center">
-                        <span class="material-symbols-outlined text-white">login</span>
-                    </div>
-                    <span class="text-sm font-bold text-white">Login</span>
-                </a>
+                <!-- Login / Register for guests -->
+                <div class="relative z-[60] flex items-center gap-2">
+                    <a href="../frontend/login.php"
+                       class="flex items-center gap-2 px-4 py-2 bg-[#050508]/40 border border-white/5 rounded-xl hover:bg-white/[0.05] transition-all">
+                        <span class="material-symbols-outlined text-white text-[18px]">login</span>
+                        <span class="text-sm font-bold text-white">Login</span>
+                    </a>
+                    <a href="../frontend/register.php"
+                       class="flex items-center gap-2 px-4 py-2 bg-white text-black hover:bg-red-500 hover:text-white rounded-xl transition-all">
+                        <span class="material-symbols-outlined text-[18px]">person_add</span>
+                        <span class="text-sm font-bold">Register</span>
+                    </a>
+                </div>
                 <?php endif; ?>
             </div>
         </header>
@@ -748,8 +800,8 @@ session_write_close();
             <!-- Content -->
             <div class="absolute inset-0 w-full h-full overflow-y-auto p-10 scroll-smooth custom-scrollbar" x-show="currentTab === 'dashboard'">
                 <div class="max-w-[1400px] mx-auto space-y-8">
-                
-                <!-- Demo Stats Grid -->
+
+                <?php include __DIR__ . '/../frontend/components/trending_movies.php'; ?>
                 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                     <template x-for="(stat, index) in stats" :key="index">
                         <div class="glass-card rounded-2xl p-6 cursor-pointer hover-glow" @click="if(stat.label === 'Friends') showFriendsPanel = true; if(stat.label === 'Quests') showQuestsPanel = true">
@@ -800,13 +852,38 @@ session_write_close();
                         <div class="flex items-center justify-between">
                             <h2 class="text-xl font-bold tracking-wide uppercase flex items-center gap-2">
                                 <span class="w-2 h-2 rounded-full"
-                                      :class="friendRooms.length ? 'bg-red-500 shadow-[0_0_10px_#ef4444]' : 'bg-white/20'"></span>
+                                      :class="!isGuest && friendRooms.length ? 'bg-red-500 shadow-[0_0_10px_#ef4444]' : 'bg-white/20'"></span>
                                 Active Directives (Stream Rooms)
                             </h2>
-                            <button type="button" @click="fetchFriendRooms()" class="text-xs text-red-400 hover:text-white uppercase tracking-widest font-bold mono">Refresh</button>
+                            <button type="button" x-show="!isGuest" @click="fetchFriendRooms()" class="text-xs text-red-400 hover:text-white uppercase tracking-widest font-bold mono">Refresh</button>
+                        </div>
+
+                        <div class="glass-card rounded-2xl flex-1 min-h-[280px] p-8 flex flex-col items-center justify-center text-center relative overflow-hidden"
+                             x-show="isGuest"
+                             x-cloak>
+                            <div class="absolute inset-0 bg-gradient-to-br from-red-500/5 via-transparent to-indigo-500/5 pointer-events-none"></div>
+                            <div class="absolute inset-6 rounded-xl border border-dashed border-white/10 pointer-events-none"></div>
+
+                            <div class="relative z-10 w-20 h-20 rounded-full border border-white/10 flex items-center justify-center mb-5 shadow-[0_0_40px_rgba(239,68,68,0.08)]">
+                                <span class="material-symbols-outlined text-[32px] text-white/35">lock</span>
+                            </div>
+
+                            <p class="relative z-10 text-[10px] font-bold tracking-[0.28em] uppercase text-white/40 mono mb-2">Guest session</p>
+                            <h3 class="relative z-10 text-2xl font-black tracking-wide uppercase text-white mb-2">Login to join rooms</h3>
+                            <p class="relative z-10 text-sm text-white/45 max-w-sm mb-6">Live watch parties from friends show up here after you sign in or create an account.</p>
+                            <div class="relative z-10 flex flex-wrap items-center justify-center gap-3">
+                                <a href="../frontend/login.php" class="px-6 py-3 bg-white text-black hover:bg-red-500 hover:text-white font-bold rounded-xl transition-all flex items-center gap-2">
+                                    <span class="material-symbols-outlined text-[18px]">login</span>
+                                    Login
+                                </a>
+                                <a href="../frontend/register.php" class="px-6 py-3 bg-white/5 hover:bg-white/10 border border-white/10 text-white font-bold rounded-xl transition-all flex items-center gap-2">
+                                    <span class="material-symbols-outlined text-[18px]">person_add</span>
+                                    Register
+                                </a>
+                            </div>
                         </div>
                         
-                        <div class="space-y-4" x-show="friendRooms.length > 0">
+                        <div class="space-y-4" x-show="!isGuest && friendRooms.length > 0">
                             <template x-for="party in friendRooms" :key="party.room_id">
                                 <div class="glass-card hover-glow animated-gradient-border rounded-2xl p-5 flex flex-col sm:flex-row gap-6 items-center group">
                                     <div class="w-full sm:w-48 h-32 rounded-xl overflow-hidden relative shrink-0">
@@ -856,7 +933,7 @@ session_write_close();
                         </div>
 
                         <div class="glass-card rounded-2xl flex-1 min-h-[280px] p-8 flex flex-col items-center justify-center text-center relative overflow-hidden"
-                             x-show="friendRooms.length === 0"
+                             x-show="!isGuest && friendRooms.length === 0"
                              x-cloak>
                             <div class="absolute inset-0 bg-gradient-to-br from-red-500/5 via-transparent to-indigo-500/5 pointer-events-none"></div>
                             <div class="absolute inset-6 rounded-xl border border-dashed border-white/10 pointer-events-none"></div>
@@ -874,72 +951,70 @@ session_write_close();
 
                     <!-- Premium Plan Upgrade Card -->
                     <div class="space-y-6">
-                        <div class="group relative rounded-[2rem] p-8 bg-[#0a0a0f] border border-yellow-500/30 overflow-hidden hover:shadow-[0_0_50px_rgba(234,179,8,0.2)] transition-all duration-700">
-                            <!-- Animated Background Effects -->
-                            <div class="absolute inset-0 bg-gradient-to-br from-yellow-500/10 via-orange-500/5 to-purple-600/10 opacity-50 group-hover:opacity-100 transition-opacity duration-700"></div>
-                            <div class="absolute -top-24 -right-24 w-48 h-48 bg-yellow-500/20 rounded-full blur-[60px] group-hover:scale-150 transition-transform duration-1000"></div>
-                            <div class="absolute -bottom-24 -left-24 w-64 h-64 bg-orange-500/10 rounded-full blur-[80px] group-hover:scale-125 transition-transform duration-1000 delay-100"></div>
-                            
-                            <!-- Shimmer Sweep -->
-                            <div class="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent -translate-x-full group-hover:animate-[shimmer_2s_infinite]"></div>
+                        <div class="group relative rounded-[2rem] p-8 bg-[#0a0a0f] border overflow-hidden transition-all duration-700"
+                             :class="isPremium ? 'border-indigo-400/40 hover:shadow-[0_0_50px_rgba(99,102,241,0.2)]' : 'border-white/10 hover:border-indigo-400/30'">
+                            <div class="absolute inset-0 bg-gradient-to-br from-indigo-500/12 via-fuchsia-500/8 to-transparent opacity-70"></div>
+                            <div class="absolute -top-24 -right-24 w-48 h-48 bg-indigo-500/20 rounded-full blur-[60px]"></div>
+                            <div class="absolute -bottom-24 -left-24 w-64 h-64 bg-fuchsia-500/10 rounded-full blur-[80px]"></div>
 
                             <div class="relative z-10">
-                                <!-- Header -->
                                 <div class="flex items-center justify-between mb-6">
                                     <div class="flex items-center gap-3">
-                                        <div class="relative flex items-center justify-center w-12 h-12 rounded-xl bg-gradient-to-br from-yellow-400 to-orange-500 p-[1px] group-hover:scale-110 transition-transform duration-500">
+                                        <div class="relative flex items-center justify-center w-12 h-12 rounded-xl bg-gradient-to-br from-indigo-400 to-fuchsia-500 p-[1px]">
                                             <div class="w-full h-full bg-[#0a0a0f] rounded-xl flex items-center justify-center">
-                                                <span class="material-symbols-outlined text-transparent bg-clip-text bg-gradient-to-br from-yellow-400 to-orange-500 text-2xl group-hover:rotate-12 transition-transform duration-500">diamond</span>
+                                                <span class="material-symbols-outlined text-indigo-300 text-2xl">workspace_premium</span>
                                             </div>
                                         </div>
                                         <div>
-                                            <h3 class="text-2xl font-black tracking-widest text-transparent bg-clip-text bg-gradient-to-r from-yellow-400 to-orange-500 uppercase">Premium</h3>
-                                            <p class="text-[10px] font-mono text-yellow-500/70 tracking-[0.2em] uppercase">Membership</p>
+                                            <h3 class="text-2xl font-black tracking-widest text-transparent bg-clip-text bg-gradient-to-r from-indigo-300 via-fuchsia-300 to-indigo-300 uppercase">Premium</h3>
+                                            <p class="text-[10px] font-mono text-indigo-300/70 tracking-[0.2em] uppercase" x-text="isPremium ? 'Ascend · Active' : 'Uplink tiers'">Uplink tiers</p>
                                         </div>
                                     </div>
-                                    <span x-show="isPremium" class="px-3 py-1 bg-yellow-500/10 border border-yellow-500/30 rounded-full text-yellow-400 text-[10px] font-bold uppercase tracking-widest animate-pulse">Active</span>
-                                    <span x-show="!isPremium" class="px-3 py-1 bg-white/10 border border-white/10 rounded-full text-white/40 text-[10px] font-bold uppercase tracking-widest">Inactive</span>
+                                    <span x-show="isPremium" class="px-3 py-1 bg-emerald-500/10 border border-emerald-500/30 rounded-full text-emerald-400 text-[10px] font-bold uppercase tracking-widest">Active</span>
+                                    <span x-show="!isPremium" class="px-3 py-1 bg-white/10 border border-white/10 rounded-full text-white/40 text-[10px] font-bold uppercase tracking-widest">Free</span>
                                 </div>
 
-                                <!-- Benefits List -->
-                                <div class="space-y-4 mb-8">
-                                    <div class="flex items-center gap-3 transform group-hover:translate-x-2 transition-transform duration-500 delay-75">
-                                        <div class="w-8 h-8 rounded-full bg-white/5 border border-white/10 flex items-center justify-center shadow-[inset_0_0_10px_rgba(255,255,255,0.05)]">
-                                            <span class="material-symbols-outlined text-[16px] text-emerald-400">group</span>
-                                        </div>
-                                        <div>
-                                            <p class="text-sm font-bold text-white">Host Watch Parties</p>
-                                            <p class="text-[10px] text-white/50 font-mono">Room capacity up to 4 people</p>
-                                        </div>
-                                    </div>
-                                    
-                                    <div class="flex items-center gap-3 transform group-hover:translate-x-2 transition-transform duration-500 delay-150">
-                                        <div class="w-8 h-8 rounded-full bg-white/5 border border-white/10 flex items-center justify-center shadow-[inset_0_0_10px_rgba(255,255,255,0.05)]">
-                                            <span class="material-symbols-outlined text-[16px] text-purple-400">blur_on</span>
-                                        </div>
-                                        <div>
-                                            <p class="text-sm font-bold text-white">Exclusive Cosmetics</p>
-                                            <p class="text-[10px] text-white/50 font-mono">Unlock animated profile borders</p>
-                                        </div>
-                                    </div>
+                                <div x-show="isPremium" class="rounded-2xl border border-emerald-400/20 bg-emerald-500/10 px-4 py-3 mb-6">
+                                    <p class="text-[10px] mono tracking-widest uppercase text-emerald-300/80 mb-1">Your current plan</p>
+                                    <p class="text-sm font-bold text-white" x-text="premiumEndsLabel">Ends —</p>
+                                    <p class="text-xl font-black tracking-tight text-emerald-300 mono mt-1" x-text="premiumCountdown">--</p>
+                                </div>
 
-                                    <div class="flex items-center gap-3 transform group-hover:translate-x-2 transition-transform duration-500 delay-200">
-                                        <div class="w-8 h-8 rounded-full bg-white/5 border border-white/10 flex items-center justify-center shadow-[inset_0_0_10px_rgba(255,255,255,0.05)]">
-                                            <span class="material-symbols-outlined text-[16px] text-orange-400">explore</span>
+                                <div class="space-y-4 mb-8" x-show="!isPremium">
+                                    <div class="flex items-center gap-3">
+                                        <div class="w-8 h-8 rounded-full bg-white/5 border border-white/10 flex items-center justify-center">
+                                            <span class="material-symbols-outlined text-[16px] text-fuchsia-400">blur_on</span>
                                         </div>
                                         <div>
-                                            <p class="text-sm font-bold text-white">Expanded Quests</p>
-                                            <p class="text-[10px] text-white/50 font-mono">More daily & weekly missions</p>
+                                            <p class="text-sm font-bold text-white">Exclusive cosmetics</p>
+                                            <p class="text-[10px] text-white/50 font-mono">Animated profile borders</p>
+                                        </div>
+                                    </div>
+                                    <div class="flex items-center gap-3">
+                                        <div class="w-8 h-8 rounded-full bg-white/5 border border-white/10 flex items-center justify-center">
+                                            <span class="material-symbols-outlined text-[16px] text-indigo-400">group</span>
+                                        </div>
+                                        <div>
+                                            <p class="text-sm font-bold text-white">Unlimited hosting</p>
+                                            <p class="text-[10px] text-white/50 font-mono">No protocol caps</p>
+                                        </div>
+                                    </div>
+                                    <div class="flex items-center gap-3">
+                                        <div class="w-8 h-8 rounded-full bg-white/5 border border-white/10 flex items-center justify-center">
+                                            <span class="material-symbols-outlined text-[16px] text-emerald-400">verified</span>
+                                        </div>
+                                        <div>
+                                            <p class="text-sm font-bold text-white">Premium badge</p>
+                                            <p class="text-[10px] text-white/50 font-mono">Shown on your identity</p>
                                         </div>
                                     </div>
                                 </div>
 
-                                <!-- Action Button -->
-                                <button class="mt-2 relative overflow-hidden rounded-xl bg-gradient-to-r from-yellow-500 to-orange-500 p-[1px] group/btn transition-all duration-300 hover:shadow-[0_0_20px_rgba(234,179,8,0.4)] hover:-translate-y-1">
-                                    <div class="bg-[#0a0a0f] px-5 py-2.5 rounded-xl flex items-center gap-3 group-hover/btn:bg-transparent transition-colors duration-300">
-                                        <span class="text-[10px] font-black uppercase tracking-widest text-yellow-400 group-hover/btn:text-[#0a0a0f] transition-colors duration-300">Manage Plan</span>
-                                        <span class="material-symbols-outlined text-[14px] text-yellow-400 group-hover/btn:text-[#0a0a0f] transition-colors duration-300 group-hover/btn:translate-x-1">arrow_forward</span>
-                                    </div>
+                                <button type="button"
+                                        class="mt-2 w-full relative overflow-hidden rounded-xl bg-white text-black py-3 font-black uppercase tracking-widest text-xs inline-flex items-center justify-center gap-2 hover:shadow-[0_0_30px_rgba(255,255,255,0.25)]"
+                                        @click="isGuest ? window.location.href='/frontend/register.php' : showPremiumModal = true">
+                                    <span x-text="isGuest ? 'Start for free' : (isPremium ? 'Your current plan' : 'Manage plan')"></span>
+                                    <span class="material-symbols-outlined text-[16px]">arrow_forward</span>
                                 </button>
                             </div>
                         </div>
@@ -950,21 +1025,26 @@ session_write_close();
 
         <!-- Watchlist Section Included -->
         <?php include "user_movies.php"; ?>
+        <?php include "user_premium.php"; ?>
+        <?php include "user_shop.php"; ?>
         <?php if ($userRole !== 'guest'): ?>
             <?php include "watchlist.php"; ?>
-            <?php include "user_shop.php"; ?>
             <?php include "account.php"; ?>
-            <?php include "user_premium.php"; ?>
         <?php endif; ?>
         </div>
     </main>
 
     <?php include __DIR__ . '/../frontend/components/host_party_fab.php'; ?>
 
+    <div x-show="!showMovieDetailModal && !showChatPanel" x-transition>
+        <?php include __DIR__ . '/../frontend/components/support_chatbot.php'; ?>
+    </div>
+
     <?php include "user_chat.php"; ?>
     <?php include "profile_dropdown.php"; ?>
     <?php include "report_user_modal.php"; ?>
     <?php include "report_item_modal.php"; ?>
+    <?php include __DIR__ . '/../frontend/components/guest_login_modal.php'; ?>
 
 </div>
 

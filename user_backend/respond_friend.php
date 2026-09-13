@@ -34,6 +34,7 @@ try {
   
         try {
             updateMissionProgress($userId, 'add_friend', 1);
+            updateMissionProgress($senderId, 'add_friend', 1);
         } catch (Throwable $e) {
             error_log('add_friend mission update: ' . $e->getMessage());
         }

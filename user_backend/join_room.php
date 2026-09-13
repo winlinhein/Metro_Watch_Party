@@ -27,12 +27,26 @@ try {
     require_once __DIR__ . '/../presence_helper.php';
     require_once __DIR__ . '/../room_schema_helper.php';
 
-    $roomStmt = $conn->prepare("SELECT room_id, host_id, status FROM rooms WHERE room_id = :id LIMIT 1");
+    require_once __DIR__ . '/../premium_benefits_helper.php';
+    require_once __DIR__ . '/../schema_upgrade_helper.php';
+    ensureAppSchema($conn);
+
+    $roomStmt = $conn->prepare("SELECT room_id, host_id, status, max_members FROM rooms WHERE room_id = :id LIMIT 1");
     $roomStmt->execute(['id' => $roomId]);
     $room = $roomStmt->fetch(PDO::FETCH_ASSOC);
     if (!$room || isRoomClosed($room['status'] ?? '')) {
         http_response_code(404);
         echo json_encode(['success' => false, 'message' => 'This watch party has ended.', 'is_ended' => true]);
+        exit;
+    }
+
+    if (nexusRoomIsFull($conn, $room, $userId) && (int)$room['host_id'] !== $userId) {
+        http_response_code(403);
+        echo json_encode([
+            'success' => false,
+            'message' => 'This room is full (' . nexusRoomMaxMembers($conn, $room) . ' people).',
+            'is_full' => true,
+        ]);
         exit;
     }
 
@@ -127,6 +141,15 @@ try {
             'room_id' => $roomId,
             'user_id' => $userId,
         ]);
+    }
+
+    if (!$heartbeat) {
+        try {
+            require_once __DIR__ . '/mission_progress.php';
+            updateMissionProgress($userId, 'join_room', 1);
+        } catch (Throwable $e) {
+            error_log('join_room mission update: ' . $e->getMessage());
+        }
     }
 
     echo json_encode([

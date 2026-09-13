@@ -19,6 +19,8 @@ try {
     require_once '../conn.php';
     require_once '../poster_helper.php';
     require_once '../admin_rooms_helper.php';
+    require_once '../profile_media_helper.php';
+    require_once '../room_chat_helper.php';
     $pdo = $conn;
     // 1. Fetch room using room_id or room_code
     $stmt = $pdo->prepare("SELECT room_id, room_code, host_id, movie_id, status, created_at FROM rooms WHERE (room_id = :id OR room_code = :code) LIMIT 1");
@@ -57,11 +59,19 @@ try {
         }
     }
 
+    $messages = [];
+    try {
+        $messages = fetchRoomChatMessages($pdo, (int)$room['room_id']);
+    } catch (Throwable $ignore) {
+        $messages = [];
+    }
+
     echo json_encode([
         'success' => true,
         'data' => [
             'room' => $room,
-            'movie' => $movie
+            'movie' => $movie,
+            'messages' => $messages
         ]
     ]);
 

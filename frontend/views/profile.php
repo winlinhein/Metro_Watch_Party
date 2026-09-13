@@ -1,5 +1,5 @@
 <!-- Profile View -->
-<div data-tab-panel="profile" style="display: none;" class="absolute inset-0 p-10 w-full min-h-full overflow-y-auto">
+<div data-tab-panel="profile" style="display: none; padding-top: 7.5rem;" class="absolute inset-0 px-10 pb-10 w-full h-full overflow-y-auto">
     <!-- Inline Notification Banner -->
     <div x-show="profileAlert.show" 
         x-transition:enter="transition ease-out duration-300"
@@ -56,11 +56,11 @@
     <div class="grid grid-cols-1 xl:grid-cols-3 gap-8 pb-10">
         <!-- Left Column: Avatar & Borders -->
         <div class="xl:col-span-1 space-y-6">
-            <div class="glass-card rounded-2xl p-8 stagger-item flex flex-col items-center relative overflow-hidden group hover:border-red-500/30 transition-colors duration-300 shadow-xl">
-                <div class="absolute inset-0 bg-gradient-to-b from-red-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
+            <div class="glass-card allow-overflow rounded-2xl p-8 pt-12 stagger-item flex flex-col items-center relative !overflow-visible group hover:border-red-500/30 transition-colors duration-300 shadow-xl">
+                <div class="absolute inset-0 rounded-2xl bg-gradient-to-b from-red-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none"></div>
                     <div class="relative z-10 w-full flex flex-col items-center">
                         
-                    <div class="relative w-32 h-32 mb-6 group cursor-pointer mt-4 overflow-visible shrink-0" style="width: 8rem; height: 8rem;">
+                    <div class="relative w-32 h-32 mb-8 group cursor-pointer overflow-visible shrink-0" style="width: 8rem; height: 8rem;">
                         <div class="absolute inset-0 z-10 overflow-hidden rounded-full shadow-2xl scale-[1.18]" :class="selectedBorder ? '' : 'ring-4 ring-red-500/50 group-hover:ring-red-500'">
                             <img :src="selectedAvatar" class="absolute inset-0 h-full w-full object-cover" style="object-fit: cover;">
                         </div>
@@ -155,7 +155,7 @@
                 <div class="p-6 rounded-2xl bg-red-500/[0.04] border border-red-500/20 backdrop-blur-md flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                     <div class="space-y-1">
                         <h5 class="text-sm font-bold text-white">Delete Account</h5>
-                        <p class="text-xs text-white/40">Permanently remove your account, profile details, and watchlist history. This action cannot be undone.</p>
+                        <p class="text-xs text-white/40">Starts a 24-hour countdown. Sign in again to reverse it. After the timer ends, everything related to this account is deleted.</p>
                     </div>
                     
                     <button @click="deleteAccountModalOpen = true; deleteAccountPassword = ''" 
@@ -177,9 +177,26 @@
         </button>
         
         <h3 class="text-xl font-bold text-white mb-6">Select Border</h3>
+        <div class="flex gap-2 mb-4">
+            <input type="text" x-model="searchQuery" placeholder="Search borders..." class="flex-1 bg-black/40 border border-white/10 rounded-xl px-3 py-2 text-xs text-white outline-none">
+            <select x-model="adminSearchType" class="bg-[#0a0a0f] border border-white/10 rounded-xl px-3 py-2 text-xs text-white outline-none">
+                <option value="all">All types</option>
+                <option value="common">Common</option>
+                <option value="rare">Rare</option>
+                <option value="epic">Epic</option>
+                <option value="premium">Premium</option>
+            </select>
+        </div>
         
         <div class="grid grid-cols-4 gap-3">
-            <template x-for="border in borders" :key="border.id">
+            <template x-for="border in (borders || []).filter(b => {
+                const q = String(searchQuery || '').toLowerCase();
+                const t = String(adminSearchType || 'all').toLowerCase();
+                const rarity = String(b.rarity || '').toLowerCase();
+                const typeOk = t === 'all' || rarity === t;
+                const searchOk = !q || String(b.name || '').toLowerCase().includes(q);
+                return typeOk && searchOk;
+            })" :key="border.id">
                 <button @click="applyAdminBorder(border)" 
                     :class="selectedBorder === border.url ? 'border-red-500 bg-red-500/10' : 'border-white/10 bg-white/5 hover:border-white/30'"
                     class="w-full aspect-square rounded-xl border transition-all flex items-center justify-center overflow-hidden relative group">
@@ -257,7 +274,7 @@
                 </button>
                 <button @click="confirmDeleteAccount()" 
                         class="px-6 py-2.5 rounded-xl bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 text-xs font-bold text-white shadow-lg shadow-red-600/30 transition-all hover:scale-105 active:scale-95">
-                    Permanently Delete
+                    Schedule 24h deletion
                 </button>
             </div>
         </div>

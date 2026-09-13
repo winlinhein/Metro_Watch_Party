@@ -179,6 +179,8 @@ if ($action === 'demote_moderator') {
     );
 
     if ($stmt->execute([$userId])) {
+        require_once __DIR__ . '/../profile_media_helper.php';
+        nexusRevertUnearnedStaffBorder($conn, $userId);
 
         echo json_encode([
             'success' => true,
@@ -220,13 +222,25 @@ if ($action === 'ban') {
         exit;
     }
 
+    require_once __DIR__ . '/../schema_upgrade_helper.php';
+    ensureAppSchema($conn);
+    $banReason = trim((string)$reason);
+    if ($notes !== '') {
+        $banReason = $banReason !== '' && $banReason !== 'Violation of terms'
+            ? $banReason . ' — ' . trim((string)$notes)
+            : trim((string)$notes);
+    }
+    if ($banReason === '') {
+        $banReason = 'Violation of community guidelines';
+    }
+
     $stmt = $conn->prepare(
         "UPDATE users
-         SET status = 'banned'
+         SET status = 'banned', ban_reason = ?
          WHERE user_id = ?"
     );
 
-    if ($stmt->execute([$userId])) {
+    if ($stmt->execute([$banReason, $userId])) {
 
         /*
         |--------------------------------------------------------------------------
@@ -254,6 +268,45 @@ if ($action === 'ban') {
         echo json_encode([
             'success' => false,
             'error' => 'Failed to ban user in the database.'
+        ]);
+    }
+
+    exit;
+}
+
+/*
+|--------------------------------------------------------------------------
+| RESTORE / UNBAN USER
+|--------------------------------------------------------------------------
+*/
+
+if ($action === 'unban') {
+
+    $userId = intval($data['id'] ?? 0);
+
+    if ($userId <= 0) {
+
+        echo json_encode([
+            'success' => false,
+            'error' => 'Invalid user ID.'
+        ]);
+
+        exit;
+    }
+
+    require_once __DIR__ . '/../account_lifecycle_helper.php';
+
+    try {
+        nexusUnbanUser($conn, $userId);
+
+        echo json_encode([
+            'success' => true,
+            'message' => 'Account restored to active.'
+        ]);
+    } catch (Throwable $e) {
+        echo json_encode([
+            'success' => false,
+            'error' => 'Failed to restore account.'
         ]);
     }
 

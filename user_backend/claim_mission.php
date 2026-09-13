@@ -22,6 +22,7 @@ if ($missionId <= 0) {
 }
 
 require_once __DIR__ . '/../conn.php';
+require_once __DIR__ . '/../premium_benefits_helper.php';
 
 try {
     // Fetch mission and user progress
@@ -51,15 +52,17 @@ try {
     $stmt = $conn->prepare("UPDATE user_missions SET claimed_at = NOW() WHERE user_id = ? AND mission_id = ?");
     $stmt->execute([$userId, $missionId]);
 
+    $points = nexusMissionPoints((int)$mission['points_reward'], nexusIsPremium($conn, $userId));
+
     // Add points to user
     $stmt = $conn->prepare("UPDATE users SET points = points + ? WHERE user_id = ?");
-    $stmt->execute([$mission['points_reward'], $userId]);
+    $stmt->execute([$points, $userId]);
 
     $conn->commit();
 
     echo json_encode([
         'success' => true,
-        'points_added' => $mission['points_reward']
+        'points_added' => $points
     ]);
 } catch (PDOException $e) {
     if ($conn->inTransaction()) $conn->rollBack();

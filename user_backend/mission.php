@@ -22,6 +22,7 @@ session_write_close();
 
 require_once __DIR__ . '/../conn.php';
 require_once __DIR__ . '/mission_progress.php'; // helper functions
+require_once __DIR__ . '/../premium_benefits_helper.php';
 
 resetAllMissionCyclesIfNeeded($conn, $userId);
 
@@ -48,6 +49,7 @@ try {
     ");
     $stmt->execute([$userId]);
     $allMissions = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    $isPremium = nexusIsPremium($conn, $userId);
 
     foreach ($allMissions as $m) {
         $cycle = strtolower($m['reset_cycle'] ?? 'daily');
@@ -57,7 +59,7 @@ try {
 
         $completed = (int)$m['completed'];
         $claimed = (int)$m['claimed'];
-        $points = (int)$m['points_reward'];
+        $points = nexusMissionPoints((int)$m['points_reward'], $isPremium);
         if ($completed === 1 && $claimed === 0) {
             $totalPoints += $points;
         }

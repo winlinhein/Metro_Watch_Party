@@ -12,19 +12,27 @@
         </div>
         
         <!-- Search & Filter Input -->
-        <div class="flex items-center gap-3">
+        <div class="flex flex-wrap items-center gap-3">
             <div class="relative group">
                 <span class="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-white/30 text-[18px] group-focus-within:text-indigo-400 transition-colors">search</span>
                 <input type="text" x-model="movieSearchQuery" placeholder="Search titles or genres..." class="w-64 bg-white/[0.02] border border-white/10 rounded-2xl py-3 pl-11 pr-4 text-sm text-white placeholder-white/30 outline-none focus:border-indigo-500/50 focus:bg-white/[0.04] transition-all duration-300 shadow-lg">
             </div>
+            <select x-model="movieFilter" class="bg-[#0a0a0f] border border-white/10 rounded-2xl py-3 px-4 text-sm text-white outline-none focus:border-indigo-500/50">
+                <option value="all">All types</option>
+                <option value="premium">Premium</option>
+                <option value="free">Standard</option>
+                <template x-for="genre in movieGenreOptions" :key="genre">
+                    <option :value="genre" x-text="genre"></option>
+                </template>
+            </select>
         </div>
     </div>
 
     <!-- Dynamic Movie Cards Grid -->
-    <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6 lg:gap-8 pb-12">
+    <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6 lg:gap-8 pb-12 items-stretch">
         <template x-for="movie in filteredMovies" :key="movie.id || movie.movie_id">
-            <div class="movie-card-container stagger-item">
-                <div @click="openMovieDetail(movie)" class="group cursor-pointer relative rounded-2xl bg-[#050508] border border-white/[0.05] hover:border-indigo-500/40 transition-all duration-500 hover:-translate-y-2 shadow-2xl hover:shadow-[0_20px_40px_rgba(99,102,241,0.2)] overflow-hidden" x-data="{ hovered: false }" @mouseenter="hovered = true" @mouseleave="hovered = false">
+            <div class="movie-card-container stagger-item h-full">
+                <div @click="openMovieOrPremium(movie)" class="group cursor-pointer relative h-full flex flex-col rounded-2xl bg-[#050508] border border-white/[0.05] hover:border-indigo-500/40 transition-all duration-500 hover:-translate-y-2 shadow-2xl hover:shadow-[0_20px_40px_rgba(99,102,241,0.2)] overflow-hidden" x-data="{ hovered: false }" @mouseenter="hovered = true" @mouseleave="hovered = false">
                     
                     <!-- Poster Image & Trailer Container -->
                     <div class="aspect-[2/3] w-full relative overflow-hidden bg-[#050508]">
@@ -54,6 +62,11 @@
                             <span class="material-symbols-outlined text-[16px]">star</span>
                             <span x-text="movie.rating ? movie.rating : '0.0'"></span>
                         </div>
+                        <div x-show="Number(movie.is_premium) === 1" class="absolute top-4 left-[5.5rem] px-2.5 py-1.5 rounded-xl bg-amber-500/20 border border-amber-400/40 text-[10px] font-black uppercase tracking-wider text-amber-200 z-30">Premium</div>
+                        <div x-show="isPremiumLockedMovie(movie)" class="absolute inset-0 z-40 bg-black/55 backdrop-blur-[1px] flex flex-col items-center justify-center text-center p-4">
+                            <span class="material-symbols-outlined text-amber-300 text-3xl mb-2">lock</span>
+                            <p class="text-[11px] font-bold uppercase tracking-widest text-amber-200">Premium title</p>
+                        </div>
 
                         <!-- Watchlist Button Overlay -->
                         <button @click.stop="isGuest ? nexusNavigate('../frontend/login.php') : toggleWatchlist(movie)" 
@@ -77,15 +90,18 @@
                     </div>
 
                     <!-- Card Info -->
-                    <div class="relative p-5 z-30 border-t border-white/[0.02]">
+                    <div class="relative p-5 z-30 border-t border-white/[0.02] flex flex-col flex-1 min-h-[6.25rem]">
                         <h3 class="font-black text-lg text-white mb-1.5 truncate group-hover:text-indigo-400 transition-colors duration-300" x-text="movie.title"></h3>
-                        <div class="flex items-center justify-between">
-                            <div class="flex flex-wrap gap-1">
-                                <template x-for="(genre, idx) in (movie.genres && movie.genres.length ? movie.genres : ['Movie'])" :key="idx">
-                                    <span class="px-2 py-0.5 rounded text-[10px] font-bold tracking-wider uppercase border border-indigo-500/20 text-indigo-300 bg-indigo-500/10" x-text="genre"></span>
+                        <div class="mt-auto flex items-center justify-between gap-2">
+                            <div class="flex flex-nowrap gap-1 min-w-0 overflow-hidden">
+                                <template x-for="(genre, idx) in (movie.genres && movie.genres.length ? movie.genres : ['Movie']).slice(0, 2)" :key="idx">
+                                    <span class="px-2 py-0.5 rounded text-[10px] font-bold tracking-wider uppercase border border-indigo-500/20 text-indigo-300 bg-indigo-500/10 truncate max-w-[5.5rem]" x-text="genre"></span>
                                 </template>
+                                <span x-show="(movie.genres || []).length > 2"
+                                      class="px-2 py-0.5 rounded text-[10px] font-bold tracking-wider uppercase border border-white/10 text-white/50 bg-white/5 shrink-0"
+                                      x-text="'+' + ((movie.genres || []).length - 2)"></span>
                             </div>
-                            <span class="text-[11px] text-white/40 font-bold mono" x-text="movie.created_at ? new Date(movie.created_at).getFullYear() : '2024'"></span>
+                            <span class="text-[11px] text-white/40 font-bold mono shrink-0" x-text="formatMovieDuration(movie.duration) || (movie.created_at ? new Date(movie.created_at).getFullYear() : '')"></span>
                         </div>
                     </div>
                 </div>
@@ -176,37 +192,33 @@
                     </div>
 
                     <div class="p-8 space-y-6">
-                        <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-white/10 pb-6">
-                            <div>
-                                <div class="flex items-center gap-3">
-                                    <h2 class="text-3xl font-black text-white" x-text="selectedMovie?.title"></h2>
-                                    
-                                    <!-- NEW: Watchlist Button inside Modal -->
+                        <div class="space-y-4 border-b border-white/10 pb-6">
+                            <div class="flex flex-col md:flex-row md:items-start justify-between gap-4">
+                                <h2 class="text-3xl font-black text-white min-w-0 flex-1 leading-tight" x-text="selectedMovie?.title"></h2>
+                                <div class="flex flex-wrap items-center justify-end gap-2 shrink-0">
                                     <button @click="isGuest ? nexusNavigate('../frontend/login.php') : toggleWatchlist(selectedMovie)" 
-                                            class="px-3 py-1.5 rounded-xl border flex items-center gap-1.5 text-xs font-bold transition-all duration-300"
+                                            class="px-3 py-1.5 rounded-xl border flex items-center gap-1.5 text-xs font-bold transition-all duration-300 whitespace-nowrap"
                                             :class="selectedMovie?.inWatchlist ? 'bg-indigo-500/20 text-indigo-400 border-indigo-500/40 shadow-[0_0_15px_rgba(99,102,241,0.3)]' : 'bg-white/5 text-white/70 hover:text-white border-white/10 hover:border-indigo-500/40'">
                                         <span class="material-symbols-outlined text-[16px]"
                                             :style="selectedMovie?.inWatchlist ? 'font-variation-settings: \'FILL\' 1;' : ''"
                                             x-text="selectedMovie?.inWatchlist ? 'bookmark_added' : 'bookmark_add'"></span>
                                         <span x-text="selectedMovie?.inWatchlist ? 'Saved' : 'Add to Watchlist'"></span>
                                     </button>
-                                    
-                                    <!-- Host Party Button inside Modal -->
                                     <button @click="isGuest ? nexusNavigate('../frontend/login.php') : createParty(selectedMovie)"
-                                            class="px-3 py-1.5 rounded-xl border border-red-500/40 bg-red-500/10 text-red-400 hover:bg-red-500 hover:text-white flex items-center gap-1.5 text-xs font-bold transition-all duration-300 shadow-[0_0_15px_rgba(239,68,68,0.1)] hover:shadow-[0_0_25px_rgba(239,68,68,0.4)]">
+                                            class="px-3 py-1.5 rounded-xl border border-red-500/40 bg-red-500/10 text-red-400 hover:bg-red-500 hover:text-white flex items-center gap-1.5 text-xs font-bold transition-all duration-300 shadow-[0_0_15px_rgba(239,68,68,0.1)] hover:shadow-[0_0_25px_rgba(239,68,68,0.4)] whitespace-nowrap">
                                         <span class="material-symbols-outlined text-[16px]">celebration</span>
                                         <span>Host Party</span>
                                     </button>
                                 </div>
+                            </div>
 
-                                <div class="flex items-center gap-3 mt-2">
-                                    <!-- Global Rating -->
+                            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                                <div class="flex flex-wrap items-center gap-3">
                                     <span class="text-xs font-bold text-yellow-400 flex items-center gap-1">
                                         <span class="material-symbols-outlined text-[16px]">star</span>
                                         <span x-text="selectedMovie?.rating || '0.0'"></span>
                                     </span>
 
-                                    <!-- User Rating & Stats -->
                                     <template x-if="selectedMovie && selectedMovie?.user_rating > 0">
                                         <span class="text-xs font-bold text-indigo-400 flex items-center gap-1 px-2 py-0.5 rounded-md bg-indigo-500/10 border border-indigo-500/20">
                                             <span class="material-symbols-outlined text-[14px]">star_half</span>
@@ -217,13 +229,12 @@
                                     <span class="text-xs text-white/40 font-mono" x-text="selectedMovie?.duration ? selectedMovie?.duration + ' mins' : ''"></span>
                                     <span class="text-xs text-white/40 font-mono" x-text="(selectedMovie?.view_count || 0) + ' views'"></span>
                                 </div>
-                            </div>
 
-                            <!-- Genres -->
-                            <div class="flex flex-wrap gap-1.5">
-                                <template x-for="g in (selectedMovie?.genres || [])" :key="g">
-                                    <span class="px-3 py-1 rounded-lg text-xs font-bold uppercase bg-indigo-500/10 text-indigo-400 border border-indigo-500/20" x-text="g"></span>
-                                </template>
+                                <div class="flex flex-wrap justify-end gap-1.5">
+                                    <template x-for="g in (selectedMovie?.genres || [])" :key="g">
+                                        <span class="px-3 py-1 rounded-lg text-xs font-bold uppercase bg-indigo-500/10 text-indigo-400 border border-indigo-500/20" x-text="g"></span>
+                                    </template>
+                                </div>
                             </div>
                         </div>
 
@@ -323,6 +334,9 @@
                                                 </div>
                                                 <div class="flex items-center gap-2">
                                                     <span class="text-[10px] text-white/40" x-text="comment.created_at || ''"></span>
+                                                    <button x-show="isOwnComment(comment)" @click="deleteOwnComment(comment.id || comment.comment_id)" class="opacity-0 group-hover:opacity-100 text-white/30 hover:text-red-400 transition-all focus:opacity-100" title="Delete Comment">
+                                                        <span class="material-symbols-outlined text-[16px]">delete</span>
+                                                    </button>
                                                     <button @click="isGuest ? nexusNavigate('../frontend/login.php') : openReportItemModal(comment.comment_id || comment.id, 'comment')" class="opacity-0 group-hover:opacity-100 text-white/30 hover:text-red-500 transition-all focus:opacity-100" title="Report Comment">
                                                         <span class="material-symbols-outlined text-[16px]">flag</span>
                                                     </button>
@@ -400,6 +414,9 @@
                                                             </div>
                                                             <div class="flex items-center gap-2">
                                                                 <span class="text-[9px] text-white/30" x-text="reply.created_at || ''"></span>
+                                                                <button x-show="isOwnComment(reply)" @click="deleteOwnComment(reply.id || reply.comment_id)" class="opacity-0 group-hover:opacity-100 text-white/30 hover:text-red-400 transition-all focus:opacity-100" title="Delete Reply">
+                                                                    <span class="material-symbols-outlined text-[14px]">delete</span>
+                                                                </button>
                                                                 <button @click="isGuest ? nexusNavigate('../frontend/login.php') : openReportItemModal(reply.comment_id || reply.id || reply.reply_id, 'reply')" class="opacity-0 group-hover:opacity-100 text-white/30 hover:text-red-500 transition-all focus:opacity-100" title="Report Reply">
                                                                     <span class="material-symbols-outlined text-[14px]">flag</span>
                                                                 </button>

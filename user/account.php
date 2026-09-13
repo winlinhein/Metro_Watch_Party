@@ -103,8 +103,21 @@
 
                 <!-- Border Selection Grid: 2 rows + pagination, owned first -->
                 <div class="flex-1 min-w-0 flex flex-col">
-                    <div class="flex items-center justify-between gap-3 mb-3">
+                    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3">
                         <p class="text-[10px] font-bold uppercase tracking-widest text-white/40">Select a border</p>
+                        <div class="flex items-center gap-2 w-full sm:w-auto">
+                            <div class="relative flex-1 sm:w-44">
+                                <span class="material-symbols-outlined absolute left-2.5 top-1/2 -translate-y-1/2 text-white/30 text-[16px]">search</span>
+                                <input type="text" x-model="borderSearchQuery" placeholder="Search borders..." class="w-full bg-black/50 border border-white/10 rounded-lg py-2 pl-8 pr-2 text-xs text-white placeholder-white/30 outline-none focus:border-emerald-500/40">
+                            </div>
+                            <select x-model="borderRarityFilter" class="bg-[#0a0a0f] border border-white/10 rounded-lg py-2 px-2 text-xs text-white outline-none">
+                                <option value="all">All types</option>
+                                <option value="Common">Common</option>
+                                <option value="Rare">Rare</option>
+                                <option value="Epic">Epic</option>
+                                <option value="Premium">Premium</option>
+                            </select>
+                        </div>
                         <p class="text-[10px] font-mono text-white/30" x-show="borderPageCount > 1" x-cloak>
                             <span x-text="borderPage"></span> / <span x-text="borderPageCount"></span>
                         </p>
@@ -131,10 +144,11 @@
                                 </div>
 
                                 <span class="text-xs font-bold uppercase tracking-wider truncate max-w-full px-1" x-text="border.name"></span>
+                                <span x-show="border.rarity" class="text-[9px] font-mono uppercase" :class="rarityClass(border.rarity)" x-text="border.rarity"></span>
 
                                 <div x-show="border.owned && Number(border.id) !== 0 && Number(activeBorderId) !== Number(border.id)"
-                                     class="absolute top-2 left-2 z-30 px-1.5 py-0.5 rounded bg-emerald-500/15 border border-emerald-500/30 text-[8px] font-black uppercase tracking-widest text-emerald-400">
-                                    Owned
+                                     class="absolute top-2 left-2 z-30 px-1.5 py-0.5 rounded bg-emerald-500/15 border border-emerald-500/30 text-[8px] font-black uppercase tracking-widest text-emerald-400"
+                                     x-text="border.premiumOnly ? 'Premium' : 'Owned'">
                                 </div>
 
                                 <div x-show="Number(activeBorderId) === Number(border.id)" class="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-emerald-500 text-black flex items-center justify-center shadow-lg z-30">
@@ -174,7 +188,7 @@
         <div class="p-6 rounded-2xl bg-red-500/[0.04] border border-red-500/20 backdrop-blur-md flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div class="space-y-1">
                 <h5 class="text-sm font-bold text-white">Delete Account</h5>
-                <p class="text-xs text-white/40">Permanently remove your account, profile details, and watchlist history. This action cannot be undone.</p>
+                <p class="text-xs text-white/40">Starts a 24-hour countdown. Sign in again to reverse it. After the timer ends, everything related to this account is deleted.</p>
             </div>
             
             <button @click="openDeleteAccountModal()" 
@@ -236,7 +250,7 @@
             </button>
             <button @click="confirmDeleteAccount()" 
                     class="px-6 py-2.5 rounded-xl bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 text-xs font-bold text-white shadow-lg shadow-red-600/30 transition-all hover:scale-105 active:scale-95">
-                Permanently Delete
+                Schedule 24h deletion
             </button>
         </div>
     </div>

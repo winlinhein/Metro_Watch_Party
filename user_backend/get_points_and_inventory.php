@@ -1,6 +1,7 @@
 <?php
 session_start();
 require_once __DIR__ . '/../conn.php';
+require_once __DIR__ . '/../profile_media_helper.php';
 header('Content-Type: application/json');
 
 if (empty($_SESSION['user_id'])) {
@@ -15,9 +16,7 @@ $stmt = $conn->prepare("SELECT points FROM users WHERE user_id = ?");
 $stmt->execute([$userId]);
 $points = (int)$stmt->fetchColumn();
 
-$stmt = $conn->prepare("SELECT item_id FROM user_inventory WHERE user_id = ?");
-$stmt->execute([$userId]);
-$inventory = $stmt->fetchAll(PDO::FETCH_COLUMN);
+$inventory = nexusEffectiveInventory($conn, (int)$userId);
 
 echo json_encode([
     'success'   => true,

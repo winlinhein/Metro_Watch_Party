@@ -1,5 +1,5 @@
 <!-- Sessions View (Rooms) -->
-<div data-tab-panel="sessions" style="display: none;" class="absolute inset-0 p-10 w-full min-h-full overflow-y-auto">
+<div data-tab-panel="sessions" style="display: none; padding-top: 7.5rem;" class="absolute inset-0 px-10 pb-10 w-full min-h-full overflow-y-auto">
     <div class="flex items-center justify-between mb-10 stagger-item">
         <div>
             <h2 class="text-3xl font-bold text-white tracking-tight mb-1">Active Sessions</h2>
@@ -17,7 +17,7 @@
     </div>
 
     <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8 pb-10">
-        <template x-for="room in rooms" :key="room.id">
+        <template x-for="room in pagedRooms" :key="room.id">
             <div :id="'room-card-' + room.id" class="glass-card rounded-2xl overflow-hidden relative group border border-white/5 hover:border-indigo-500/30 transition-all stagger-item">
                 <div class="relative h-40 overflow-hidden bg-[#0a0a12]">
                     <img x-show="room.movie_poster" :src="room.movie_poster" class="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" alt="">
@@ -79,14 +79,15 @@
                 </div>
             </div>
         </template>
-        <template x-if="rooms.length === 0">
+        <template x-if="adminPage('rooms').total === 0">
             <div class="col-span-full glass-card rounded-2xl p-16 flex flex-col items-center justify-center text-center border border-white/5">
                 <span class="material-symbols-outlined text-6xl text-white/20 mb-4">satellite_alt</span>
-                <h3 class="text-xl font-bold text-white mb-2">No Active Sessions</h3>
-                <p class="text-white/40 max-w-sm">There are currently no active watch parties or rooms. Wait for users to create new sessions.</p>
+                <h3 class="text-xl font-bold text-white mb-2" x-text="(searchQuery || '').trim() ? 'No matching sessions' : 'No Active Sessions'"></h3>
+                <p class="text-white/40 max-w-sm" x-text="(searchQuery || '').trim() ? 'Try a different search in the header.' : 'There are currently no active watch parties or rooms. Wait for users to create new sessions.'"></p>
             </div>
         </template>
     </div>
+    <?php $pagerKey = 'rooms'; include __DIR__ . '/../components/admin_pagination.php'; ?>
 
     <!-- Room Details Modal -->
     <div x-show="roomModalOpen" class="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm" style="display: none;" x-transition:enter="transition ease-out duration-300" x-transition:enter-start="opacity-0 backdrop-blur-none" x-transition:enter-end="opacity-100 backdrop-blur-sm" x-transition:leave="transition ease-in duration-700" x-transition:leave-start="opacity-100 backdrop-blur-sm" x-transition:leave-end="opacity-0 backdrop-blur-none">

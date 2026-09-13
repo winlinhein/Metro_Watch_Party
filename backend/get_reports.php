@@ -4,6 +4,9 @@ session_start();
 require_once __DIR__ . '/../conn.php';
 require_once __DIR__ . '/../profile_media_helper.php';
 require_once __DIR__ . '/../poster_helper.php';
+require_once __DIR__ . '/../account_lifecycle_helper.php';
+ensureAppSchema($conn);
+nexusPrepareKeptRecords($conn);
 
 header('Content-Type: application/json');
 
@@ -30,9 +33,9 @@ try {
             r.comment_id,
             ANY_VALUE(mc.movie_id) AS reported_movie_id,
             ANY_VALUE(reporter.user_id) AS reporter_user_id,
-            ANY_VALUE(reporter.user_name) AS reporter_name,
+            ANY_VALUE(COALESCE(reporter.user_name, r.deleted_reporter_name, 'Deleted user')) AS reporter_name,
             ANY_VALUE(reported.user_id) AS reported_target_user_id,
-            ANY_VALUE(reported.user_name) AS reported_user_name,
+            ANY_VALUE(COALESCE(reported.user_name, r.deleted_reported_name, 'Deleted user')) AS reported_user_name,
             ANY_VALUE(rm.room_code) AS reported_room_code,
             ANY_VALUE(rm.status) AS reported_room_status,
             ANY_VALUE(rm.movie_id) AS reported_room_movie_id,
@@ -45,7 +48,7 @@ try {
         LEFT JOIN 
             movie_comments mc ON (r.comment_id = mc.comment_id OR (r.comment_id IS NULL AND r.reported_user_id = mc.comment_id)) AND r.type IN ('comment', 'reply')
         LEFT JOIN 
-            users reported ON (r.reported_user_id = reported.user_id AND r.type IN ('user', 'room')) OR (mc.user_id = reported.user_id AND r.type IN ('comment', 'reply'))
+            users reported ON (r.reported_user_id = reported.user_id AND r.type IN ('user', 'room', 'appeal')) OR (mc.user_id = reported.user_id AND r.type IN ('comment', 'reply'))
         LEFT JOIN
             rooms rm ON r.reported_room_id = rm.room_id
         LEFT JOIN
@@ -83,7 +86,12 @@ try {
         $roomCode = $rep['reported_room_code'] ?? '';
         $roomMovieTitle = trim((string)($rep['reported_room_movie_title'] ?? ''));
         $roomMovieId = (int)($rep['reported_room_movie_id'] ?? 0);
-        if (($rep['type'] ?? '') === 'room') {
+        if (($rep['type'] ?? '') === 'appeal') {
+            $reported_entity = 'Ban appeal';
+            if (!empty($rep['reported_user_name'])) {
+                $reported_entity .= ' · ' . $rep['reported_user_name'];
+            }
+        } elseif (($rep['type'] ?? '') === 'room') {
             if ($roomCode) {
                 $reported_entity = 'Room #' . $roomCode;
             } elseif (!empty($rep['reported_room_id'])) {
@@ -117,8 +125,9 @@ try {
             'reported_room_status' => $rep['reported_room_status'] ?? null,
             'reported_room_movie_title' => $roomMovieTitle !== '' ? $roomMovieTitle : null,
             'reported_room_movie_poster' => ($roomMovieId > 0 && $roomMovieTitle !== '') ? moviePosterUrl($roomMovieId) : '',
-            'reason'        => $rep['reported_reasons'] ?? 'No Specific Reason',
+            'reason'        => $rep['reported_reasons'] ?: (($rep['type'] ?? '') === 'appeal' ? 'Ban Appeal' : 'No Specific Reason'),
             'type'          => ucfirst($rep['type']),
+            'reporter_id'   => $reporterId ?: null,
             'excerpt'       => $desc !== '' ? (substr($desc, 0, 45) . (strlen($desc) > 45 ? '...' : '')) : '',
             'description'   => $desc,
             'status'        => ucfirst($rep['status']),

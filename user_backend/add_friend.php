@@ -105,6 +105,14 @@ try {
             ], $senderMedia);
             triggerPusherEvent("user-{$friendId}", "friend_event", $payload);
 
+            try {
+                require_once __DIR__ . '/mission_progress.php';
+                updateMissionProgress((int)$userId, 'add_friend', 1);
+                updateMissionProgress((int)$friendId, 'add_friend', 1);
+            } catch (Throwable $e) {
+                error_log('add_friend mission update: ' . $e->getMessage());
+            }
+
             echo json_encode([
                 'success' => true, 
                 'message' => 'Friend request accepted!', 

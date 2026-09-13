@@ -89,11 +89,54 @@ function resetAllMissionCyclesIfNeeded(PDO $conn, int $userId): void {
  * Increment user progress for all active missions of a given type.
  * Also marks missions as completed when progress reaches target.
  */
+function nexusCanAccrueMissions(int $userId = 0): bool
+{
+    $role = strtolower(trim((string)($_SESSION['user_role'] ?? '')));
+    if ($role === 'user') {
+        return true;
+    }
+    if (in_array($role, ['admin', 'moderator', 'guest'], true)) {
+        return false;
+    }
+    $userId = $userId > 0 ? $userId : (int)($_SESSION['user_id'] ?? 0);
+    if ($userId <= 0) {
+        return false;
+    }
+    global $conn;
+    if (!($conn instanceof PDO)) {
+        return false;
+    }
+    try {
+        $stmt = $conn->prepare("
+            SELECT LOWER(TRIM(r.role))
+            FROM users u
+            INNER JOIN roles r ON r.role_id = u.role_id
+            WHERE u.user_id = ?
+            LIMIT 1
+        ");
+        $stmt->execute([$userId]);
+        return (string)$stmt->fetchColumn() === 'user';
+    } catch (Throwable $e) {
+        return false;
+    }
+}
+
+function nexusAwardDailyLogin(int $userId): void
+{
+    if ($userId <= 0) {
+        return;
+    }
+    try {
+        updateMissionProgress($userId, 'daily_login', 1);
+    } catch (Throwable $e) {
+        error_log('daily_login mission: ' . $e->getMessage());
+    }
+}
+
 function updateMissionProgress(int $userId, string $missionType, int $increment = 1): void {
     global $conn;
 
-    // Only regular users accrue mission progress
-    if (($_SESSION['user_role'] ?? '') !== 'user') {
+    if ($userId <= 0 || !nexusCanAccrueMissions($userId)) {
         return;
     }
 

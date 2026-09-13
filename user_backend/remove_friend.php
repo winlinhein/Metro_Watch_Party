@@ -1,6 +1,7 @@
 <?php
 session_start();
 require_once __DIR__ . '/../conn.php';
+require_once __DIR__ . '/../account_lifecycle_helper.php';
 header('Content-Type: application/json');
 
 $userId = $_SESSION['user_id'] ?? 0;
@@ -19,6 +20,10 @@ try {
         AND status = 'accepted'
     ");
     $stmt->execute([':u1' => $userId, ':u2' => $friendId]);
+
+    if ($stmt->rowCount() > 0) {
+        nexusDeleteFriendshipChats($conn, (int)$userId, $friendId);
+    }
 
     echo json_encode(['success' => true, 'message' => 'Friend removed.']);
 } catch (PDOException $e) {

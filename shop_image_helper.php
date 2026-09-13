@@ -6,10 +6,18 @@ function shopImageUrl(?string $imageUrl, ?string $itemName = null): string
 
     if (is_string($imageUrl) && $imageUrl !== '') {
         $imageUrl = trim($imageUrl);
-        if (preg_match('#^(https?:)?//#i', $imageUrl) || str_starts_with($imageUrl, '/')) {
+        if (str_starts_with($imageUrl, '/user_backend/media.php')) {
             return $imageUrl;
         }
-        return '/uploads/shop/' . $imageUrl;
+        if (preg_match('#^(https?:)?//#i', $imageUrl)) {
+            return $imageUrl;
+        }
+        if (str_starts_with($imageUrl, '/uploads/')) {
+            return '/user_backend/media.php?path=' . rawurlencode($imageUrl);
+        }
+        if ($imageUrl !== '') {
+            return '/user_backend/media.php?path=' . rawurlencode('/uploads/shop/' . ltrim($imageUrl, '/'));
+        }
     }
 
     if (is_string($itemName) && $itemName !== '') {
