@@ -98,6 +98,7 @@ try {
                 'is_read'     => 0,
                 'created_at'  => $createdAt,
                 'icon'        => 'gavel',
+                'report_id'   => $reportId,
             ], $reporterMedia);
             triggerPusherEvent("user-{$adminId}", 'new_notification', $notifPayload);
         }

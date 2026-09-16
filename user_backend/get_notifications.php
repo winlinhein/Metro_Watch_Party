@@ -54,6 +54,11 @@ try {
         $n['sender_name'] = $n['sender_name'] ?? 'System';
         $n['is_read'] = (int)($n['is_read'] ?? 0);
 
+        $n['report_id'] = null;
+        if (preg_match('/Report\s*#(\d+)/i', (string)$n['message'], $rm)) {
+            $n['report_id'] = (int)$rm[1];
+        }
+
         // Extract room_id from party/join messages: "...|room:123" or "...|room:123|req:45"
         $n['room_id'] = null;
         $n['request_id'] = null;

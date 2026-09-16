@@ -210,6 +210,7 @@ try {
                 'is_read'     => 0,
                 'created_at'  => $createdAt,
                 'icon'        => 'flag',
+                'report_id'   => (int)$report_id,
             ], $reporterMedia);
             triggerPusherEvent("user-{$adminId}", 'new_notification', $notifPayload);
         }

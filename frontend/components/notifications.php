@@ -20,9 +20,10 @@
     
     <!-- Render Notifications Dynamically -->
     <div class="flex-1 overflow-y-auto max-h-[400px] p-2 space-y-1 bg-[#0a0a0c]">
-        <template x-for="notif in notifications" :key="notif.id">
-            <div class="flex gap-4 p-3 rounded-xl hover:bg-white/[0.04] transition-all duration-300 group relative overflow-hidden"
-                 :class="Number(notif.is_read) === 0 ? 'bg-red-500/10' : 'opacity-80 hover:opacity-100'">
+        <template x-for="notif in notifications" :key="'admin-notif-' + notif.id">
+            <div class="flex gap-4 p-3 rounded-xl hover:bg-white/[0.04] transition-all duration-300 group relative overflow-hidden cursor-pointer"
+                 :class="Number(notif.is_read) === 0 ? 'bg-red-500/10' : 'opacity-80 hover:opacity-100'"
+                 @click="openNotification(notif)">
                 <div class="absolute inset-0 bg-gradient-to-r opacity-0 group-hover:opacity-100 transition-opacity" :class="notif.gradientFrom"></div>
                 <div class="relative w-10 h-10 shrink-0 overflow-visible" style="width: 2.5rem; height: 2.5rem;">
                     <div class="absolute inset-0 z-0 overflow-hidden rounded-full scale-[1.1] flex items-center justify-center border transition-all group-hover:scale-110"
@@ -30,9 +31,7 @@
                         <img x-show="notif.avatar_url" :src="resolveAvatarUrl ? resolveAvatarUrl(notif.avatar_url, notif.sender_name || 'User') : notif.avatar_url" class="absolute inset-0 h-full w-full object-cover" alt="">
                         <span x-show="!notif.avatar_url" class="material-symbols-outlined text-[18px] transition-colors" :class="[notif.iconColorClass || 'text-white/70']" x-text="notif.icon || 'notifications'"></span>
                     </div>
-                    <template x-if="notif.border_preview">
-                        <img :src="notif.border_preview" class="absolute inset-0 z-10 h-full w-full scale-[1.4] object-contain pointer-events-none" alt="">
-                    </template>
+                    <img x-show="notif.border_preview" :src="notif.border_preview" class="absolute inset-0 z-10 h-full w-full scale-[1.4] object-contain pointer-events-none" alt="">
                 </div>
                 <div class="relative z-10 flex-1 min-w-0">
                     <p class="text-sm leading-snug transition-colors" :class="Number(notif.is_read) === 1 ? 'text-white/60 group-hover:text-white' : 'text-white/80 group-hover:text-white'">

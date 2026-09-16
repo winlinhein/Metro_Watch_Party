@@ -417,7 +417,7 @@ session_write_close();
     <link rel="stylesheet" href="https://cdn.plyr.io/3.7.8/plyr.css" />
     <script src="https://cdn.plyr.io/3.7.8/plyr.polyfilled.js"></script>
     <script src="../js/chat_emojis.js?v=1"></script>
-    <script src="../js/nexus_scripts.js?v=1789302000"></script>
+    <script src="../js/nexus_scripts.js?v=1789311200"></script>
     <script src="../js/support_chatbot.js?v=3"></script>
 </head>
 <body class="h-screen w-screen flex flex-col relative selection:bg-red-500/30" data-barba="wrapper">

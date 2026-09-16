@@ -7,7 +7,7 @@ function ensureAppSchema(PDO $conn): void
         return;
     }
 
-    $flag = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'nexus_app_schema_ok_v6';
+    $flag = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'nexus_app_schema_ok_v7';
     if (is_file($flag)) {
         $ready = true;
         return;
@@ -20,6 +20,7 @@ function ensureAppSchema(PDO $conn): void
         "ALTER TABLE rooms ADD COLUMN max_members INT NOT NULL DEFAULT 5",
         "ALTER TABLE users MODIFY COLUMN status VARCHAR(32) NOT NULL DEFAULT 'active'",
         "ALTER TABLE reports MODIFY COLUMN type VARCHAR(32) NOT NULL",
+        "ALTER TABLE reports MODIFY COLUMN status ENUM('pending','read','resolved','cancelled') NULL DEFAULT 'pending'",
         "ALTER TABLE users ADD COLUMN google_id VARCHAR(64) NULL DEFAULT NULL",
         "ALTER TABLE users ADD COLUMN auth_provider VARCHAR(20) NOT NULL DEFAULT 'email'",
     ];
