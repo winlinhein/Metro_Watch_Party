@@ -54,9 +54,13 @@
              x-transition:enter="transition-all duration-500"
              x-transition:enter-start="opacity-0 scale-95"
              x-transition:enter-end="opacity-100 scale-100">
-            <template x-for="item in filteredShopItems" :key="item.id">
-                <div class="group relative bg-[#050508] rounded-2xl border border-white/[0.05] p-3.5 hover:border-white/20 transition-all duration-500 hover:-translate-y-1 shadow-xl overflow-hidden cursor-pointer"
+            <template x-for="(item, index) in filteredShopItems" :key="item.id">
+                <div class="nexus-shop-card nexus-card-enter group relative bg-[#050508] rounded-2xl border border-white/[0.05] p-3.5 hover:border-violet-400/40 shadow-xl overflow-hidden cursor-pointer"
+                     :style="`animation-delay: ${index * 55}ms`"
+                     @mousemove="trackCardTilt($event)"
+                     @mouseleave="resetCardTilt($event)"
                      @click="handleShopItemClick(item)">
+                    <div class="nexus-card-shine"></div>
                     
                     <!-- Background Glow (generic) -->
                     <div class="absolute inset-0 bg-gradient-to-br from-indigo-500/10 to-purple-500/10 opacity-0 group-hover:opacity-20 transition-opacity duration-700 pointer-events-none"></div>

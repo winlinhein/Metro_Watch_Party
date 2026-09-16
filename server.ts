@@ -247,6 +247,25 @@ app.get("/user_backend/get_reasons.php", (req, res) => {
   });
 });
 
+app.get("/user_backend/get_active_room.php", (req, res) => {
+  const roomId = String(req.query.room_id || "");
+  if (!roomId) {
+    res.json({ success: false, message: "No active room" });
+    return;
+  }
+  res.json({
+    success: true,
+    data: {
+      room: { room_id: roomId, room_code: roomId, host_id: 1, status: "active" },
+      participants: []
+    }
+  });
+});
+
+app.post("/user_backend/join_room.php", (_req, res) => {
+  res.json({ success: true, peers: [], you: {} });
+});
+
 app.post("/user_backend/create_room.php", (req, res) => {
   res.json({
     success: true,

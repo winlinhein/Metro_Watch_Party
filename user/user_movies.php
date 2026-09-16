@@ -30,9 +30,15 @@
 
     <!-- Dynamic Movie Cards Grid -->
     <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6 lg:gap-8 pb-12 items-stretch">
-        <template x-for="movie in filteredMovies" :key="movie.id || movie.movie_id">
-            <div class="movie-card-container stagger-item h-full">
-                <div @click="openMovieOrPremium(movie)" class="group cursor-pointer relative h-full flex flex-col rounded-2xl bg-[#050508] border border-white/[0.05] hover:border-indigo-500/40 transition-all duration-500 hover:-translate-y-2 shadow-2xl hover:shadow-[0_20px_40px_rgba(99,102,241,0.2)] overflow-hidden" x-data="{ hovered: false }" @mouseenter="hovered = true" @mouseleave="hovered = false">
+        <template x-for="(movie, index) in filteredMovies" :key="movie.id || movie.movie_id">
+            <div class="movie-card-container stagger-item nexus-card-enter h-full" :style="`animation-delay: ${index * 60}ms`">
+                <div @click="openMovieOrPremium(movie)"
+                     @mousemove="trackCardTilt($event)"
+                     @mouseleave="resetCardTilt($event); hovered = false"
+                     class="nexus-media-card group cursor-pointer relative h-full flex flex-col rounded-2xl bg-[#050508] border border-white/[0.05] hover:border-indigo-500/40 shadow-2xl overflow-hidden"
+                     x-data="{ hovered: false }"
+                     @mouseenter="hovered = true">
+                    <div class="nexus-card-shine"></div>
                     
                     <!-- Poster Image & Trailer Container -->
                     <div class="aspect-[2/3] w-full relative overflow-hidden bg-[#050508]">

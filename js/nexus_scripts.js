@@ -80,6 +80,33 @@ function formatPremiumEndsLabel(end) {
     }
 }
 
+const NEXUS_ACTIVE_ROOM_KEY = 'nexus_active_room';
+
+function readNexusActiveRoom() {
+    try {
+        const raw = sessionStorage.getItem(NEXUS_ACTIVE_ROOM_KEY);
+        if (!raw) return null;
+        const data = JSON.parse(raw);
+        return data && data.roomId ? data : null;
+    } catch (e) {
+        return null;
+    }
+}
+
+function writeNexusActiveRoom(data) {
+    try {
+        if (!data || !data.roomId) {
+            sessionStorage.removeItem(NEXUS_ACTIVE_ROOM_KEY);
+            return;
+        }
+        sessionStorage.setItem(NEXUS_ACTIVE_ROOM_KEY, JSON.stringify(data));
+    } catch (e) {}
+}
+
+function clearNexusActiveRoom() {
+    try { sessionStorage.removeItem(NEXUS_ACTIVE_ROOM_KEY); } catch (e) {}
+}
+
 function userDashboard() {
     const bootUser = window.NEXUS_USER || {};
     const bootName = bootUser.username || 'User';
@@ -129,6 +156,8 @@ function userDashboard() {
         showQuestsPanel: false,
         questActiveTab: 'daily',
         showInviteModal: false,
+        activeRoom: null,
+        _activeRoomTimer: null,
         showNotifications: false,
         showPremiumModal: false,
         friendsTab: 'connected',
@@ -1455,6 +1484,87 @@ function userDashboard() {
             return window.createParty(movieId);
         },
 
+        get hasActiveRoom() {
+            return !!(this.activeRoom && this.activeRoom.roomId);
+        },
+
+        get visibleRoomParticipants() {
+            return (this.activeRoom && this.activeRoom.participants ? this.activeRoom.participants : []).slice(0, 6);
+        },
+
+        get extraRoomParticipantCount() {
+            const count = this.activeRoom && this.activeRoom.participants ? this.activeRoom.participants.length : 0;
+            return Math.max(0, count - 6);
+        },
+
+        hydrateActiveRoom() {
+            this.activeRoom = readNexusActiveRoom();
+            this.refreshActiveRoom();
+        },
+
+        clearActiveRoomState() {
+            this.activeRoom = null;
+            clearNexusActiveRoom();
+            if (this._activeRoomTimer) {
+                clearInterval(this._activeRoomTimer);
+                this._activeRoomTimer = null;
+            }
+        },
+
+        mapActiveRoomParticipants(rows) {
+            return (rows || []).map((row) => ({
+                name: row.name || row.user_name || 'User',
+                avatar: this.resolveAvatarUrl(row.avatar || row.avatar_url || '', row.name || row.user_name || 'User'),
+                border: row.border || row.border_preview || '',
+                userId: row.userId || row.user_id || null,
+                peerId: row.peerId || row.peer_id || ''
+            }));
+        },
+
+        async refreshActiveRoom() {
+            const stored = this.activeRoom || readNexusActiveRoom();
+            if (!stored || !stored.roomId) return;
+            try {
+                const res = await fetch('/user_backend/get_active_room.php?room_id=' + encodeURIComponent(stored.roomId));
+                const result = await res.json();
+                if (!result.success) {
+                    if (result.is_ended || result.is_kicked) this.clearActiveRoomState();
+                    return;
+                }
+                const room = (result.data && result.data.room) || {};
+                const incoming = this.mapActiveRoomParticipants((result.data && result.data.participants) || []);
+                this.activeRoom = {
+                    ...stored,
+                    roomId: String(room.room_id || stored.roomId),
+                    roomName: room.room_code ? ('Room #' + room.room_code) : (stored.roomName || ''),
+                    isHost: Number(room.host_id) === Number(window.CURRENT_USER_ID),
+                    participants: incoming.length ? incoming : this.mapActiveRoomParticipants(stored.participants || [])
+                };
+                writeNexusActiveRoom(this.activeRoom);
+                this.heartbeatActiveRoom();
+            } catch (e) {
+                this.activeRoom = stored;
+            }
+        },
+
+        async heartbeatActiveRoom() {
+            const room = this.activeRoom;
+            if (!room || !room.roomId || !room.peerId) return;
+            try {
+                const form = new FormData();
+                form.append('room_id', room.roomId);
+                form.append('peer_id', room.peerId);
+                form.append('heartbeat', '1');
+                await fetch('/user_backend/join_room.php', { method: 'POST', body: form });
+            } catch (e) {}
+        },
+
+        returnToRoom() {
+            if (!this.hasActiveRoom) return;
+            if (typeof window.showPageLoader === 'function') window.showPageLoader();
+            window.location.href = '/user/watch_party.php?room_id=' + encodeURIComponent(this.activeRoom.roomId);
+        },
+
         applyOnlineIds(ids) {
             const set = new Set((ids || []).map(Number));
             const mark = (row) => {
@@ -2097,6 +2207,24 @@ function userDashboard() {
                 oldPanel.style.display = 'none';
                 newPanel.style.display = 'block';
             }
+        },
+
+        trackCardTilt(e) {
+            const el = e.currentTarget;
+            if (!el) return;
+            const r = el.getBoundingClientRect();
+            const px = (e.clientX - r.left) / Math.max(r.width, 1);
+            const py = (e.clientY - r.top) / Math.max(r.height, 1);
+            el.style.setProperty('--mx', (px * 100) + '%');
+            el.style.setProperty('--my', (py * 100) + '%');
+            el.style.setProperty('--rx', ((py - 0.5) * -10).toFixed(2) + 'deg');
+            el.style.setProperty('--ry', ((px - 0.5) * 12).toFixed(2) + 'deg');
+        },
+        resetCardTilt(e) {
+            const el = e.currentTarget;
+            if (!el) return;
+            el.style.setProperty('--rx', '0deg');
+            el.style.setProperty('--ry', '0deg');
         },
 
         // Navigation Drawer
@@ -3770,6 +3898,10 @@ function userDashboard() {
             localStorage.removeItem('activeBorder');
 
             if (typeof gsap !== 'undefined') gsap.config({ nullTargetWarn: false });
+
+            this.hydrateActiveRoom();
+            if (this._activeRoomTimer) clearInterval(this._activeRoomTimer);
+            this._activeRoomTimer = setInterval(() => this.refreshActiveRoom(), 15000);
 
             this.initPusher();
             this.loadMediaCaches();

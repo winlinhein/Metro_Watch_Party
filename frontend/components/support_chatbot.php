@@ -1,4 +1,4 @@
-<div class="fixed bottom-[7.5rem] right-8 z-[110] flex flex-col items-end gap-3"
+<div class="fixed bottom-[7.5rem] right-8 z-40 flex flex-col items-end gap-3"
      x-data="nexusSupportChat()"
      x-cloak
      @keydown.escape.window="open && close()">
@@ -111,7 +111,7 @@
 
     <button type="button"
             @click="toggle()"
-            class="relative group flex items-center justify-center w-14 h-14 rounded-full bg-gradient-to-tr from-indigo-500 to-red-600 text-white shadow-[0_0_24px_rgba(239,68,68,0.45)] hover:shadow-[0_0_40px_rgba(239,68,68,0.65)] hover:-translate-y-0.5 transition-all duration-300"
+            class="nexus-fab relative group flex items-center justify-center w-14 h-14 rounded-full bg-gradient-to-tr from-indigo-500 to-red-600 text-white shadow-[0_0_24px_rgba(239,68,68,0.45)] hover:shadow-[0_0_40px_rgba(239,68,68,0.65)]"
             :aria-expanded="open.toString()"
             aria-label="Open support chat">
         <span class="material-symbols-outlined text-[26px] transition-transform duration-300"

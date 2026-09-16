@@ -30,41 +30,42 @@
                         <option :value="genre" x-text="genre"></option>
                     </template>
                 </select>
-            <div class="flex items-center gap-3" x-data="{ searchOpen: false, searchFocused: false }">
-                <div class="relative group">
-                    <!-- Animated Glow Behind -->
-                    <div class="absolute inset-0 bg-gradient-to-r from-red-500 via-rose-500 to-purple-500 rounded-2xl blur-xl transition-all duration-700 opacity-0"
-                         :class="searchOpen ? 'opacity-30 scale-105' : 'group-hover:opacity-20'"></div>
-                    
-                    <!-- Search Container -->
-                    <div class="relative flex items-center bg-black/40 backdrop-blur-xl border transition-all duration-700 ease-[cubic-bezier(0.34,1.56,0.64,1)] rounded-2xl overflow-hidden"
-                         :class="searchOpen ? 'w-80 border-red-500/50 shadow-[inset_0_0_20px_rgba(239,68,68,0.2)]' : 'w-14 border-white/10 hover:border-white/30'">
+                <div class="flex items-center gap-3" x-data="{ searchOpen: false, searchFocused: false }">
+                    <div class="relative group">
+                        <!-- Animated Glow Behind -->
+                        <div class="absolute inset-0 bg-gradient-to-r from-red-500 via-rose-500 to-purple-500 rounded-2xl blur-xl transition-all duration-700 opacity-0"
+                             :class="searchOpen ? 'opacity-30 scale-105' : 'group-hover:opacity-20'"></div>
                         
-                        <!-- Icon Button -->
-                        <button @click="searchOpen = !searchOpen; if(searchOpen) $nextTick(() => $refs.searchInput.focus())" 
-                                class="w-14 h-14 shrink-0 flex items-center justify-center transition-colors duration-300 relative z-10"
-                                :class="searchOpen ? 'text-red-400' : 'text-white/50 group-hover:text-white'">
-                            <!-- Search Icon (Fades out and down) -->
-                            <span class="material-symbols-outlined absolute text-[24px] transition-all duration-500"
-                                  :class="searchOpen ? 'opacity-0 scale-50 rotate-90 translate-y-4' : 'opacity-100 scale-100 rotate-0 translate-y-0'">search</span>
-                            <!-- Close Icon (Fades in and up) -->
-                            <span class="material-symbols-outlined absolute text-[24px] transition-all duration-500"
-                                  :class="searchOpen ? 'opacity-100 scale-100 rotate-0 translate-y-0' : 'opacity-0 scale-50 -rotate-90 -translate-y-4'">close</span>
-                        </button>
+                        <!-- Search Container -->
+                        <div class="relative flex items-center bg-black/40 backdrop-blur-xl border transition-all duration-700 ease-[cubic-bezier(0.34,1.56,0.64,1)] rounded-2xl overflow-hidden"
+                             :class="searchOpen ? 'w-80 border-red-500/50 shadow-[inset_0_0_20px_rgba(239,68,68,0.2)]' : 'w-14 border-white/10 hover:border-white/30'">
+                            
+                            <!-- Icon Button -->
+                            <button @click="searchOpen = !searchOpen; if(searchOpen) $nextTick(() => $refs.searchInput.focus())" 
+                                    class="w-14 h-14 shrink-0 flex items-center justify-center transition-colors duration-300 relative z-10"
+                                    :class="searchOpen ? 'text-red-400' : 'text-white/50 group-hover:text-white'">
+                                <!-- Search Icon (Fades out and down) -->
+                                <span class="material-symbols-outlined absolute text-[24px] transition-all duration-500"
+                                      :class="searchOpen ? 'opacity-0 scale-50 rotate-90 translate-y-4' : 'opacity-100 scale-100 rotate-0 translate-y-0'">search</span>
+                                <!-- Close Icon (Fades in and up) -->
+                                <span class="material-symbols-outlined absolute text-[24px] transition-all duration-500"
+                                      :class="searchOpen ? 'opacity-100 scale-100 rotate-0 translate-y-0' : 'opacity-0 scale-50 -rotate-90 -translate-y-4'">close</span>
+                            </button>
 
-                        <!-- Input Field -->
-                        <input x-ref="searchInput" 
-                               type="text"
-                               x-model="watchlistSearchQuery"
-                               @focus="searchFocused = true" 
-                               @blur="searchFocused = false"
-                               placeholder="INITIATE SEARCH..." 
-                               class="w-full bg-transparent text-white text-[11px] font-bold uppercase tracking-widest outline-none placeholder-red-500/30 pr-4 transition-all duration-500"
-                               :class="searchOpen ? 'opacity-100 translate-x-0' : 'opacity-0 translate-x-8 pointer-events-none'">
-                               
-                        <!-- Scanning Line Effect -->
-                        <div class="absolute inset-y-0 left-14 w-[1px] bg-red-500/80 shadow-[0_0_15px_#ef4444] transition-all duration-[1.5s] ease-in-out"
-                             :class="searchFocused ? 'opacity-100 translate-x-[240px]' : 'opacity-0 translate-x-0'"></div>
+                            <!-- Input Field -->
+                            <input x-ref="searchInput" 
+                                   type="text"
+                                   x-model="watchlistSearchQuery"
+                                   @focus="searchFocused = true" 
+                                   @blur="searchFocused = false"
+                                   placeholder="INITIATE SEARCH..." 
+                                   class="w-full bg-transparent text-white text-[11px] font-bold uppercase tracking-widest outline-none placeholder-red-500/30 pr-4 transition-all duration-500"
+                                   :class="searchOpen ? 'opacity-100 translate-x-0' : 'opacity-0 translate-x-8 pointer-events-none'">
+                                   
+                            <!-- Scanning Line Effect -->
+                            <div class="absolute inset-y-0 left-14 w-[1px] bg-red-500/80 shadow-[0_0_15px_#ef4444] transition-all duration-[1.5s] ease-in-out"
+                                 :class="searchFocused ? 'opacity-100 translate-x-[240px]' : 'opacity-0 translate-x-0'"></div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -73,10 +74,13 @@
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
             <template x-for="(item, index) in filteredWatchlist" :key="item.id || index">
                 <div @click="openWatchlistMovie(item)"
-                     class="relative group cursor-pointer perspective-container" 
-                     :style="`animation-delay: ${index * 100}ms; perspective: 1000px;`">
+                     class="nexus-card-enter relative group cursor-pointer perspective-container" 
+                     :style="`animation-delay: ${index * 80}ms; perspective: 1100px;`">
                      <!-- Card -->
-                    <div class="aspect-[2/3] w-full relative rounded-3xl overflow-hidden shadow-[0_20px_50px_rgba(0,0,0,0.5)] transition-all duration-700 ease-[cubic-bezier(0.34,1.56,0.64,1)] group-hover:[transform:translateY(-16px)_rotateX(12deg)] group-hover:shadow-[0_40px_80px_rgba(239,68,68,0.2)] border border-white/5 group-hover:border-red-500/30">
+                    <div class="nexus-watch-card aspect-[2/3] w-full relative rounded-3xl overflow-hidden shadow-[0_20px_50px_rgba(0,0,0,0.5)] border border-white/5 group-hover:border-red-500/40"
+                         @mousemove="trackCardTilt($event)"
+                         @mouseleave="resetCardTilt($event)">
+                        <div class="nexus-card-shine"></div>
                         <img :src="item.img" loading="lazy" decoding="async" class="w-full h-full object-cover transition-all duration-700 ease-[cubic-bezier(0.34,1.56,0.64,1)] group-hover:scale-110 group-hover:brightness-50">
                         
                         <div class="absolute inset-0 bg-gradient-to-t from-[#050508] via-[#050508]/40 to-transparent opacity-80 group-hover:opacity-100 transition-opacity duration-500"></div>

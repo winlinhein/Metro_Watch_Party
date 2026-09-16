@@ -1,3 +1,19 @@
+const NEXUS_ACTIVE_ROOM_KEY = 'nexus_active_room';
+
+function writeNexusActiveRoom(data) {
+    try {
+        if (!data || !data.roomId) {
+            sessionStorage.removeItem(NEXUS_ACTIVE_ROOM_KEY);
+            return;
+        }
+        sessionStorage.setItem(NEXUS_ACTIVE_ROOM_KEY, JSON.stringify(data));
+    } catch (e) {}
+}
+
+function clearNexusActiveRoom() {
+    try { sessionStorage.removeItem(NEXUS_ACTIVE_ROOM_KEY); } catch (e) {}
+}
+
 function watchParty() {
     const peerConnections = {};
     const pendingCandidates = {};
@@ -57,6 +73,7 @@ function watchParty() {
         forcedVideoOff: false,
         chatBanned: false,
         _exiting: false,
+        _parking: false,
         currentMovie: null,
         availableReasons: [],
         showReportRoomModal: false,
@@ -66,6 +83,17 @@ function watchParty() {
         friends: [],
         showInviteMenu: false,
         showInviteSentModal: false,
+        confirmDialog: {
+            open: false,
+            mode: 'confirm',
+            title: '',
+            message: '',
+            confirmLabel: 'Confirm',
+            cancelLabel: 'Cancel',
+            danger: true,
+            icon: '',
+            resolve: null
+        },
         joinRequests: [],
         inviteSentName: '',
         socket: null,
@@ -80,7 +108,7 @@ function watchParty() {
 
         async init() {
             window.addEventListener('beforeunload', () => {
-                if (!this.roomId || this._exiting) return;
+                if (!this.roomId || this._exiting || this._parking) return;
                 const qs = `room_id=${encodeURIComponent(this.roomId)}&peer_id=${encodeURIComponent(this.peerId)}`;
                 navigator.sendBeacon(`../user_backend/leave_room.php?${qs}`);
             });
@@ -92,6 +120,7 @@ function watchParty() {
 
             this.hydratePendingMovie();
             this.seedLocalParticipant();
+            this.persistActiveRoom();
             this.fetchFriends();
             this.startPresenceHeartbeat();
             this.fetchMovies();
@@ -164,7 +193,14 @@ function watchParty() {
                         return;
                     }
                     if (quiet) return;
-                    alert(result.message || "Unable to join room.");
+                    await this.showAlert({
+                        title: 'Unable to join',
+                        message: result.message || 'Unable to join room.',
+                        confirmLabel: 'Back to dashboard',
+                        danger: true,
+                        icon: 'error'
+                    });
+                    clearNexusActiveRoom();
                     window.location.href = 'dashboard.php';
                     return;
                 }
@@ -194,6 +230,8 @@ function watchParty() {
                     this._roomChatLoaded = true;
                 }
 
+                this.persistActiveRoom();
+
             } catch (e) {
                 console.error("Error fetching room details:", e);
             } finally {
@@ -202,11 +240,18 @@ function watchParty() {
         },
 
         // Triggered when user explicitly clicks a "Leave Room" button
-        leaveRoom() {
+        async leaveRoom() {
             if (this._exiting) return;
 
             if (this.isHost) {
-                const confirmEnd = confirm("Leaving as host will end this watch party for everyone. Continue?");
+                const confirmEnd = await this.askConfirm({
+                    title: 'End watch party?',
+                    message: 'Leaving as host will end this watch party for everyone.',
+                    confirmLabel: 'End party',
+                    cancelLabel: 'Stay',
+                    danger: true,
+                    icon: 'logout'
+                });
                 if (!confirmEnd) return;
             }
 
@@ -236,19 +281,48 @@ function watchParty() {
             }
 
             try { this.teardownMediaAndPeers(); } catch (e) {}
+            clearNexusActiveRoom();
             if (typeof window.showPageLoader === 'function') window.showPageLoader();
             window.location.href = 'dashboard.php';
         },
 
-        exitEndedRoom(message) {
+        persistActiveRoom() {
+            if (!this.roomId || this._exiting) return;
+            writeNexusActiveRoom({
+                roomId: String(this.roomId),
+                roomName: this.roomName || '',
+                peerId: this.peerId || '',
+                isHost: !!this.isHost,
+                participants: (this.participants || []).map((p) => ({
+                    name: p.name || 'User',
+                    avatar: p.avatar || '',
+                    border: p.border || '',
+                    userId: p.userId || null,
+                    peerId: p.peerId || p.socketId || ''
+                }))
+            });
+        },
+
+        goToDashboard() {
+            if (this._exiting) return;
+            this._parking = true;
+            this.persistActiveRoom();
+            try { this.teardownMediaAndPeers(); } catch (e) {}
+            if (typeof window.showPageLoader === 'function') window.showPageLoader();
+            window.location.href = 'dashboard.php';
+        },
+
+        async exitEndedRoom(message) {
             if (this._exiting) return;
             this._exiting = true;
+            clearNexusActiveRoom();
             try { this.teardownMediaAndPeers(); } catch (e) { /* ignore */ }
-            if (window.showToast) {
-                window.showToast(message || 'This watch party has ended.', 'info');
-            } else {
-                alert(message || 'This watch party has ended.');
-            }
+            await this.showAlert({
+                title: 'Watch party ended',
+                message: message || 'This watch party has ended.',
+                confirmLabel: 'Back to dashboard',
+                icon: 'movie'
+            });
             window.location.href = 'dashboard.php';
         },
 
@@ -319,7 +393,15 @@ function watchParty() {
         async kickMember(user) {
             if (!this.isHost || user.isSelf) return;
             const name = user.name || 'this member';
-            if (!confirm(`Remove ${name} from the room?`)) return;
+            const confirmed = await this.askConfirm({
+                title: 'Remove member?',
+                message: `Remove ${name} from the room?`,
+                confirmLabel: 'Remove',
+                cancelLabel: 'Cancel',
+                danger: true,
+                icon: 'person_remove'
+            });
+            if (!confirmed) return;
             try {
                 const data = await this.hostAction('kick', user);
                 if (!data || !data.success) {
@@ -448,11 +530,60 @@ function watchParty() {
             }
         },
 
+        get visibleParticipants() {
+            return (this.participants || []).slice(0, 6);
+        },
+
+        get extraParticipantCount() {
+            return Math.max(0, (this.participants || []).length - 6);
+        },
+
         get currentJoinRequest() {
             const pending = (this.messages || []).find((m) =>
                 m.type === 'join_request' && (m.request_status || 'pending') === 'pending'
             );
             return pending || (this.joinRequests && this.joinRequests[0]) || null;
+        },
+
+        askConfirm({ title, message, confirmLabel, cancelLabel, danger, icon } = {}) {
+            return new Promise((resolve) => {
+                if (typeof this.confirmDialog.resolve === 'function') {
+                    this.confirmDialog.resolve(false);
+                }
+                this.confirmDialog.mode = 'confirm';
+                this.confirmDialog.title = title || 'Confirm';
+                this.confirmDialog.message = message || '';
+                this.confirmDialog.confirmLabel = confirmLabel || 'Confirm';
+                this.confirmDialog.cancelLabel = cancelLabel || 'Cancel';
+                this.confirmDialog.danger = danger !== false;
+                this.confirmDialog.icon = icon || 'warning';
+                this.confirmDialog.resolve = resolve;
+                this.confirmDialog.open = true;
+            });
+        },
+
+        showAlert({ title, message, confirmLabel, danger, icon } = {}) {
+            return new Promise((resolve) => {
+                if (typeof this.confirmDialog.resolve === 'function') {
+                    this.confirmDialog.resolve(false);
+                }
+                this.confirmDialog.mode = 'alert';
+                this.confirmDialog.title = title || 'Notice';
+                this.confirmDialog.message = message || '';
+                this.confirmDialog.confirmLabel = confirmLabel || 'OK';
+                this.confirmDialog.cancelLabel = 'Cancel';
+                this.confirmDialog.danger = !!danger;
+                this.confirmDialog.icon = icon || 'info';
+                this.confirmDialog.resolve = resolve;
+                this.confirmDialog.open = true;
+            });
+        },
+
+        resolveConfirm(ok) {
+            const resolve = this.confirmDialog.resolve;
+            this.confirmDialog.open = false;
+            this.confirmDialog.resolve = null;
+            if (typeof resolve === 'function') resolve(!!ok);
         },
 
         joinRequestKey(data) {
@@ -783,7 +914,12 @@ function watchParty() {
         async selectMovie(movie) {
             if (!movie) return;
             if (Number(movie.is_premium) === 1 && !window.IS_PREMIUM) {
-                alert('Premium membership is required to play this title.');
+                await this.showAlert({
+                    title: 'Premium required',
+                    message: 'Premium membership is required to play this title.',
+                    confirmLabel: 'Got it',
+                    icon: 'workspace_premium'
+                });
                 return;
             }
             this.movieSwitching = true;
@@ -1027,6 +1163,7 @@ function watchParty() {
                 this.participants.push(peer);
             }
             this.participants = [...this.participants];
+            this.persistActiveRoom();
         },
 
         teardownMediaAndPeers() {
