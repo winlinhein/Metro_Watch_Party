@@ -5615,6 +5615,31 @@ function adminDashboard(userData = {}) {
         },
 
         isNavOpen: false,
+        sidebarOpen: (function () {
+            try {
+                const stored = localStorage.getItem('nexus_admin_sidebar');
+                if (stored === '0') return false;
+                if (stored === '1') return true;
+            } catch (e) {}
+            return typeof window === 'undefined' || window.innerWidth >= 1024;
+        })(),
+        toggleAdminSidebar(force) {
+            this.sidebarOpen = typeof force === 'boolean' ? force : !this.sidebarOpen;
+            try {
+                localStorage.setItem('nexus_admin_sidebar', this.sidebarOpen ? '1' : '0');
+            } catch (e) {}
+            const sidebar = document.querySelector('.sidebar');
+            if (sidebar && typeof gsap !== 'undefined') {
+                gsap.killTweensOf(sidebar);
+                gsap.set(sidebar, { x: 0, clearProps: 'opacity,visibility,transform' });
+            }
+            this.$nextTick(() => {
+                if (window.NexusAdminMotion && typeof window.NexusAdminMotion.syncNav === 'function') {
+                    window.NexusAdminMotion.syncNav(true);
+                    setTimeout(() => window.NexusAdminMotion.syncNav(true), 400);
+                }
+            });
+        },
         notificationsOpen: false,
         unreadNotifications: 0,
         navItems: [
@@ -5624,9 +5649,15 @@ function adminDashboard(userData = {}) {
             { id: 'sessions', label: 'Watch Parties', icon: 'live_tv' },
             { id: 'shop', label: 'Avatar Shop', icon: 'storefront' },
             { id: 'reports', label: 'Reports', icon: 'flag' },
-            { id: 'profile', label: 'Profile', icon: 'person' },
-            { id: 'transactions', label: 'Transaction History', icon: 'receipt_long' }
+            { id: 'transactions', label: 'Transaction History', icon: 'receipt_long' },
+            { id: 'profile', label: 'Profile', icon: 'person' }
         ],
+        get sidebarNavItems() {
+            return (this.navItems || []).filter((item) => item.id !== 'profile');
+        },
+        get profileNavItem() {
+            return (this.navItems || []).find((item) => item.id === 'profile') || { id: 'profile', label: 'Profile', icon: 'person' };
+        },
         get adminSearchPlaceholder() {
             const map = {
                 dashboard: 'Search movies, users, rooms...',
@@ -5944,6 +5975,150 @@ function adminDashboard(userData = {}) {
             { label: "Revenue", value: "$0", change: "0%", icon: "payments" },
             { label: "Server Load", value: "0%", change: "0%", icon: "memory" }
         ],
+        chartMode: 'revenue',
+        chartRange: '7',
+        chartData: { '7': { revenue: [], logins: [] }, '30': { revenue: [], logins: [] } },
+        fallbackChartData() {
+            const make = (days, seed, isMoney) => {
+                const out = [];
+                let value = seed;
+                for (let i = days - 1; i >= 0; i--) {
+                    const date = new Date();
+                    date.setDate(date.getDate() - i);
+                    value = Math.max(3, value + Math.round(Math.sin(i / 1.65) * 16 + ((i % 4) - 1.5) * 5));
+                    const raw = isMoney ? value * 14.5 : value;
+                    out.push({
+                        label: days <= 7
+                            ? date.toLocaleDateString('en-US', { weekday: 'short' })
+                            : date.toLocaleDateString('en-US', { day: 'numeric', month: 'short' }),
+                        value: raw,
+                        display: isMoney ? ('$' + Math.round(raw).toLocaleString()) : String(Math.round(raw))
+                    });
+                }
+                const max = Math.max(...out.map((row) => Number(row.value) || 0), 1);
+                return out.map((row) => ({
+                    ...row,
+                    height: Math.max(8, Math.round((Number(row.value) / max) * 100))
+                }));
+            };
+            return {
+                '7': { revenue: make(7, 24, true), logins: make(7, 19, false) },
+                '30': { revenue: make(30, 21, true), logins: make(30, 17, false) }
+            };
+        },
+        normalizeChartData(incoming) {
+            const fallback = this.fallbackChartData();
+            const source = incoming && typeof incoming === 'object' ? incoming : {};
+            const decorate = (rows, isMoney) => (rows || []).map((row) => {
+                const raw = Number(row && row.value != null ? row.value : 0);
+                const display = row && row.display
+                    ? String(row.display)
+                    : (isMoney ? ('$' + Math.round(raw).toLocaleString()) : String(Math.round(raw)));
+                return { ...row, value: raw, display };
+            });
+            const pick = (range, mode) => {
+                const rows = source[range] && Array.isArray(source[range][mode]) ? source[range][mode] : [];
+                const isMoney = mode === 'revenue';
+                return decorate(rows.length ? rows : fallback[range][mode], isMoney);
+            };
+            return {
+                '7': { revenue: pick('7', 'revenue'), logins: pick('7', 'logins') },
+                '30': { revenue: pick('30', 'revenue'), logins: pick('30', 'logins') }
+            };
+        },
+        get currentChartSeries() {
+            const range = this.chartData[String(this.chartRange)] || this.chartData['7'] || {};
+            const mode = this.chartMode === 'logins' ? 'logins' : 'revenue';
+            return Array.isArray(range[mode]) ? range[mode] : [];
+        },
+        get loginChartGeometry() {
+            const series = this.currentChartSeries;
+            const w = 640;
+            const h = 220;
+            const padX = 28;
+            const padTop = 18;
+            const padBot = 32;
+            const n = Math.max(series.length, 1);
+            const points = series.map((row, i) => {
+                const x = padX + (i / Math.max(n - 1, 1)) * (w - padX * 2);
+                const y = padTop + (1 - (Number(row.height) || 0) / 100) * (h - padTop - padBot);
+                return { ...row, x: Number(x.toFixed(1)), y: Number(y.toFixed(1)) };
+            });
+            const line = points.map((point, i) => `${i ? 'L' : 'M'}${point.x},${point.y}`).join(' ');
+            const area = points.length
+                ? `${line} L${points[points.length - 1].x},${h - padBot} L${points[0].x},${h - padBot} Z`
+                : '';
+            const grid = [0, 25, 50, 75, 100].map((pct) => Number((padTop + (1 - pct / 100) * (h - padTop - padBot)).toFixed(1)));
+            return { w, h, padX, padBot, points, line, area, grid };
+        },
+        playAdminCharts() {
+            this.$nextTick(() => {
+                if (window.NexusAdminMotion && typeof window.NexusAdminMotion.playDashboardCharts === 'function') {
+                    window.NexusAdminMotion.playDashboardCharts(this.chartMode);
+                }
+            });
+        },
+        setAdminChartMode(mode) {
+            const next = mode === 'logins' ? 'logins' : 'revenue';
+            if (this.chartMode === next) return;
+            this.hideChartTooltip();
+            this.chartMode = next;
+            this.playAdminCharts();
+        },
+        onAdminChartRangeChange() {
+            this.hideChartTooltip();
+            this.playAdminCharts();
+        },
+        chartTooltip: { show: false, x: 0, y: 0, title: '', value: '' },
+        chartHoverIndex: -1,
+        hideChartTooltip() {
+            this.chartTooltip = { show: false, x: 0, y: 0, title: '', value: '' };
+            this.chartHoverIndex = -1;
+        },
+        placeChartTooltip(event, data, index, suffix) {
+            const stage = event.currentTarget.closest('.admin-chart-stage') || event.currentTarget;
+            const rect = stage.getBoundingClientRect();
+            const label = data && data.label ? String(data.label) : '';
+            let value = '';
+            if (data && data.display) {
+                value = String(data.display);
+            } else if (data && data.value != null && data.value !== '') {
+                value = String(data.value);
+            }
+            this.chartHoverIndex = Number.isInteger(index) ? index : -1;
+            this.chartTooltip = {
+                show: true,
+                x: Math.min(Math.max(28, event.clientX - rect.left), Math.max(28, rect.width - 28)),
+                y: Math.max(18, event.clientY - rect.top),
+                title: label,
+                value: suffix && value && value.indexOf(suffix) === -1 ? (value + ' ' + suffix) : value
+            };
+        },
+        hoverRevenuePoint(event, data, index) {
+            this.placeChartTooltip(event, data, index);
+        },
+        hoverLoginChart(event) {
+            const stage = event.currentTarget;
+            const svg = stage.querySelector('svg');
+            if (!svg) return;
+            const rect = svg.getBoundingClientRect();
+            if (!rect.width) return;
+            const x = ((event.clientX - rect.left) / rect.width) * 640;
+            const points = (this.loginChartGeometry && this.loginChartGeometry.points) || [];
+            if (!points.length) return;
+            let nearest = points[0];
+            let nearestIndex = 0;
+            let best = Infinity;
+            points.forEach((point, i) => {
+                const dist = Math.abs(Number(point.x) - x);
+                if (dist < best) {
+                    best = dist;
+                    nearest = point;
+                    nearestIndex = i;
+                }
+            });
+            this.placeChartTooltip(event, nearest, nearestIndex, 'logins');
+        },
 
        // Add Loading & Error states
         isLoading: false,
@@ -5979,13 +6154,21 @@ function adminDashboard(userData = {}) {
                     const data = JSON.parse(text);
                     if (response.ok && Array.isArray(data)) {
                         this.stats = data;
+                        this.chartData = this.fallbackChartData();
+                    } else if (response.ok && data && Array.isArray(data.stats)) {
+                        this.stats = data.stats;
+                        this.chartData = this.normalizeChartData(data.charts);
                     } else {
-                        console.error('Stats API Error:', data.error || 'Failed to load dashboard stats.');
+                        this.chartData = this.fallbackChartData();
+                        console.error('Stats API Error:', (data && data.error) || 'Failed to load dashboard stats.');
                     }
+                    this.playAdminCharts();
                 } catch (e) {
+                    this.chartData = this.fallbackChartData();
                     console.error('Invalid JSON response from stats API:', text);
                 }
             } catch (err) {
+                this.chartData = this.fallbackChartData();
                 console.error('Network error fetching dashboard stats:', err);
             } finally {
                 this.statsLoading = false;
@@ -7548,11 +7731,15 @@ function adminDashboard(userData = {}) {
         },
 
          async initDashboard() {
+            if (!this.currentChartSeries.length) {
+                this.chartData = this.fallbackChartData();
+            }
             this.$nextTick(() => {
                 if (window.NexusAdminMotion && typeof window.NexusAdminMotion.init === 'function') {
                     window.NexusAdminMotion.init(this.$el || document);
                     window.NexusAdminMotion.syncNav(true);
                 }
+                this.playAdminCharts();
             });
             this.loadMediaCaches();
             this.cacheOwnAdminMedia();
@@ -7602,6 +7789,17 @@ function adminDashboard(userData = {}) {
                         this.switchTab('reports');
                         this.returnToReportsAfterMovieModal = false;
                     }
+                }
+            });
+
+            this.$watch(() => (this.rooms || []).length, (len, prev) => {
+                if (this.currentTab !== 'dashboard') return;
+                if (prev === undefined || (Number(len) === 0) !== (Number(prev) === 0)) {
+                    this.$nextTick(() => {
+                        if (window.NexusAdminMotion && typeof window.NexusAdminMotion.playSessionStack === 'function') {
+                            window.NexusAdminMotion.playSessionStack();
+                        }
+                    });
                 }
             });
 

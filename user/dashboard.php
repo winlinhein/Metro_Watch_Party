@@ -597,8 +597,8 @@ session_write_close();
     <div x-show="showFriendsPanel" 
         class="fixed inset-0 bg-black/70 backdrop-blur-md z-[120] transition-opacity duration-300 ease-out" 
         x-transition.opacity
-        @click="if (!showChatPanel) showFriendsPanel = false" 
-        :class="showChatPanel ? 'pointer-events-none' : ''"
+        @click="if (!showChatPanel && !showInviteModal) showFriendsPanel = false" 
+        :class="(showChatPanel || showInviteModal) ? 'pointer-events-none' : ''"
         style="display: none;"></div>
 
     <div class="fixed top-0 right-0 w-full md:w-[320px] h-screen bg-[#07070b]/95 backdrop-blur-2xl border-l border-white/10 z-[130] flex flex-col shadow-[0_0_60px_rgba(0,0,0,0.8)] transition-transform duration-300 ease-out" 
@@ -771,8 +771,8 @@ session_write_close();
             </div>
         </template>
     </div>
-    <!-- Live User Search Modal -->
-    <div x-show="showInviteModal" class="fixed inset-0 z-[110] flex items-center justify-center" style="display: none;">
+    <!-- Live User Search Modal (above friends/quests drawers) -->
+    <div x-show="showInviteModal" class="fixed inset-0 z-[220] flex items-center justify-center" style="display: none;">
         <div class="absolute inset-0 bg-black/70 backdrop-blur-md" x-show="showInviteModal" x-transition.opacity @click="showInviteModal = false"></div>
         <div class="relative w-[90%] max-w-[480px] bg-[#050508]/95 backdrop-blur-3xl border border-white/10 rounded-3xl shadow-2xl flex flex-col max-h-[85vh] overflow-hidden z-10"
              x-show="showInviteModal"

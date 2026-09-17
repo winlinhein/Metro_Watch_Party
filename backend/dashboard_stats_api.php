@@ -53,6 +53,64 @@ function paymentAmountToDollars(float $amount): float
     return $amount;
 }
 
+function buildDailyChartSeries(PDO $conn, int $days, string $type): array
+{
+    $map = [];
+    $span = max(0, $days - 1);
+    try {
+        if ($type === 'revenue') {
+            $stmt = $conn->query(
+                "SELECT DATE(created_at) AS bucket, COALESCE(SUM(amount), 0) AS total
+                 FROM payment_transactions
+                 WHERE status = 'success'
+                   AND created_at >= DATE_SUB(CURDATE(), INTERVAL {$span} DAY)
+                 GROUP BY DATE(created_at)"
+            );
+            foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+                $map[(string)$row['bucket']] = paymentAmountToDollars((float)$row['total']);
+            }
+        } else {
+            $stmt = $conn->query(
+                "SELECT DATE(created_at) AS bucket, COUNT(*) AS total
+                 FROM persistent_session
+                 WHERE created_at >= DATE_SUB(CURDATE(), INTERVAL {$span} DAY)
+                 GROUP BY DATE(created_at)"
+            );
+            foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+                $map[(string)$row['bucket']] = (float)$row['total'];
+            }
+        }
+    } catch (Throwable $e) {
+        $map = [];
+    }
+
+    $series = [];
+    $values = [];
+    for ($i = $days - 1; $i >= 0; $i--) {
+        $date = (new DateTimeImmutable('today'))->modify('-' . $i . ' days');
+        $key = $date->format('Y-m-d');
+        $value = (float)($map[$key] ?? 0);
+        $values[] = $value;
+        $series[] = [
+            'label' => $days <= 7 ? $date->format('D') : $date->format('j M'),
+            'value' => $value,
+        ];
+    }
+
+    $max = max($values) ?: 1;
+    foreach ($series as $i => $point) {
+        $value = $point['value'];
+        $series[$i]['display'] = $type === 'revenue'
+            ? '$' . number_format($value, $value >= 100 ? 0 : 2)
+            : (string)(int)round($value);
+        $series[$i]['height'] = $value > 0
+            ? max(8, (int)round(($value / $max) * 100))
+            : 3;
+    }
+
+    return $series;
+}
+
 try {
     // role_id 2 = regular user (exclude admins)
     $userRoleFilter = 'role_id = 2';
@@ -162,7 +220,21 @@ try {
         ],
     ];
 
-    echo json_encode($stats);
+    $charts = [
+        '7' => [
+            'revenue' => buildDailyChartSeries($conn, 7, 'revenue'),
+            'logins' => buildDailyChartSeries($conn, 7, 'logins'),
+        ],
+        '30' => [
+            'revenue' => buildDailyChartSeries($conn, 30, 'revenue'),
+            'logins' => buildDailyChartSeries($conn, 30, 'logins'),
+        ],
+    ];
+
+    echo json_encode([
+        'stats' => $stats,
+        'charts' => $charts,
+    ]);
 } catch (Exception $e) {
     http_response_code(500);
     echo json_encode(['error' => 'Failed to load dashboard stats: ' . $e->getMessage()]);

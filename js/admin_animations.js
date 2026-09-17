@@ -106,7 +106,8 @@
 
         const navRect = nav.getBoundingClientRect();
         const r = active.getBoundingClientRect();
-        const y = r.top - navRect.top + nav.scrollTop;
+        const scroller = q(nav, '[data-admin-nav-scroll]') || nav;
+        const y = r.top - navRect.top + (scroller === nav ? nav.scrollTop : 0);
 
         gsap.to(indicator, {
             y,
@@ -146,19 +147,188 @@
         }
     }
 
-    function animateChartBars(panel, position) {
-        const bars = qa(panel, '.chart-bar');
+    let chartTween = null;
+
+    function killChartTweens(root) {
+        if (!gsapReady() || !root) return;
+        gsap.killTweensOf(qa(root, '.chart-bar, .chart-bar-shine, .login-line-path, .login-area-path, .login-grid-line, .login-scan-line, .login-dot, .admin-session-row, .admin-empty-sessions, .empty-orbit, .empty-icon, .empty-title'));
+        if (chartTween) {
+            chartTween.kill();
+            chartTween = null;
+        }
+    }
+
+    function playRevenueBars(root) {
+        const bars = qa(root, '.chart-bar');
+        const shines = qa(root, '.chart-bar-shine');
         if (!bars.length || !gsapReady()) return;
-        gsap.set(bars, { scaleY: reduceMotion ? 1 : 0, transformOrigin: 'bottom' });
+        gsap.set(bars, { scaleY: reduceMotion ? 1 : 0, transformOrigin: 'bottom center', filter: 'brightness(0.7)' });
         if (reduceMotion) return;
-        const tween = gsap.to(bars, {
+        const tl = gsap.timeline({ defaults: { ease: 'power3.out' } });
+        tl.to(bars, {
             scaleY: 1,
-            duration: 0.9,
-            stagger: 0.045,
-            ease: 'power3.out'
+            duration: 0.85,
+            stagger: { each: 0.055, from: 'center' },
+            ease: 'expo.out'
+        }, 0);
+        tl.to(bars, {
+            filter: 'brightness(1.2)',
+            duration: 0.45,
+            stagger: { each: 0.04, from: 'center' },
+            ease: 'power2.out'
+        }, 0.18);
+        if (shines.length) {
+            tl.fromTo(shines, { yPercent: 110, autoAlpha: 0 }, {
+                yPercent: -40,
+                autoAlpha: 0.85,
+                duration: 0.7,
+                stagger: { each: 0.045, from: 'center' },
+                ease: 'power2.out'
+            }, 0.22);
+        }
+        chartTween = tl;
+        return tl;
+    }
+
+    function playLoginChart(root) {
+        const wrap = q(root, '.login-chart-wrap');
+        if (!wrap || !gsapReady()) return;
+        const path = q(wrap, '.login-line-path');
+        const area = q(wrap, '.login-area-path');
+        const dots = qa(wrap, '.login-dot');
+        const grids = qa(wrap, '.login-grid-line');
+        const scan = q(wrap, '.login-scan-line');
+
+        if (reduceMotion) {
+            gsap.set([path, area, dots, grids, scan].flat(), { clearProps: 'all' });
+            return;
+        }
+
+        const tl = gsap.timeline({ defaults: { ease: 'power3.out' } });
+        if (grids.length) {
+            tl.fromTo(grids, { autoAlpha: 0, x: -24 }, {
+                autoAlpha: 1,
+                x: 0,
+                duration: 0.45,
+                stagger: 0.07
+            }, 0);
+        }
+        if (path && path.getAttribute('d') && typeof path.getTotalLength === 'function') {
+            let len = 0;
+            try { len = path.getTotalLength(); } catch (e) { len = 800; }
+            gsap.set(path, { strokeDasharray: len, strokeDashoffset: len, autoAlpha: 1 });
+            tl.to(path, { strokeDashoffset: 0, duration: 1.45, ease: 'power3.inOut' }, 0.12);
+        }
+        if (area) {
+            tl.fromTo(area, { autoAlpha: 0, y: 18 }, {
+                autoAlpha: 1,
+                y: 0,
+                duration: 0.8,
+                ease: 'power3.out'
+            }, 0.42);
+        }
+        if (dots.length) {
+            tl.fromTo(dots, { scale: 0, autoAlpha: 0 }, {
+                scale: 1,
+                autoAlpha: 1,
+                duration: 0.5,
+                stagger: 0.06,
+                ease: 'back.out(2.4)',
+                transformOrigin: 'center center'
+            }, 0.72);
+        }
+        if (scan) {
+            tl.fromTo(scan, { autoAlpha: 0 }, { autoAlpha: 0.85, duration: 0.3 }, 0.2);
+            tl.to(scan, {
+                y: -90,
+                duration: 2.1,
+                yoyo: true,
+                repeat: -1,
+                ease: 'sine.inOut'
+            }, 0.3);
+        }
+        chartTween = tl;
+        return tl;
+    }
+
+    function playSessionStack(root) {
+        if (!gsapReady()) return;
+        const list = q(root, '[data-session-list]');
+        const empty = q(root, '[data-session-empty]');
+        const listVisible = list && window.getComputedStyle(list).display !== 'none';
+        const emptyVisible = empty && window.getComputedStyle(empty).display !== 'none';
+        const rows = listVisible ? qa(list, '.admin-session-row') : [];
+
+        if (rows.length) {
+            if (reduceMotion) return;
+            gsap.fromTo(rows, {
+                x: 36,
+                autoAlpha: 0,
+                filter: 'blur(10px)'
+            }, {
+                x: 0,
+                autoAlpha: 1,
+                filter: 'blur(0px)',
+                duration: 0.7,
+                stagger: 0.08,
+                ease: 'power4.out',
+                overwrite: 'auto'
+            });
+            return;
+        }
+
+        if (!emptyVisible) return;
+        if (reduceMotion) {
+            gsap.set(empty, { autoAlpha: 1 });
+            return;
+        }
+        gsap.fromTo(empty, { autoAlpha: 0, y: 18, scale: 0.94 }, {
+            autoAlpha: 1,
+            y: 0,
+            scale: 1,
+            duration: 0.75,
+            ease: 'back.out(1.7)',
+            overwrite: 'auto'
         });
-        if (tabTween && position != null) tabTween.add(tween, position);
-        return tween;
+        const rings = qa(empty, '.empty-orbit');
+        gsap.to(rings, {
+            rotation: 360,
+            duration: (i) => 7 + i * 3,
+            repeat: -1,
+            ease: 'none'
+        });
+        const icon = q(empty, '.empty-icon');
+        if (icon) {
+            gsap.to(icon, { y: -7, duration: 1.5, yoyo: true, repeat: -1, ease: 'sine.inOut' });
+        }
+        const title = q(empty, '.empty-title');
+        if (title) splitTitle(title);
+    }
+
+    function playDashboardCharts(mode) {
+        const root = bootedRoot || document;
+        if (!root) return;
+        killChartTweens(root);
+        const kind = mode === 'logins' ? 'logins' : 'revenue';
+        requestAnimationFrame(() => {
+            if (kind === 'logins') playLoginChart(root);
+            else playRevenueBars(root);
+            playSessionStack(root);
+        });
+    }
+
+    function currentChartMode() {
+        try {
+            const alpineRoot = q(document, '[data-barba-namespace="admin_dashboard"]');
+            const data = window.Alpine && alpineRoot ? window.Alpine.$data(alpineRoot) : null;
+            return data && data.chartMode === 'logins' ? 'logins' : 'revenue';
+        } catch (e) {
+            return 'revenue';
+        }
+    }
+
+    function animateChartBars(panel) {
+        playDashboardCharts(currentChartMode());
     }
 
     function enterPanelContent(panel) {
@@ -412,7 +582,11 @@
         const dashboard = q(root, '[data-tab-panel="dashboard"]') || q(root, '[data-tab-panel]');
         const d = reduceMotion ? 0 : 1;
 
-        gsap.set(sidebar, { x: reduceMotion ? 0 : -80, autoAlpha: reduceMotion ? 1 : 0 });
+        const sidebarCollapsed = sidebar && sidebar.classList.contains('sidebar-collapsed');
+        gsap.set(sidebar, {
+            x: reduceMotion ? 0 : (sidebarCollapsed ? -24 : -80),
+            autoAlpha: reduceMotion ? 1 : 0
+        });
         gsap.set(brand, { y: reduceMotion ? 0 : 12, autoAlpha: reduceMotion ? 1 : 0 });
         gsap.set(navItems, { x: reduceMotion ? 0 : -18, autoAlpha: reduceMotion ? 1 : 0 });
         gsap.set(headerItems, { y: reduceMotion ? 0 : -18, autoAlpha: reduceMotion ? 1 : 0 });
@@ -478,10 +652,34 @@
         tl.add(() => playAmbient(root), 0.9);
     }
 
+    function bindSidebarToggle(scope) {
+        qa(scope, '[data-admin-sidebar-toggle]').forEach((btn) => {
+            if (btn.dataset.sidebarToggleBound === '1') return;
+            btn.dataset.sidebarToggleBound = '1';
+            btn.addEventListener('click', () => {
+                const alpineRoot = q(document, '[data-barba-namespace="admin_dashboard"]') || scope;
+                try {
+                    const data = window.Alpine && alpineRoot ? window.Alpine.$data(alpineRoot) : null;
+                    if (data && typeof data.toggleAdminSidebar === 'function') {
+                        return;
+                    }
+                } catch (e) {}
+                const sidebar = q(scope, '.sidebar') || q(document, '.sidebar');
+                if (sidebar) {
+                    sidebar.classList.toggle('sidebar-collapsed');
+                    sidebar.style.removeProperty('opacity');
+                    sidebar.style.removeProperty('visibility');
+                }
+            });
+        });
+    }
+
     function init(container) {
-        if (!gsapReady()) return;
         const root = container && container.querySelector ? container : document;
         const scope = q(root, '[data-barba-namespace="admin_dashboard"]') || (root.querySelector && root.querySelector('.sidebar') ? root : document);
+        bindSidebarToggle(scope || document);
+
+        if (!gsapReady()) return;
 
         if (!q(scope, '.sidebar')) return;
         if (bootedRoot === scope && adminCtx) {
@@ -516,6 +714,10 @@
             const nav = q(scope, '[data-admin-nav]');
             if (nav) {
                 nav.addEventListener('scroll', () => syncNav(scope, true), { passive: true });
+                const scroller = q(nav, '[data-admin-nav-scroll]');
+                if (scroller) {
+                    scroller.addEventListener('scroll', () => syncNav(scope, true), { passive: true });
+                }
             }
         }, scope);
 
@@ -540,7 +742,8 @@
         transitionTabs,
         syncNav: (immediate) => syncNav(bootedRoot || document, immediate),
         pulseList: (key) => pulseList(bootedRoot || document, key),
-        enterPanel: enterPanelContent
+        playDashboardCharts,
+        playSessionStack: () => playSessionStack(bootedRoot || document),
     };
 
     window.initLocalAnimations = function initLocalAnimations(container) {
