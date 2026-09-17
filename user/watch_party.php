@@ -118,6 +118,17 @@ session_write_close();
         .video-container:hover .video-controls-overlay {
             opacity: 1;
         }
+        .speaking-ring {
+            box-shadow: 0 0 0 3px #34d399, 0 0 18px rgba(52, 211, 153, 0.85);
+            animation: speaking-pulse 1.15s ease-out infinite;
+        }
+        @keyframes speaking-pulse {
+            0%, 100% { box-shadow: 0 0 0 2px #34d399, 0 0 10px rgba(52, 211, 153, 0.45); }
+            50% { box-shadow: 0 0 0 4px #6ee7b7, 0 0 24px rgba(52, 211, 153, 0.95); }
+        }
+        .sidebar-speaking {
+            box-shadow: 0 0 0 2px #34d399, 0 0 12px rgba(52, 211, 153, 0.85);
+        }
     </style>
 
 
@@ -157,7 +168,8 @@ session_write_close();
         <div class="flex-1 w-full flex flex-col items-center gap-4 overflow-y-auto custom-scrollbar py-2 px-1">
             <template x-for="user in participants" :key="user.peerId || user.socketId || user.id">
                 <div class="w-12 h-12 rounded-[24px] hover:rounded-[16px] flex items-center justify-center transition-all duration-300 relative group overflow-visible"
-                     :title="user.name">
+                     :class="user.speaking ? 'sidebar-speaking' : ''"
+                     :title="user.speaking ? ((user.name || 'User') + ' is talking') : user.name">
                     <div class="absolute inset-0 z-0 overflow-hidden rounded-[inherit] scale-[1.05] bg-white/5 border border-white/10">
                         <img :src="user.avatar" class="absolute inset-0 h-full w-full object-cover" alt="">
                     </div>
@@ -241,7 +253,7 @@ session_write_close();
         <!-- Content Area -->
         <div id="content-area" class="flex-1 flex overflow-hidden relative">
 
-            <div class="absolute inset-0 z-50 bg-[#050508]/90 backdrop-blur-md flex flex-col items-center justify-center gap-4"
+            <div class="fixed inset-0 z-[200] bg-[#050508]/90 backdrop-blur-md flex flex-col items-center justify-center gap-4"
                  x-show="isConnecting || isLeaving"
                  x-transition.opacity
                  x-cloak>
@@ -368,7 +380,10 @@ session_write_close();
                     <!-- Video Grid (Participants) -->
                     <div class="flex flex-col gap-3 origin-top pointer-events-auto overflow-y-auto custom-scrollbar pr-1 pb-4" x-show="showParticipants" x-transition:enter="transition ease-out duration-300" x-transition:enter-start="opacity-0 scale-y-90" x-transition:enter-end="opacity-100 scale-y-100" x-transition:leave="transition ease-in duration-200" x-transition:leave-start="opacity-100 scale-y-100" x-transition:leave-end="opacity-0 scale-y-90">
                         <template x-for="user in participants" :key="user.peerId || user.socketId || user.id">
-                            <div class="participant-card w-full aspect-video hover:scale-105 transition-transform duration-300 bg-[#0a0a0f] rounded-xl border border-white/10 overflow-hidden relative group shadow-lg shrink-0">
+                            <div class="rounded-xl p-[3px] shrink-0 transition-all duration-150"
+                                 :class="user.speaking ? 'speaking-ring bg-emerald-400/80' : 'bg-transparent'">
+                            <div class="participant-card w-full aspect-video hover:scale-[1.02] transition-transform duration-300 bg-[#0a0a0f] rounded-[10px] border overflow-hidden relative group shadow-lg"
+                                 :class="user.speaking ? 'border-emerald-400' : 'border-white/10'">
                                 <template x-if="user.stream && user.isSelf">
                                     <video x-show="user.videoOn !== false" x-effect="$el.srcObject = user.stream; $el.muted = true; $el.volume = 0; $el.defaultMuted = true; $el.play && $el.play().catch(()=>{});" autoplay playsinline muted class="absolute inset-0 w-full h-full object-cover"></video>
                                 </template>
@@ -414,7 +429,9 @@ session_write_close();
                                         <span class="material-symbols-outlined text-[15px]">person_remove</span>
                                     </button>
                                 </div>
-                                <div class="absolute inset-0 border-[1.5px] border-emerald-500 rounded-xl opacity-0 transition-opacity pointer-events-none z-10" :class="{'opacity-100': user.speaking}"></div>
+                                <div class="absolute inset-0 rounded-[10px] pointer-events-none z-10 transition-opacity duration-150"
+                                     :class="user.speaking ? 'opacity-100 ring-[3px] ring-emerald-400 ring-inset' : 'opacity-0'"></div>
+                            </div>
                             </div>
                         </template>
                     </div>
@@ -474,36 +491,34 @@ session_write_close();
                                     <span class="text-xs font-bold" :class="msg.isSelf ? 'text-red-400' : 'text-white'" x-text="msg.name"></span>
                                     <span class="text-[9px] text-white/40 mono" x-text="msg.time"></span>
                                 </div>
-                                <template x-if="msg.type === 'join_request'">
-                                    <div class="rounded-xl border border-indigo-500/25 bg-indigo-500/10 px-3 py-2.5 mt-1">
+                                <div class="rounded-xl border border-indigo-500/25 bg-indigo-500/10 px-3 py-2.5 mt-1" x-show="msg.type === 'join_request'">
                                         <p class="text-[10px] font-bold uppercase tracking-widest text-indigo-300 mb-1">Join request</p>
                                         <p class="text-sm text-white/80 leading-relaxed" x-text="msg.text || 'wants to join the watch party.'"></p>
                                         <div class="flex gap-2 mt-3" x-show="isHost && (msg.request_status || 'pending') === 'pending'">
                                             <button type="button"
-                                                    @click="respondJoinRequest('decline', msg)"
+                                                    @click.stop="respondJoinRequest('decline', msg)"
                                                     class="flex-1 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-white/70 text-[10px] font-black uppercase tracking-wider">
                                                 Decline
                                             </button>
                                             <button type="button"
-                                                    @click="respondJoinRequest('accept', msg)"
+                                                    @click.stop="respondJoinRequest('accept', msg)"
                                                     class="flex-1 py-1.5 rounded-lg bg-indigo-500 hover:bg-indigo-400 text-white text-[10px] font-black uppercase tracking-wider">
                                                 Accept
                                             </button>
                                         </div>
+                                        <p class="text-[11px] font-bold uppercase tracking-wider mt-2 text-white/50"
+                                           x-show="!isHost && (msg.request_status || 'pending') === 'pending'">Waiting for the host</p>
                                         <p class="text-[11px] font-bold uppercase tracking-wider mt-2 text-emerald-400"
                                            x-show="msg.request_status === 'accepted'">Accepted</p>
                                         <p class="text-[11px] font-bold uppercase tracking-wider mt-2 text-white/35"
                                            x-show="msg.request_status === 'declined'">Declined</p>
                                     </div>
-                                </template>
-                                <template x-if="msg.type !== 'join_request'">
-                                    <div>
+                                    <div x-show="msg.type !== 'join_request'">
                                         <template x-if="msg.type === 'image' || msg.image_url">
                                             <img :src="msg.image_url" class="max-w-full max-h-48 rounded-lg mt-1 cursor-pointer hover:opacity-90" @click="msg.image_url && window.open(msg.image_url, '_blank')" alt="">
                                         </template>
                                         <p class="text-sm text-white/70 leading-relaxed" x-show="msg.text" x-text="msg.text"></p>
                                     </div>
-                                </template>
                             </div>
                         </div>
                     </template>

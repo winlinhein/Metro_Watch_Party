@@ -125,11 +125,36 @@ io.on("connection", (socket) => {
   });
 
   socket.on('toggle-video', (isVideoOn) => {
+      const on = (isVideoOn && typeof isVideoOn === 'object') ? !!(isVideoOn as any).isVideoOn : !!isVideoOn;
       const roomId = (socket as any)._roomId;
       const userId = (socket as any)._userId;
       if (roomId) {
-          socket.to(roomId).emit('peer-video-changed', { userId, socketId: socket.id, isVideoOn });
+          socket.to(roomId).emit('peer-video-changed', { userId, socketId: socket.id, isVideoOn: on });
       }
+  });
+
+  socket.on('peer-leave', (data) => {
+      const roomId = (socket as any)._roomId;
+      if (!roomId) return;
+      socket.to(roomId).emit('peer-leave', {
+          ...(data || {}),
+          userId: (data && (data as any).userId) || (socket as any)._userId,
+          peerId: (data && (data as any).peerId) || (socket as any)._peerId,
+          socketId: socket.id,
+          fromSocketId: socket.id,
+          fromUserId: (socket as any)._userId
+      });
+  });
+
+  socket.on('peer-speaking', (data) => {
+      const roomId = (socket as any)._roomId;
+      if (!roomId) return;
+      socket.to(roomId).emit('peer-speaking', {
+          userId: (socket as any)._userId,
+          socketId: socket.id,
+          peerId: (socket as any)._peerId || (data && (data as any).peerId),
+          speaking: !!(data && (data as any).speaking)
+      });
   });
 
   socket.on('disconnect', () => {

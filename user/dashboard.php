@@ -158,6 +158,14 @@ session_write_close();
             top: 0; left: 0; right: 0; height: 1px;
             background: linear-gradient(90deg, transparent, rgba(255,255,255,0.1), transparent);
         }
+        .speaking-ring {
+            box-shadow: 0 0 0 2px #34d399, 0 0 14px rgba(52, 211, 153, 0.85);
+            animation: speaking-pulse 1.15s ease-out infinite;
+        }
+        @keyframes speaking-pulse {
+            0%, 100% { box-shadow: 0 0 0 2px #34d399, 0 0 8px rgba(52, 211, 153, 0.45); }
+            50% { box-shadow: 0 0 0 3px #6ee7b7, 0 0 20px rgba(52, 211, 153, 0.95); }
+        }
         
         ::-webkit-scrollbar { width: 4px; }
         ::-webkit-scrollbar-track { background: transparent; }
@@ -215,6 +223,7 @@ session_write_close();
             mask-composite: exclude;
             background-size: 200% 200%;
             animation: borderGlow 6s linear infinite;
+            pointer-events: none;
         }
         @keyframes borderGlow {
             0% { background-position: 0% 0%; }
@@ -416,8 +425,20 @@ session_write_close();
 
     <link rel="stylesheet" href="https://cdn.plyr.io/3.7.8/plyr.css" />
     <script src="https://cdn.plyr.io/3.7.8/plyr.polyfilled.js"></script>
+    <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+    <script>
+        window.NEXUS_SIGNALING_URL = window.NEXUS_SIGNALING_URL || (
+            (location.port && location.port !== '3000')
+                ? (location.protocol + '//' + location.hostname + ':3000')
+                : ''
+        );
+        if (typeof io !== 'function') {
+            document.write('<script src="' + (window.NEXUS_SIGNALING_URL || (location.protocol + '//' + location.hostname + ':3000')) + '/socket.io/socket.io.js"><\/script>');
+        }
+    </script>
     <script src="../js/chat_emojis.js?v=1"></script>
-    <script src="../js/nexus_scripts.js?v=1789311200"></script>
+    <script src="../js/live_room_client.js?v=<?php echo time(); ?>"></script>
+    <script src="../js/nexus_scripts.js?v=<?php echo time(); ?>"></script>
     <script src="../js/support_chatbot.js?v=3"></script>
 </head>
 <body class="h-screen w-screen flex flex-col relative selection:bg-red-500/30" data-barba="wrapper">
@@ -887,7 +908,8 @@ session_write_close();
                     <template x-for="(user, index) in visibleRoomParticipants" :key="user.peerId || user.userId || user.name || index">
                         <div class="relative w-10 h-10 overflow-visible shrink-0 -ml-2 first:ml-0"
                              :style="`z-index: ${20 - index}`"
-                             :title="user.name">
+                             :class="user.speaking ? 'speaking-ring rounded-full' : ''"
+                             :title="user.speaking ? ((user.name || 'User') + ' is talking') : user.name">
                             <div class="absolute inset-0 z-0 overflow-hidden rounded-full scale-[1.12] bg-black border-2 border-[#050508] shadow-lg">
                                 <img :src="user.avatar" class="absolute inset-0 h-full w-full object-cover" alt="">
                             </div>
@@ -1095,9 +1117,9 @@ session_write_close();
                                         <div class="flex items-center justify-between gap-3">
                                             <span class="text-xs text-white/60 mono" x-text="(party.members || 0) + ' Members Active'"></span>
                                             <button type="button"
-                                                    @click="party.in_room || party.request_status === 'accepted' ? enterFriendRoom(party) : requestJoinRoom(party)"
-                                                    :disabled="joiningRoomId === party.room_id"
-                                                    class="px-5 py-2 border text-white font-bold tracking-wide rounded-xl transition-all flex items-center gap-2 disabled:opacity-60"
+                                                    @click.stop="party.in_room || party.request_status === 'accepted' ? enterFriendRoom(party) : requestJoinRoom(party)"
+                                                    :disabled="joiningRoomId === party.room_id || party.request_status === 'pending'"
+                                                    class="relative z-10 px-5 py-2 border text-white font-bold tracking-wide rounded-xl transition-all flex items-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer"
                                                     :class="party.request_status === 'pending'
                                                         ? 'bg-white/5 border-white/10 text-white/70'
                                                         : 'bg-white/5 hover:bg-white/10 border-white/10'">

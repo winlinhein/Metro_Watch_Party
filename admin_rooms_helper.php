@@ -53,6 +53,11 @@ function closeWatchPartyRoom(PDO $conn, int $roomId, array $opts = []): bool
         deleteRoomChat($conn, $roomId);
     } catch (Throwable $ignore) {}
 
+    try {
+        require_once __DIR__ . '/notifications_helper.php';
+        deleteNotificationsForRoom($conn, $roomId);
+    } catch (Throwable $ignore) {}
+
     $updated = $conn->prepare("UPDATE rooms SET status = 'deleted' WHERE room_id = :room_id AND status = 'active'");
     $updated->execute(['room_id' => $roomId]);
 

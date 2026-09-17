@@ -158,6 +158,7 @@ function userDashboard() {
         showInviteModal: false,
         activeRoom: null,
         _activeRoomTimer: null,
+        _liveRoom: null,
         showNotifications: false,
         showPremiumModal: false,
         friendsTab: 'connected',
@@ -1503,6 +1504,7 @@ function userDashboard() {
         },
 
         clearActiveRoomState() {
+            this.stopDashboardLiveRoom();
             this.activeRoom = null;
             clearNexusActiveRoom();
             if (this._activeRoomTimer) {
@@ -1512,13 +1514,23 @@ function userDashboard() {
         },
 
         mapActiveRoomParticipants(rows) {
-            return (rows || []).map((row) => ({
-                name: row.name || row.user_name || 'User',
-                avatar: this.resolveAvatarUrl(row.avatar || row.avatar_url || '', row.name || row.user_name || 'User'),
-                border: row.border || row.border_preview || '',
-                userId: row.userId || row.user_id || null,
-                peerId: row.peerId || row.peer_id || ''
-            }));
+            const prev = (this.activeRoom && this.activeRoom.participants) || [];
+            return (rows || []).map((row) => {
+                const peerId = row.peerId || row.peer_id || '';
+                const userId = row.userId || row.user_id || null;
+                const existing = prev.find((p) =>
+                    (peerId && p.peerId === peerId) ||
+                    (userId && Number(p.userId) === Number(userId))
+                );
+                return {
+                    name: row.name || row.user_name || 'User',
+                    avatar: this.resolveAvatarUrl(row.avatar || row.avatar_url || '', row.name || row.user_name || 'User'),
+                    border: row.border || row.border_preview || '',
+                    userId,
+                    peerId,
+                    speaking: !!(existing && existing.speaking)
+                };
+            });
         },
 
         async refreshActiveRoom() {
@@ -1559,8 +1571,117 @@ function userDashboard() {
             } catch (e) {}
         },
 
+        startDashboardLiveRoom() {
+            if (this.isGuest || this._liveRoom) return;
+            const room = this.activeRoom || readNexusActiveRoom();
+            if (!room || !room.roomId || typeof window.createNexusLiveRoom !== 'function') return;
+            this._liveRoom = window.createNexusLiveRoom({
+                roomId: room.roomId,
+                peerId: room.peerId,
+                userId: Number(window.CURRENT_USER_ID) || 0,
+                userName: window.USER_NAME || (window.NEXUS_USER && window.NEXUS_USER.username) || 'You',
+                avatar: this.resolveAvatarUrl((window.NEXUS_USER && window.NEXUS_USER.avatar_url) || window.USER_AVATAR || '', window.NEXUS_USER && window.NEXUS_USER.username),
+                border: (window.NEXUS_USER && window.NEXUS_USER.border_preview) || window.USER_BORDER || '',
+                pusherClient: this.pusherClient,
+                onParticipants: (peers) => this.mergeLiveRoomParticipants(peers),
+                onSpeaking: (info) => this.setLiveRoomSpeaking(info),
+                onPeerLeave: (peer) => this.dropLiveRoomParticipant(peer),
+                onRoomEnded: (message) => {
+                    const endedRoomId = this.activeRoom && this.activeRoom.roomId;
+                    this.stopDashboardLiveRoom();
+                    this.removeRoomInviteNotifications(endedRoomId);
+                    this.clearActiveRoomState();
+                    if (window.showToast) window.showToast(message || 'This watch party has ended.', 'error');
+                }
+            });
+            this._liveRoom.start().catch((e) => console.warn('Dashboard live room failed', e));
+        },
+
+        stopDashboardLiveRoom() {
+            if (!this._liveRoom) return;
+            try { this._liveRoom.stop(); } catch (e) {}
+            this._liveRoom = null;
+        },
+
+        mergeLiveRoomParticipants(peers) {
+            if (!this.activeRoom || !Array.isArray(peers)) return;
+            const current = this.activeRoom.participants || [];
+            const byKey = new Map();
+            current.forEach((p) => {
+                const key = String(p.peerId || p.userId || p.name || '');
+                if (key) byKey.set(key, p);
+            });
+            peers.forEach((row) => {
+                const peerId = row.peerId || row.peer_id || '';
+                const userId = row.userId || row.user_id || null;
+                const name = row.name || row.userName || row.user_name || 'User';
+                const key = String(peerId || userId || name);
+                const prev = byKey.get(key) || current.find((p) =>
+                    (peerId && p.peerId === peerId) || (userId && Number(p.userId) === Number(userId))
+                );
+                byKey.set(key, {
+                    name,
+                    avatar: this.resolveAvatarUrl(row.avatar || row.avatar_url || (prev && prev.avatar) || '', name),
+                    border: row.border || row.border_preview || (prev && prev.border) || '',
+                    userId,
+                    peerId,
+                    speaking: !!(prev && prev.speaking)
+                });
+            });
+            this.activeRoom = {
+                ...this.activeRoom,
+                participants: Array.from(byKey.values())
+            };
+        },
+
+        setLiveRoomSpeaking(info) {
+            if (!this.activeRoom || !Array.isArray(this.activeRoom.participants)) return;
+            const uid = Number(info && info.userId);
+            const peerId = info && info.peerId;
+            const isSelf = !!(info && info.isSelf);
+            const speaking = !!(info && info.speaking);
+            let changed = false;
+            const participants = this.activeRoom.participants.map((p) => {
+                const match = (isSelf && Number(p.userId) === Number(window.CURRENT_USER_ID))
+                    || (peerId && p.peerId === peerId)
+                    || (uid && Number(p.userId) === uid);
+                if (!match || !!p.speaking === speaking) return p;
+                changed = true;
+                return { ...p, speaking };
+            });
+            if (!changed) return;
+            this.activeRoom = { ...this.activeRoom, participants };
+        },
+
+        dropLiveRoomParticipant(peer) {
+            if (!this.activeRoom || !peer) return;
+            const uid = Number(peer.userId || 0);
+            const peerId = peer.peerId || peer.socketId;
+            this.activeRoom = {
+                ...this.activeRoom,
+                participants: (this.activeRoom.participants || []).filter((p) => {
+                    if (Number(p.userId) === Number(window.CURRENT_USER_ID)) return true;
+                    if (peerId && p.peerId === peerId) return false;
+                    if (uid && Number(p.userId) === uid) return false;
+                    return true;
+                })
+            };
+        },
+
+        removeRoomInviteNotifications(roomId) {
+            const id = Number(roomId);
+            if (!id) return;
+            const inviteTypes = ['party_invite', 'join_request', 'join_request_accepted', 'join_request_declined'];
+            this.notifications = (this.notifications || []).filter((n) => {
+                if (!inviteTypes.includes(n.type)) return true;
+                return Number(n.room_id) !== id;
+            });
+            this.syncUnreadFromList();
+        },
+
         returnToRoom() {
             if (!this.hasActiveRoom) return;
+            this.stopDashboardLiveRoom();
             if (typeof window.showPageLoader === 'function') window.showPageLoader();
             window.location.href = '/user/watch_party.php?room_id=' + encodeURIComponent(this.activeRoom.roomId);
         },
@@ -1920,6 +2041,10 @@ function userDashboard() {
             if (!party) return;
             if (party.in_room || party.request_status === 'accepted') {
                 this.enterFriendRoom(party);
+                return;
+            }
+            if (party.request_status === 'pending') {
+                if (window.showToast) window.showToast('Join request already sent. Waiting for the host.', 'info');
                 return;
             }
             const roomId = Number(party.room_id || 0);
@@ -3677,8 +3802,14 @@ function userDashboard() {
 
             channel.bind('notifications_deleted', (data) => {
                 const ids = (data?.ids || []).map(String);
-                if (!ids.length) return;
-                this.setNotificationList(this.notifications.filter(n => !ids.includes(String(n.id))));
+                if (ids.length) {
+                    this.setNotificationList(this.notifications.filter(n => !ids.includes(String(n.id))));
+                }
+                if (data?.room_id) this.removeRoomInviteNotifications(data.room_id);
+            });
+
+            channel.bind('room_invites_cleared', (data) => {
+                this.removeRoomInviteNotifications(data?.room_id);
             });
 
             channel.bind('new_notification', (data) => {
@@ -3926,6 +4057,7 @@ function userDashboard() {
             this._activeRoomTimer = setInterval(() => this.refreshActiveRoom(), 15000);
 
             this.initPusher();
+            this.startDashboardLiveRoom();
             this.loadMediaCaches();
             this.cacheOwnMedia();
             this.hydrateLocalCaches();

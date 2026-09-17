@@ -14,9 +14,33 @@ function clearNexusActiveRoom() {
     try { sessionStorage.removeItem(NEXUS_ACTIVE_ROOM_KEY); } catch (e) {}
 }
 
+function readNexusActiveRoom() {
+    try {
+        const raw = sessionStorage.getItem(NEXUS_ACTIVE_ROOM_KEY);
+        if (!raw) return null;
+        const data = JSON.parse(raw);
+        return data && data.roomId ? data : null;
+    } catch (e) {
+        return null;
+    }
+}
+
+function restoreOrCreatePeerId(roomId) {
+    try {
+        const stored = readNexusActiveRoom();
+        if (stored && stored.peerId && roomId && String(stored.roomId) === String(roomId)) {
+            return stored.peerId;
+        }
+    } catch (e) {}
+    return (window.crypto && crypto.randomUUID)
+        ? crypto.randomUUID()
+        : ('peer-' + Date.now() + '-' + Math.random().toString(16).slice(2));
+}
+
 function watchParty() {
     const peerConnections = {};
     const pendingCandidates = {};
+    const urlRoomId = new URLSearchParams(window.location.search).get('room_id');
 
     return {
 
@@ -64,7 +88,7 @@ function watchParty() {
         _roomChatLoaded: false,
         
         // --- Dynamic Room State ---
-        roomId: new URLSearchParams(window.location.search).get('room_id'),
+        roomId: urlRoomId,
         roomName: 'Loading Room...',
         videoUrl: '',
         isHost: false,
@@ -74,6 +98,11 @@ function watchParty() {
         chatBanned: false,
         _exiting: false,
         _parking: false,
+        _audioCtx: null,
+        _speakingMonitors: {},
+        _pendingDisconnects: {},
+        _lastSpokenAt: {},
+        _lastBroadcastSpeaking: null,
         currentMovie: null,
         availableReasons: [],
         showReportRoomModal: false,
@@ -101,18 +130,12 @@ function watchParty() {
         roomChannel: null,
         applyingRemotePlayback: false,
         liveStatus: 'Connecting…',
-        peerId: (window.crypto && crypto.randomUUID)
-            ? crypto.randomUUID()
-            : ('peer-' + Date.now() + '-' + Math.random().toString(16).slice(2)),
+        peerId: restoreOrCreatePeerId(urlRoomId),
         roomSyncTimer: null,
 
         async init() {
-            window.addEventListener('beforeunload', () => {
-                if (!this.roomId || this._exiting || this._parking) return;
-                const qs = `room_id=${encodeURIComponent(this.roomId)}&peer_id=${encodeURIComponent(this.peerId)}`;
-                navigator.sendBeacon(`../user_backend/leave_room.php?${qs}`);
-            });
             document.addEventListener('click', () => {
+                this.resumeAudioContext();
                 document.querySelectorAll('video').forEach((el) => {
                     el.play().catch(() => {});
                 });
@@ -231,6 +254,7 @@ function watchParty() {
                 }
 
                 this.persistActiveRoom();
+                if (this.isHost) this.fetchJoinRequests();
 
             } catch (e) {
                 console.error("Error fetching room details:", e);
@@ -258,9 +282,10 @@ function watchParty() {
             this._exiting = true;
             this.isLeaving = true;
             this.connectionHint = this.isHost ? 'Ending party…' : 'Leaving party…';
+            await this.$nextTick();
 
             const roomId = this.roomId || new URLSearchParams(window.location.search).get('room_id');
-            const query = `room_id=${encodeURIComponent(roomId || '')}&peer_id=${encodeURIComponent(this.peerId || '')}`;
+            const query = `room_id=${encodeURIComponent(roomId || '')}&peer_id=${encodeURIComponent(this.peerId || '')}${this.isHost ? '&end_room=1' : ''}`;
 
             try {
                 if (!this.isHost) {
@@ -282,7 +307,7 @@ function watchParty() {
 
             try { this.teardownMediaAndPeers(); } catch (e) {}
             clearNexusActiveRoom();
-            if (typeof window.showPageLoader === 'function') window.showPageLoader();
+            await new Promise((resolve) => setTimeout(resolve, 450));
             window.location.href = 'dashboard.php';
         },
 
@@ -293,6 +318,7 @@ function watchParty() {
                 roomName: this.roomName || '',
                 peerId: this.peerId || '',
                 isHost: !!this.isHost,
+                parked: false,
                 participants: (this.participants || []).map((p) => ({
                     name: p.name || 'User',
                     avatar: p.avatar || '',
@@ -305,9 +331,7 @@ function watchParty() {
 
         goToDashboard() {
             if (this._exiting) return;
-            this._parking = true;
             this.persistActiveRoom();
-            try { this.teardownMediaAndPeers(); } catch (e) {}
             if (typeof window.showPageLoader === 'function') window.showPageLoader();
             window.location.href = 'dashboard.php';
         },
@@ -315,14 +339,12 @@ function watchParty() {
         async exitEndedRoom(message) {
             if (this._exiting) return;
             this._exiting = true;
+            this.isLeaving = true;
+            this.connectionHint = message || 'This watch party has ended.';
             clearNexusActiveRoom();
             try { this.teardownMediaAndPeers(); } catch (e) { /* ignore */ }
-            await this.showAlert({
-                title: 'Watch party ended',
-                message: message || 'This watch party has ended.',
-                confirmLabel: 'Back to dashboard',
-                icon: 'movie'
-            });
+            await this.$nextTick();
+            await new Promise((resolve) => setTimeout(resolve, 700));
             window.location.href = 'dashboard.php';
         },
 
@@ -451,6 +473,8 @@ function watchParty() {
             if (!silent && window.showToast) {
                 window.showToast(this.forcedMuted ? 'The host muted your microphone.' : 'The host unmuted your microphone.', 'info');
             }
+            this.attachParticipantSpeaking(localParticipant);
+            if (this.isMuted) this.setSpeaking('local', false, true);
         },
 
         applyHostVideo(videoOn, { silent = false } = {}) {
@@ -688,7 +712,7 @@ function watchParty() {
         },
 
         async fetchJoinRequests() {
-            if (!this.isHost || !this.roomId) return;
+            if (!this.roomId) return;
             try {
                 const res = await fetch(`../user_backend/get_pending_join_requests.php?room_id=${encodeURIComponent(this.roomId)}`);
                 const data = await res.json();
@@ -1075,6 +1099,169 @@ function watchParty() {
         // ==========================================
         // WEBRTC & LOCAL MEDIA[cite: 6]
         // ==========================================
+        speakingKey(peer) {
+            if (!peer) return null;
+            if (peer.isSelf) return 'local';
+            return peer.peerId || peer.socketId || peer.id || null;
+        },
+
+        resumeAudioContext() {
+            const ctx = this.ensureAudioContext();
+            if (ctx && ctx.state === 'suspended') ctx.resume().catch(() => {});
+            return ctx;
+        },
+
+        ensureAudioContext() {
+            if (this._audioCtx && this._audioCtx.state !== 'closed') return this._audioCtx;
+            const Ctx = window.AudioContext || window.webkitAudioContext;
+            if (!Ctx) return null;
+            try {
+                this._audioCtx = new Ctx();
+            } catch (e) {
+                this._audioCtx = null;
+            }
+            return this._audioCtx;
+        },
+
+        attachParticipantSpeaking(peer) {
+            if (!peer) return;
+            const key = this.speakingKey(peer);
+            if (!key) return;
+            const stream = peer.isSelf ? this.localStream : peer.stream;
+            const signature = String((stream && stream.id) || 'none') + ':' + (peer.muted ? '1' : '0');
+            this._speakingSig = this._speakingSig || {};
+            if (this._speakingSig[key] === signature && this._speakingMonitors[key]) return;
+            this._speakingSig[key] = signature;
+            this.watchSpeaking(key, stream, { muted: !!peer.muted, isSelf: !!peer.isSelf });
+        },
+
+        watchSpeaking(key, stream, { muted = false, isSelf = false } = {}) {
+            this.stopSpeakingWatch(key);
+            if (!key || !stream || muted) {
+                this.setSpeaking(key, false, isSelf);
+                return;
+            }
+            const liveAudio = stream.getAudioTracks().filter((t) => t.readyState === 'live' && t.enabled !== false);
+            if (!liveAudio.length) {
+                this.setSpeaking(key, false, isSelf);
+                return;
+            }
+            const ctx = this.resumeAudioContext();
+            if (!ctx) return;
+            try {
+                const source = ctx.createMediaStreamSource(new MediaStream(liveAudio));
+                const analyser = ctx.createAnalyser();
+                analyser.fftSize = 512;
+                analyser.smoothingTimeConstant = 0.35;
+                source.connect(analyser);
+                const bins = new Uint8Array(analyser.frequencyBinCount);
+                const monitor = { source, analyser, raf: 0 };
+                this._speakingMonitors[key] = monitor;
+                const tick = () => {
+                    if (this._speakingMonitors[key] !== monitor) return;
+                    analyser.getByteFrequencyData(bins);
+                    let sum = 0;
+                    for (let i = 0; i < bins.length; i++) sum += bins[i];
+                    const avg = sum / bins.length;
+                    const talking = avg > 14;
+                    if (talking) this._lastSpokenAt[key] = Date.now();
+                    const hold = Date.now() - (this._lastSpokenAt[key] || 0) < 350;
+                    this.setSpeaking(key, talking || hold, isSelf);
+                    monitor.raf = requestAnimationFrame(tick);
+                };
+                monitor.raf = requestAnimationFrame(tick);
+            } catch (e) {
+                this.setSpeaking(key, false, isSelf);
+            }
+        },
+
+        stopSpeakingWatch(key) {
+            if (!key || !this._speakingMonitors) return;
+            const monitor = this._speakingMonitors[key];
+            if (!monitor) return;
+            if (monitor.raf) cancelAnimationFrame(monitor.raf);
+            try { monitor.source.disconnect(); } catch (e) {}
+            try { monitor.analyser.disconnect(); } catch (e) {}
+            delete this._speakingMonitors[key];
+            if (this._speakingSig) delete this._speakingSig[key];
+        },
+
+        setSpeaking(key, speaking, isSelf = false) {
+            if (!key) return;
+            const next = !!speaking;
+            const p = (this.participants || []).find((row) => {
+                if (isSelf || key === 'local') return !!row.isSelf;
+                return row.peerId === key || row.socketId === key || String(row.id) === String(key);
+            });
+            if (!p || p.muted) {
+                if (p && p.speaking) {
+                    p.speaking = false;
+                    this.participants = [...this.participants];
+                }
+                if (isSelf || key === 'local') this.broadcastSpeaking(false);
+                return;
+            }
+            if (p.speaking === next) return;
+            p.speaking = next;
+            this.participants = [...this.participants];
+            if (isSelf || key === 'local') this.broadcastSpeaking(next);
+        },
+
+        broadcastSpeaking(speaking) {
+            if (!this.socket || !this.socket.connected) return;
+            const flag = !!speaking;
+            if (this._lastBroadcastSpeaking === flag) return;
+            this._lastBroadcastSpeaking = flag;
+            this.signal('peer-speaking', {
+                speaking: flag,
+                userId: Number(window.CURRENT_USER_ID) || null,
+                peerId: this.peerId,
+                socketId: this.socket.id
+            });
+        },
+
+        applyRemoteSpeaking(data) {
+            const speaking = !!(data && data.speaking);
+            const p = (this.participants || []).find((row) => {
+                if (row.isSelf) return false;
+                if (data.peerId && row.peerId === data.peerId) return true;
+                if (data.socketId && (row.socketId === data.socketId || row.peerId === data.socketId)) return true;
+                if (data.userId && Number(row.userId) === Number(data.userId)) return true;
+                return false;
+            });
+            if (!p || p.speaking === speaking) return;
+            p.speaking = speaking && !p.muted;
+            this.participants = [...this.participants];
+        },
+
+        cancelPendingDisconnect(data) {
+            const ids = [data?.socketId, data?.peerId, data?.fromSocketId].filter(Boolean).map(String);
+            ids.forEach((id) => {
+                if (this._pendingDisconnects) delete this._pendingDisconnects[id];
+            });
+        },
+
+        scheduleSocketDisconnect(data) {
+            const socketId = data?.socketId || data?.fromSocketId || '';
+            const peerId = data?.peerId || '';
+            const key = String(socketId || peerId);
+            if (!key) {
+                this.removePeer(data || {});
+                return;
+            }
+            const token = Date.now();
+            this._pendingDisconnects = this._pendingDisconnects || {};
+            this._pendingDisconnects[key] = token;
+            setTimeout(() => {
+                if (!this._pendingDisconnects || this._pendingDisconnects[key] !== token) return;
+                delete this._pendingDisconnects[key];
+                const still = (this.participants || []).find((p) =>
+                    !p.isSelf && socketId && String(p.socketId) === String(socketId)
+                );
+                if (still) this.removePeer({ socketId: still.socketId, peerId: still.peerId, userId: still.userId });
+            }, 4000);
+        },
+
         localPreviewStream() {
             if (!this.localStream) return null;
             const videoTracks = this.localStream.getVideoTracks();
@@ -1157,12 +1344,16 @@ function watchParty() {
                     ...peer,
                     stream: peer.stream || prev.stream,
                     avatar: peer.avatar || prev.avatar,
-                    border: peer.border || prev.border
+                    border: peer.border || prev.border,
+                    speaking: typeof peer.speaking === 'boolean' ? peer.speaking : !!prev.speaking
                 });
             } else {
+                if (typeof peer.speaking !== 'boolean') peer.speaking = false;
                 this.participants.push(peer);
             }
             this.participants = [...this.participants];
+            const merged = this.participants[idx >= 0 ? idx : this.participants.length - 1];
+            this.attachParticipantSpeaking(merged);
             this.persistActiveRoom();
         },
 
@@ -1170,6 +1361,11 @@ function watchParty() {
             if (this.roomSyncTimer) {
                 clearInterval(this.roomSyncTimer);
                 this.roomSyncTimer = null;
+            }
+            Object.keys(this._speakingMonitors || {}).forEach((key) => this.stopSpeakingWatch(key));
+            if (this._audioCtx) {
+                try { this._audioCtx.close(); } catch (e) {}
+                this._audioCtx = null;
             }
             Object.keys(peerConnections).forEach(id => {
                 try { peerConnections[id].close(); } catch (e) { /* ignore */ }
@@ -1219,6 +1415,7 @@ function watchParty() {
                     isSelf: true,
                     isHost: this.isHost
                 });
+                this.watchSpeaking('local', this.localStream, { muted: this.isMuted, isSelf: true });
 
             } catch (e) {
                 console.error("Camera/Mic access denied or unavailable.", e);
@@ -1292,7 +1489,17 @@ function watchParty() {
 
         createPeerConnection(peerKey, peerMeta = {}) {
             if (!peerKey || peerKey === this.peerId || peerKey === this.socket?.id) return null;
-            if (peerConnections[peerKey]) return peerConnections[peerKey];
+            if (peerConnections[peerKey]) {
+                const existing = peerConnections[peerKey];
+                const state = existing.connectionState;
+                if (state === 'closed' || state === 'failed' || state === 'disconnected') {
+                    try { existing.close(); } catch (e) {}
+                    delete peerConnections[peerKey];
+                    delete pendingCandidates[peerKey];
+                } else {
+                    return existing;
+                }
+            }
 
             const pc = new RTCPeerConnection({
                 iceServers: this.iceServers,
@@ -1333,7 +1540,9 @@ function watchParty() {
                 const dropIfGone = () => {
                     const tracks = stream.getTracks();
                     if (!tracks.length || tracks.every((t) => t.readyState === 'ended')) {
-                        this.removePeer({ peerId: peerKey, socketId: peerKey, userId: peerMeta.userId });
+                        const current = this.participants.find((p) => p.peerId === peerKey || p.socketId === peerKey);
+                        if (current && current.stream && current.stream !== stream) return;
+                        this.removePeer({ peerId: peerKey, socketId: peerKey }, { matchUser: false });
                     }
                 };
                 stream.getTracks().forEach((track) => {
@@ -1344,15 +1553,16 @@ function watchParty() {
             const dropOnDeadPc = () => {
                 const state = pc.connectionState;
                 if (state === 'failed' || state === 'closed') {
-                    this.removePeer({ peerId: peerKey, socketId: peerKey, userId: peerMeta.userId });
+                    if (peerConnections[peerKey] !== pc) return;
+                    this.removePeer({ peerId: peerKey, socketId: peerKey }, { matchUser: false });
                     return;
                 }
                 if (state === 'disconnected') {
                     setTimeout(() => {
                         if (peerConnections[peerKey] === pc && pc.connectionState === 'disconnected') {
-                            this.removePeer({ peerId: peerKey, socketId: peerKey, userId: peerMeta.userId });
+                            this.removePeer({ peerId: peerKey, socketId: peerKey }, { matchUser: false });
                         }
-                    }, 2000);
+                    }, 4000);
                 }
             };
             pc.onconnectionstatechange = dropOnDeadPc;
@@ -1416,7 +1626,6 @@ function watchParty() {
                 stream: null,
                 muted: false,
                 videoOn: true,
-                speaking: false,
                 isSelf: false
             });
 
@@ -1496,14 +1705,14 @@ function watchParty() {
             }
         },
 
-        removePeer(payload) {
+        removePeer(payload, { matchUser = true } = {}) {
             const peer = this.normalizePeer(payload) || {};
             const key = this.peerKey(peer);
             const uid = Number(peer.userId || payload?.userId || payload?.fromUserId || 0);
             const matches = (p) => {
                 if (!p || p.isSelf) return false;
                 if (key && (p.peerId === key || p.socketId === key || p.id === key)) return true;
-                if (uid && (Number(p.userId) === uid || Number(p.id) === uid)) return true;
+                if (matchUser && uid && (Number(p.userId) === uid || Number(p.id) === uid)) return true;
                 if (payload?.socketId && (p.socketId === payload.socketId || p.peerId === payload.socketId)) return true;
                 return false;
             };
@@ -1516,7 +1725,10 @@ function watchParty() {
             closeKey(key);
             closeKey(payload?.socketId);
             this.participants.forEach((p) => {
-                if (matches(p)) closeKey(p.peerId || p.socketId);
+                if (matches(p)) {
+                    closeKey(p.peerId || p.socketId);
+                    this.stopSpeakingWatch(p.peerId || p.socketId || p.id);
+                }
             });
             this.participants = this.participants.filter((p) => p.isSelf || !matches(p));
         },
@@ -1549,10 +1761,10 @@ function watchParty() {
         },
 
         signal(event, data) {
-            if (this.socket && this.socket.connected && (event === 'offer' || event === 'answer' || event === 'ice-candidate' || event === 'send_message' || event === 'toggle-mic' || event === 'toggle-video' || event === 'movie-changed' || event === 'playback-sync' || event === 'peer-leave')) {
+            if (this.socket && this.socket.connected && (event === 'offer' || event === 'answer' || event === 'ice-candidate' || event === 'send_message' || event === 'toggle-mic' || event === 'toggle-video' || event === 'movie-changed' || event === 'playback-sync' || event === 'peer-leave' || event === 'peer-speaking')) {
                 this.socket.emit(event, data);
             }
-            this.sendPusherSignal(event, data);
+            if (event !== 'peer-speaking') this.sendPusherSignal(event, data);
         },
 
         sendPusherSignal(event, data) {
@@ -1588,12 +1800,20 @@ function watchParty() {
                 this.resolveJoinRequestMessage(data);
                 return;
             }
-            if (event === 'peer-leave' || event === 'user-disconnected') {
+            if (event === 'peer-leave') {
                 const leavingMe = data && (
                     (data.peerId && String(data.peerId) === String(this.peerId))
                     || (data.userId && Number(data.userId) === Number(window.CURRENT_USER_ID) && !data.targetUserId)
                 );
                 if (!leavingMe) this.removePeer(data || {});
+                return;
+            }
+            if (event === 'user-disconnected') {
+                this.scheduleSocketDisconnect(data || {});
+                return;
+            }
+            if (event === 'peer-speaking') {
+                this.applyRemoteSpeaking(data || {});
                 return;
             }
             if (event === 'room-ended') {
@@ -1662,6 +1882,7 @@ function watchParty() {
                 const peer = this.normalizePeer(data);
                 const key = this.peerKey(peer);
                 if (!key || key === this.peerId) return;
+                this.cancelPendingDisconnect(data);
                 this.upsertParticipant({
                     id: peer.userId || key,
                     peerId: key,
@@ -1717,6 +1938,7 @@ function watchParty() {
                 const p = this.participants.find(x => x.peerId === data.fromPeerId || x.socketId === data.socketId || String(x.id) === String(data.userId));
                 if (p && !p.isSelf) {
                     p.muted = data.isMuted;
+                    if (data.isMuted) p.speaking = false;
                     this.participants = [...this.participants];
                 }
                 return;
@@ -1796,7 +2018,7 @@ function watchParty() {
                             return;
                         }
                         this.applyPresenceFlags(data.you);
-                        if (this.isHost && tick % 2 === 0) this.fetchJoinRequests();
+                        if (tick % 2 === 0) this.fetchJoinRequests();
                         if (!data.success || !Array.isArray(data.peers)) return;
                         this.syncPresence(data.peers);
                         data.peers.forEach(peer => {
@@ -1889,6 +2111,7 @@ function watchParty() {
             this.socket.on('ice-candidate', (data) => this.onRoomEvent('ice-candidate', data));
             this.socket.on('peer-mic-changed', (data) => this.onRoomEvent('peer-mic-changed', data));
             this.socket.on('peer-video-changed', (data) => this.onRoomEvent('peer-video-changed', data));
+            this.socket.on('peer-speaking', (data) => this.onRoomEvent('peer-speaking', data));
             this.socket.on('new_message', (data) => this.onRoomEvent('new_message', data));
             this.socket.on('movie-changed', (data) => this.onRoomEvent('movie-changed', data));
             this.socket.on('playback-sync', (data) => this.onRoomEvent('playback-sync', data));
@@ -2151,6 +2374,8 @@ function watchParty() {
             }
 
             this.signal('toggle-mic', { isMuted: this.isMuted, socketId: this.socket?.id, userId: Number(window.CURRENT_USER_ID) || null });
+            this.attachParticipantSpeaking(localParticipant);
+            if (this.isMuted) this.setSpeaking('local', false, true);
         },
 
         toggleVideo() {

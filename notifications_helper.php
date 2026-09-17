@@ -70,3 +70,66 @@ function deleteMatchingNotifications(PDO $conn, int $userId, array $opts = []): 
 
     return $ids;
 }
+
+function deleteNotificationsForRoom(PDO $conn, int $roomId, array $types = []): array
+{
+    $roomId = (int)$roomId;
+    if ($roomId <= 0) {
+        return [];
+    }
+
+    $types = $types ?: ['party_invite', 'join_request', 'join_request_accepted', 'join_request_declined'];
+    $types = array_values(array_filter(array_map('strval', $types)));
+    if (!$types) {
+        return [];
+    }
+
+    $in = implode(',', array_fill(0, count($types), '?'));
+    $stmt = $conn->prepare("
+        SELECT id, user_id, message
+        FROM notifications
+        WHERE type IN ({$in})
+          AND message LIKE ?
+    ");
+    $stmt->execute(array_merge($types, ['%|room:' . $roomId . '%']));
+    $rows = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
+    $byUser = [];
+    foreach ($rows as $row) {
+        $message = (string)($row['message'] ?? '');
+        if (!preg_match('/\|room:' . $roomId . '(?:\D|$)/', $message)) {
+            continue;
+        }
+        $uid = (int)$row['user_id'];
+        $id = (int)$row['id'];
+        if ($uid <= 0 || $id <= 0) {
+            continue;
+        }
+        if (!isset($byUser[$uid])) {
+            $byUser[$uid] = [];
+        }
+        $byUser[$uid][] = $id;
+    }
+
+    $allIds = [];
+    foreach ($byUser as $userId => $ids) {
+        $ids = array_values(array_unique(array_filter($ids)));
+        if (!$ids) {
+            continue;
+        }
+        $idIn = implode(',', array_fill(0, count($ids), '?'));
+        $del = $conn->prepare("DELETE FROM notifications WHERE user_id = ? AND id IN ({$idIn})");
+        $del->execute(array_merge([$userId], $ids));
+        $allIds = array_merge($allIds, $ids);
+        triggerPusherEvent("user-{$userId}", 'notifications_deleted', [
+            'ids' => $ids,
+            'room_id' => $roomId,
+        ]);
+        triggerPusherEvent("user-{$userId}", 'room_invites_cleared', [
+            'room_id' => $roomId,
+            'ids' => $ids,
+        ]);
+    }
+
+    return $allIds;
+}
