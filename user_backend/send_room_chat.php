@@ -7,6 +7,8 @@ require_once __DIR__ . '/../media_store_helper.php';
 require_once __DIR__ . '/../admin_rooms_helper.php';
 require_once __DIR__ . '/../room_chat_helper.php';
 require_once __DIR__ . '/../profile_media_helper.php';
+require_once __DIR__ . '/../schema_upgrade_helper.php';
+ensureAppSchema($conn);
 
 if (empty($_SESSION['user_id'])) {
     echo json_encode(['success' => false, 'message' => 'Unauthorized']);
@@ -93,23 +95,21 @@ if ($messageType === 'text' && $messageText === '') {
     exit;
 }
 
-$storedText = encodeRoomChatText($messageText, $imageUrl);
-if (strlen($storedText) > 250) {
-    $decoded = decodeRoomChatText($storedText);
-    $caption = substr($decoded['text'], 0, 180);
-    $storedText = encodeRoomChatText($caption, $decoded['image_url']);
+if (strlen($messageText) > 250) {
+    $messageText = substr($messageText, 0, 250);
 }
 
 try {
     $stmt = $conn->prepare("
-        INSERT INTO room_messages (room_id, user_id, guest_nickname, message_text)
-        VALUES (:room_id, :user_id, :guest_nickname, :message_text)
+        INSERT INTO room_messages (room_id, user_id, message_text, message_type, image_url)
+        VALUES (:room_id, :user_id, :message_text, :message_type, :image_url)
     ");
     $stmt->execute([
         'room_id' => $roomId,
         'user_id' => $senderId,
-        'guest_nickname' => $senderName,
-        'message_text' => $storedText,
+        'message_text' => $messageText,
+        'message_type' => $messageType,
+        'image_url' => $imageUrl,
     ]);
     $messageId = (int)$conn->lastInsertId();
 

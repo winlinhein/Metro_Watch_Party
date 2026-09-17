@@ -19,6 +19,7 @@ session_write_close();
 require_once __DIR__ . '/../conn.php';
 require_once __DIR__ . '/../profile_media_helper.php';
 require_once __DIR__ . '/../account_lifecycle_helper.php';
+ensureAppSchema($conn);
 nexusPrepareKeptRecords($conn);
 
 function txnAmountToDollars(float $amount): float
@@ -70,10 +71,12 @@ try {
             pt.created_at,
             COALESCE(u.user_name, pt.deleted_user_name, 'Deleted user') AS user_name,
             COALESCE(u.email, pt.deleted_user_email, '') AS email,
-            g.name AS gateway_name
+            g.name AS gateway_name,
+            COALESCE(p.name, 'Nexus Premium') AS plan_name
         FROM payment_transactions pt
         LEFT JOIN users u ON u.user_id = pt.user_id
         LEFT JOIN gateways g ON g.gateway_id = pt.gateway_id
+        LEFT JOIN plans p ON p.plan_id = pt.plan_id
         ORDER BY pt.created_at DESC, pt.transaction_id DESC
         LIMIT 300
     ");
@@ -93,7 +96,7 @@ try {
             'user_name' => (string)($row['user_name'] ?? 'Unknown user'),
             'email' => (string)($row['email'] ?? ''),
             'avatar_url' => (string)($row['avatar_url'] ?? ''),
-            'plan' => 'Nexus Premium',
+            'plan' => (string)($row['plan_name'] ?? 'Nexus Premium'),
             'gateway' => (string)($row['gateway_name'] ?? 'Stripe'),
             'amount' => formatTxnAmount($amount, $status),
             'status' => $status,

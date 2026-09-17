@@ -33,35 +33,11 @@ try {
     require_once __DIR__ . '/../notifications_helper.php';
     require_once __DIR__ . '/../profile_media_helper.php';
     require_once __DIR__ . '/../admin_rooms_helper.php';
-
-    try {
-        $conn->exec("CREATE TABLE IF NOT EXISTS room_join_requests (
-            id INT NOT NULL AUTO_INCREMENT,
-            room_id INT NOT NULL,
-            host_id INT NOT NULL,
-            requester_id INT NOT NULL,
-            status VARCHAR(20) NOT NULL DEFAULT 'pending',
-            created_at DATETIME NOT NULL,
-            PRIMARY KEY (id),
-            UNIQUE KEY room_requester (room_id, requester_id),
-            KEY host_status (host_id, status)
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
-    } catch (Throwable $ignore) {}
-
-    foreach ([
-        "ALTER TABLE room_join_requests ADD COLUMN status VARCHAR(20) NOT NULL DEFAULT 'pending'",
-        "ALTER TABLE room_join_requests ADD COLUMN host_id INT NOT NULL DEFAULT 0",
-        "ALTER TABLE room_join_requests ADD COLUMN created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP",
-        "ALTER TABLE room_join_requests ADD UNIQUE KEY room_requester (room_id, requester_id)",
-    ] as $alterSql) {
-        try {
-            $conn->exec($alterSql);
-        } catch (Throwable $ignore) {}
-    }
-
+    require_once __DIR__ . '/../room_schema_helper.php';
     require_once __DIR__ . '/../premium_benefits_helper.php';
     require_once __DIR__ . '/../schema_upgrade_helper.php';
     ensureAppSchema($conn);
+    ensureRoomParticipantSchema($conn);
 
     $roomStmt = $conn->prepare("SELECT room_id, host_id, room_code, status, max_members FROM rooms WHERE room_id = :id LIMIT 1");
     $roomStmt->execute(['id' => $roomId]);
@@ -126,19 +102,17 @@ try {
     if ($requestId > 0) {
         $conn->prepare("
             UPDATE room_join_requests
-            SET status = 'pending', host_id = :host_id, created_at = NOW()
+            SET status = 'pending', created_at = NOW()
             WHERE id = :id
         ")->execute([
-            'host_id' => $hostId,
             'id' => $requestId,
         ]);
     } else {
         $conn->prepare("
-            INSERT INTO room_join_requests (room_id, host_id, requester_id, status, created_at)
-            VALUES (:room_id, :host_id, :requester_id, 'pending', NOW())
+            INSERT INTO room_join_requests (room_id, requester_id, status, created_at)
+            VALUES (:room_id, :requester_id, 'pending', NOW())
         ")->execute([
             'room_id' => $roomId,
-            'host_id' => $hostId,
             'requester_id' => $requesterId,
         ]);
         $requestId = (int)$conn->lastInsertId();
@@ -154,17 +128,16 @@ try {
         'room_id' => $roomId,
     ]);
 
-    $message = 'wants to join your watch party.|room:' . $roomId . '|req:' . $requestId;
-    $notifStmt = $conn->prepare("
-        INSERT INTO notifications (user_id, sender_id, type, message, is_read, created_at)
-        VALUES (:user_id, :sender_id, 'join_request', :message, 0, NOW())
-    ");
-    $notifStmt->execute([
-        'user_id' => $hostId,
-        'sender_id' => $requesterId,
-        'message' => $message,
-    ]);
-    $notifId = (int)$conn->lastInsertId();
+    $message = 'wants to join your watch party.';
+    $notifId = nexusInsertNotification(
+        $conn,
+        $hostId,
+        $requesterId,
+        'join_request',
+        $message,
+        $roomId,
+        $requestId
+    );
 
     $media = getUserProfileMedia($conn, $requesterId);
     $payload = array_merge([

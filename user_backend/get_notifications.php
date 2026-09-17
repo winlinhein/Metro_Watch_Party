@@ -11,6 +11,8 @@ if (empty($_SESSION['user_id'])) {
 
 require_once __DIR__ . '/../conn.php';
 require_once __DIR__ . '/../profile_media_helper.php';
+require_once __DIR__ . '/../schema_upgrade_helper.php';
+ensureAppSchema($conn);
 
 $currentUserId = (int)$_SESSION['user_id'];
 session_write_close();
@@ -24,6 +26,8 @@ try {
             n.message,
             n.is_read,
             n.created_at,
+            n.room_id,
+            n.request_id,
             u.user_name AS sender_name
         FROM notifications n
         LEFT JOIN users u ON u.user_id = n.sender_id
@@ -59,15 +63,14 @@ try {
             $n['report_id'] = (int)$rm[1];
         }
 
-        // Extract room_id from party/join messages: "...|room:123" or "...|room:123|req:45"
-        $n['room_id'] = null;
-        $n['request_id'] = null;
+        $n['room_id'] = isset($n['room_id']) && $n['room_id'] !== null ? (int)$n['room_id'] : null;
+        $n['request_id'] = isset($n['request_id']) && $n['request_id'] !== null ? (int)$n['request_id'] : null;
         $typesWithRoom = ['party_invite', 'join_request', 'join_request_accepted', 'join_request_declined'];
         if (in_array(($n['type'] ?? ''), $typesWithRoom, true)) {
-            if (preg_match('/\|req:(\d+)/', (string)$n['message'], $rm)) {
+            if (!$n['request_id'] && preg_match('/\|req:(\d+)/', (string)$n['message'], $rm)) {
                 $n['request_id'] = (int)$rm[1];
             }
-            if (preg_match('/\|room:(\d+)/', (string)$n['message'], $m)) {
+            if (!$n['room_id'] && preg_match('/\|room:(\d+)/', (string)$n['message'], $m)) {
                 $n['room_id'] = (int)$m[1];
             }
             $n['message'] = trim(preg_replace('/\|room:\d+(\|req:\d+)?\s*$/', '', (string)$n['message']));

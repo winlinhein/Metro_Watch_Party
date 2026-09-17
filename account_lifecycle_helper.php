@@ -282,15 +282,13 @@ function nexusPurgeUserAccount(PDO $conn, int $userId): void
         ['DELETE FROM notifications WHERE user_id = ? OR sender_id = ?', [$userId, $userId]],
         ['DELETE FROM login_history WHERE user_id = ?', [$userId]],
         ['DELETE FROM persistent_session WHERE user_id = ?', [$userId]],
-        ['DELETE FROM ban_appeals WHERE user_id = ?', [$userId]],
         ['DELETE FROM user_customizations WHERE user_id = ?', [$userId]],
         ['DELETE FROM user_inventory WHERE user_id = ?', [$userId]],
         ['DELETE FROM user_missions WHERE user_id = ?', [$userId]],
         ['DELETE FROM watch_history WHERE user_id = ?', [$userId]],
         ['DELETE FROM watchlists WHERE user_id = ?', [$userId]],
-        ['DELETE FROM room_join_requests WHERE host_id = ? OR requester_id = ?', [$userId, $userId]],
+        ['DELETE FROM room_join_requests WHERE requester_id = ?', [$userId]],
         ['DELETE FROM room_kicks WHERE user_id = ?', [$userId]],
-        ['DELETE FROM room_members WHERE user_id = ?', [$userId]],
         ['DELETE FROM room_messages WHERE user_id = ?', [$userId]],
         ['DELETE FROM room_participants WHERE user_id = ?', [$userId]],
         ['DELETE FROM media_files WHERE user_id = ?', [$userId]],
@@ -307,7 +305,6 @@ function nexusPurgeUserAccount(PDO $conn, int $userId): void
         }
         foreach ([
             'DELETE FROM room_messages WHERE room_id = ?',
-            'DELETE FROM room_members WHERE room_id = ?',
             'DELETE FROM room_participants WHERE room_id = ?',
             'DELETE FROM room_join_requests WHERE room_id = ?',
             'DELETE FROM room_kicks WHERE room_id = ?',
@@ -351,15 +348,12 @@ function nexusPurgeUserAccount(PDO $conn, int $userId): void
             ['user_inventory', 'user_id'],
             ['user_missions', 'user_id'],
             ['user_customizations', 'user_id'],
-            ['room_members', 'user_id'],
             ['room_messages', 'user_id'],
             ['room_participants', 'user_id'],
             ['room_kicks', 'user_id'],
-            ['room_join_requests', 'host_id'],
             ['room_join_requests', 'requester_id'],
             ['comment_likes', 'user_id'],
             ['movie_rating', 'user_id'],
-            ['ban_appeals', 'user_id'],
             ['persistent_session', 'user_id'],
             ['media_files', 'user_id'],
         ] as [$table, $column]) {
@@ -398,14 +392,6 @@ function nexusUnbanUser(PDO $conn, int $userId): void
     ensureAppSchema($conn);
     $conn->prepare("UPDATE users SET status = 'active', ban_reason = NULL WHERE user_id = ?")
         ->execute([$userId]);
-    try {
-        $conn->prepare("
-            UPDATE ban_appeals
-            SET status = 'approved', reviewed_at = NOW()
-            WHERE user_id = ? AND status = 'pending'
-        ")->execute([$userId]);
-    } catch (Throwable $ignore) {
-    }
     try {
         $conn->prepare("
             UPDATE reports

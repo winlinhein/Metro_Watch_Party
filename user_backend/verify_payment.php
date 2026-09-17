@@ -10,6 +10,7 @@ if (empty($_SESSION['user_id'])) {
 
 require_once __DIR__ . '/../stripe_helper.php';
 require_once __DIR__ . '/../conn.php';   // include database connection
+require_once __DIR__ . '/../schema_upgrade_helper.php';
 
 $sessionId = $_GET['session_id'] ?? '';
 
@@ -34,12 +35,13 @@ try {
     $stmt = $conn->prepare("SELECT is_premium FROM users WHERE user_id = ?");
     $stmt->execute([$_SESSION['user_id']]);
     $alreadyPremium = (bool)$stmt->fetchColumn();
+    $plan = nexusPremiumPlan($conn);
 
     if (!$alreadyPremium) {
         $conn->beginTransaction();
 
         $stmt = $conn->prepare("UPDATE users SET is_premium = 1, premium_expires_at = DATE_ADD(NOW(), INTERVAL :days DAY) WHERE user_id = :user_id");
-        $stmt->execute(['days' => PREMIUM_DURATION_DAYS, 'user_id' => $_SESSION['user_id']]);
+        $stmt->execute(['days' => $plan['duration_days'], 'user_id' => $_SESSION['user_id']]);
 
         $stmt = $conn->prepare("UPDATE users SET stripe_customer_id = :customer_id, stripe_subscription_id = :sub_id WHERE user_id = :user_id");
         $stmt->execute([
@@ -54,13 +56,14 @@ try {
 
         if ($gateway) {
             $amountCents = (int)$session['amount_total'];
+            $amount = $amountCents > 0 ? round($amountCents / 100, 2) : (float)$plan['price'];
             $insert = $conn->prepare("INSERT INTO payment_transactions (user_id, plan_id, gateway_id, gateway_transaction_id, amount, status) VALUES (:user_id, :plan_id, :gateway_id, :gateway_txn_id, :amount, 'success')");
             $insert->execute([
                 'user_id'         => $_SESSION['user_id'],
-                'plan_id'         => PREMIUM_PLAN_ID,
+                'plan_id'         => $plan['plan_id'],
                 'gateway_id'      => $gateway['gateway_id'],
                 'gateway_txn_id'  => $session['payment_intent'] ?? $session['subscription'] ?? $session['id'],
-                'amount'          => $amountCents
+                'amount'          => $amount
             ]);
         }
 

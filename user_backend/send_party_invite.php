@@ -11,6 +11,7 @@ if (empty($_SESSION['authenticated']) || empty($_SESSION['user_id'])) {
 require_once __DIR__ . '/../conn.php';
 require_once __DIR__ . '/../pusher_helper.php';
 require_once __DIR__ . '/../profile_media_helper.php';
+require_once __DIR__ . '/../notifications_helper.php';
 
 $senderId = (int)$_SESSION['user_id'];
 $senderName = (string)($_SESSION['user_name'] ?? 'Someone');
@@ -61,18 +62,15 @@ try {
         $room = ['room_id' => $roomId, 'host_id' => $senderId, 'room_code' => (string)$roomId];
     }
 
-    $message = 'invited you to a watch party.|room:' . $roomId;
-
-    $notifStmt = $conn->prepare("
-        INSERT INTO notifications (user_id, sender_id, type, message, is_read, created_at)
-        VALUES (:user_id, :sender_id, 'party_invite', :message, 0, NOW())
-    ");
-    $notifStmt->execute([
-        'user_id' => $targetUserId,
-        'sender_id' => $senderId,
-        'message' => $message,
-    ]);
-    $notifId = (int)$conn->lastInsertId();
+    $message = 'invited you to a watch party.';
+    $notifId = nexusInsertNotification(
+        $conn,
+        $targetUserId,
+        $senderId,
+        'party_invite',
+        $message,
+        $roomId
+    );
 
     $senderMedia = getUserProfileMedia($conn, $senderId);
 

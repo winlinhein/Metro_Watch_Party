@@ -76,17 +76,15 @@ try {
     $alreadyThere = (bool)$existsStmt->fetchColumn();
 
     $conn->prepare("
-        INSERT INTO room_participants (room_id, user_id, user_name, peer_id, last_seen)
-        VALUES (:room_id, :user_id, :user_name, :peer_id, NOW())
+        INSERT INTO room_participants (room_id, user_id, peer_id, last_seen)
+        VALUES (:room_id, :user_id, :peer_id, NOW())
         ON DUPLICATE KEY UPDATE
             room_id = VALUES(room_id),
             user_id = VALUES(user_id),
-            user_name = VALUES(user_name),
             last_seen = NOW()
     ")->execute([
         'room_id' => $roomId,
         'user_id' => $userId,
-        'user_name' => $userName,
         'peer_id' => $peerId,
     ]);
 
@@ -98,11 +96,13 @@ try {
     $chatBanned = (int)($selfFlags['chat_banned'] ?? 0) === 1;
 
     $peerStmt = $conn->prepare("
-        SELECT user_id, user_name, peer_id, forced_muted, forced_video_off, chat_banned
-        FROM room_participants
-        WHERE room_id = :room_id
-          AND peer_id <> :peer_id
-          AND last_seen > DATE_SUB(NOW(), INTERVAL 45 SECOND)
+        SELECT rp.user_id, COALESCE(u.user_name, 'User') AS user_name, rp.peer_id,
+               rp.forced_muted, rp.forced_video_off, rp.chat_banned
+        FROM room_participants rp
+        LEFT JOIN users u ON u.user_id = rp.user_id
+        WHERE rp.room_id = :room_id
+          AND rp.peer_id <> :peer_id
+          AND rp.last_seen > DATE_SUB(NOW(), INTERVAL 45 SECOND)
     ");
     $peerStmt->execute(['room_id' => $roomId, 'peer_id' => $peerId]);
     $peers = $peerStmt->fetchAll(PDO::FETCH_ASSOC);

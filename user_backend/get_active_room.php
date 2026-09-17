@@ -17,6 +17,8 @@ try {
     require_once __DIR__ . '/../admin_rooms_helper.php';
     require_once __DIR__ . '/../profile_media_helper.php';
     require_once __DIR__ . '/../room_schema_helper.php';
+    require_once __DIR__ . '/../schema_upgrade_helper.php';
+    ensureAppSchema($conn);
     ensureRoomParticipantSchema($conn);
 
     $room = null;
@@ -56,11 +58,12 @@ try {
     }
 
     $peerStmt = $conn->prepare("
-        SELECT user_id, user_name, peer_id
-        FROM room_participants
-        WHERE room_id = :room_id
-          AND last_seen > DATE_SUB(NOW(), INTERVAL 90 SECOND)
-        ORDER BY last_seen DESC
+        SELECT rp.user_id, COALESCE(u.user_name, 'User') AS user_name, rp.peer_id
+        FROM room_participants rp
+        LEFT JOIN users u ON u.user_id = rp.user_id
+        WHERE rp.room_id = :room_id
+          AND rp.last_seen > DATE_SUB(NOW(), INTERVAL 90 SECOND)
+        ORDER BY rp.last_seen DESC
     ");
     $peerStmt->execute(['room_id' => $room['room_id']]);
     $participants = attachProfileMedia($conn, $peerStmt->fetchAll(PDO::FETCH_ASSOC) ?: []);

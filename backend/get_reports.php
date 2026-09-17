@@ -46,13 +46,13 @@ try {
         LEFT JOIN 
             users reporter ON r.reporter_id = reporter.user_id
         LEFT JOIN 
-            movie_comments mc ON (r.comment_id = mc.comment_id OR (r.comment_id IS NULL AND r.reported_user_id = mc.comment_id)) AND r.type IN ('comment', 'reply')
+            movie_comments mc ON r.comment_id = mc.comment_id AND r.type IN ('comment', 'reply')
         LEFT JOIN 
             users reported ON (r.reported_user_id = reported.user_id AND r.type IN ('user', 'room', 'appeal')) OR (mc.user_id = reported.user_id AND r.type IN ('comment', 'reply'))
         LEFT JOIN
             rooms rm ON r.reported_room_id = rm.room_id
         LEFT JOIN
-            movies mv ON rm.movie_id = mv.movie_id AND rm.movie_id > 0
+            movies mv ON rm.movie_id = mv.movie_id
         LEFT JOIN 
             report_and_reasons rr ON r.report_id = rr.report_id
         LEFT JOIN 
@@ -119,7 +119,7 @@ try {
             'user'          => $rep['reporter_name'] ?? 'Unknown User',
             'reported_user' => $reported_entity, 
             'reported_movie_id' => $rep['reported_movie_id'] ?? null,
-            'reported_comment_id' => in_array($rep['type'], ['comment', 'reply']) ? ($rep['comment_id'] ?? $rep['reported_user_id']) : null,
+            'reported_comment_id' => in_array($rep['type'], ['comment', 'reply']) ? ($rep['comment_id'] ?? null) : null,
             'reported_room_id' => $rep['reported_room_id'] ? (int)$rep['reported_room_id'] : null,
             'reported_room_code' => $roomCode ?: null,
             'reported_room_status' => $rep['reported_room_status'] ?? null,

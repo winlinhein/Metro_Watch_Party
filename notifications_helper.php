@@ -1,5 +1,31 @@
 <?php
 require_once __DIR__ . '/pusher_helper.php';
+require_once __DIR__ . '/schema_upgrade_helper.php';
+
+function nexusInsertNotification(
+    PDO $conn,
+    int $userId,
+    ?int $senderId,
+    string $type,
+    string $message,
+    ?int $roomId = null,
+    ?int $requestId = null
+): int {
+    ensureAppSchema($conn);
+    $stmt = $conn->prepare("
+        INSERT INTO notifications (user_id, sender_id, type, message, is_read, created_at, room_id, request_id)
+        VALUES (?, ?, ?, ?, 0, NOW(), ?, ?)
+    ");
+    $stmt->execute([
+        $userId,
+        $senderId,
+        $type,
+        $message,
+        $roomId && $roomId > 0 ? $roomId : null,
+        $requestId && $requestId > 0 ? $requestId : null,
+    ]);
+    return (int)$conn->lastInsertId();
+}
 
 /**
  * Delete a user's notifications matching type / sender / room, then notify live clients.
@@ -12,13 +38,14 @@ function deleteMatchingNotifications(PDO $conn, int $userId, array $opts = []): 
     if ($userId <= 0) {
         return [];
     }
+    ensureAppSchema($conn);
 
     $types = array_values(array_filter(array_map('strval', $opts['types'] ?? [])));
     $senderId = isset($opts['sender_id']) ? (int)$opts['sender_id'] : 0;
     $roomId = isset($opts['room_id']) ? (int)$opts['room_id'] : 0;
     $explicitIds = array_values(array_filter(array_map('intval', $opts['ids'] ?? [])));
 
-    $sql = "SELECT id, type, sender_id, message FROM notifications WHERE user_id = ?";
+    $sql = "SELECT id, type, sender_id, message, room_id FROM notifications WHERE user_id = ?";
     $params = [$userId];
 
     if ($explicitIds) {
@@ -43,9 +70,16 @@ function deleteMatchingNotifications(PDO $conn, int $userId, array $opts = []): 
     $ids = [];
     foreach ($rows as $row) {
         if ($roomId > 0) {
-            $message = (string)($row['message'] ?? '');
-            if (!preg_match('/\|room:' . $roomId . '(?:\D|$)/', $message)) {
-                continue;
+            $rowRoom = (int)($row['room_id'] ?? 0);
+            if ($rowRoom > 0) {
+                if ($rowRoom !== $roomId) {
+                    continue;
+                }
+            } else {
+                $message = (string)($row['message'] ?? '');
+                if (!preg_match('/\|room:' . $roomId . '(?:\D|$)/', $message)) {
+                    continue;
+                }
             }
         }
         $ids[] = (int)$row['id'];
@@ -77,6 +111,7 @@ function deleteNotificationsForRoom(PDO $conn, int $roomId, array $types = []): 
     if ($roomId <= 0) {
         return [];
     }
+    ensureAppSchema($conn);
 
     $types = $types ?: ['party_invite', 'join_request', 'join_request_accepted', 'join_request_declined'];
     $types = array_values(array_filter(array_map('strval', $types)));
@@ -86,19 +121,25 @@ function deleteNotificationsForRoom(PDO $conn, int $roomId, array $types = []): 
 
     $in = implode(',', array_fill(0, count($types), '?'));
     $stmt = $conn->prepare("
-        SELECT id, user_id, message
+        SELECT id, user_id, message, room_id
         FROM notifications
         WHERE type IN ({$in})
-          AND message LIKE ?
+          AND (room_id = ? OR (room_id IS NULL AND message LIKE ?))
     ");
-    $stmt->execute(array_merge($types, ['%|room:' . $roomId . '%']));
+    $stmt->execute(array_merge($types, [$roomId, '%|room:' . $roomId . '%']));
     $rows = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
     $byUser = [];
     foreach ($rows as $row) {
-        $message = (string)($row['message'] ?? '');
-        if (!preg_match('/\|room:' . $roomId . '(?:\D|$)/', $message)) {
+        $rowRoom = (int)($row['room_id'] ?? 0);
+        if ($rowRoom > 0 && $rowRoom !== $roomId) {
             continue;
+        }
+        if ($rowRoom <= 0) {
+            $message = (string)($row['message'] ?? '');
+            if (!preg_match('/\|room:' . $roomId . '(?:\D|$)/', $message)) {
+                continue;
+            }
         }
         $uid = (int)$row['user_id'];
         $id = (int)$row['id'];

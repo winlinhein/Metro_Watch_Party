@@ -21,6 +21,8 @@ try {
     require_once '../admin_rooms_helper.php';
     require_once '../profile_media_helper.php';
     require_once '../room_chat_helper.php';
+    require_once '../schema_upgrade_helper.php';
+    ensureAppSchema($conn);
     $pdo = $conn;
     // 1. Fetch room using room_id or room_code
     $stmt = $pdo->prepare("SELECT room_id, room_code, host_id, movie_id, status, created_at FROM rooms WHERE (room_id = :id OR room_code = :code) LIMIT 1");
