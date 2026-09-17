@@ -80,6 +80,33 @@ function formatPremiumEndsLabel(end) {
     }
 }
 
+const NEXUS_ACTIVE_ROOM_KEY = 'nexus_active_room';
+
+function readNexusActiveRoom() {
+    try {
+        const raw = sessionStorage.getItem(NEXUS_ACTIVE_ROOM_KEY);
+        if (!raw) return null;
+        const data = JSON.parse(raw);
+        return data && data.roomId ? data : null;
+    } catch (e) {
+        return null;
+    }
+}
+
+function writeNexusActiveRoom(data) {
+    try {
+        if (!data || !data.roomId) {
+            sessionStorage.removeItem(NEXUS_ACTIVE_ROOM_KEY);
+            return;
+        }
+        sessionStorage.setItem(NEXUS_ACTIVE_ROOM_KEY, JSON.stringify(data));
+    } catch (e) {}
+}
+
+function clearNexusActiveRoom() {
+    try { sessionStorage.removeItem(NEXUS_ACTIVE_ROOM_KEY); } catch (e) {}
+}
+
 function userDashboard() {
     const bootUser = window.NEXUS_USER || {};
     const bootName = bootUser.username || 'User';
@@ -129,6 +156,8 @@ function userDashboard() {
         showQuestsPanel: false,
         questActiveTab: 'daily',
         showInviteModal: false,
+        activeRoom: null,
+        _activeRoomTimer: null,
         showNotifications: false,
         showPremiumModal: false,
         friendsTab: 'connected',
@@ -1455,6 +1484,87 @@ function userDashboard() {
             return window.createParty(movieId);
         },
 
+        get hasActiveRoom() {
+            return !!(this.activeRoom && this.activeRoom.roomId);
+        },
+
+        get visibleRoomParticipants() {
+            return (this.activeRoom && this.activeRoom.participants ? this.activeRoom.participants : []).slice(0, 6);
+        },
+
+        get extraRoomParticipantCount() {
+            const count = this.activeRoom && this.activeRoom.participants ? this.activeRoom.participants.length : 0;
+            return Math.max(0, count - 6);
+        },
+
+        hydrateActiveRoom() {
+            this.activeRoom = readNexusActiveRoom();
+            this.refreshActiveRoom();
+        },
+
+        clearActiveRoomState() {
+            this.activeRoom = null;
+            clearNexusActiveRoom();
+            if (this._activeRoomTimer) {
+                clearInterval(this._activeRoomTimer);
+                this._activeRoomTimer = null;
+            }
+        },
+
+        mapActiveRoomParticipants(rows) {
+            return (rows || []).map((row) => ({
+                name: row.name || row.user_name || 'User',
+                avatar: this.resolveAvatarUrl(row.avatar || row.avatar_url || '', row.name || row.user_name || 'User'),
+                border: row.border || row.border_preview || '',
+                userId: row.userId || row.user_id || null,
+                peerId: row.peerId || row.peer_id || ''
+            }));
+        },
+
+        async refreshActiveRoom() {
+            const stored = this.activeRoom || readNexusActiveRoom();
+            if (!stored || !stored.roomId) return;
+            try {
+                const res = await fetch('/user_backend/get_active_room.php?room_id=' + encodeURIComponent(stored.roomId));
+                const result = await res.json();
+                if (!result.success) {
+                    if (result.is_ended || result.is_kicked) this.clearActiveRoomState();
+                    return;
+                }
+                const room = (result.data && result.data.room) || {};
+                const incoming = this.mapActiveRoomParticipants((result.data && result.data.participants) || []);
+                this.activeRoom = {
+                    ...stored,
+                    roomId: String(room.room_id || stored.roomId),
+                    roomName: room.room_code ? ('Room #' + room.room_code) : (stored.roomName || ''),
+                    isHost: Number(room.host_id) === Number(window.CURRENT_USER_ID),
+                    participants: incoming.length ? incoming : this.mapActiveRoomParticipants(stored.participants || [])
+                };
+                writeNexusActiveRoom(this.activeRoom);
+                this.heartbeatActiveRoom();
+            } catch (e) {
+                this.activeRoom = stored;
+            }
+        },
+
+        async heartbeatActiveRoom() {
+            const room = this.activeRoom;
+            if (!room || !room.roomId || !room.peerId) return;
+            try {
+                const form = new FormData();
+                form.append('room_id', room.roomId);
+                form.append('peer_id', room.peerId);
+                form.append('heartbeat', '1');
+                await fetch('/user_backend/join_room.php', { method: 'POST', body: form });
+            } catch (e) {}
+        },
+
+        returnToRoom() {
+            if (!this.hasActiveRoom) return;
+            if (typeof window.showPageLoader === 'function') window.showPageLoader();
+            window.location.href = '/user/watch_party.php?room_id=' + encodeURIComponent(this.activeRoom.roomId);
+        },
+
         applyOnlineIds(ids) {
             const set = new Set((ids || []).map(Number));
             const mark = (row) => {
@@ -1540,16 +1650,24 @@ function userDashboard() {
                 : this.notifications.filter(n => Number(n.is_read) === 0).length;
         },
 
+        setNotificationList(list) {
+            this.notifications = Array.isArray(list) ? list.slice() : [];
+            this.syncUnreadFromList();
+        },
+
+        removeLocalNotification(notifId) {
+            this.setNotificationList(this.notifications.filter(n => String(n.id) !== String(notifId)));
+        },
+
         async fetchNotifications() {
             try {
-                const response = await fetch('/user_backend/get_notifications.php');
+                const response = await fetch('/user_backend/get_notifications.php', { credentials: 'same-origin' });
                 if (!response.ok) return;
 
                 const data = await response.json();
                 if (data.success && Array.isArray(data.notifications)) {
-                    this.notifications = data.notifications.map(n => this.applyCachedMedia(n, 'sender_id'));
+                    this.setNotificationList(data.notifications.map(n => this.applyCachedMedia(n, 'sender_id')));
                     this.persistAvatarCache();
-                    this.syncUnreadFromList();
                 }
             } catch (err) {
                 console.error('Notification error:', err);
@@ -1567,58 +1685,65 @@ function userDashboard() {
         async markNotificationsAsRead() {
             const hasUnread = this.notifications.some(n => Number(n.is_read) === 0) || this.unreadNotifCount > 0;
             this.unreadNotifCount = 0;
-            this.notifications = this.notifications.map(n => ({ ...n, is_read: 1 }));
+            this.setNotificationList(this.notifications.map(n => ({ ...n, is_read: 1 })));
             if (!hasUnread) return;
 
             try {
-                await fetch('/user_backend/mark_notifications_read.php', { method: 'POST' });
+                await fetch('/user_backend/mark_notifications_read.php', {
+                    method: 'POST',
+                    credentials: 'same-origin'
+                });
             } catch (err) {
                 console.error('Failed to mark notifications read:', err);
             }
         },
 
         async clearAllNotifications() {
+            const previous = this.notifications.slice();
+            this.setNotificationList([]);
+            this.unreadNotifCount = 0;
             try {
-                const res = await fetch('/user_backend/clear_notifications.php', { method: 'POST' });
+                const res = await fetch('/user_backend/clear_notifications.php', {
+                    method: 'POST',
+                    credentials: 'same-origin'
+                });
                 const data = await res.json();
                 if (data.success) {
-                    this.notifications = [];
-                    this.unreadNotifCount = 0;
                     if (window.showToast) window.showToast('All notifications cleared.', 'success');
+                } else {
+                    this.setNotificationList(previous);
+                    if (window.showToast) window.showToast(data.message || data.error || 'Failed to clear notifications.', 'error');
                 }
             } catch (err) {
+                this.setNotificationList(previous);
                 console.error('Failed to clear notifications:', err);
+                if (window.showToast) window.showToast('Failed to clear notifications.', 'error');
             }
         },
 
         async deleteNotification(notifId) {
             if (notifId == null || notifId === '') return;
-            const localId = notifId;
-            const removeLocal = () => {
-                this.notifications = this.notifications.filter(n => String(n.id) !== String(localId));
-                this.syncUnreadFromList();
-            };
+            const previous = this.notifications.slice();
+            this.removeLocalNotification(notifId);
 
             if (String(notifId).startsWith('invite-')) {
-                removeLocal();
                 return;
             }
 
             try {
                 const res = await fetch('/user_backend/delete_notification.php', {
                     method: 'POST',
+                    credentials: 'same-origin',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ notification_id: Number(notifId) })
                 });
                 const data = await res.json();
-                if (data.success) {
-                    removeLocal();
-                } else {
-                    removeLocal();
+                if (!data.success) {
+                    this.setNotificationList(previous);
                 }
             } catch (e) {
+                this.setNotificationList(previous);
                 console.warn('Failed to delete notification', e);
-                removeLocal();
             }
         },
 
@@ -1636,7 +1761,7 @@ function userDashboard() {
                 if (typeSet.size || senderId != null || roomId != null) return false;
                 return true;
             });
-            this.syncUnreadFromList();
+            this.setNotificationList(this.notifications);
         },
 
         async deleteMatchingNotifications(match = {}) {
@@ -1656,6 +1781,7 @@ function userDashboard() {
             try {
                 const res = await fetch('/user_backend/delete_notification.php', {
                     method: 'POST',
+                    credentials: 'same-origin',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(payload)
                 });
@@ -1686,6 +1812,7 @@ function userDashboard() {
                     message: data.message,
                     room_id: data.room_id || null,
                     request_id: data.request_id || null,
+                    report_id: data.report_id || null,
                     created_at: data.created_at,
                     avatar_url: data.avatar_url || '',
                     border_preview: data.border_preview || '',
@@ -1693,6 +1820,10 @@ function userDashboard() {
                 },
                 ...this.notifications
             ];
+
+            if (data.type === 'report_cancelled' && window.showToast) {
+                window.showToast('A moderator cancelled your report.', 'info');
+            }
 
             if (panelOpen) {
                 this.markNotificationsAsRead();
@@ -2099,6 +2230,24 @@ function userDashboard() {
             }
         },
 
+        trackCardTilt(e) {
+            const el = e.currentTarget;
+            if (!el) return;
+            const r = el.getBoundingClientRect();
+            const px = (e.clientX - r.left) / Math.max(r.width, 1);
+            const py = (e.clientY - r.top) / Math.max(r.height, 1);
+            el.style.setProperty('--mx', (px * 100) + '%');
+            el.style.setProperty('--my', (py * 100) + '%');
+            el.style.setProperty('--rx', ((py - 0.5) * -10).toFixed(2) + 'deg');
+            el.style.setProperty('--ry', ((px - 0.5) * 12).toFixed(2) + 'deg');
+        },
+        resetCardTilt(e) {
+            const el = e.currentTarget;
+            if (!el) return;
+            el.style.setProperty('--rx', '0deg');
+            el.style.setProperty('--ry', '0deg');
+        },
+
         // Navigation Drawer
         openNav() {
             if (this.isNavOpen) return;
@@ -2159,6 +2308,9 @@ function userDashboard() {
         viewReport(report) {
             this.selectedReport = report;
             this.viewModalOpen = true;
+        },
+        dismissReport() {
+            this.viewModalOpen = false;
         },
         resolveReport() {
             if (this.selectedReport) {
@@ -3509,26 +3661,24 @@ function userDashboard() {
 
             channel.bind('notifications_read', () => {
                 this.unreadNotifCount = 0;
-                this.notifications = this.notifications.map(n => ({ ...n, is_read: 1 }));
+                this.setNotificationList(this.notifications.map(n => ({ ...n, is_read: 1 })));
             });
 
             channel.bind('notifications_cleared', () => {
-                this.notifications = [];
+                this.setNotificationList([]);
                 this.unreadNotifCount = 0;
             });
 
             channel.bind('notification_deleted', (data) => {
                 const id = data?.id ?? data?.notification_id;
                 if (id == null) return;
-                this.notifications = this.notifications.filter(n => String(n.id) !== String(id));
-                this.syncUnreadFromList();
+                this.removeLocalNotification(id);
             });
 
             channel.bind('notifications_deleted', (data) => {
                 const ids = (data?.ids || []).map(String);
                 if (!ids.length) return;
-                this.notifications = this.notifications.filter(n => !ids.includes(String(n.id)));
-                this.syncUnreadFromList();
+                this.setNotificationList(this.notifications.filter(n => !ids.includes(String(n.id))));
             });
 
             channel.bind('new_notification', (data) => {
@@ -3770,6 +3920,10 @@ function userDashboard() {
             localStorage.removeItem('activeBorder');
 
             if (typeof gsap !== 'undefined') gsap.config({ nullTargetWarn: false });
+
+            this.hydrateActiveRoom();
+            if (this._activeRoomTimer) clearInterval(this._activeRoomTimer);
+            this._activeRoomTimer = setInterval(() => this.refreshActiveRoom(), 15000);
 
             this.initPusher();
             this.loadMediaCaches();
@@ -5475,6 +5629,13 @@ function adminDashboard(userData = {}) {
             this.unreadNotifications = count;
             this.unreadNotifCount = count;
         },
+        setNotificationList(list) {
+            this.notifications = Array.isArray(list) ? list.slice() : [];
+            this.syncUnreadFromList();
+        },
+        removeLocalNotification(notifId) {
+            this.setNotificationList(this.notifications.filter(n => String(n.id) !== String(notifId)));
+        },
         decorateAdminNotification(n) {
             const type = String(n.type || '');
             const decorated = { ...n, is_read: Number(n.is_read) === 1 ? 1 : 0 };
@@ -5493,25 +5654,23 @@ function adminDashboard(userData = {}) {
         },
         async fetchNotifications() {
             try {
-                const response = await fetch('/backend/get_admin_notifications.php');
+                const response = await fetch('/backend/get_admin_notifications.php', { credentials: 'same-origin' });
                 if (!response.ok) {
                     // Fallback to shared notifications endpoint
-                    const fallback = await fetch('/user_backend/get_notifications.php');
+                    const fallback = await fetch('/user_backend/get_notifications.php', { credentials: 'same-origin' });
                     if (!fallback.ok) return;
                     const data = await fallback.json();
                     if (data.success && Array.isArray(data.notifications)) {
-                        this.notifications = data.notifications.map(n => this.decorateAdminNotification(this.applyCachedMedia(n, 'sender_id')));
+                        this.setNotificationList(data.notifications.map(n => this.decorateAdminNotification(this.applyCachedMedia(n, 'sender_id'))));
                         this.persistAvatarCache();
-                        this.syncUnreadFromList();
                     }
                     return;
                 }
 
                 const data = await response.json();
                 if (data.success && Array.isArray(data.notifications)) {
-                    this.notifications = data.notifications.map(n => this.decorateAdminNotification(this.applyCachedMedia(n, 'sender_id')));
+                    this.setNotificationList(data.notifications.map(n => this.decorateAdminNotification(this.applyCachedMedia(n, 'sender_id'))));
                     this.persistAvatarCache();
-                    this.syncUnreadFromList();
                 }
             } catch (err) {
                 console.error('Notification network error:', err);
@@ -5531,11 +5690,14 @@ function adminDashboard(userData = {}) {
                 || this.unreadNotifCount > 0;
             this.unreadNotifications = 0;
             this.unreadNotifCount = 0;
-            this.notifications = this.notifications.map(n => ({ ...n, is_read: 1, read: true }));
+            this.setNotificationList(this.notifications.map(n => ({ ...n, is_read: 1, read: true })));
             if (!hasUnread) return;
 
             try {
-                await fetch('/user_backend/mark_notifications_read.php', { method: 'POST' });
+                await fetch('/user_backend/mark_notifications_read.php', {
+                    method: 'POST',
+                    credentials: 'same-origin'
+                });
             } catch (err) {
                 console.error('Error marking read:', err);
             }
@@ -5544,35 +5706,77 @@ function adminDashboard(userData = {}) {
             return this.markNotificationsAsRead();
         },
         async clearAllNotifications() {
+            const previous = this.notifications.slice();
+            this.setNotificationList([]);
+            this.unreadNotifications = 0;
+            this.unreadNotifCount = 0;
             try {
-                const res = await fetch('/user_backend/clear_notifications.php', { method: 'POST' });
+                const res = await fetch('/user_backend/clear_notifications.php', {
+                    method: 'POST',
+                    credentials: 'same-origin'
+                });
                 const data = await res.json();
                 if (data.success) {
-                    this.notifications = [];
-                    this.unreadNotifications = 0;
-                    this.unreadNotifCount = 0;
                     if (this.showToast) this.showToast('All notifications cleared.', 'success');
+                } else {
+                    this.setNotificationList(previous);
+                    if (this.showToast) this.showToast(data.message || data.error || 'Failed to clear notifications.', 'error');
                 }
             } catch (err) {
+                this.setNotificationList(previous);
                 console.error('Failed to clear notifications:', err);
+                if (this.showToast) this.showToast('Failed to clear notifications.', 'error');
             }
         },
         async deleteNotification(notifId) {
             if (notifId == null || notifId === '') return;
-            const removeLocal = () => {
-                this.notifications = this.notifications.filter(n => String(n.id) !== String(notifId));
-                this.syncUnreadFromList();
-            };
+            const previous = this.notifications.slice();
+            this.removeLocalNotification(notifId);
             try {
-                await fetch('/user_backend/delete_notification.php', {
+                const res = await fetch('/user_backend/delete_notification.php', {
                     method: 'POST',
+                    credentials: 'same-origin',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ notification_id: Number(notifId) })
                 });
+                const data = await res.json().catch(() => ({}));
+                if (!data.success) {
+                    this.setNotificationList(previous);
+                    if (this.showToast) this.showToast(data.message || 'Failed to delete notification.', 'error');
+                }
             } catch (e) {
+                this.setNotificationList(previous);
                 console.warn('Failed to delete notification', e);
             }
-            removeLocal();
+        },
+        parseReportIdFromNotification(notif) {
+            if (notif && notif.report_id) return Number(notif.report_id);
+            const msg = String(notif?.message || '');
+            const match = msg.match(/Report\s*#(\d+)/i);
+            return match ? Number(match[1]) : 0;
+        },
+        async openNotification(notif) {
+            if (!notif) return;
+            const type = String(notif.type || '');
+            this.notificationsOpen = false;
+            if (type !== 'report_alert' && type !== 'report') return;
+
+            const reportId = this.parseReportIdFromNotification(notif);
+            if (this.currentTab !== 'reports') {
+                this.switchTab('reports');
+            }
+            if (!reportId) return;
+
+            let report = (this.reportsList || []).find(r => Number(r.raw_id) === reportId);
+            if (!report) {
+                await this.fetchReports();
+                report = (this.reportsList || []).find(r => Number(r.raw_id) === reportId);
+            }
+            if (report) {
+                this.viewReport(report);
+            } else if (window.showToast) {
+                window.showToast('Report not found.', 'error');
+            }
         },
         applyIncomingAdminNotification(data) {
             if (!data || data.type === 'friend_rejected') return;
@@ -5587,6 +5791,7 @@ function adminDashboard(userData = {}) {
                 sender_id: data.sender_id,
                 sender_name: data.sender_name || 'System',
                 message: data.message,
+                report_id: data.report_id || this.parseReportIdFromNotification(data),
                 created_at: data.created_at,
                 avatar_url: data.avatar_url || '',
                 border_preview: data.border_preview || '',
@@ -6078,9 +6283,10 @@ function adminDashboard(userData = {}) {
         viewModalOpen: false,
         selectedReport: null,
         reportsList: [],
-        reportStats: { total: 0, pending: 0, read: 0 },
+        reportStats: { total: 0, pending: 0, read: 0, resolved: 0 },
         reportCommentDetails: null,
         loadingReportComment: false,
+        reportActionBusy: false,
         commentsCache: {},
 
         preloadReportComments() {
@@ -6104,30 +6310,47 @@ function adminDashboard(userData = {}) {
             });
         },
 
+        isReportPending(report) {
+            return String(report?.status || '').toLowerCase() === 'pending';
+        },
+        isReportRead(report) {
+            return String(report?.status || '').toLowerCase() === 'read';
+        },
+        isReportResolved(report) {
+            return String(report?.status || '').toLowerCase() === 'resolved';
+        },
+        isReportCancelled(report) {
+            return String(report?.status || '').toLowerCase() === 'cancelled';
+        },
+        isReportActionable(report) {
+            return this.isReportPending(report) || this.isReportRead(report);
+        },
+        reportNumericId(report) {
+            const raw = report?.raw_id ?? report?.id;
+            if (typeof raw === 'number') return raw;
+            const match = String(raw || '').match(/(\d+)/);
+            return match ? Number(match[1]) : 0;
+        },
+        patchReportStatus(reportId, status) {
+            const id = Number(reportId);
+            if (!id || !status) return;
+            this.reportsList = (this.reportsList || []).map((row) =>
+                Number(row.raw_id) === id ? { ...row, status } : row
+            );
+            if (this.selectedReport && Number(this.selectedReport.raw_id || this.reportNumericId(this.selectedReport)) === id) {
+                this.selectedReport = { ...this.selectedReport, status };
+            }
+            this.updateReportStats();
+        },
         viewReport(report) {
             this.selectedReport = report;
             this.viewModalOpen = true;
             this.reportCommentDetails = null;
 
-            // Mark as read if pending
-            if (report.status === 'Pending') {
-                try {
-                    fetch('/backend/update_report_status.php', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ report_id: report.raw_id || report.id, status: 'Read' })
-                    }).then(res => res.json()).then(data => {
-                        if (data.success) {
-                            report.status = 'Read';
-                            this.updateReportStats();
-                        }
-                    });
-                } catch (e) {
-                    console.error("Failed to mark report as read:", e);
-                }
+            if (this.isReportPending(report)) {
+                this.postReportStatus(report, 'read', { close: false, busy: false });
             }
 
-            // Load comment details from cache
             if (report.reported_comment_id && report.reported_movie_id) {
                 const movieComments = this.commentsCache[report.reported_movie_id];
                 if (movieComments) {
@@ -6138,7 +6361,42 @@ function adminDashboard(userData = {}) {
                 }
             }
         },
-
+        dismissReport() {
+            this.viewModalOpen = false;
+        },
+        async postReportStatus(report, status, { close = false, toast = '', busy = true } = {}) {
+            if (!report) return false;
+            if (busy && this.reportActionBusy) return false;
+            if (busy) this.reportActionBusy = true;
+            try {
+                const res = await fetch('/backend/update_report_status.php', {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        report_id: this.reportNumericId(report),
+                        status
+                    })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    const key = String(data.status || status || 'read').toLowerCase();
+                    const next = key === 'cancelled' ? 'Cancelled' : (key === 'resolved' ? 'Resolved' : 'Read');
+                    this.patchReportStatus(this.reportNumericId(report), next);
+                    if (close) this.viewModalOpen = false;
+                    if (toast && window.showToast) window.showToast(toast, 'success');
+                    return true;
+                }
+                if (window.showToast) window.showToast(data.message || 'Failed to update report.', 'error');
+                return false;
+            } catch (e) {
+                console.error('Failed to update report:', e);
+                if (window.showToast) window.showToast('Network error while updating report.', 'error');
+                return false;
+            } finally {
+                if (busy) this.reportActionBusy = false;
+            }
+        },
         async fetchReportComment(report) {
             this.loadingReportComment = true;
             this.reportCommentDetails = null;
@@ -6158,8 +6416,6 @@ function adminDashboard(userData = {}) {
                 this.loadingReportComment = false;
             }
         },
-
-        // Optionally update resolveReport if needed (it's fine as is)
 
         async fetchReports() {
             try {
@@ -6194,36 +6450,33 @@ function adminDashboard(userData = {}) {
 
         updateReportStats() {
             this.reportStats.total = this.reportsList.length;
-            this.reportStats.pending = this.reportsList.filter(r => r.status === 'Pending').length;
-            this.reportStats.read = this.reportsList.filter(r => r.status === 'Read').length;
+            this.reportStats.pending = this.reportsList.filter(r => this.isReportPending(r)).length;
+            this.reportStats.read = this.reportsList.filter(r => this.isReportRead(r)).length;
+            this.reportStats.resolved = this.reportsList.filter(r => this.isReportResolved(r)).length;
         },
 
-        // UPDATED: Sends a request to the backend to mark the report as "Resolved"
         async resolveReport() {
-            if (!this.selectedReport) return;
+            return this.acceptReport();
+        },
 
-            try {
-                const res = await fetch('/backend/update_report_status.php', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ report_id: this.selectedReport.raw_id || this.selectedReport.id, status: 'Read' })
-                });
-                
-                const data = await res.json();
-                
-                if (data.success) {
-                    this.selectedReport.status = 'Read';
-                    this.viewModalOpen = false;
-                    this.updateReportStats();
-                    
-                    if (window.showToast) window.showToast('Report marked as resolved.', 'success');
-                } else {
-                    if (window.showToast) window.showToast(data.message || 'Failed to resolve report.', 'error');
-                }
-            } catch (e) {
-                console.error("Failed to resolve report:", e);
-                if (window.showToast) window.showToast('Network error while resolving report.', 'error');
+        async acceptReport() {
+            if (!this.selectedReport) return;
+            if (!this.isReportActionable(this.selectedReport)) {
+                this.dismissReport();
+                return;
             }
+            await this.postReportStatus(this.selectedReport, 'resolved', {
+                close: true,
+                toast: 'Report resolved.'
+            });
+        },
+
+        async cancelReport() {
+            if (!this.selectedReport || !this.isReportActionable(this.selectedReport)) return;
+            await this.postReportStatus(this.selectedReport, 'cancelled', {
+                close: true,
+                toast: 'Report cancelled. The reporter has been notified.'
+            });
         },
 
         get filteredReports() {
@@ -6750,12 +7003,12 @@ function adminDashboard(userData = {}) {
             this.reportsList = (this.reportsList || []).map((report) => {
                 const matchesUser = Number(report.reported_user_id || report.reporter_id || 0) === id;
                 if (!this.isAppealReport(report) || !matchesUser) return report;
-                return { ...report, status: 'Read' };
+                return { ...report, status: 'Resolved' };
             });
             if (this.selectedReport && this.isAppealReport(this.selectedReport)) {
                 const matchesSelected = Number(this.selectedReport.reported_user_id || this.selectedReport.reporter_id || 0) === id;
                 if (matchesSelected) {
-                    this.selectedReport = { ...this.selectedReport, status: 'Read' };
+                    this.selectedReport = { ...this.selectedReport, status: 'Resolved' };
                 }
             }
             this.updateReportStats();
@@ -6898,10 +7151,10 @@ function adminDashboard(userData = {}) {
             }
             const restored = await this.confirmUnban({ id: userId });
             if (!restored) return;
-            if (this.selectedReport && this.selectedReport.status === 'Pending') {
-                await this.resolveReport();
+            if (this.selectedReport && this.isReportActionable(this.selectedReport)) {
+                await this.acceptReport();
             } else {
-                this.viewModalOpen = false;
+                this.dismissReport();
             }
         },
 
@@ -7389,6 +7642,13 @@ function adminDashboard(userData = {}) {
                     if (this.notificationsOpen) this.markNotificationsAsRead();
                 });
             });
+            moderationChannel.bind('report-status-changed', (data) => {
+                if (data?.report_id && data?.status) {
+                    this.patchReportStatus(data.report_id, data.status);
+                } else {
+                    this.fetchReports();
+                }
+            });
             moderationChannel.bind('rooms-changed', () => {
                 this.fetchRooms();
                 this.fetchStats();
@@ -7407,11 +7667,11 @@ function adminDashboard(userData = {}) {
             userChannel.bind('notifications_read', () => {
                 this.unreadNotifications = 0;
                 this.unreadNotifCount = 0;
-                this.notifications = this.notifications.map(n => ({ ...n, is_read: 1, read: true }));
+                this.setNotificationList(this.notifications.map(n => ({ ...n, is_read: 1, read: true })));
             });
 
             userChannel.bind('notifications_cleared', () => {
-                this.notifications = [];
+                this.setNotificationList([]);
                 this.unreadNotifications = 0;
                 this.unreadNotifCount = 0;
             });
@@ -7419,15 +7679,13 @@ function adminDashboard(userData = {}) {
             userChannel.bind('notification_deleted', (data) => {
                 const id = data?.id ?? data?.notification_id;
                 if (id == null) return;
-                this.notifications = this.notifications.filter(n => String(n.id) !== String(id));
-                this.syncUnreadFromList();
+                this.removeLocalNotification(id);
             });
 
             userChannel.bind('notifications_deleted', (data) => {
                 const ids = (data?.ids || []).map(String);
                 if (!ids.length) return;
-                this.notifications = this.notifications.filter(n => !ids.includes(String(n.id)));
-                this.syncUnreadFromList();
+                this.setNotificationList(this.notifications.filter(n => !ids.includes(String(n.id))));
             });
 
             userChannel.bind('new_notification', (data) => {

@@ -261,12 +261,163 @@ session_write_close();
             height: 100%;
             width: 100%;
         }
+
+        .side-nav-item {
+            position: relative;
+            overflow: hidden;
+            transform: translateX(0);
+            transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1), background-color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease, color 0.3s ease;
+        }
+        .side-nav-item::before {
+            content: "";
+            position: absolute;
+            left: 0; top: 50%;
+            width: 3px; height: 0;
+            border-radius: 999px;
+            background: linear-gradient(180deg, #ef4444, #6366f1);
+            transform: translateY(-50%);
+            transition: height 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+        .side-nav-item::after {
+            content: "";
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(110deg, transparent 30%, rgba(255,255,255,0.08) 48%, transparent 66%);
+            transform: translateX(-120%);
+            transition: transform 0.6s ease;
+            pointer-events: none;
+        }
+        .side-nav-item:hover,
+        .side-nav-item.is-active {
+            transform: translateX(8px);
+        }
+        .side-nav-item:hover::before,
+        .side-nav-item.is-active::before { height: 58%; }
+        .side-nav-item:hover::after { transform: translateX(120%); }
+        .side-nav-item .nav-icon {
+            transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1), background-color 0.3s ease, color 0.3s ease;
+        }
+        .side-nav-item:hover .nav-icon {
+            transform: scale(1.16) rotate(-8deg);
+        }
+        .header-menu-btn {
+            position: relative;
+            transition: transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.35s ease;
+        }
+        .header-menu-btn::after {
+            content: "";
+            position: absolute;
+            inset: -5px;
+            border-radius: 16px;
+            border: 1px solid rgba(239,68,68,0.35);
+            opacity: 0;
+            animation: headerRing 2.4s ease-out infinite;
+        }
+        .header-menu-btn:hover { transform: scale(1.08) rotate(-6deg); }
+        .header-menu-btn:active { transform: scale(0.94); }
+        @keyframes headerRing {
+            0% { transform: scale(0.88); opacity: 0.7; }
+            100% { transform: scale(1.25); opacity: 0; }
+        }
+
+        .nexus-card-enter {
+            animation: nexusCardIn 0.7s cubic-bezier(0.16, 1, 0.3, 1) both;
+        }
+        @keyframes nexusCardIn {
+            from { opacity: 0; transform: translateY(32px) scale(0.94); }
+            to { opacity: 1; transform: translateY(0) scale(1); }
+        }
+        .nexus-media-card,
+        .nexus-shop-card,
+        .nexus-watch-card {
+            --mx: 50%;
+            --my: 50%;
+            --rx: 0deg;
+            --ry: 0deg;
+            position: relative;
+            transform-style: preserve-3d;
+            will-change: transform;
+        }
+        .nexus-media-card {
+            transform: perspective(980px) rotateX(var(--rx)) rotateY(var(--ry)) translateY(0);
+            transition: transform 0.45s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.45s ease, border-color 0.45s ease;
+        }
+        .nexus-media-card:hover {
+            transform: perspective(980px) rotateX(var(--rx)) rotateY(var(--ry)) translateY(-12px);
+            box-shadow: 0 28px 50px -18px rgba(99,102,241,0.35);
+        }
+        .nexus-shop-card {
+            transform: perspective(900px) rotateX(var(--rx)) rotateY(var(--ry)) translateY(0);
+            transition: transform 0.45s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.4s ease, box-shadow 0.45s ease;
+        }
+        .nexus-shop-card:hover {
+            transform: perspective(900px) rotateX(var(--rx)) rotateY(var(--ry)) translateY(-10px) scale(1.02);
+            box-shadow: 0 24px 40px -16px rgba(139,92,246,0.35);
+        }
+        .nexus-watch-card {
+            transition: transform 0.65s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.65s ease, border-color 0.45s ease;
+        }
+        .group:hover .nexus-watch-card {
+            transform: translateY(-18px) rotateX(10deg) scale(1.02);
+            box-shadow: 0 40px 80px rgba(239,68,68,0.22);
+        }
+        .nexus-card-shine {
+            position: absolute;
+            inset: 0;
+            pointer-events: none;
+            z-index: 6;
+            opacity: 0;
+            background: radial-gradient(420px circle at var(--mx) var(--my), rgba(255,255,255,0.16), transparent 42%);
+            transition: opacity 0.35s ease;
+        }
+        .nexus-media-card:hover .nexus-card-shine,
+        .nexus-shop-card:hover .nexus-card-shine,
+        .group:hover .nexus-watch-card .nexus-card-shine { opacity: 1; }
+
+        .nexus-fab {
+            position: relative;
+            overflow: hidden;
+            transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.4s ease;
+        }
+        .nexus-fab:hover { transform: translateY(-6px) scale(1.04); }
+        .nexus-fab:active { transform: translateY(-1px) scale(0.96); }
+        .nexus-fab-orbit {
+            position: absolute;
+            inset: -8px;
+            border-radius: 999px;
+            border: 1px solid rgba(239,68,68,0.35);
+            animation: fabOrbit 2.8s linear infinite;
+            pointer-events: none;
+        }
+        .nexus-fab-sheen {
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(110deg, transparent 25%, rgba(255,255,255,0.28) 50%, transparent 75%);
+            transform: translateX(-130%);
+            transition: transform 0.7s ease;
+            pointer-events: none;
+        }
+        .nexus-fab:hover .nexus-fab-sheen { transform: translateX(130%); }
+        @keyframes fabOrbit {
+            0% { transform: rotate(0deg) scale(1); opacity: 0.7; }
+            50% { transform: rotate(180deg) scale(1.06); opacity: 0.25; }
+            100% { transform: rotate(360deg) scale(1); opacity: 0.7; }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            .side-nav-item, .nexus-media-card, .nexus-shop-card, .nexus-watch-card, .nexus-fab, .header-menu-btn, .nexus-card-enter {
+                animation: none !important;
+                transition: none !important;
+                transform: none !important;
+            }
+            .header-menu-btn::after, .nexus-fab-orbit { display: none; }
+        }
     </style>
 
     <link rel="stylesheet" href="https://cdn.plyr.io/3.7.8/plyr.css" />
     <script src="https://cdn.plyr.io/3.7.8/plyr.polyfilled.js"></script>
     <script src="../js/chat_emojis.js?v=1"></script>
-    <script src="../js/nexus_scripts.js?v=1789044701"></script>
+    <script src="../js/nexus_scripts.js?v=1789311200"></script>
     <script src="../js/support_chatbot.js?v=3"></script>
 </head>
 <body class="h-screen w-screen flex flex-col relative selection:bg-red-500/30" data-barba="wrapper">
@@ -302,9 +453,9 @@ session_write_close();
             <nav class="flex-1 flex flex-col gap-2">
                 <template x-for="item in navItems" :key="item.id">
                     <a href="#" @click.prevent="switchTab(item.id); closeNav()" 
-                       :class="{'bg-red-500/10 border-red-500/30 text-white shadow-[0_0_20px_rgba(239,68,68,0.1)]': currentTab === item.id, 'bg-white/[0.02] border-white/5 text-white/50': currentTab !== item.id}"
-                       class="flex items-center gap-3 p-3 rounded-xl border hover:bg-white/[0.05] hover:text-white transition-all duration-300 cursor-pointer group pointer-events-auto">
-                        <div class="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center group-hover:bg-red-500/20 group-hover:text-red-400 transition-colors shrink-0"
+                       :class="{'is-active bg-red-500/10 border-red-500/30 text-white shadow-[0_0_20px_rgba(239,68,68,0.1)]': currentTab === item.id, 'bg-white/[0.02] border-white/5 text-white/50': currentTab !== item.id}"
+                       class="side-nav-item flex items-center gap-3 p-3 rounded-xl border hover:bg-white/[0.05] hover:text-white cursor-pointer group pointer-events-auto">
+                        <div class="nav-icon w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center group-hover:bg-red-500/20 group-hover:text-red-400 shrink-0"
                              :class="{'bg-red-500/20 text-red-400': currentTab === item.id}">
                             <span class="material-symbols-outlined text-[18px]" x-text="item.icon"></span>
                         </div>
@@ -324,8 +475,8 @@ session_write_close();
     </div>
 
     <!-- Quests Drawer -->
-    <div x-show="showQuestsPanel" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-[90]" x-transition.opacity @click="showQuestsPanel = false" style="display: none;"></div>
-    <div class="fixed top-0 right-0 w-full md:w-[400px] h-screen bg-[#050508]/95 backdrop-blur-3xl border-l border-white/10 z-[100] flex flex-col shadow-[0_0_50px_rgba(0,0,0,0.5)] transition-transform duration-500" :class="showQuestsPanel ? 'translate-x-0' : 'translate-x-full'">
+    <div x-show="showQuestsPanel" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-[120]" x-transition.opacity @click="showQuestsPanel = false" style="display: none;"></div>
+    <div class="fixed top-0 right-0 w-full md:w-[400px] h-screen bg-[#050508]/95 backdrop-blur-3xl border-l border-white/10 z-[130] flex flex-col shadow-[0_0_50px_rgba(0,0,0,0.5)] transition-transform duration-500" :class="showQuestsPanel ? 'translate-x-0' : 'translate-x-full'">
        <!-- Quests Drawer Content for Logged-in Users -->
         <template x-if="!isGuest">
             <div class="flex flex-col flex-1 min-h-0">
@@ -423,13 +574,13 @@ session_write_close();
 
     <!-- Upgraded Friends Drawer -->
     <div x-show="showFriendsPanel" 
-        class="fixed inset-0 bg-black/70 backdrop-blur-md z-[90] transition-opacity duration-300 ease-out" 
+        class="fixed inset-0 bg-black/70 backdrop-blur-md z-[120] transition-opacity duration-300 ease-out" 
         x-transition.opacity
         @click="if (!showChatPanel) showFriendsPanel = false" 
         :class="showChatPanel ? 'pointer-events-none' : ''"
         style="display: none;"></div>
 
-    <div class="fixed top-0 right-0 w-full md:w-[320px] h-screen bg-[#07070b]/95 backdrop-blur-2xl border-l border-white/10 z-[100] flex flex-col shadow-[0_0_60px_rgba(0,0,0,0.8)] transition-transform duration-300 ease-out" 
+    <div class="fixed top-0 right-0 w-full md:w-[320px] h-screen bg-[#07070b]/95 backdrop-blur-2xl border-l border-white/10 z-[130] flex flex-col shadow-[0_0_60px_rgba(0,0,0,0.8)] transition-transform duration-300 ease-out" 
         :class="showFriendsPanel ? 'translate-x-0' : 'translate-x-full'">
         
         <!-- Friends Drawer Content for Logged-in Users -->
@@ -712,9 +863,9 @@ session_write_close();
     <!-- Main Content -->
     <main class="flex-1 flex flex-col h-full overflow-hidden relative z-10 w-full">
         
-        <header class="h-24 flex items-center justify-between px-10 shrink-0 border-b border-white/5 backdrop-blur-md relative z-50">
+        <header class="h-24 grid grid-cols-[1fr_auto_1fr] items-center gap-4 px-10 shrink-0 border-b border-white/5 backdrop-blur-md relative z-50">
             <div class="flex items-center gap-6">
-                <button @click="openNav()" class="w-12 h-12 rounded-xl bg-gradient-to-tr from-indigo-500 to-red-600 flex items-center justify-center shadow-[0_0_20px_rgba(239,68,68,0.4)] icon-bounce">
+                <button @click="openNav()" class="header-menu-btn w-12 h-12 rounded-xl bg-gradient-to-tr from-indigo-500 to-red-600 flex items-center justify-center shadow-[0_0_20px_rgba(239,68,68,0.4)]">
                     <span class="material-symbols-outlined text-white font-bold text-[24px]">menu</span>
                 </button>
                 
@@ -724,8 +875,37 @@ session_write_close();
                     <span class="text-xl font-bold tracking-tighter uppercase group-hover:text-red-400 transition-colors">NEXUS</span>
                 </a>
             </div>
+
+            <div class="flex items-center justify-center min-h-[2.5rem]">
+                <button type="button"
+                        x-show="hasActiveRoom"
+                        x-cloak
+                        @click="returnToRoom()"
+                        class="flex items-center"
+                        title="Back to room"
+                        aria-label="Back to room">
+                    <template x-for="(user, index) in visibleRoomParticipants" :key="user.peerId || user.userId || user.name || index">
+                        <div class="relative w-10 h-10 overflow-visible shrink-0 -ml-2 first:ml-0"
+                             :style="`z-index: ${20 - index}`"
+                             :title="user.name">
+                            <div class="absolute inset-0 z-0 overflow-hidden rounded-full scale-[1.12] bg-black border-2 border-[#050508] shadow-lg">
+                                <img :src="user.avatar" class="absolute inset-0 h-full w-full object-cover" alt="">
+                            </div>
+                            <template x-if="user.border">
+                                <img :src="user.border" class="absolute inset-0 z-10 h-full w-full scale-[1.45] object-contain pointer-events-none" alt="">
+                            </template>
+                        </div>
+                    </template>
+                    <div x-show="extraRoomParticipantCount > 0"
+                         x-cloak
+                         aria-hidden="true"
+                         class="relative -ml-2 w-10 h-10 rounded-full bg-white/10 border-2 border-[#050508] flex items-center justify-center text-[10px] font-bold text-white/80 z-0">
+                        +<span x-text="extraRoomParticipantCount"></span>
+                    </div>
+                </button>
+            </div>
             
-            <div class="flex items-center gap-6">
+            <div class="flex items-center justify-end gap-6">
                 <?php include 'user_notification.php'; ?>
 
                 <button @click="showFriendsPanel = true" class="relative w-10 h-10 rounded-xl bg-white/5 hover:bg-white/15 border border-white/5 flex items-center justify-center transition-all">
@@ -1036,7 +1216,7 @@ session_write_close();
 
     <?php include __DIR__ . '/../frontend/components/host_party_fab.php'; ?>
 
-    <div x-show="!showMovieDetailModal && !showChatPanel" x-transition>
+    <div x-show="!showMovieDetailModal && !showChatPanel && !showFriendsPanel && !showQuestsPanel && !showInviteModal" x-transition>
         <?php include __DIR__ . '/../frontend/components/support_chatbot.php'; ?>
     </div>
 

@@ -1,5 +1,5 @@
 <!-- Notifications Button & Panel Component -->
-<div class="relative z-[60]">
+<div class="relative z-[60]" @click.away="showNotifications = false">
     <button @click="toggleNotificationPanel()" 
             class="relative w-10 h-10 rounded-xl bg-gradient-to-br from-red-500/20 to-purple-600/20 hover:from-red-500/40 hover:to-purple-600/40 border border-red-500/30 flex items-center justify-center transition-all duration-300 group shadow-[0_0_15px_rgba(239,68,68,0.3)] hover:shadow-[0_0_30px_rgba(239,68,68,0.6)] hover:scale-110 active:scale-95">
         <span class="absolute inset-0 rounded-xl bg-white/5 group-hover:bg-transparent transition-colors"></span>
@@ -16,7 +16,6 @@
 
     <!-- Notifications Dropdown Panel -->
     <div x-show="showNotifications"
-         @click.outside="showNotifications = false"
          x-transition:enter="transition ease-out duration-300"
          x-transition:enter-start="opacity-0 scale-95 -translate-y-2"
          x-transition:enter-end="opacity-100 scale-100 translate-y-0"
@@ -41,7 +40,7 @@
         </div>
 
         <div class="space-y-3 max-h-[320px] overflow-y-auto custom-scrollbar pr-1">
-            <template x-for="notif in notifications" :key="notif.id">
+            <template x-for="notif in notifications" :key="'user-notif-' + notif.id">
                 <div class="p-3 rounded-xl hover:bg-white/[0.05] border transition-all flex gap-3 items-start group/notif"
                      :class="Number(notif.is_read) === 0 ? 'bg-red-500/10 border-red-500/20' : 'bg-white/[0.02] border-white/5'">
                     
@@ -52,15 +51,14 @@
                                  'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30': !notif.avatar_url && (notif.type === 'friend_request' || notif.type === 'friend_accepted'),
                                  'bg-indigo-500/20 text-indigo-400 border border-indigo-500/30': !notif.avatar_url && (notif.type === 'party_invite' || notif.type === 'join_request' || notif.type === 'join_request_accepted'),
                                  'bg-yellow-500/20 text-yellow-400 border border-yellow-500/30': !notif.avatar_url && notif.type === 'quest',
-                                 'bg-white/10 border border-white/10': !notif.avatar_url && !['friend_request','friend_accepted','party_invite','join_request','join_request_accepted','quest'].includes(notif.type)
+                                 'bg-red-500/20 text-red-400 border border-red-500/30': !notif.avatar_url && (notif.type === 'report_cancelled' || notif.type === 'report_alert'),
+                                 'bg-white/10 border border-white/10': !notif.avatar_url && !['friend_request','friend_accepted','party_invite','join_request','join_request_accepted','quest','report_cancelled','report_alert'].includes(notif.type)
                              }">
                             <img x-show="notif.avatar_url" :src="resolveAvatarUrl(notif.avatar_url, notif.sender_name || 'User')" class="absolute inset-0 h-full w-full object-cover" alt="">
                             <span x-show="!notif.avatar_url" class="material-symbols-outlined text-[18px]" 
-                                  x-text="notif.type === 'friend_request' ? 'person_add' : (notif.type === 'friend_accepted' ? 'how_to_reg' : (notif.type === 'party_invite' || notif.type === 'join_request' || notif.type === 'join_request_accepted' ? 'movie' : 'notifications'))"></span>
+                                  x-text="notif.type === 'friend_request' ? 'person_add' : (notif.type === 'friend_accepted' ? 'how_to_reg' : (notif.type === 'party_invite' || notif.type === 'join_request' || notif.type === 'join_request_accepted' ? 'movie' : (notif.type === 'report_cancelled' || notif.type === 'report_alert' ? 'flag' : 'notifications')))"></span>
                         </div>
-                        <template x-if="notif.border_preview">
-                            <img :src="notif.border_preview" class="absolute inset-0 z-10 h-full w-full scale-[1.4] object-contain pointer-events-none" alt="">
-                        </template>
+                        <img x-show="notif.border_preview" :src="notif.border_preview" class="absolute inset-0 z-10 h-full w-full scale-[1.4] object-contain pointer-events-none" alt="">
                     </div>
 
                     <div class="min-w-0 flex-1">
@@ -70,46 +68,40 @@
                         </p>
                         
                         <!-- Action buttons for incoming friend requests -->
-                        <template x-if="notif.type === 'friend_request'">
-                            <div class="flex items-center gap-2 mt-2">
-                                <button @click="respondToFriendRequest(notif.sender_id, 'accept')" 
-                                        class="px-3 py-1 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/30 text-emerald-400 text-[10px] font-bold uppercase transition-all">
-                                    Add Back
-                                </button>
-                                <button @click="respondToFriendRequest(notif.sender_id, 'decline')" 
-                                        class="px-3 py-1 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-white/50 hover:text-white text-[10px] font-bold uppercase transition-all">
-                                    Decline
-                                </button>
-                            </div>
-                        </template>
+                        <div x-show="notif.type === 'friend_request'" class="flex items-center gap-2 mt-2">
+                            <button @click="respondToFriendRequest(notif.sender_id, 'accept')" 
+                                    class="px-3 py-1 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/30 text-emerald-400 text-[10px] font-bold uppercase transition-all">
+                                Add Back
+                            </button>
+                            <button @click="respondToFriendRequest(notif.sender_id, 'decline')" 
+                                    class="px-3 py-1 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-white/50 hover:text-white text-[10px] font-bold uppercase transition-all">
+                                Decline
+                            </button>
+                        </div>
 
                         <!-- Action buttons for party invites -->
-                        <template x-if="notif.type === 'party_invite' || notif.type === 'join_request_accepted'">
-                            <div class="flex items-center gap-2 mt-2">
-                                <button @click="acceptPartyInvite(notif)" 
-                                        class="px-3 py-1 rounded-lg bg-indigo-500/20 hover:bg-indigo-500/30 border border-indigo-500/30 text-indigo-300 text-[10px] font-bold uppercase transition-all flex items-center gap-1">
-                                    <span class="material-symbols-outlined text-[14px]">play_arrow</span>
-                                    Join Party
-                                </button>
-                                <button x-show="notif.type === 'party_invite'" @click="declinePartyInvite(notif)" 
-                                        class="px-3 py-1 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-white/50 hover:text-white text-[10px] font-bold uppercase transition-all">
-                                    Decline
-                                </button>
-                            </div>
-                        </template>
+                        <div x-show="notif.type === 'party_invite' || notif.type === 'join_request_accepted'" class="flex items-center gap-2 mt-2">
+                            <button @click="acceptPartyInvite(notif)" 
+                                    class="px-3 py-1 rounded-lg bg-indigo-500/20 hover:bg-indigo-500/30 border border-indigo-500/30 text-indigo-300 text-[10px] font-bold uppercase transition-all flex items-center gap-1">
+                                <span class="material-symbols-outlined text-[14px]">play_arrow</span>
+                                Join Party
+                            </button>
+                            <button x-show="notif.type === 'party_invite'" @click="declinePartyInvite(notif)" 
+                                    class="px-3 py-1 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-white/50 hover:text-white text-[10px] font-bold uppercase transition-all">
+                                Decline
+                            </button>
+                        </div>
 
-                        <template x-if="notif.type === 'join_request'">
-                            <div class="flex items-center gap-2 mt-2">
-                                <button @click="respondJoinRequest(notif, 'accept')" 
-                                        class="px-3 py-1 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/30 text-emerald-400 text-[10px] font-bold uppercase transition-all">
-                                    Accept
-                                </button>
-                                <button @click="respondJoinRequest(notif, 'decline')" 
-                                        class="px-3 py-1 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-white/50 hover:text-white text-[10px] font-bold uppercase transition-all">
-                                    Decline
-                                </button>
-                            </div>
-                        </template>
+                        <div x-show="notif.type === 'join_request'" class="flex items-center gap-2 mt-2">
+                            <button @click="respondJoinRequest(notif, 'accept')" 
+                                    class="px-3 py-1 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/30 text-emerald-400 text-[10px] font-bold uppercase transition-all">
+                                Accept
+                            </button>
+                            <button @click="respondJoinRequest(notif, 'decline')" 
+                                    class="px-3 py-1 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-white/50 hover:text-white text-[10px] font-bold uppercase transition-all">
+                                Decline
+                            </button>
+                        </div>
 
                         <p class="text-[9px] text-white/40 uppercase tracking-widest mt-1.5 font-mono" x-text="notif.created_at"></p>
                     </div>

@@ -409,10 +409,10 @@ function nexusUnbanUser(PDO $conn, int $userId): void
     try {
         $conn->prepare("
             UPDATE reports
-            SET status = 'read'
+            SET status = 'resolved'
             WHERE type = 'appeal'
               AND (reporter_id = ? OR reported_user_id = ?)
-              AND LOWER(IFNULL(status, 'pending')) = 'pending'
+              AND LOWER(IFNULL(status, 'pending')) IN ('pending', 'read')
         ")->execute([$userId, $userId]);
     } catch (Throwable $ignore) {
     }

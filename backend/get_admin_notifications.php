@@ -50,6 +50,10 @@ try {
         $n['border_id'] = (int)($mediaByUser[$sid]['border_id'] ?? 0);
         $n['sender_name'] = $n['sender_name'] ?? 'System';
         $n['is_read'] = (int)($n['is_read'] ?? 0);
+        $n['report_id'] = null;
+        if (preg_match('/Report\s*#(\d+)/i', (string)($n['message'] ?? ''), $rm)) {
+            $n['report_id'] = (int)$rm[1];
+        }
         $type = (string)($n['type'] ?? '');
         if ($type === 'report_alert' || $type === 'report') {
             $n['icon'] = 'flag';

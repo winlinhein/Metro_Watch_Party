@@ -150,8 +150,8 @@ session_write_close();
 
     <!-- Sidebar / Server List (Discord style) -->
     <div class="w-20 shrink-0 h-full bg-[#030305]/90 backdrop-blur-xl border-r border-white/5 flex flex-col items-center py-6 gap-4 z-20 relative">
-        <button type="button" @click="leaveRoom()" class="w-12 h-12 rounded-[16px] bg-gradient-to-tr from-indigo-500 to-red-600 flex items-center justify-center shadow-[0_0_20px_rgba(239,68,68,0.3)] hover:scale-105 hover:rounded-[12px] transition-all duration-300 cursor-pointer" title="Leave room">
-            <span class="material-symbols-outlined text-white font-bold">arrow_back</span>
+        <button type="button" @click="goToDashboard()" class="w-12 h-12 rounded-[16px] bg-white/5 hover:bg-white/10 border border-white/10 flex items-center justify-center hover:scale-105 hover:rounded-[12px] transition-all duration-300 cursor-pointer" title="Back to dashboard">
+            <span class="material-symbols-outlined text-white/80 font-bold">arrow_back</span>
         </button>
         <div class="w-8 h-[2px] bg-white/10 rounded-full my-2"></div>
         <div class="flex-1 w-full flex flex-col items-center gap-4 overflow-y-auto custom-scrollbar py-2 px-1">
@@ -178,19 +178,19 @@ session_write_close();
         
         <!-- Header -->
         <header class="h-16 border-b border-white/5 flex items-center justify-between px-6 shrink-0 bg-[#050508]/80 backdrop-blur-md relative z-30">
-            <div class="flex items-center gap-4">
-                <span class="material-symbols-outlined text-red-500 text-[28px]">movie</span>
-                <div>
-                    <h1 class="font-bold text-lg leading-tight" x-text="roomName"></h1>
+            <div class="flex items-center gap-4 min-w-0">
+                <span class="material-symbols-outlined text-red-500 text-[28px] shrink-0">movie</span>
+                <div class="min-w-0">
+                    <h1 class="font-bold text-lg leading-tight truncate" x-text="roomName"></h1>
                     <p class="text-xs text-white/50 mono flex items-center gap-2">
                         <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
                         <span x-text="participants.length + ' online'"></span>
                         <span class="text-white/30">·</span>
-                        <span x-text="liveStatus"></span>
+                        <span class="truncate" x-text="liveStatus"></span>
                     </p>
                 </div>
             </div>
-            <div class="flex items-center gap-3">
+            <div class="flex items-center justify-end gap-3">
                <button type="button" @click="openReportRoomModal()" class="px-3 py-2 bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 rounded-xl text-sm font-bold flex items-center gap-2 text-red-400 hover:text-red-300 transition-colors" title="Report this room">
                     <span class="material-symbols-outlined text-[18px]">flag</span>
                     Report
@@ -552,9 +552,9 @@ session_write_close();
             
             <div class="w-px h-8 bg-white/10 mx-2"></div>
             
-            <button type="button" @click="leaveRoom()" class="w-12 h-12 rounded-[16px] bg-gradient-to-tr from-indigo-500 to-red-600 flex items-center justify-center shadow-[0_0_20px_rgba(239,68,68,0.3)] hover:scale-105 hover:rounded-[12px] transition-all duration-300 cursor-pointer">
-    <span class="material-symbols-outlined text-white font-bold">arrow_back</span>
-</button>
+            <button type="button" @click="leaveRoom()" class="h-12 px-6 rounded-xl bg-red-600 hover:bg-red-500 text-white text-xs font-black uppercase tracking-widest shadow-[0_0_24px_rgba(239,68,68,0.35)] hover:shadow-[0_0_32px_rgba(239,68,68,0.5)] hover:scale-105 active:scale-95 transition-all duration-300">
+                Leave
+            </button>
         </div>
     </div>
 
@@ -703,6 +703,41 @@ session_write_close();
     </div>
 
     <?php include __DIR__ . '/report_room_modal.php'; ?>
+
+    <div x-show="confirmDialog.open"
+         x-cloak
+         class="fixed inset-0 z-[220] flex items-center justify-center p-4"
+         style="display: none;"
+         x-transition.opacity>
+        <div class="absolute inset-0 bg-black/80 backdrop-blur-md" @click="resolveConfirm(false)"></div>
+        <div class="relative w-full max-w-md bg-[#0c0c12] border rounded-3xl shadow-2xl overflow-hidden p-6 space-y-5"
+             :class="confirmDialog.danger ? 'border-red-500/30' : 'border-white/10'"
+             @click.stop>
+            <div class="flex items-center gap-3.5">
+                <div class="w-11 h-11 rounded-2xl flex items-center justify-center flex-shrink-0"
+                     :class="confirmDialog.danger ? 'bg-red-500/10 border border-red-500/20 text-red-400' : 'bg-indigo-500/10 border border-indigo-500/20 text-indigo-300'">
+                    <span class="material-symbols-outlined text-[22px]" x-text="confirmDialog.icon || (confirmDialog.mode === 'alert' ? 'info' : 'warning')"></span>
+                </div>
+                <div>
+                    <h3 class="text-base font-bold text-white leading-tight" x-text="confirmDialog.title"></h3>
+                    <p class="text-xs text-white/50 mt-1 leading-relaxed" x-text="confirmDialog.message"></p>
+                </div>
+            </div>
+            <div class="flex items-center justify-end gap-3 pt-2 border-t border-white/5">
+                <button type="button" x-show="confirmDialog.mode !== 'alert'" @click="resolveConfirm(false)"
+                        class="px-5 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-xs font-bold text-white transition-colors">
+                    <span x-text="confirmDialog.cancelLabel || 'Cancel'"></span>
+                </button>
+                <button type="button" @click="resolveConfirm(true)"
+                        class="px-6 py-2.5 rounded-xl text-xs font-bold text-white transition-all hover:scale-105 active:scale-95"
+                        :class="confirmDialog.danger
+                            ? 'bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 shadow-lg shadow-red-600/30'
+                            : 'bg-white/10 hover:bg-white/15 border border-white/10'">
+                    <span x-text="confirmDialog.confirmLabel || 'OK'"></span>
+                </button>
+            </div>
+        </div>
+    </div>
 </div>
 
     <?php include __DIR__ . '/../frontend/components/barba_scripts.php'; ?>
