@@ -33,14 +33,15 @@ if ($method === 'GET') {
             c.comment_text,
             c.created_at,
             c.parent_comment_id AS parent_id,
-            (
-                SELECT COUNT(*) 
-                FROM comment_likes l 
-                WHERE l.comment_id = c.comment_id
-            ) AS likes_count
+            COALESCE(l.likes_count, 0) AS likes_count
         FROM movie_comments c
         INNER JOIN users u ON c.user_id = u.user_id
         INNER JOIN movies m ON c.movie_id = m.movie_id
+        LEFT JOIN (
+            SELECT comment_id, COUNT(*) AS likes_count
+            FROM comment_likes
+            GROUP BY comment_id
+        ) l ON l.comment_id = c.comment_id
     ";
 
     if ($movieId) {
@@ -48,6 +49,9 @@ if ($method === 'GET') {
     }
 
     $sql .= " ORDER BY c.created_at DESC";
+    if (!$movieId) {
+        $sql .= " LIMIT 200";
+    }
 
     $stmt = $conn->prepare($sql);
     if ($movieId) {

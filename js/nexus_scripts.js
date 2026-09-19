@@ -80,7 +80,12 @@ function formatPremiumEndsLabel(end) {
     }
 }
 
-const NEXUS_ACTIVE_ROOM_KEY = 'nexus_active_room';
+function formatNexusOccupancy(count, max) {
+    const c = Math.max(0, Number(count) || 0);
+    const m = Number(max);
+    if (m > 0) return c + '/' + m;
+    return String(c);
+}
 
 function readNexusActiveRoom() {
     try {
@@ -162,15 +167,11 @@ function userDashboard() {
         showNotifications: false,
         showPremiumModal: false,
         showRechargeModal: false,
-        selectedPointPack: 'bundle',
+        selectedPointPack: null,
         isRecharging: false,
         claimablePoints: 0,
-        pointPacks: [
-            { id: 'starter', label: 'Starter', points: 500, price: 0.99, best: false },
-            { id: 'boost', label: 'Boost', points: 1500, price: 2.49, best: false },
-            { id: 'bundle', label: 'Bundle', points: 4000, price: 4.99, best: true },
-            { id: 'mega', label: 'Mega', points: 10000, price: 9.99, best: false }
-        ],
+        pointPacks: [],
+        watchlistCap: 10,
         friendsTab: 'connected',
         movieModalOpen: false,
         localLikedComments: new Set(JSON.parse(localStorage.getItem('nexus_liked_comments') || '[]')),
@@ -745,7 +746,7 @@ function userDashboard() {
                 const data = await res.json();
                 if (!data.id) throw new Error(data.error || 'Failed to create session');
 
-                const stripe = Stripe('pk_test_51U7dOOQ4txrxX3UyKFl8Esnat3ahKw22hUWtA1HpDKSozJXz9UBofzTjLNreSIOlt8sN6WM4gkS8PCw2k7fuqhUO00CcN5mWd8');
+                const stripe = Stripe(window.STRIPE_PUBLISHABLE_KEY || 'pk_test_51U7dOOQ4txrxX3UyKFl8Esnat3ahKw22hUWtA1HpDKSozJXz9UBofzTjLNreSIOlt8sN6WM4gkS8PCw2k7fuqhUO00CcN5mWd8');
                 const { error } = await stripe.redirectToCheckout({ sessionId: data.id });
                 if (error) throw error;
             } catch (err) {
@@ -798,8 +799,20 @@ function userDashboard() {
                 const next = params.toString();
                 history.replaceState({}, document.title, window.location.pathname + (next ? '?' + next : ''));
             } else if (params.get('payment') === 'cancelled') {
-                if (window.showToast) window.showToast('Payment cancelled.', 'info');
+                const sessionId = params.get('session_id');
+                if (sessionId) {
+                    try {
+                        const res = await fetch(`/user_backend/verify_payment.php?session_id=${sessionId}`);
+                        const data = await res.json();
+                        if (window.showToast) window.showToast(data.message || 'Payment cancelled.', 'error');
+                    } catch (e) {
+                        if (window.showToast) window.showToast('Payment cancelled.', 'info');
+                    }
+                } else if (window.showToast) {
+                    window.showToast('Payment cancelled.', 'info');
+                }
                 params.delete('payment');
+                params.delete('session_id');
                 const next = params.toString();
                 history.replaceState({}, document.title, window.location.pathname + (next ? '?' + next : ''));
             }
@@ -883,6 +896,7 @@ function userDashboard() {
                 const movies = JSON.parse(sessionStorage.getItem('nexus_movies_cache') || 'null');
                 if (Array.isArray(movies) && movies.length && !(this.movies || []).length) {
                     this.movies = movies.map(m => this._normalizeMovie(m));
+                    this.moviesLoading = false;
                     this.syncWatchlistState();
                 }
             } catch (e) {}
@@ -891,6 +905,7 @@ function userDashboard() {
                 if (friends && Array.isArray(friends.friends) && !(this.friends || []).length) {
                     this.friends = friends.friends;
                     this.pendingRequests = friends.pending_requests || [];
+                    this.friendsLoading = false;
                     this.updateFriendsCount();
                 }
             } catch (e) {}
@@ -898,6 +913,7 @@ function userDashboard() {
                 const rooms = JSON.parse(sessionStorage.getItem('nexus_friend_rooms_cache') || 'null');
                 if (Array.isArray(rooms) && rooms.length && !(this.friendRooms || []).length) {
                     this.friendRooms = rooms;
+                    this.friendRoomsLoading = false;
                 }
             } catch (e) {}
         },
@@ -907,6 +923,7 @@ function userDashboard() {
         },
 
         async fetchMovies() {
+            if (!(this.movies || []).length) this.moviesLoading = true;
             try {
                 const response = await fetch('/user_backend/movies_api.php');
                 if (response.status === 401) {
@@ -941,6 +958,8 @@ function userDashboard() {
                 console.error("Failed to load movies from database:", e);
                 this.movieError = "Failed to load movies. Please try again.";
                 this.movies = [];
+            } finally {
+                this.moviesLoading = false;
             }
         },
 
@@ -1140,9 +1159,21 @@ function userDashboard() {
        async toggleWatchlist(movie) {
             if (!movie) return;
 
-            movie.inWatchlist = !movie.inWatchlist;
             const movieId = movie.id || movie.movie_id;
             if (!movieId) return;
+            const currentlyIn = !!(this.watchlist || []).find(w => Number(w.id || w.movie_id) === Number(movieId));
+            if (!currentlyIn && !this.isPremium) {
+                const cap = this.watchlistCap == null ? 10 : Number(this.watchlistCap);
+                if ((this.watchlist || []).length >= cap) {
+                    if (window.showToast) {
+                        window.showToast('Free accounts can save up to ' + cap + ' titles. Upgrade to Premium for an unlimited watchlist.', 'info');
+                    }
+                    this.showPremiumModal = true;
+                    return;
+                }
+            }
+
+            movie.inWatchlist = !currentlyIn;
 
             // Optimistic local update
             if (movie.inWatchlist) {
@@ -1189,6 +1220,7 @@ function userDashboard() {
             this.hoveredRating = 0;
             this.commentText = '';
             this.isSubmittingReview = false;
+            this.movieCommentsLoading = true;
             this.showMovieDetailModal = true;
             
             // Extract the reliable ID
@@ -1201,6 +1233,8 @@ function userDashboard() {
                 // 2. Subscribe to the real-time Pusher channel
                 this.subscribeToLiveMovieEvents(movieId);
                 
+            } else {
+                this.movieCommentsLoading = false;
             }
         },
 
@@ -1267,9 +1301,17 @@ function userDashboard() {
         // Watch Party Sessions, Watchlist & Activity Feed
         upcomingParties: [],
         friendRooms: [],
-        friendRoomsLoading: false,
+        friendRoomsLoading: true,
         joiningRoomId: null,
         watchlist: [],
+        moviesLoading: true,
+        watchlistLoading: true,
+        shopLoading: true,
+        packsLoading: true,
+        notificationsLoading: true,
+        friendsLoading: true,
+        movieCommentsLoading: false,
+        searchLoading: false,
         networkTraffic: [
             { day: 'Mon', reqs: 1250, height: 40 },
             { day: 'Tue', reqs: 3400, height: 75 },
@@ -1297,8 +1339,41 @@ function userDashboard() {
             if (!this.requireLogin({ modal: true, message: 'Login or register to top up points.' })) {
                 return;
             }
-            this.selectedPointPack = this.selectedPointPack || 'bundle';
+            if (!(this.pointPacks || []).length) this.packsLoading = true;
             this.showRechargeModal = true;
+            this.fetchPointPacks().then(() => {
+                if (!this.selectedPointPack && this.pointPacks.length) {
+                    const best = this.pointPacks.find(p => p.best) || this.pointPacks[0];
+                    this.selectedPointPack = best ? best.id : null;
+                }
+            });
+        },
+
+        async fetchPointPacks() {
+            if (!(this.pointPacks || []).length) this.packsLoading = true;
+            try {
+                const res = await fetch('/user_backend/get_point_packages.php');
+                const data = await res.json();
+                if (!data.success) return this.pointPacks;
+                this.pointPacks = (data.packages || []).map((p) => ({
+                    id: p.id,
+                    label: p.label,
+                    name: p.name,
+                    points: Number(p.points || 0),
+                    price: Number(p.price || 0),
+                    best: !!p.best
+                }));
+                const current = this.pointPacks.find((p) => String(p.id) === String(this.selectedPointPack));
+                if (!current) {
+                    const best = this.pointPacks.find((p) => p.best) || this.pointPacks[0];
+                    this.selectedPointPack = best ? best.id : null;
+                }
+            } catch (e) {
+                console.error('Failed to load point packs', e);
+            } finally {
+                this.packsLoading = false;
+            }
+            return this.pointPacks;
         },
 
         async buyPointPack() {
@@ -1306,7 +1381,7 @@ function userDashboard() {
             if (!this.requireLogin({ modal: true, message: 'Login or register to top up points.' })) {
                 return;
             }
-            const pack = (this.pointPacks || []).find(p => p.id === this.selectedPointPack);
+            const pack = (this.pointPacks || []).find(p => String(p.id) === String(this.selectedPointPack));
             if (!pack) {
                 if (window.showToast) window.showToast('Choose a point pack first.', 'error');
                 return;
@@ -1321,7 +1396,7 @@ function userDashboard() {
                 const data = await res.json();
                 if (!data.id) throw new Error(data.error || 'Failed to create session');
 
-                const stripe = Stripe('pk_test_51U7dOOQ4txrxX3UyKFl8Esnat3ahKw22hUWtA1HpDKSozJXz9UBofzTjLNreSIOlt8sN6WM4gkS8PCw2k7fuqhUO00CcN5mWd8');
+                const stripe = Stripe(window.STRIPE_PUBLISHABLE_KEY || 'pk_test_51U7dOOQ4txrxX3UyKFl8Esnat3ahKw22hUWtA1HpDKSozJXz9UBofzTjLNreSIOlt8sN6WM4gkS8PCw2k7fuqhUO00CcN5mWd8');
                 const { error } = await stripe.redirectToCheckout({ sessionId: data.id });
                 if (error) throw error;
             } catch (err) {
@@ -1486,6 +1561,8 @@ function userDashboard() {
 
         // Fetch Friends & Incoming Pending Requests
         async fetchFriends(retries = 1) {
+            if (!(this.friends || []).length) this.friendsLoading = true;
+            let keepLoading = false;
             try {
                 const response = await fetch('/user_backend/get_friends.php', {
                     signal: AbortSignal.timeout ? AbortSignal.timeout(8000) : undefined
@@ -1516,12 +1593,16 @@ function userDashboard() {
                     } catch (e) {}
                 }
             } catch (err) {
-                if (err.name === 'AbortError') return;
-                if (retries > 0) {
+                if (err.name !== 'AbortError' && retries > 0) {
+                    keepLoading = true;
                     setTimeout(() => this.fetchFriends(retries - 1), 1000);
                     return;
                 }
-                console.warn('Could not fetch friends (transient network error):', err.message);
+                if (err.name !== 'AbortError') {
+                    console.warn('Could not fetch friends (transient network error):', err.message);
+                }
+            } finally {
+                if (!keepLoading) this.friendsLoading = false;
             }
         },
 
@@ -1552,6 +1633,17 @@ function userDashboard() {
         get extraRoomParticipantCount() {
             const count = this.activeRoom && this.activeRoom.participants ? this.activeRoom.participants.length : 0;
             return Math.max(0, count - 6);
+        },
+
+        get activeRoomOccupancy() {
+            const count = this.activeRoom && this.activeRoom.participants ? this.activeRoom.participants.length : 0;
+            return formatNexusOccupancy(count, this.activeRoom && this.activeRoom.max_members);
+        },
+
+        get watchlistOccupancy() {
+            const count = (this.watchlist || []).length;
+            if (this.isPremium || this.watchlistCap == null) return count + '/Unlimited';
+            return count + '/' + (this.watchlistCap || 10);
         },
 
         hydrateActiveRoom() {
@@ -1606,6 +1698,8 @@ function userDashboard() {
                     roomId: String(room.room_id || stored.roomId),
                     roomName: room.room_code ? ('Room #' + room.room_code) : (stored.roomName || ''),
                     isHost: Number(room.host_id) === Number(window.CURRENT_USER_ID),
+                    max_members: Number(room.max_members || stored.max_members || 0),
+                    occupancy: room.occupancy || stored.occupancy || '',
                     participants: incoming.length ? incoming : this.mapActiveRoomParticipants(stored.participants || [])
                 };
                 writeNexusActiveRoom(this.activeRoom);
@@ -1837,6 +1931,7 @@ function userDashboard() {
         },
 
         async fetchNotifications() {
+            if (!(this.notifications || []).length) this.notificationsLoading = true;
             try {
                 const response = await fetch('/user_backend/get_notifications.php', { credentials: 'same-origin' });
                 if (!response.ok) return;
@@ -1848,6 +1943,8 @@ function userDashboard() {
                 }
             } catch (err) {
                 console.error('Notification error:', err);
+            } finally {
+                this.notificationsLoading = false;
             }
         },
 
@@ -2315,6 +2412,7 @@ function userDashboard() {
         // Search Users
         searchUsers(query = null) {
             const searchTerm = (query !== null ? query : this.searchQuery) || '';
+            this.searchLoading = true;
             
             fetch(`/user_backend/search_users.php?q=${encodeURIComponent(searchTerm.trim())}`)
                 .then(async res => {
@@ -2336,6 +2434,9 @@ function userDashboard() {
                 .catch(err => {
                     console.error('Search error:', err.message);
                     this.searchResults = [];
+                })
+                .finally(() => {
+                    this.searchLoading = false;
                 });
         },
 
@@ -2388,12 +2489,19 @@ function userDashboard() {
             const oldTab = this.currentTab;
             this.currentTab = tabId;
             if (tabId === 'movies') {
-                if (!this.movies.length) this.fetchMovies();
+                if (!this.movies.length) {
+                    this.moviesLoading = true;
+                    this.fetchMovies();
+                }
                 if (!this.isGuest) this.fetchWatchlist();
             }
-            if (tabId === 'watchlist') this.fetchWatchlist();
+            if (tabId === 'watchlist') {
+                if (!(this.watchlist || []).length) this.watchlistLoading = true;
+                this.fetchWatchlist();
+            }
             if (tabId === 'shop' || tabId === 'account') {
                 if (!this.shopItems.length) {
+                    this.shopLoading = true;
                     this.fetchShopItems().then(() => this.buildAvailableBorders());
                 }
             }
@@ -2554,8 +2662,8 @@ function userDashboard() {
             }
 
             if (!this.pusherClient) {
-                this.pusherClient = new Pusher('f4b5637ef4b8952b6eb8', {
-                    cluster: 'ap1',
+                this.pusherClient = new Pusher(window.PUSHER_KEY || 'f4b5637ef4b8952b6eb8', {
+                    cluster: window.PUSHER_CLUSTER || 'ap1',
                     encrypted: true
                 });
             }
@@ -2717,6 +2825,7 @@ function userDashboard() {
             this.reportDescription = ''; 
             this.showReportModal = true;
             this.activeDropdown = null; // Close option dropdown when modal opens
+            if (!(this.availableReasons || []).length) this.fetchReasons();
         },
 
         closeReportModal() {
@@ -3130,6 +3239,7 @@ function userDashboard() {
 
         // Fetch existing comments
         async fetchMovieComments(movieId) {
+            this.movieCommentsLoading = true;
             try {
                 const res = await fetch(`/user_backend/get_comments.php?movie_id=${movieId}`);
                 const data = await res.json();
@@ -3150,6 +3260,8 @@ function userDashboard() {
                 }
             } catch (e) { 
                 console.error("Failed to load comments:", e); 
+            } finally {
+                this.movieCommentsLoading = false;
             }
         },
 
@@ -3434,6 +3546,7 @@ function userDashboard() {
         },
 
         async fetchShopItems() {
+            if (!(this.shopItems || []).length) this.shopLoading = true;
             try {
                 const res = await fetch('/user_backend/get_shop_items.php');
                 const data = await res.json();
@@ -3449,6 +3562,8 @@ function userDashboard() {
                 }
             } catch (e) {
                 console.error('Failed to fetch shop items:', e);
+            } finally {
+                this.shopLoading = false;
             }
         },
 
@@ -3493,18 +3608,22 @@ function userDashboard() {
         },
 
         async fetchWatchlist() {
+            if (!(this.watchlist || []).length) this.watchlistLoading = true;
             try {
                 const response = await fetch("/user_backend/get_watchlist.php");
                 const data = await response.json();
                 if (data.success) {
                     this.watchlist = data.watchlist || [];
                     this.watchlist = [...this.watchlist];
+                    this.watchlistCap = data.cap == null ? (this.isPremium ? null : 10) : data.cap;
                     this.syncWatchlistState();
                 } else {
                     console.error("Watchlist fetch failed:", data.message);
                 }
             } catch (e) {
                 console.error("Failed to fetch watchlist:", e);
+            } finally {
+                this.watchlistLoading = false;
             }
         },
 
@@ -3590,8 +3709,8 @@ function userDashboard() {
 
             // Initialize Pusher client once if not active
             if (!this.pusherClient) {
-                this.pusherClient = new Pusher('f4b5637ef4b8952b6eb8', {
-                    cluster: 'ap1',
+                this.pusherClient = new Pusher(window.PUSHER_KEY || 'f4b5637ef4b8952b6eb8', {
+                    cluster: window.PUSHER_CLUSTER || 'ap1',
                     encrypted: true
                 });
             }
@@ -3795,8 +3914,8 @@ function userDashboard() {
             if (typeof Pusher === 'undefined') return;
 
             if (!this.pusherClient) {
-                this.pusherClient = new Pusher('f4b5637ef4b8952b6eb8', {
-                    cluster: 'ap1',
+                this.pusherClient = new Pusher(window.PUSHER_KEY || 'f4b5637ef4b8952b6eb8', {
+                    cluster: window.PUSHER_CLUSTER || 'ap1',
                     encrypted: true
                 });
             }
@@ -3814,6 +3933,9 @@ function userDashboard() {
             const shopChannel = this.pusherClient.subscribe('shop-updates');
             shopChannel.bind('shop_changed', () => {
                 this.fetchShopItems();
+            });
+            shopChannel.bind('point_packs_changed', () => {
+                this.fetchPointPacks();
             });
 
             // Movie live updates
@@ -3870,6 +3992,10 @@ function userDashboard() {
 
             channel.bind('new_notification', (data) => {
                 this.applyIncomingUserNotification(data);
+            });
+
+            channel.bind('points_changed', (data) => {
+                if (data && data.points != null) this.userPoints = Number(data.points);
             });
 
             // Real-time unfriend
@@ -4145,7 +4271,12 @@ function userDashboard() {
                 this.watchlist = [];
                 this.notifications = [];
                 this.unreadNotifCount = 0;
-                this.fetchShopItems();
+                this.notificationsLoading = false;
+                this.friendsLoading = false;
+                this.friendRoomsLoading = false;
+                this.watchlistLoading = false;
+                this.shopLoading = false;
+                this.packsLoading = false;
             } else {
                 const isRegularUser = window.NEXUS_USER?.role === 'user';
                 if (!isRegularUser) {
@@ -4165,7 +4296,6 @@ function userDashboard() {
                 if (this._friendRoomsTimer) clearInterval(this._friendRoomsTimer);
                 this._friendRoomsTimer = setInterval(() => this.fetchFriendRooms({ quiet: true }), 12000);
 
-                this.fetchReasons();
                 this.checkPaymentStatus().then(() => this.fetchPremiumStatus()).then(() => {
                     if (this.justPaid) {
                         this.showPremiumModal = true;
@@ -4193,11 +4323,15 @@ function userDashboard() {
                 const trimmed = (query || '').trim();
                 if (trimmed === '') { this.searchUsers(); return; }
                 if (trimmed.length < 2) return;
+                this.searchLoading = true;
                 this.searchTimeout = setTimeout(() => this.searchUsers(), 300);
             });
 
             this.$watch('showInviteModal', (isOpen) => {
-                if (isOpen && !this.isGuest) this.searchUsers(this.searchQuery);
+                if (isOpen && !this.isGuest) {
+                    this.searchLoading = true;
+                    this.searchUsers(this.searchQuery);
+                }
             });
 
             if (!this.isGuest) {
@@ -5418,6 +5552,8 @@ function adminDashboard(userData = {}) {
     const bootName = userData.user_name || 'Admin';
     const bootAvatarRaw = userData.avatar_url || '';
     const bootBorderPreview = userData.border_preview || '';
+    const bootStaffRole = String(userData.role || window.CURRENT_USER_ROLE || 'admin').toLowerCase();
+    const bootStaffUserId = Number(userData.user_id || window.CURRENT_USER_ID || 0);
     const resolveBootAdminAvatar = (url, name) => {
         if (!url) {
             return `https://ui-avatars.com/api/?name=${encodeURIComponent(name || 'Admin')}&background=ef4444&color=fff&bold=true`;
@@ -5703,7 +5839,7 @@ function adminDashboard(userData = {}) {
             { id: 'users', label: 'Users', icon: 'group' },
             { id: 'movies', label: 'Movies', icon: 'movie' },
             { id: 'sessions', label: 'Watch Parties', icon: 'live_tv' },
-            { id: 'shop', label: 'Avatar Shop', icon: 'storefront' },
+            { id: 'shop', label: 'Shop', icon: 'storefront' },
             { id: 'reports', label: 'Reports', icon: 'flag' },
             { id: 'transactions', label: 'Transaction History', icon: 'receipt_long' },
             { id: 'profile', label: 'Profile', icon: 'person' }
@@ -5720,10 +5856,10 @@ function adminDashboard(userData = {}) {
                 users: 'Search users by name, email, or role...',
                 movies: 'Search movies by title or genre...',
                 sessions: 'Search rooms by name, host, or movie...',
-                shop: 'Search shop items by name or rarity...',
+                shop: this.shopView === 'points' ? 'Search point packs by name or label...' : 'Search shop items by name or rarity...',
                 reports: 'Search reports by user, type, or status...',
                 profile: 'Search...',
-                transactions: 'Search transactions by user, plan, or ID...'
+                transactions: 'Search transactions by user, plan, type, or ID...'
             };
             return map[this.currentTab] || 'Search...';
         },
@@ -5742,7 +5878,7 @@ function adminDashboard(userData = {}) {
         get filteredTransactions() {
             return (this.transactions || []).filter((txn) => {
                 const searchOk = this.adminMatches([
-                    txn.id, txn.gateway_txn_id, txn.user_name, txn.email, txn.plan, txn.gateway, txn.status, txn.amount, txn.date
+                    txn.id, txn.gateway_txn_id, txn.user_name, txn.email, txn.plan, txn.type, txn.gateway, txn.status, txn.amount, txn.date
                 ]);
                 return searchOk;
             });
@@ -5783,7 +5919,7 @@ function adminDashboard(userData = {}) {
                 movies: this.filteredAdminMovies || [],
                 users: this.filteredUsers || [],
                 rooms: this.filteredAdminRooms || [],
-                shop: this.filteredAdminShop || [],
+                shop: this.shopView === 'points' ? (this.filteredPointPackages || []) : (this.filteredAdminShop || []),
                 reports: this.filteredReports || [],
                 transactions: this.filteredTransactions || []
             };
@@ -5815,7 +5951,8 @@ function adminDashboard(userData = {}) {
         get pagedMovies() { return this.adminPage('movies').items; },
         get pagedUsers() { return this.adminPage('users').items; },
         get pagedRooms() { return this.adminPage('rooms').items; },
-        get pagedShopItems() { return this.adminPage('shop').items; },
+        get pagedShopItems() { return this.shopView === 'points' ? [] : this.adminPage('shop').items; },
+        get pagedPointPackages() { return this.shopView === 'points' ? this.adminPage('shop').items : []; },
         get pagedReports() { return this.adminPage('reports').items; },
         get pagedTransactions() { return this.adminPage('transactions').items; },
         get filteredAdminMovies() {
@@ -5828,8 +5965,25 @@ function adminDashboard(userData = {}) {
         },
         get filteredAdminRooms() {
             return (this.rooms || []).filter((room) => this.adminMatches([
-                room.name, room.host, room.movie_title, room.id, room.users, room.status
+                room.name, room.host, room.movie_title, room.id, room.users, room.occupancy, room.max_members, room.status
             ]));
+        },
+        shopView: 'items',
+        pointPackages: [],
+        pointPackModalOpen: false,
+        pointPackModalMode: 'add',
+        pointPackForm: { name: '', label: '', points: 0, price: 0, best: false, is_active: true },
+        get filteredPointPackages() {
+            return (this.pointPackages || []).filter((pack) => this.adminMatches([
+                pack.name, pack.label, pack.points, pack.price, pack.id
+            ]));
+        },
+        setShopView(view) {
+            this.shopView = view === 'points' ? 'points' : 'items';
+            this.adminPages.shop = 1;
+            if (this.shopView === 'points' && !(this.pointPackages || []).length) {
+                this.fetchPointPackages();
+            }
         },
         get filteredAdminShop() {
             return (this.shopItems || []).filter((item) => {
@@ -5872,6 +6026,7 @@ function adminDashboard(userData = {}) {
             return decorated;
         },
         async fetchNotifications() {
+            if (!(this.notifications || []).length) this.notificationsLoading = true;
             try {
                 const response = await fetch('/backend/get_admin_notifications.php', { credentials: 'same-origin' });
                 if (!response.ok) {
@@ -5893,6 +6048,8 @@ function adminDashboard(userData = {}) {
                 }
             } catch (err) {
                 console.error('Notification network error:', err);
+            } finally {
+                this.notificationsLoading = false;
             }
         },
         async toggleNotificationPanel() {
@@ -6025,6 +6182,14 @@ function adminDashboard(userData = {}) {
             }
         },
         statsLoading: true,
+        moviesLoading: true,
+        roomsLoading: true,
+        usersLoading: true,
+        shopLoading: true,
+        packsLoading: true,
+        reportsLoading: true,
+        transactionsLoading: true,
+        notificationsLoading: true,
         stats: [
             { label: "Total Users", value: "0", change: "0%", icon: "group" },
             { label: "Active Sessions", value: "0", change: "0%", icon: "live_tv" },
@@ -6233,7 +6398,7 @@ function adminDashboard(userData = {}) {
 
         // ADDED: Fetch users from the PHP backend API
         async fetchUsers() {
-            this.isLoading = true;
+            if (!(this.users || []).length) this.usersLoading = true;
             this.errorMessage = '';
             try {
                 // Assuming standard routing to match movies_api.php
@@ -6256,7 +6421,7 @@ function adminDashboard(userData = {}) {
                 this.errorMessage = 'Network error fetching users.';
                 console.error(err);
             } finally {
-                this.isLoading = false;
+                this.usersLoading = false;
             }
         },
 
@@ -6361,17 +6526,29 @@ function adminDashboard(userData = {}) {
 
         ensureAdminTabData(tabId) {
             if (tabId === 'users' && !(this.users || []).length) {
+                this.usersLoading = true;
                 this.fetchUsers();
             }
             if (tabId === 'movies') {
-                if (!(this.movies || []).length) this.fetchMovies();
+                if (!(this.movies || []).length) {
+                    this.moviesLoading = true;
+                    this.fetchMovies();
+                }
                 if (!(this.availableGenres || []).length) this.fetchGenres();
             }
             if (tabId === 'sessions') {
+                if (!(this.rooms || []).length) this.roomsLoading = true;
                 this.fetchRooms();
             }
-            if (tabId === 'shop' && !(this.shopItems || []).length) {
-                this.fetchShopItems();
+            if (tabId === 'shop') {
+                if (!(this.shopItems || []).length) {
+                    this.shopLoading = true;
+                    this.fetchShopItems();
+                }
+                if (!(this.pointPackages || []).length) {
+                    this.packsLoading = true;
+                    this.fetchPointPackages();
+                }
             }
             if (tabId === 'profile') {
                 Promise.resolve()
@@ -6379,16 +6556,23 @@ function adminDashboard(userData = {}) {
                     .then(() => this.fetchAdminProfile());
             }
             if (tabId === 'reports') {
+                if (!(this.reportsList || []).length) this.reportsLoading = true;
                 this.fetchReports();
             }
             if (tabId === 'transactions') {
+                if (!(this.transactions || []).length) this.transactionsLoading = true;
                 this.fetchTransactions();
+            }
+            if (tabId === 'dashboard') {
+                if (!(this.stats || []).length) this.fetchStats();
+                this.fetchRooms();
+                if (!(this.movies || []).length) this.fetchMovies();
             }
         },
 
         // --- Fetch API Methods ---
        async fetchMovies() {
-            this.isLoading = true;
+            if (!(this.movies || []).length) this.moviesLoading = true;
             try {
                 const response = await fetch('/backend/movies_api.php');
                 const text = await response.text();
@@ -6399,7 +6583,7 @@ function adminDashboard(userData = {}) {
             } catch (err) {
                 console.error('Network error fetching movies:', err);
             } finally {
-                this.isLoading = false;
+                this.moviesLoading = false;
             }
         },
 
@@ -6612,6 +6796,7 @@ function adminDashboard(userData = {}) {
         roomPollTimer: null,
 
         async fetchRooms() {
+            if (!(this.rooms || []).length) this.roomsLoading = true;
             try {
                 const res = await fetch('/backend/get_active_rooms.php');
                 const data = await res.json();
@@ -6647,6 +6832,8 @@ function adminDashboard(userData = {}) {
                 }
             } catch (e) {
                 console.error('fetchRooms error:', e);
+            } finally {
+                this.roomsLoading = false;
             }
         },
 
@@ -6789,6 +6976,7 @@ function adminDashboard(userData = {}) {
         },
 
         async fetchReports() {
+            if (!(this.reportsList || []).length) this.reportsLoading = true;
             try {
                 const response = await fetch('/backend/get_reports.php');
                 const data = await response.json();
@@ -6800,10 +6988,13 @@ function adminDashboard(userData = {}) {
                 }
             } catch (error) {
                 console.error("Error fetching reports:", error);
+            } finally {
+                this.reportsLoading = false;
             }
         },
 
         async fetchTransactions() {
+            if (!(this.transactions || []).length) this.transactionsLoading = true;
             try {
                 const response = await fetch('/backend/get_transactions.php');
                 const data = await response.json();
@@ -6816,6 +7007,8 @@ function adminDashboard(userData = {}) {
                 }
             } catch (error) {
                 console.error('Error fetching transactions:', error);
+            } finally {
+                this.transactionsLoading = false;
             }
         },
 
@@ -6909,7 +7102,109 @@ function adminDashboard(userData = {}) {
         borders: [],
         shopImageFile: null,   // holds File object for shop item image
 
+        async fetchPointPackages() {
+            if (!(this.pointPackages || []).length) this.packsLoading = true;
+            try {
+                const res = await fetch('/backend/point_packages_api.php?action=list');
+                const data = await res.json();
+                if (data.success) {
+                    this.pointPackages = (data.items || []).map((item) => ({
+                        id: item.id,
+                        name: item.name,
+                        label: item.label,
+                        points: Number(item.points || 0),
+                        price: Number(item.price || 0),
+                        best: !!item.best,
+                        is_active: item.is_active !== 0 && item.is_active !== false
+                    }));
+                } else if (this.showToast) {
+                    this.showToast(data.error || 'Failed to load point packs', 'error');
+                }
+            } catch (e) {
+                console.error('Fetch point packs error:', e);
+                if (this.showToast) this.showToast('Network error loading point packs', 'error');
+            } finally {
+                this.packsLoading = false;
+            }
+        },
+
+        openPointPackModal(mode, pack = null) {
+            this.pointPackModalMode = mode;
+            if (pack) {
+                this.pointPackForm = {
+                    id: pack.id,
+                    name: pack.name,
+                    label: pack.label,
+                    points: Number(pack.points || 0),
+                    price: Number(pack.price || 0),
+                    best: !!pack.best,
+                    is_active: pack.is_active !== 0 && pack.is_active !== false
+                };
+            } else {
+                this.pointPackForm = { name: '', label: '', points: 0, price: 0, best: false, is_active: true };
+            }
+            this.pointPackModalOpen = true;
+        },
+
+        closePointPackModal() {
+            this.pointPackModalOpen = false;
+        },
+
+        async savePointPack() {
+            const form = this.pointPackForm || {};
+            if (!form.name || Number(form.points) <= 0 || Number(form.price) <= 0) {
+                this.showToast('Name, points, and price are required', 'error');
+                return;
+            }
+            const body = new FormData();
+            body.append('action', this.pointPackModalMode === 'add' ? 'create' : 'update');
+            body.append('name', form.name);
+            body.append('label', form.label || form.name);
+            body.append('points', form.points);
+            body.append('price', form.price);
+            if (form.best) body.append('best', '1');
+            body.append('is_active', form.is_active ? '1' : '0');
+            if (this.pointPackModalMode === 'edit' && form.id) {
+                body.append('id', form.id);
+            }
+            try {
+                const res = await fetch('/backend/point_packages_api.php', { method: 'POST', body });
+                const data = await res.json();
+                if (data.success) {
+                    this.showToast(this.pointPackModalMode === 'add' ? 'Pack added' : 'Pack updated', 'success');
+                    this.pointPackModalOpen = false;
+                    await this.fetchPointPackages();
+                } else {
+                    this.showToast(data.error || 'Save failed', 'error');
+                }
+            } catch (e) {
+                console.error('Save point pack error:', e);
+                this.showToast('Network error saving pack', 'error');
+            }
+        },
+
+        async deletePointPack(id) {
+            if (!confirm('Delete this point pack?')) return;
+            try {
+                const body = new FormData();
+                body.append('action', 'delete');
+                body.append('id', id);
+                const res = await fetch('/backend/point_packages_api.php', { method: 'POST', body });
+                const data = await res.json();
+                if (data.success) {
+                    this.showToast('Pack deleted', 'success');
+                    await this.fetchPointPackages();
+                } else {
+                    this.showToast(data.error || 'Delete failed', 'error');
+                }
+            } catch (e) {
+                console.error('Delete point pack error:', e);
+                this.showToast('Network error deleting pack', 'error');
+            }
+        },
+
         async fetchShopItems() {
+            if (!(this.shopItems || []).length) this.shopLoading = true;
             try {
                 const res = await fetch('/backend/shop_items_api.php?action=list');
                 const data = await res.json();
@@ -6935,6 +7230,8 @@ function adminDashboard(userData = {}) {
             } catch (e) {
                 console.error('Fetch shop items error:', e);
                 this.showToast('Network error loading shop items', 'error');
+            } finally {
+                this.shopLoading = false;
             }
         },
 
@@ -7348,13 +7645,42 @@ function adminDashboard(userData = {}) {
             this.newMovie.img = movie.img || movie.poster_url || movie.poster || movie.image || '';
             this.posterPreview = this.newMovie.img; // optional, if you still use posterPreview elsewhere
 
-             this.movieModalOpen = true;
+            this.loadingMovieComments = true;
+            this.movieModalOpen = true;
 
             // Fetch comments for this movie
             this.fetchMovieCommentsForAdmin(this.newMovie.id);
         },
         isUserBanned(user) {
             return String(user?.status || '').toLowerCase() === 'banned';
+        },
+        isUserPending(user) {
+            return String(user?.status || '').toLowerCase() === 'pending';
+        },
+        staffRole: bootStaffRole,
+        staffUserId: bootStaffUserId,
+        normalizedUserRole(user) {
+            const role = String(user?.role || '').toLowerCase();
+            if (role === 'premium' || role === 'standard' || role === '') return 'user';
+            return role;
+        },
+        canManageUser(user) {
+            const id = Number(user?.id || user?.user_id || 0);
+            if (!id || id === Number(this.staffUserId)) return false;
+            const role = this.normalizedUserRole(user);
+            if (role === 'admin') return false;
+            if (this.staffRole === 'admin') return role === 'user' || role === 'moderator';
+            if (this.staffRole === 'moderator') return role === 'user';
+            return false;
+        },
+        canPromoteUser(user) {
+            return this.canManageUser(user) && !this.isUserPending(user) && this.normalizedUserRole(user) === 'user';
+        },
+        canDemoteModerator(user) {
+            return this.canManageUser(user) && this.normalizedUserRole(user) === 'moderator';
+        },
+        canSuspendUser(user) {
+            return this.canManageUser(user) && !this.isUserPending(user);
         },
         isAppealReport(report) {
             return String(report?.type || '').toLowerCase() === 'appeal';
@@ -7526,6 +7852,26 @@ function adminDashboard(userData = {}) {
                 await this.acceptReport();
             } else {
                 this.dismissReport();
+            }
+        },
+
+        async deletePendingUser(user) {
+            if (!user || !user.id) return;
+            if (!confirm('Delete this pending account? This cannot be undone.')) return;
+            try {
+                const data = await this.postUserAction({
+                    action: 'delete',
+                    id: user.id
+                });
+                if (data.success) {
+                    this.users = (this.users || []).filter((row) => Number(row.id) !== Number(user.id));
+                    window.showToast(data.message || 'Pending account deleted', 'success');
+                } else {
+                    window.showToast(data.error || 'Failed to delete account', 'error');
+                }
+            } catch (e) {
+                console.error('Delete pending user error:', e);
+                window.showToast(e.message || 'Network error', 'error');
             }
         },
 
@@ -7810,27 +8156,26 @@ function adminDashboard(userData = {}) {
 
             const loadingSafety = setTimeout(() => {
                 this.statsLoading = false;
+                this.moviesLoading = false;
+                this.roomsLoading = false;
+                this.notificationsLoading = false;
                 this.isLoading = false;
                 this.commentsLoading = false;
-            }, 4000);
+            }, 8000);
 
             try {
                 await Promise.allSettled([
                     this.fetchStats(),
                     this.fetchNotifications(),
                     this.fetchRooms(),
-                    this.fetchMovies(),
-                    this.fetchGenres(),
-                    this.fetchUsers(),
-                    this.fetchShopItems(),
-                    this.fetchAdminProfile(),
-                    this.fetchReports(),
-                    this.fetchComments(),
-                    this.fetchTransactions()
+                    this.fetchMovies()
                 ]);
             } finally {
                 clearTimeout(loadingSafety);
                 this.statsLoading = false;
+                this.moviesLoading = false;
+                this.roomsLoading = false;
+                this.notificationsLoading = false;
                 this.isLoading = false;
                 this.commentsLoading = false;
             }
@@ -7938,8 +8283,8 @@ function adminDashboard(userData = {}) {
             if (this._adminPusherBound) return;
 
             if (!this.pusherClient) {
-                this.pusherClient = new Pusher('f4b5637ef4b8952b6eb8', {
-                    cluster: 'ap1',
+                this.pusherClient = new Pusher(window.PUSHER_KEY || 'f4b5637ef4b8952b6eb8', {
+                    cluster: window.PUSHER_CLUSTER || 'ap1',
                     encrypted: true
                 });
             }
@@ -8002,6 +8347,9 @@ function adminDashboard(userData = {}) {
                 // Ensure Alpine reactivity
                 this.shopItems = [...this.shopItems];
             });
+            shopChannel.bind('point_packs_changed', () => {
+                this.fetchPointPackages();
+            });
 
             // Movie updates channel (optional, but recommended for live movie changes)
             const movieChannel = this.pusherClient.subscribe('movie-updates');
@@ -8038,6 +8386,15 @@ function adminDashboard(userData = {}) {
             moderationChannel.bind('rooms-changed', () => {
                 this.fetchRooms();
                 this.fetchStats();
+            });
+            moderationChannel.bind('new-transaction-event', (data) => {
+                const txn = data && data.transaction;
+                if (txn && txn.id) {
+                    txn.avatar_url = this.resolveAvatarUrl(txn.avatar_url, txn.user_name || 'User');
+                    this.transactions = [txn, ...(this.transactions || []).filter((row) => row.id !== txn.id)];
+                } else {
+                    this.fetchTransactions();
+                }
             });
 
             // ---- USER-SPECIFIC CHANNEL (only if logged in) ----

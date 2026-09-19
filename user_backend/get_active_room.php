@@ -17,18 +17,19 @@ try {
     require_once __DIR__ . '/../admin_rooms_helper.php';
     require_once __DIR__ . '/../profile_media_helper.php';
     require_once __DIR__ . '/../room_schema_helper.php';
+    require_once __DIR__ . '/../premium_benefits_helper.php';
     require_once __DIR__ . '/../schema_upgrade_helper.php';
     ensureAppSchema($conn);
     ensureRoomParticipantSchema($conn);
 
     $room = null;
     if ($roomId !== '') {
-        $stmt = $conn->prepare("SELECT room_id, room_code, host_id, status FROM rooms WHERE room_id = :id OR room_code = :code LIMIT 1");
+        $stmt = $conn->prepare("SELECT room_id, room_code, host_id, status, max_members FROM rooms WHERE room_id = :id OR room_code = :code LIMIT 1");
         $stmt->execute(['id' => $roomId, 'code' => $roomId]);
         $room = $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
     } else {
         $stmt = $conn->prepare("
-            SELECT r.room_id, r.room_code, r.host_id, r.status
+            SELECT r.room_id, r.room_code, r.host_id, r.status, r.max_members
             FROM room_participants rp
             JOIN rooms r ON r.room_id = rp.room_id
             WHERE rp.user_id = :user_id
@@ -67,6 +68,7 @@ try {
     ");
     $peerStmt->execute(['room_id' => $room['room_id']]);
     $participants = attachProfileMedia($conn, $peerStmt->fetchAll(PDO::FETCH_ASSOC) ?: []);
+    $occ = nexusRoomOccupancy($conn, $room, count($participants));
 
     echo json_encode([
         'success' => true,
@@ -76,6 +78,9 @@ try {
                 'room_code' => $room['room_code'],
                 'host_id' => (int)$room['host_id'],
                 'status' => $room['status'],
+                'members' => $occ['members'],
+                'max_members' => $occ['max_members'],
+                'occupancy' => $occ['occupancy'],
             ],
             'participants' => array_map(static function ($row) {
                 return [

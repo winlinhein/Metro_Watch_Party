@@ -1,5 +1,16 @@
 <?php
 
+function nexusSchemaAlreadyCurrent(PDO $conn): bool
+{
+    try {
+        $conn->query('SELECT package_id FROM point_packages LIMIT 1');
+        $conn->query('SELECT type, package_id FROM payment_transactions LIMIT 1');
+        return true;
+    } catch (Throwable $e) {
+        return false;
+    }
+}
+
 function ensureAppSchema(PDO $conn): void
 {
     static $ready = false;
@@ -7,8 +18,14 @@ function ensureAppSchema(PDO $conn): void
         return;
     }
 
-    $flag = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'nexus_app_schema_ok_v10';
+    $flag = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'nexus_app_schema_ok_v13';
     if (is_file($flag)) {
+        $ready = true;
+        return;
+    }
+
+    if (nexusSchemaAlreadyCurrent($conn)) {
+        @touch($flag);
         $ready = true;
         return;
     }
@@ -28,6 +45,10 @@ function ensureAppSchema(PDO $conn): void
         "ALTER TABLE notifications ADD COLUMN request_id INT NULL DEFAULT NULL",
         "ALTER TABLE room_messages ADD COLUMN message_type VARCHAR(20) NOT NULL DEFAULT 'text'",
         "ALTER TABLE room_messages ADD COLUMN image_url VARCHAR(500) NULL DEFAULT NULL",
+        "ALTER TABLE payment_transactions MODIFY COLUMN plan_id INT NULL DEFAULT NULL",
+        "ALTER TABLE payment_transactions ADD COLUMN type VARCHAR(20) NOT NULL DEFAULT 'premium'",
+        "ALTER TABLE payment_transactions ADD COLUMN package_id INT NULL DEFAULT NULL",
+        "ALTER TABLE notifications MODIFY COLUMN type VARCHAR(32) NOT NULL",
     ];
 
     foreach ($alters as $sql) {
@@ -47,18 +68,42 @@ function ensureAppSchema(PDO $conn): void
         ");
         $conn->exec("
             INSERT INTO plans (plan_id, name, price, duration_days, is_active)
-            VALUES
-                (1, 'Nexus Premium', 4.99, 30, 1),
-                (2, '500 Points', 0.99, 0, 1),
-                (3, '1,500 Points', 2.49, 0, 1),
-                (4, '4,000 Points', 4.99, 0, 1),
-                (5, '10,000 Points', 9.99, 0, 1)
+            VALUES (1, 'Nexus Premium', 4.99, 30, 1)
             ON DUPLICATE KEY UPDATE
                 name = VALUES(name),
                 price = VALUES(price),
                 duration_days = VALUES(duration_days),
                 is_active = VALUES(is_active)
         ");
+    } catch (Throwable $ignore) {
+    }
+
+    try {
+        $conn->exec("
+            CREATE TABLE IF NOT EXISTS point_packages (
+                package_id INT NOT NULL AUTO_INCREMENT,
+                name VARCHAR(100) NOT NULL,
+                label VARCHAR(50) NOT NULL DEFAULT '',
+                points INT NOT NULL DEFAULT 0,
+                price DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+                is_best TINYINT(1) NOT NULL DEFAULT 0,
+                sort_order INT NOT NULL DEFAULT 0,
+                is_active TINYINT(1) NOT NULL DEFAULT 1,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (package_id)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+        ");
+        $exists = (int)$conn->query("SELECT COUNT(*) FROM point_packages")->fetchColumn();
+        if ($exists === 0) {
+            $conn->exec("
+                INSERT INTO point_packages (name, label, points, price, is_best, sort_order, is_active)
+                VALUES
+                    ('500 Points', 'Starter', 500, 0.99, 0, 1, 1),
+                    ('1,500 Points', 'Boost', 1500, 2.49, 0, 2, 1),
+                    ('4,000 Points', 'Bundle', 4000, 4.99, 1, 3, 1),
+                    ('10,000 Points', 'Mega', 10000, 9.99, 0, 4, 1)
+            ");
+        }
     } catch (Throwable $ignore) {
     }
 

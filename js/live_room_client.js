@@ -12,11 +12,13 @@ function createNexusLiveRoom(options) {
     let audioCtx = null;
     let lastBroadcastSpeaking = null;
     let stopped = false;
-    const iceServers = [
-        { urls: 'stun:stun.l.google.com:19302' },
-        { urls: 'stun:stun1.l.google.com:19302' },
-        { urls: 'stun:stun2.l.google.com:19302' }
-    ];
+    const iceServers = (typeof window.nexusIceServers === 'function')
+        ? window.nexusIceServers()
+        : [
+            { urls: 'stun:stun.l.google.com:19302' },
+            { urls: 'stun:stun1.l.google.com:19302' },
+            { urls: 'stun:stun2.l.google.com:19302' }
+        ];
 
     const self = {
         roomId: String(opts.roomId || ''),
@@ -229,7 +231,7 @@ function createNexusLiveRoom(options) {
                 return existing;
             }
         }
-        const pc = new RTCPeerConnection({ iceServers, iceCandidatePoolSize: 4 });
+        const pc = new RTCPeerConnection({ iceServers, iceCandidatePoolSize: 8 });
         peerConnections[key] = pc;
         if (localStream) {
             localStream.getTracks().forEach((track) => pc.addTrack(track, localStream));
@@ -548,6 +550,14 @@ function createNexusLiveRoom(options) {
             stopped = false;
             const unlock = () => resumeAudio();
             document.addEventListener('click', unlock, { once: true });
+            try {
+                const servers = (typeof window.nexusLoadIceServers === 'function')
+                    ? await window.nexusLoadIceServers()
+                    : iceServers;
+                if (Array.isArray(servers) && servers.length) {
+                    iceServers.splice(0, iceServers.length, ...servers);
+                }
+            } catch (e) {}
             bindPusher();
             await connectSocket();
             try { await startLocalMedia(); } catch (e) {

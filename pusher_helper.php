@@ -1,10 +1,19 @@
 <?php
 // pusher_helper.php — Native PHP (No Composer required)
+require_once __DIR__ . '/curl_ssl_helper.php';
 
-define('PUSHER_APP_ID', '2183447');
-define('PUSHER_KEY', 'f4b5637ef4b8952b6eb8');
-define('PUSHER_SECRET', 'fb4c2d3d373ef2e1afc7');
-define('PUSHER_CLUSTER', 'ap1');
+if (!defined('PUSHER_APP_ID')) {
+    define('PUSHER_APP_ID', nexusAppEnv('PUSHER_APP_ID', '2183447'));
+}
+if (!defined('PUSHER_KEY')) {
+    define('PUSHER_KEY', nexusAppEnv('PUSHER_KEY', 'f4b5637ef4b8952b6eb8'));
+}
+if (!defined('PUSHER_SECRET')) {
+    define('PUSHER_SECRET', nexusAppEnv('PUSHER_SECRET', 'fb4c2d3d373ef2e1afc7'));
+}
+if (!defined('PUSHER_CLUSTER')) {
+    define('PUSHER_CLUSTER', nexusAppEnv('PUSHER_CLUSTER', 'ap1'));
+}
 
 function triggerPusherEvent($channel, $event, $data) {
     $payload = json_encode([
@@ -28,21 +37,14 @@ function triggerPusherEvent($channel, $event, $data) {
         'auth_signature' => $authSignature
     ]);
 
-    $ch = curl_init($url);
-    curl_setopt_array($ch, [
+    [$response, $httpCode] = nexusCurlExec($url, [
         CURLOPT_POST => true,
         CURLOPT_POSTFIELDS => $payload,
         CURLOPT_HTTPHEADER => ['Content-Type: application/json'],
         CURLOPT_RETURNTRANSFER => true,
         CURLOPT_CONNECTTIMEOUT => 2,
         CURLOPT_TIMEOUT => 2,
-        // 🔥 FIX: Bypass SSL verification for local Windows environments
-        CURLOPT_SSL_VERIFYPEER => false 
     ]);
-
-    $response = curl_exec($ch);
-    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
 
     // 🔥 FIX: Log errors to the same folder as this script, not /tmp/
     if ($httpCode !== 200) {

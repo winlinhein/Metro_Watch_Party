@@ -124,7 +124,12 @@
                     </template>
                     
                     <!-- Empty State -->
-                    <tr x-show="!filteredReports || filteredReports.length === 0">
+                    <tr x-show="reportsLoading">
+                        <td colspan="6" class="p-10">
+                            <?php $fetchLoaderShow = 'true'; $fetchLoaderLabel = 'Loading reports'; $fetchLoaderClass = 'py-6'; include __DIR__ . '/../components/fetch_loader.php'; ?>
+                        </td>
+                    </tr>
+                    <tr x-show="!reportsLoading && (!filteredReports || filteredReports.length === 0)">
                         <td colspan="6" class="p-10 text-center text-white/40">
                             <span class="material-symbols-outlined text-4xl mb-2 opacity-50">inbox</span>
                             <p>No reports found matching your criteria.</p>

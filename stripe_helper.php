@@ -1,16 +1,30 @@
 <?php
 // stripe_helper.php — Native PHP (No Composer required)
+require_once __DIR__ . '/curl_ssl_helper.php';
 
-// ========== STRIPE TEST KEYS ==========
-define('STRIPE_SECRET_KEY', 'sk_test_51U7dOOQ4txrxX3UywInn3MozdXDvyhMNeytcf5Bmbssb5U6izwGhfshD7tBgu0GVGZXTlhjd0n8yK09FvK0mtBeo00GGMHNME6');
-define('STRIPE_PUBLISHABLE_KEY', 'pk_test_51U7dOOQ4txrxX3UyKFl8Esnat3ahKw22hUWtA1HpDKSozJXz9UBofzTjLNreSIOlt8sN6WM4gkS8PCw2k7fuqhUO00CcN5mWd8');
+if (!defined('STRIPE_SECRET_KEY')) {
+    define('STRIPE_SECRET_KEY', nexusAppEnv(
+        'STRIPE_SECRET_KEY',
+        'sk_test_51U7dOOQ4txrxX3UywInn3MozdXDvyhMNeytcf5Bmbssb5U6izwGhfshD7tBgu0GVGZXTlhjd0n8yK09FvK0mtBeo00GGMHNME6'
+    ));
+}
+if (!defined('STRIPE_PUBLISHABLE_KEY')) {
+    define('STRIPE_PUBLISHABLE_KEY', nexusAppEnv(
+        'STRIPE_PUBLISHABLE_KEY',
+        'pk_test_51U7dOOQ4txrxX3UyKFl8Esnat3ahKw22hUWtA1HpDKSozJXz9UBofzTjLNreSIOlt8sN6WM4gkS8PCw2k7fuqhUO00CcN5mWd8'
+    ));
+}
 
-// ========== HARDCODED PLAN DETAILS ==========
-define('PREMIUM_PRICE_ID', 'price_1U7s7JQ4txrxX3UyKuyL2ZQo'); // ← Replace with your actual Stripe Price ID
-define('PREMIUM_PLAN_ID', 1);
-define('PREMIUM_DURATION_DAYS', 30);
+if (!defined('PREMIUM_PRICE_ID')) {
+    define('PREMIUM_PRICE_ID', nexusAppEnv('PREMIUM_PRICE_ID', 'price_1U7s7JQ4txrxX3UyKuyL2ZQo'));
+}
+if (!defined('PREMIUM_PLAN_ID')) {
+    define('PREMIUM_PLAN_ID', 1);
+}
+if (!defined('PREMIUM_DURATION_DAYS')) {
+    define('PREMIUM_DURATION_DAYS', 30);
+}
 
-// ========== GENERIC REQUEST FUNCTION ==========
 function stripeRequest($method, $path, $params = []) {
     $url = 'https://api.stripe.com' . $path;
     $headers = [
@@ -18,26 +32,21 @@ function stripeRequest($method, $path, $params = []) {
         'Content-Type: application/x-www-form-urlencoded'
     ];
 
-    $ch = curl_init();
-    if ($method === 'GET') {
-        if (!empty($params)) $url .= '?' . http_build_query($params);
-    } else {
-        curl_setopt($ch, CURLOPT_POST, true);
-        curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query($params));
+    if ($method === 'GET' && !empty($params)) {
+        $url .= '?' . http_build_query($params);
     }
 
-    curl_setopt_array($ch, [
-        CURLOPT_URL => $url,
+    $options = [
         CURLOPT_RETURNTRANSFER => true,
         CURLOPT_HTTPHEADER => $headers,
         CURLOPT_TIMEOUT => 10,
-        CURLOPT_SSL_VERIFYPEER => false   // Same as your Pusher helper for local dev
-    ]);
+    ];
+    if ($method !== 'GET') {
+        $options[CURLOPT_POST] = true;
+        $options[CURLOPT_POSTFIELDS] = http_build_query($params);
+    }
 
-    $response = curl_exec($ch);
-    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    $error = curl_error($ch);
-    curl_close($ch);
+    [$response, $httpCode, $error] = nexusCurlExec($url, $options);
 
     if ($response === false) throw new Exception('Stripe API connection failed: ' . $error);
     $decoded = json_decode($response, true);
@@ -99,38 +108,5 @@ function nexusPublicBaseUrl(): string
 
 function nexusPointPacks(): array
 {
-    return [
-        'starter' => [
-            'id' => 'starter',
-            'plan_id' => 2,
-            'points' => 500,
-            'price' => 0.99,
-            'name' => '500 Points',
-            'label' => 'Starter',
-        ],
-        'boost' => [
-            'id' => 'boost',
-            'plan_id' => 3,
-            'points' => 1500,
-            'price' => 2.49,
-            'name' => '1,500 Points',
-            'label' => 'Boost',
-        ],
-        'bundle' => [
-            'id' => 'bundle',
-            'plan_id' => 4,
-            'points' => 4000,
-            'price' => 4.99,
-            'name' => '4,000 Points',
-            'label' => 'Bundle',
-        ],
-        'mega' => [
-            'id' => 'mega',
-            'plan_id' => 5,
-            'points' => 10000,
-            'price' => 9.99,
-            'name' => '10,000 Points',
-            'label' => 'Mega',
-        ],
-    ];
+    return [];
 }

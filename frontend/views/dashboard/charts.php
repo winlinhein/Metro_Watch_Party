@@ -154,7 +154,7 @@
                     </div>
                     <div class="text-xs font-bold text-green-400 flex items-center gap-1.5 bg-green-500/10 px-2 py-1 rounded-md border border-green-500/20">
                         <span class="material-symbols-outlined text-[14px]">group</span>
-                        <span x-text="room.users"></span>
+                        <span x-text="room.occupancy || room.users"></span>
                     </div>
                 </div>
             </template>
@@ -163,13 +163,22 @@
              x-cloak
              data-session-empty
              class="admin-empty-sessions flex flex-col items-center justify-center text-center min-h-[220px] px-4">
-            <div class="relative w-20 h-20 mb-5 flex items-center justify-center">
-                <span class="empty-orbit absolute inset-0 rounded-full border border-dashed border-white/15"></span>
-                <span class="empty-orbit empty-orbit-slow absolute inset-2 rounded-full border border-cyan-400/20"></span>
-                <span class="empty-icon relative z-10 material-symbols-outlined text-4xl text-white/35">sensors_off</span>
-            </div>
-            <h4 class="empty-title text-lg font-bold text-white mb-1">Nothing is active</h4>
-            <p class="text-sm text-white/40 max-w-[220px]">No live watch parties right now. New rooms will appear here the moment someone starts one.</p>
+            <template x-if="roomsLoading">
+                <div>
+                    <?php $fetchLoaderShow = 'true'; $fetchLoaderLabel = 'Finding live rooms'; $fetchLoaderClass = 'py-8'; include __DIR__ . '/../../components/fetch_loader.php'; ?>
+                </div>
+            </template>
+            <template x-if="!roomsLoading">
+                <div class="flex flex-col items-center">
+                    <div class="relative w-20 h-20 mb-5 flex items-center justify-center">
+                        <span class="empty-orbit absolute inset-0 rounded-full border border-dashed border-white/15"></span>
+                        <span class="empty-orbit empty-orbit-slow absolute inset-2 rounded-full border border-cyan-400/20"></span>
+                        <span class="empty-icon relative z-10 material-symbols-outlined text-4xl text-white/35">sensors_off</span>
+                    </div>
+                    <h4 class="empty-title text-lg font-bold text-white mb-1">Nothing is active</h4>
+                    <p class="text-sm text-white/40 max-w-[220px]">No live watch parties right now. New rooms will appear here the moment someone starts one.</p>
+                </div>
+            </template>
         </div>
     </div>
 </div>

@@ -3,7 +3,6 @@
 session_start();
 header('Content-Type: application/json');
 
-// 1. Return 401 Unauthorized if session is missing
 if (empty($_SESSION['user_id'])) {
     http_response_code(401);
     echo json_encode(['success' => false, 'message' => 'Unauthorized session']);
@@ -11,24 +10,23 @@ if (empty($_SESSION['user_id'])) {
 }
 
 $currentUserId = (int)$_SESSION['user_id'];
-session_write_close(); // Release session lock early[cite: 19]
+session_write_close();
 
 require_once __DIR__ . '/../conn.php';
 require_once __DIR__ . '/../pusher_helper.php';
+require_once __DIR__ . '/../premium_benefits_helper.php';
 
-// Safe payload decoding
 $rawInput = file_get_contents('php://input');
 $data = json_decode($rawInput, true) ?? [];
 $movieId = intval($data['movie_id'] ?? 0);
 
 if (!$movieId) {
-    http_response_code(400); // Bad Request
+    http_response_code(400);
     echo json_encode(['success' => false, 'message' => 'Invalid Movie ID']);
     exit();
 }
 
 try {
-    // Check if record exists using named parameters
     $stmt = $conn->prepare("SELECT 1 FROM watchlists WHERE user_id = :uid AND movie_id = :mid");
     $stmt->execute(['uid' => $currentUserId, 'mid' => $movieId]);
     $exists = $stmt->fetchColumn();
@@ -38,20 +36,43 @@ try {
         $deleteStmt->execute(['uid' => $currentUserId, 'mid' => $movieId]);
         $action = 'removed';
     } else {
+        $cap = nexusWatchlistCap($conn, $currentUserId);
+        $count = nexusWatchlistCount($conn, $currentUserId);
+        if ($cap !== null && $count >= $cap) {
+            echo json_encode([
+                'success' => false,
+                'message' => 'Free accounts can save up to ' . $cap . ' titles. Upgrade to Premium for an unlimited watchlist.',
+                'needs_premium' => true,
+                'count' => $count,
+                'cap' => $cap,
+                'occupancy' => $count . '/' . $cap,
+            ]);
+            exit();
+        }
         $insertStmt = $conn->prepare("INSERT INTO watchlists (user_id, movie_id) VALUES (:uid, :mid)");
         $insertStmt->execute(['uid' => $currentUserId, 'mid' => $movieId]);
         $action = 'added';
     }
 
+    $count = nexusWatchlistCount($conn, $currentUserId);
+    $cap = nexusWatchlistCap($conn, $currentUserId);
+
     triggerPusherEvent('user-' . $currentUserId, 'watchlist-updated', [
         'movie_id' => $movieId,
-        'action' => $action
+        'action' => $action,
+        'count' => $count,
+        'cap' => $cap,
+        'occupancy' => $cap === null ? ($count . '/Unlimited') : ($count . '/' . $cap),
     ]);
 
-    echo json_encode(['success' => true, 'action' => $action]);
-
+    echo json_encode([
+        'success' => true,
+        'action' => $action,
+        'count' => $count,
+        'cap' => $cap,
+        'occupancy' => $cap === null ? ($count . '/Unlimited') : ($count . '/' . $cap),
+    ]);
 } catch (PDOException $e) {
     http_response_code(500);
     echo json_encode(['success' => false, 'message' => $e->getMessage()]);
 }
-?>

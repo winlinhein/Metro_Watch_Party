@@ -13,7 +13,7 @@ $mimeFile = $cacheDir . DIRECTORY_SEPARATOR . $id . '.mime';
 
 function sendPosterBytes($bytes, $mime) {
     header('Content-Type: ' . $mime);
-    header('Cache-Control: public, max-age=3600');
+    header('Cache-Control: public, max-age=86400');
     header('Content-Length: ' . strlen($bytes));
     echo $bytes;
     exit;
@@ -31,7 +31,7 @@ if (is_file($binFile) && filesize($binFile) > 0) {
     $mime = is_file($mimeFile) ? trim((string)file_get_contents($mimeFile)) : 'image/jpeg';
     if ($mime === '') $mime = 'image/jpeg';
     header('Content-Type: ' . $mime);
-    header('Cache-Control: public, max-age=3600');
+    header('Cache-Control: public, max-age=86400');
     header('Content-Length: ' . filesize($binFile));
     readfile($binFile);
     exit;

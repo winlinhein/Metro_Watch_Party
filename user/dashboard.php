@@ -69,6 +69,17 @@ session_write_close();
     // This safely passes the logged-in user's ID from your backend session to JS
     window.CURRENT_USER_ID = <?php echo json_encode($userId); ?>;
     window.NEXUS_USER = <?php echo json_encode($nexusUserBoot, JSON_UNESCAPED_SLASHES); ?>;
+    <?php
+    require_once __DIR__ . '/../pusher_helper.php';
+    require_once __DIR__ . '/../stripe_helper.php';
+    ?>
+    window.PUSHER_KEY = <?php echo json_encode(PUSHER_KEY); ?>;
+    window.PUSHER_CLUSTER = <?php echo json_encode(PUSHER_CLUSTER); ?>;
+    window.STRIPE_PUBLISHABLE_KEY = <?php echo json_encode(STRIPE_PUBLISHABLE_KEY); ?>;
+    <?php
+    require_once __DIR__ . '/../ice_servers_helper.php';
+    ?>
+    window.NEXUS_ICE_SERVERS = <?php echo json_encode(nexusIceServers(), JSON_UNESCAPED_SLASHES); ?>;
 </script>
 
 <!DOCTYPE html>
@@ -437,6 +448,7 @@ session_write_close();
         }
     </script>
     <script src="../js/chat_emojis.js?v=1"></script>
+    <script src="../js/ice_servers.js?v=<?php echo time(); ?>"></script>
     <script src="../js/live_room_client.js?v=<?php echo time(); ?>"></script>
     <script src="../js/nexus_scripts.js?v=<?php echo time(); ?>"></script>
     <script src="../js/support_chatbot.js?v=3"></script>
@@ -569,7 +581,10 @@ session_write_close();
                             </div>
                         </div>
                     </template>
-                    <div x-show="!(quests[questActiveTab] || []).length" class="py-12 text-center">
+                    <div x-show="statsLoading">
+                        <?php $fetchLoaderShow = 'true'; $fetchLoaderLabel = 'Loading quests'; $fetchLoaderClass = 'py-8'; include __DIR__ . '/../frontend/components/fetch_loader.php'; ?>
+                    </div>
+                    <div x-show="!statsLoading && !(quests[questActiveTab] || []).length" x-cloak class="py-12 text-center">
                         <span class="material-symbols-outlined text-white/25 text-[28px]">task_alt</span>
                         <p class="text-[11px] text-white/40 mt-2">No quests in this cycle yet.</p>
                     </div>
@@ -701,7 +716,10 @@ session_write_close();
                         </div>
                     </template>
 
-                    <div x-show="filteredFriends.length === 0" class="py-10 text-center">
+                    <div x-show="friendsLoading">
+                        <?php $fetchLoaderShow = 'true'; $fetchLoaderLabel = 'Loading friends'; $fetchLoaderClass = 'py-8'; include __DIR__ . '/../frontend/components/fetch_loader.php'; ?>
+                    </div>
+                    <div x-show="!friendsLoading && filteredFriends.length === 0" x-cloak class="py-10 text-center">
                         <span class="material-symbols-outlined text-white/30 text-[24px]">group_off</span>
                         <p class="text-[11px] text-white/40 mt-1">No friends found</p>
                     </div>
@@ -748,7 +766,10 @@ session_write_close();
                         </div>
                     </template>
 
-                    <div x-show="pendingRequests.length === 0" class="py-10 text-center">
+                    <div x-show="friendsLoading">
+                        <?php $fetchLoaderShow = 'true'; $fetchLoaderLabel = 'Loading requests'; $fetchLoaderClass = 'py-8'; include __DIR__ . '/../frontend/components/fetch_loader.php'; ?>
+                    </div>
+                    <div x-show="!friendsLoading && pendingRequests.length === 0" x-cloak class="py-10 text-center">
                         <span class="material-symbols-outlined text-white/30 text-[24px]">inbox</span>
                         <p class="text-[11px] text-white/40 mt-1">No pending requests</p>
                     </div>
@@ -874,7 +895,10 @@ session_write_close();
                     </div>
                 </template>
 
-                <div x-show="searchResults.length === 0" class="p-6 text-center text-xs text-white/40">
+                <div x-show="searchLoading">
+                    <?php $fetchLoaderShow = 'true'; $fetchLoaderLabel = 'Searching'; $fetchLoaderClass = 'py-8'; include __DIR__ . '/../frontend/components/fetch_loader.php'; ?>
+                </div>
+                <div x-show="!searchLoading && searchResults.length === 0" x-cloak class="p-6 text-center text-xs text-white/40">
                     No users matching "<span x-text="searchQuery"></span>" found.
                 </div>
             </div>
@@ -924,6 +948,7 @@ session_write_close();
                          class="relative -ml-2 w-10 h-10 rounded-full bg-white/10 border-2 border-[#050508] flex items-center justify-center text-[10px] font-bold text-white/80 z-0">
                         +<span x-text="extraRoomParticipantCount"></span>
                     </div>
+                    <span class="ml-3 text-xs text-white/50 mono" x-text="activeRoomOccupancy"></span>
                 </button>
             </div>
             
@@ -1145,7 +1170,7 @@ session_write_close();
                                         </p>
                                         
                                         <div class="flex items-center justify-between gap-3">
-                                            <span class="text-xs text-white/60 mono" x-text="(party.members || 0) + ' Members Active'"></span>
+                                            <span class="text-xs text-white/60 mono" x-text="(party.occupancy || ((party.members || 0) + '/' + (party.max_members || 5))) + ' Members'"></span>
                                             <button type="button"
                                                     @click.stop="party.in_room || party.request_status === 'accepted' ? enterFriendRoom(party) : requestJoinRoom(party)"
                                                     :disabled="joiningRoomId === party.room_id || party.request_status === 'pending'"
@@ -1165,7 +1190,13 @@ session_write_close();
                         </div>
 
                         <div class="glass-card rounded-2xl flex-1 min-h-[280px] p-8 flex flex-col items-center justify-center text-center relative overflow-hidden"
-                             x-show="!isGuest && friendRooms.length === 0"
+                             x-show="!isGuest && friendRoomsLoading"
+                             x-cloak>
+                            <?php $fetchLoaderShow = 'true'; $fetchLoaderLabel = 'Finding live parties'; $fetchLoaderClass = 'py-8'; include __DIR__ . '/../frontend/components/fetch_loader.php'; ?>
+                        </div>
+
+                        <div class="glass-card rounded-2xl flex-1 min-h-[280px] p-8 flex flex-col items-center justify-center text-center relative overflow-hidden"
+                             x-show="!isGuest && !friendRoomsLoading && friendRooms.length === 0"
                              x-cloak>
                             <div class="absolute inset-0 bg-gradient-to-br from-red-500/5 via-transparent to-indigo-500/5 pointer-events-none"></div>
                             <div class="absolute inset-6 rounded-xl border border-dashed border-white/10 pointer-events-none"></div>

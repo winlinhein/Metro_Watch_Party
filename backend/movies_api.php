@@ -16,12 +16,6 @@ ensureAppSchema($conn);
 
 $method = $_SERVER['REQUEST_METHOD'];
 
-// Mutations require full admin
-if ($method !== 'GET' && $role !== 'admin') {
-    http_response_code(403);
-    echo json_encode(['error' => 'Access denied: Admin permissions required']);
-    exit();
-}
 // -------------------------------------------------------------
 // GET: Fetch all movies along with ratings and combined genres
 // -------------------------------------------------------------

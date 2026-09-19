@@ -65,6 +65,8 @@ try {
             pt.transaction_id,
             pt.user_id,
             pt.plan_id,
+            pt.package_id,
+            COALESCE(pt.type, 'premium') AS type,
             pt.gateway_transaction_id,
             pt.amount,
             pt.status,
@@ -72,11 +74,16 @@ try {
             COALESCE(u.user_name, pt.deleted_user_name, 'Deleted user') AS user_name,
             COALESCE(u.email, pt.deleted_user_email, '') AS email,
             g.name AS gateway_name,
-            COALESCE(p.name, 'Nexus Premium') AS plan_name
+            CASE
+                WHEN COALESCE(pt.type, 'premium') = 'points'
+                    THEN COALESCE(pp.name, 'Point Pack')
+                ELSE COALESCE(p.name, 'Nexus Premium')
+            END AS plan_name
         FROM payment_transactions pt
         LEFT JOIN users u ON u.user_id = pt.user_id
         LEFT JOIN gateways g ON g.gateway_id = pt.gateway_id
         LEFT JOIN plans p ON p.plan_id = pt.plan_id
+        LEFT JOIN point_packages pp ON pp.package_id = pt.package_id
         ORDER BY pt.created_at DESC, pt.transaction_id DESC
         LIMIT 300
     ");
@@ -89,6 +96,8 @@ try {
         $created = (string)($row['created_at'] ?? '');
         $date = $created !== '' ? date('Y-m-d H:i', strtotime($created)) : '';
 
+        $type = strtolower((string)($row['type'] ?? 'premium')) === 'points' ? 'Points' : 'Premium';
+
         return [
             'id' => 'TXN-' . (int)$row['transaction_id'],
             'raw_id' => (int)$row['transaction_id'],
@@ -96,7 +105,8 @@ try {
             'user_name' => (string)($row['user_name'] ?? 'Unknown user'),
             'email' => (string)($row['email'] ?? ''),
             'avatar_url' => (string)($row['avatar_url'] ?? ''),
-            'plan' => (string)($row['plan_name'] ?? 'Nexus Premium'),
+            'plan' => (string)($row['plan_name'] ?? ($type === 'Points' ? 'Point Pack' : 'Nexus Premium')),
+            'type' => $type,
             'gateway' => (string)($row['gateway_name'] ?? 'Stripe'),
             'amount' => formatTxnAmount($amount, $status),
             'status' => $status,

@@ -202,29 +202,17 @@ function nexusGoogleGet(string $url, string $accessToken): array
 
 function nexusGoogleCurl(string $url, array $opts): string
 {
-    $base = $opts + [
+    require_once __DIR__ . '/../curl_ssl_helper.php';
+    $options = $opts + [
         CURLOPT_RETURNTRANSFER => true,
         CURLOPT_TIMEOUT => 15,
         CURLOPT_CONNECTTIMEOUT => 8,
     ];
-
-    $attempts = [
-        [CURLOPT_SSL_VERIFYPEER => true, CURLOPT_SSL_VERIFYHOST => 2],
-        [CURLOPT_SSL_VERIFYPEER => false, CURLOPT_SSL_VERIFYHOST => 0],
-    ];
-    $lastError = 'Google request failed.';
-    foreach ($attempts as $ssl) {
-        $ch = curl_init($url);
-        curl_setopt_array($ch, $base + $ssl);
-        $raw = curl_exec($ch);
-        $err = curl_error($ch);
-        curl_close($ch);
-        if ($raw !== false) {
-            return (string)$raw;
-        }
-        $lastError = $err !== '' ? $err : $lastError;
+    [$raw, , $err] = nexusCurlExec($url, $options);
+    if ($raw === false) {
+        throw new RuntimeException($err !== '' ? $err : 'Google request failed.');
     }
-    throw new RuntimeException($lastError);
+    return (string)$raw;
 }
 
 function nexusGoogleDecodeIdToken(string $idToken): array

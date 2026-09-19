@@ -29,11 +29,17 @@
         </div>
 
         <div class="relative z-10 grid sm:grid-cols-2 gap-4">
+            <div x-show="packsLoading" class="col-span-full">
+                <?php $fetchLoaderShow = 'true'; $fetchLoaderLabel = 'Loading packs'; $fetchLoaderClass = 'py-12'; include __DIR__ . '/../frontend/components/fetch_loader.php'; ?>
+            </div>
+            <div x-show="!packsLoading && !(pointPacks || []).length" x-cloak class="col-span-full py-12 text-center text-sm text-white/40">
+                No point packs available right now.
+            </div>
             <template x-for="pack in pointPacks" :key="pack.id">
                 <button type="button"
                         @click="selectedPointPack = pack.id"
                         class="glass-card rounded-2xl p-5 text-left transition-all border"
-                        :class="selectedPointPack === pack.id
+                        :class="String(selectedPointPack) === String(pack.id)
                             ? 'border-yellow-400/50 bg-yellow-500/10 shadow-[0_0_30px_rgba(234,179,8,0.12)]'
                             : 'border-white/10 hover:border-white/20'">
                     <div class="flex items-center justify-between mb-3">
@@ -44,7 +50,7 @@
                         <span x-text="Number(pack.points).toLocaleString()"></span>
                         <span class="text-sm text-yellow-400 font-bold">PTS</span>
                     </p>
-                    <p class="text-white/50 text-sm mono">$<span x-text="pack.price.toFixed(2)"></span></p>
+                    <p class="text-white/50 text-sm mono">$<span x-text="Number(pack.price || 0).toFixed(2)"></span></p>
                 </button>
             </template>
         </div>

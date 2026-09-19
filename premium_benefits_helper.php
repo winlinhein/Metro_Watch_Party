@@ -6,6 +6,7 @@ require_once __DIR__ . '/schema_upgrade_helper.php';
 const NEXUS_FREE_ROOM_CAP = 5;
 const NEXUS_PREMIUM_ROOM_CAP = 30;
 const NEXUS_PREMIUM_MISSION_MULT = 2;
+const NEXUS_FREE_WATCHLIST_CAP = 10;
 
 function nexusIsPremium(PDO $conn, int $userId): bool
 {
@@ -15,6 +16,42 @@ function nexusIsPremium(PDO $conn, int $userId): bool
 function nexusRoomCapacityForUser(PDO $conn, int $userId): int
 {
     return nexusIsPremium($conn, $userId) ? NEXUS_PREMIUM_ROOM_CAP : NEXUS_FREE_ROOM_CAP;
+}
+
+function nexusWatchlistCap(PDO $conn, int $userId): ?int
+{
+    return nexusIsPremium($conn, $userId) ? null : NEXUS_FREE_WATCHLIST_CAP;
+}
+
+function nexusWatchlistCount(PDO $conn, int $userId): int
+{
+    try {
+        $stmt = $conn->prepare("SELECT COUNT(*) FROM watchlists WHERE user_id = ?");
+        $stmt->execute([$userId]);
+        return (int)$stmt->fetchColumn();
+    } catch (Throwable $e) {
+        return 0;
+    }
+}
+
+function nexusOccupancyFields(int $count, int $max): array
+{
+    $max = $max > 0 ? $max : NEXUS_FREE_ROOM_CAP;
+    $count = max(0, $count);
+    return [
+        'members' => $count,
+        'max_members' => $max,
+        'occupancy' => $count . '/' . $max,
+    ];
+}
+
+function nexusRoomOccupancy(PDO $conn, array $room, ?int $knownCount = null): array
+{
+    $max = nexusRoomMaxMembers($conn, $room);
+    $count = $knownCount !== null
+        ? max(0, $knownCount)
+        : nexusCountRoomOccupants($conn, (int)($room['room_id'] ?? 0));
+    return nexusOccupancyFields($count, $max);
 }
 
 function nexusMissionPoints(int $basePoints, bool $isPremium): int

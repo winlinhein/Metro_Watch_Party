@@ -15,7 +15,9 @@ try {
     require_once __DIR__ . '/../conn.php';
     require_once __DIR__ . '/../poster_helper.php';
     require_once __DIR__ . '/../profile_media_helper.php';
+    require_once __DIR__ . '/../premium_benefits_helper.php';
     require_once __DIR__ . '/../room_schema_helper.php';
+    ensureAppSchema($conn);
     ensureRoomParticipantSchema($conn);
 
     $stmt = $conn->prepare("
@@ -24,6 +26,7 @@ try {
             r.room_code,
             r.host_id,
             r.movie_id,
+            r.max_members,
             r.created_at,
             COALESCE(u.user_name, u.email, 'Unknown') AS host_name,
             m.title AS movie_title,
@@ -114,6 +117,8 @@ try {
         $hostId = (int)$room['host_id'];
         $hostMedia = $hostMediaById[$hostId] ?? [];
 
+        $occ = nexusRoomOccupancy($conn, $room, $members);
+
         $parties[] = [
             'room_id' => (int)$room['room_id'],
             'room_code' => $room['room_code'],
@@ -123,7 +128,9 @@ try {
             'host_id' => $hostId,
             'host_avatar' => $hostMedia['avatar_url'] ?? '',
             'host_border' => $hostMedia['border_preview'] ?? '',
-            'members' => $members,
+            'members' => $occ['members'],
+            'max_members' => $occ['max_members'],
+            'occupancy' => $occ['occupancy'],
             'img' => $hasMovie ? moviePosterUrl($movieId) : $defaultImg,
             'time' => 'LIVE',
             'has_movie' => $hasMovie,

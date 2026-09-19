@@ -42,6 +42,10 @@ session_write_close();
 <script src="https://js.pusher.com/8.2.0/pusher.min.js"></script>
 <script>
     window.CURRENT_USER_ID = <?= json_encode($userId) ?>;
+    window.CURRENT_USER_ROLE = <?= json_encode(strtolower((string)$userRole)) ?>;
+    <?php require_once __DIR__ . '/../pusher_helper.php'; ?>
+    window.PUSHER_KEY = <?= json_encode(PUSHER_KEY) ?>;
+    window.PUSHER_CLUSTER = <?= json_encode(PUSHER_CLUSTER) ?>;
 </script>
 <!DOCTYPE html>
 <html lang="en">
@@ -452,6 +456,8 @@ session_write_close();
      x-data="adminDashboard(<?php echo htmlspecialchars(json_encode([
          'user_name' => $userName,
          'email' => $userEmail,
+         'role' => strtolower((string)$userRole),
+         'user_id' => (int)$userId,
          'avatar_url' => $avatarUrl,
          'border_preview' => $borderPreview,
          'active_border_id' => (int)$activeBorderId,

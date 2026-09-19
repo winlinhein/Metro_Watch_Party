@@ -43,13 +43,10 @@
 
         <!-- Loading Overlay -->
         <div
-            x-show="isLoading"
+            x-show="usersLoading"
             class="absolute inset-0 bg-[#030305]/70 backdrop-blur-sm z-20 flex items-center justify-center"
         >
-            <div class="flex items-center gap-3 text-white/70">
-                <span class="material-symbols-outlined animate-spin">sync</span>
-                <span>Fetching directory...</span>
-            </div>
+            <?php $fetchLoaderShow = 'true'; $fetchLoaderLabel = 'Fetching directory'; $fetchLoaderClass = 'py-6'; include __DIR__ . '/../components/fetch_loader.php'; ?>
         </div>
 
         <div class="w-full">
@@ -90,20 +87,20 @@
                     >
 
                         <tr
-                            class="border-b border-white/5 hover:bg-white/[0.03] transition-colors group user-row cursor-pointer"
+                            class="border-b border-white/5 hover:bg-white/[0.03] transition-colors group user-row"
+                            :class="canManageUser(user) ? 'cursor-pointer' : 'cursor-default'"
                             x-data="{
                                 dropdownOpen: false,
                                 mouseX: 0,
                                 mouseY: 0
                             }"
                             @click="
+                                if (!canManageUser(user)) return;
                                 dropdownOpen = !dropdownOpen;
-                                mouseX = $event.clientX + 220 < window.innerWidth
-                                    ? $event.clientX + 15
-                                    : $event.clientX - 205;
-                                mouseY = $event.clientY + 180 < window.innerHeight
-                                    ? $event.clientY + 15
-                                    : $event.clientY - 165;
+                                const menuW = 192;
+                                const menuH = isUserPending(user) ? 48 : 96;
+                                mouseX = Math.max(8, Math.min($event.clientX + 8, window.innerWidth - menuW - 8));
+                                mouseY = Math.max(8, Math.min($event.clientY + 8, window.innerHeight - menuH - 8));
                             "
                             @click.away="dropdownOpen = false"
                         >
@@ -223,8 +220,18 @@
                                         x-transition.opacity
                                     >
 
+                                        <template x-if="isUserPending(user) && canManageUser(user)">
+                                            <button
+                                                @click="deletePendingUser(user); dropdownOpen = false;"
+                                                class="flex items-center gap-3 px-4 py-3 hover:bg-red-500/10 text-white hover:text-red-400 text-sm font-bold transition-colors text-left w-full"
+                                            >
+                                                <span class="material-symbols-outlined text-[18px]">delete</span>
+                                                Delete
+                                            </button>
+                                        </template>
+
                                         <!-- Standard/Premium users -->
-                                        <template x-if="user.role !== 'Moderator' && user.role !== 'Admin'">
+                                        <template x-if="canPromoteUser(user)">
 
                                             <button
                                                 @click="promoteModerator(user); dropdownOpen = false;"
@@ -238,23 +245,8 @@
 
                                         </template>
 
-                                        <!-- Admin -->
-                                        <template x-if="user.role === 'Admin'">
-
-                                            <button
-                                                @click="demoteAdmin(user); dropdownOpen = false;"
-                                                class="flex items-center gap-3 px-4 py-3 hover:bg-orange-500/10 text-white hover:text-orange-400 text-sm font-bold border-b border-white/5 transition-colors text-left w-full"
-                                            >
-                                                <span class="material-symbols-outlined text-[18px]">
-                                                    remove_moderator
-                                                </span>
-                                                Demote Admin
-                                            </button>
-
-                                        </template>
-
                                         <!-- Moderator -->
-                                        <template x-if="user.role === 'Moderator'">
+                                        <template x-if="canDemoteModerator(user)">
 
                                             <button
                                                 @click="demoteModerator(user); dropdownOpen = false;"
@@ -268,8 +260,7 @@
 
                                         </template>
 
-                                        <!-- Only non-elevated users can be suspended or restored -->
-                                        <template x-if="user.role !== 'Moderator' && user.role !== 'Admin'">
+                                        <template x-if="canSuspendUser(user)">
                                             <div>
                                                 <button
                                                     x-show="!isUserBanned(user)"
@@ -305,7 +296,7 @@
                     </template>
 
                     <tr
-                        x-show="!isLoading && filteredUsers.length === 0"
+                        x-show="!usersLoading && filteredUsers.length === 0"
                         style="display: none;"
                     >
                         <td

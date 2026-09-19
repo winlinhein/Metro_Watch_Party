@@ -79,7 +79,10 @@
                 </div>
             </div>
         </template>
-        <div x-show="adminPage('movies').total === 0" style="display: none;" class="col-span-full glass-card rounded-2xl p-16 flex flex-col items-center justify-center text-center border border-white/5">
+        <div x-show="moviesLoading" class="col-span-full">
+            <?php $fetchLoaderShow = 'true'; $fetchLoaderLabel = 'Loading movies'; $fetchLoaderClass = 'py-20'; include __DIR__ . '/../components/fetch_loader.php'; ?>
+        </div>
+        <div x-show="!moviesLoading && adminPage('movies').total === 0" style="display: none;" class="col-span-full glass-card rounded-2xl p-16 flex flex-col items-center justify-center text-center border border-white/5">
             <span class="material-symbols-outlined text-6xl text-white/20 mb-4">movie</span>
             <h3 class="text-xl font-bold text-white mb-2">No movies found</h3>
             <p class="text-white/40 max-w-sm">Try a different search, or add a new title to the library.</p>
@@ -227,7 +230,9 @@
                     <!-- Comments Tab Content -->
                     <div x-show="movieTab === 'comments'" class="space-y-4" style="display: none;">
                         <!-- Loading -->
-                        <div x-show="loadingMovieComments" class="text-white/50 text-sm">Loading comments...</div>
+                        <div x-show="loadingMovieComments">
+                            <?php $fetchLoaderShow = 'true'; $fetchLoaderLabel = 'Loading comments'; $fetchLoaderClass = 'py-10'; include __DIR__ . '/../components/fetch_loader.php'; ?>
+                        </div>
 
                         <!-- Nested Comments List -->
                         <template x-if="!loadingMovieComments && nestedMovieComments.length > 0">

@@ -73,12 +73,15 @@ function watchParty() {
         isMuted: false,
         isVideoOn: true,
         localStream: null,
-        iceServers: [
-            { urls: 'stun:stun.l.google.com:19302' },
-            { urls: 'stun:stun1.l.google.com:19302' },
-            { urls: 'stun:stun2.l.google.com:19302' }
-        ],
+        iceServers: (typeof window.nexusIceServers === 'function')
+            ? window.nexusIceServers()
+            : [
+                { urls: 'stun:stun.l.google.com:19302' },
+                { urls: 'stun:stun1.l.google.com:19302' },
+                { urls: 'stun:stun2.l.google.com:19302' }
+            ],
         participants: [],
+        maxMembers: 5,
         messages: [],
         newMessage: '',
         showEmojiPicker: false,
@@ -110,6 +113,8 @@ function watchParty() {
         reportRoomDescription: '',
 
         friends: [],
+        friendsLoading: true,
+        moviesLoading: true,
         showInviteMenu: false,
         showInviteSentModal: false,
         confirmDialog: {
@@ -151,6 +156,7 @@ function watchParty() {
 
             setTimeout(() => this.markConnected(), 5000);
 
+            await this.loadIceServers();
             const cameraReady = this.startLocalMedia();
             const roomReady = this.fetchRoomDetails();
             const liveReady = (async () => {
@@ -201,6 +207,17 @@ function watchParty() {
             this.isLoading = false;
         },
 
+        async loadIceServers() {
+            try {
+                const servers = (typeof window.nexusLoadIceServers === 'function')
+                    ? await window.nexusLoadIceServers()
+                    : (this.iceServers || []);
+                if (Array.isArray(servers) && servers.length) {
+                    this.iceServers = servers;
+                }
+            } catch (e) {}
+        },
+
         // Fetch room metadata & enforce host permissions / room active status
         async fetchRoomDetails({ quiet = false } = {}) {
             if (!this.roomId || this._exiting) return;
@@ -236,6 +253,9 @@ function watchParty() {
                 this.roomName = `Room #${room.room_code}`;
                 if (room.room_id) {
                     this.roomId = String(room.room_id);
+                }
+                if (Number(room.max_members) > 0) {
+                    this.maxMembers = Number(room.max_members);
                 }
                 this.participants = this.participants.map((p) => ({
                     ...p,
@@ -319,6 +339,7 @@ function watchParty() {
                 peerId: this.peerId || '',
                 isHost: !!this.isHost,
                 parked: false,
+                max_members: Number(this.maxMembers) || 5,
                 participants: (this.participants || []).map((p) => ({
                     name: p.name || 'User',
                     avatar: p.avatar || '',
@@ -554,6 +575,12 @@ function watchParty() {
             }
         },
 
+        get occupancyLabel() {
+            const count = (this.participants || []).length;
+            const max = Number(this.maxMembers) > 0 ? Number(this.maxMembers) : 5;
+            return count + '/' + max;
+        },
+
         get visibleParticipants() {
             return (this.participants || []).slice(0, 6);
         },
@@ -753,6 +780,7 @@ function watchParty() {
         },
 
         async fetchFriends() {
+            if (!(this.friends || []).length) this.friendsLoading = true;
             try {
                 const res = await fetch('../user_backend/get_friends.php');
                 const data = await res.json();
@@ -764,6 +792,8 @@ function watchParty() {
                 }
             } catch (e) {
                 console.error("Error fetching friends:", e);
+            } finally {
+                this.friendsLoading = false;
             }
         },
 
@@ -922,16 +952,20 @@ function watchParty() {
         },
 
         async fetchMovies() {
+            if (!(this.allMovies || []).length) this.moviesLoading = true;
             try {
                 const cached = JSON.parse(sessionStorage.getItem('nexus_movies_cache') || 'null');
                 if (Array.isArray(cached) && cached.length && !(this.allMovies || []).length) {
                     this.allMovies = cached;
+                    this.moviesLoading = false;
                 }
                 const res = await fetch('/user_backend/movies_api.php');
                 const data = await res.json();
                 this.allMovies = Array.isArray(data) ? data : [];
             } catch (e) {
                 console.error("Error fetching movies:", e);
+            } finally {
+                this.moviesLoading = false;
             }
         },
 
@@ -1503,7 +1537,7 @@ function watchParty() {
 
             const pc = new RTCPeerConnection({
                 iceServers: this.iceServers,
-                iceCandidatePoolSize: 4
+                iceCandidatePoolSize: 8
             });
             peerConnections[peerKey] = pc;
 

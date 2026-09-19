@@ -111,72 +111,71 @@ function buildDailyChartSeries(PDO $conn, int $days, string $type): array
     return $series;
 }
 
+function rescaleChartSeries(array $series, string $type): array
+{
+    if (!$series) {
+        return $series;
+    }
+    $values = array_map(static fn($point) => (float)($point['value'] ?? 0), $series);
+    $max = max($values) ?: 1;
+    foreach ($series as $i => $point) {
+        $value = (float)($point['value'] ?? 0);
+        $series[$i]['height'] = $value > 0
+            ? max(8, (int)round(($value / $max) * 100))
+            : 3;
+    }
+    return $series;
+}
+
 try {
-    // role_id 2 = regular user (exclude admins)
-    $userRoleFilter = 'role_id = 2';
+    $userRow = $conn->query("
+        SELECT
+            SUM(role_id = 2) AS total_users,
+            SUM(role_id = 2 AND created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)) AS users_last_30,
+            SUM(role_id = 2 AND created_at >= DATE_SUB(NOW(), INTERVAL 60 DAY)
+                AND created_at < DATE_SUB(NOW(), INTERVAL 30 DAY)) AS users_prev_30
+        FROM users
+    ")->fetch(PDO::FETCH_ASSOC) ?: [];
 
-    $totalUsers = scalarCount($conn, "SELECT COUNT(*) FROM users WHERE {$userRoleFilter}");
+    $roomRow = $conn->query("
+        SELECT
+            SUM(status = 'active') AS active_sessions,
+            SUM(status = 'active' AND created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)) AS sessions_last_7,
+            SUM(created_at >= DATE_SUB(NOW(), INTERVAL 14 DAY)
+                AND created_at < DATE_SUB(NOW(), INTERVAL 7 DAY)) AS sessions_prev_7
+        FROM rooms
+    ")->fetch(PDO::FETCH_ASSOC) ?: [];
 
-    $usersLast30 = scalarCount(
-        $conn,
-        "SELECT COUNT(*) FROM users WHERE {$userRoleFilter} AND created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)"
-    );
-    $usersPrev30 = scalarCount(
-        $conn,
-        "SELECT COUNT(*) FROM users
-         WHERE {$userRoleFilter}
-           AND created_at >= DATE_SUB(NOW(), INTERVAL 60 DAY)
-           AND created_at < DATE_SUB(NOW(), INTERVAL 30 DAY)"
-    );
+    $payRow = $conn->query("
+        SELECT
+            COALESCE(SUM(CASE WHEN status = 'success' THEN amount ELSE 0 END), 0) AS total_revenue,
+            COALESCE(SUM(CASE WHEN status = 'success' AND created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY) THEN amount ELSE 0 END), 0) AS revenue_last_30,
+            COALESCE(SUM(CASE WHEN status = 'success' AND created_at >= DATE_SUB(NOW(), INTERVAL 60 DAY)
+                AND created_at < DATE_SUB(NOW(), INTERVAL 30 DAY) THEN amount ELSE 0 END), 0) AS revenue_prev_30
+        FROM payment_transactions
+    ")->fetch(PDO::FETCH_ASSOC) ?: [];
 
-    $activeSessions = scalarCount(
-        $conn,
-        "SELECT COUNT(*) FROM rooms WHERE status = 'active'"
-    );
+    $movieRow = $conn->query("
+        SELECT
+            COUNT(*) AS total_movies,
+            SUM(created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)) AS movies_last_30,
+            SUM(created_at >= DATE_SUB(NOW(), INTERVAL 60 DAY)
+                AND created_at < DATE_SUB(NOW(), INTERVAL 30 DAY)) AS movies_prev_30
+        FROM movies
+    ")->fetch(PDO::FETCH_ASSOC) ?: [];
 
-    $sessionsLast7 = scalarCount(
-        $conn,
-        "SELECT COUNT(*) FROM rooms
-         WHERE status = 'active'
-           AND created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)"
-    );
-    $sessionsPrev7 = scalarCount(
-        $conn,
-        "SELECT COUNT(*) FROM rooms
-         WHERE created_at >= DATE_SUB(NOW(), INTERVAL 14 DAY)
-           AND created_at < DATE_SUB(NOW(), INTERVAL 7 DAY)"
-    );
-
-    $totalRevenue = paymentAmountToDollars(scalarSum(
-        $conn,
-        "SELECT COALESCE(SUM(amount), 0) FROM payment_transactions WHERE status = 'success'"
-    ));
-
-    $revenueLast30 = paymentAmountToDollars(scalarSum(
-        $conn,
-        "SELECT COALESCE(SUM(amount), 0) FROM payment_transactions
-         WHERE status = 'success'
-           AND created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)"
-    ));
-    $revenuePrev30 = paymentAmountToDollars(scalarSum(
-        $conn,
-        "SELECT COALESCE(SUM(amount), 0) FROM payment_transactions
-         WHERE status = 'success'
-           AND created_at >= DATE_SUB(NOW(), INTERVAL 60 DAY)
-           AND created_at < DATE_SUB(NOW(), INTERVAL 30 DAY)"
-    ));
-
-    $totalMovies = scalarCount($conn, 'SELECT COUNT(*) FROM movies');
-    $moviesLast30 = scalarCount(
-        $conn,
-        'SELECT COUNT(*) FROM movies WHERE created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)'
-    );
-    $moviesPrev30 = scalarCount(
-        $conn,
-        'SELECT COUNT(*) FROM movies
-         WHERE created_at >= DATE_SUB(NOW(), INTERVAL 60 DAY)
-           AND created_at < DATE_SUB(NOW(), INTERVAL 30 DAY)'
-    );
+    $totalUsers = (int)($userRow['total_users'] ?? 0);
+    $usersLast30 = (int)($userRow['users_last_30'] ?? 0);
+    $usersPrev30 = (int)($userRow['users_prev_30'] ?? 0);
+    $activeSessions = (int)($roomRow['active_sessions'] ?? 0);
+    $sessionsLast7 = (int)($roomRow['sessions_last_7'] ?? 0);
+    $sessionsPrev7 = (int)($roomRow['sessions_prev_7'] ?? 0);
+    $totalRevenue = paymentAmountToDollars((float)($payRow['total_revenue'] ?? 0));
+    $revenueLast30 = paymentAmountToDollars((float)($payRow['revenue_last_30'] ?? 0));
+    $revenuePrev30 = paymentAmountToDollars((float)($payRow['revenue_prev_30'] ?? 0));
+    $totalMovies = (int)($movieRow['total_movies'] ?? 0);
+    $moviesLast30 = (int)($movieRow['movies_last_30'] ?? 0);
+    $moviesPrev30 = (int)($movieRow['movies_prev_30'] ?? 0);
 
     $stats = [
         [
@@ -205,14 +204,16 @@ try {
         ],
     ];
 
+    $revenue30 = buildDailyChartSeries($conn, 30, 'revenue');
+    $logins30 = buildDailyChartSeries($conn, 30, 'logins');
     $charts = [
         '7' => [
-            'revenue' => buildDailyChartSeries($conn, 7, 'revenue'),
-            'logins' => buildDailyChartSeries($conn, 7, 'logins'),
+            'revenue' => rescaleChartSeries(array_slice($revenue30, -7), 'revenue'),
+            'logins' => rescaleChartSeries(array_slice($logins30, -7), 'logins'),
         ],
         '30' => [
-            'revenue' => buildDailyChartSeries($conn, 30, 'revenue'),
-            'logins' => buildDailyChartSeries($conn, 30, 'logins'),
+            'revenue' => $revenue30,
+            'logins' => $logins30,
         ],
     ];
 

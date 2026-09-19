@@ -39,13 +39,18 @@ session_write_close();
         window.USER_AVATAR = <?php echo json_encode($userAvatar); ?>;
         window.USER_BORDER = <?php echo json_encode($userBorder); ?>;
         window.IS_PREMIUM = <?php echo $isPremium ? 'true' : 'false'; ?>;
-        window.PUSHER_KEY = 'f4b5637ef4b8952b6eb8';
-        window.PUSHER_CLUSTER = 'ap1';
+        <?php require_once __DIR__ . '/../pusher_helper.php'; ?>
+        window.PUSHER_KEY = <?php echo json_encode(PUSHER_KEY); ?>;
+        window.PUSHER_CLUSTER = <?php echo json_encode(PUSHER_CLUSTER); ?>;
         window.NEXUS_SIGNALING_URL = window.NEXUS_SIGNALING_URL || (
             (location.port && location.port !== '3000')
                 ? (location.protocol + '//' + location.hostname + ':3000')
                 : ''
         );
+        <?php
+        require_once __DIR__ . '/../ice_servers_helper.php';
+        ?>
+        window.NEXUS_ICE_SERVERS = <?php echo json_encode(nexusIceServers(), JSON_UNESCAPED_SLASHES); ?>;
     </script>
     
     <script src="https://cdn.tailwindcss.com/3.4.17"></script>
@@ -147,6 +152,7 @@ session_write_close();
 
 <!-- 2. Your Custom Scripts Last -->
 <script src="../js/chat_emojis.js?v=1"></script>
+<script src="../js/ice_servers.js?v=<?php echo time(); ?>"></script>
 <script src="watch_party.js?v=<?php echo time(); ?>"></script>
 </head>
 <body class="h-screen w-screen flex relative selection:bg-red-500/30" data-barba="wrapper">
@@ -196,7 +202,7 @@ session_write_close();
                     <h1 class="font-bold text-lg leading-tight truncate" x-text="roomName"></h1>
                     <p class="text-xs text-white/50 mono flex items-center gap-2">
                         <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                        <span x-text="participants.length + ' online'"></span>
+                        <span x-text="occupancyLabel"></span>
                         <span class="text-white/30">·</span>
                         <span class="truncate" x-text="liveStatus"></span>
                     </p>
@@ -241,7 +247,10 @@ session_write_close();
                     </button>
                 </div>
             </template>
-            <div x-show="friends.length === 0" class="text-sm text-white/40 text-center py-4">
+            <div x-show="friendsLoading" class="py-6">
+                <?php $fetchLoaderShow = 'true'; $fetchLoaderLabel = 'Loading friends'; $fetchLoaderClass = 'py-4'; include __DIR__ . '/../frontend/components/fetch_loader.php'; ?>
+            </div>
+            <div x-show="!friendsLoading && friends.length === 0" x-cloak class="text-sm text-white/40 text-center py-4">
                 No friends found.
             </div>
         </div>
@@ -371,7 +380,7 @@ session_write_close();
 
                     <!-- Participants Header & Toggle -->
                     <div class="flex items-center justify-between pointer-events-auto bg-black/20 backdrop-blur-sm px-3 py-2 rounded-xl border border-white/5 shadow-lg">
-                        <span class="text-white/80 text-[10px] font-bold uppercase tracking-wider">Members (<span x-text="participants.length"></span>)</span>
+                        <span class="text-white/80 text-[10px] font-bold uppercase tracking-wider">Members (<span x-text="occupancyLabel"></span>)</span>
                         <button @click="showParticipants = !showParticipants" class="text-white/50 hover:text-white transition-colors bg-white/5 hover:bg-white/10 rounded-lg p-0.5">
                             <span class="material-symbols-outlined text-[18px] transition-transform duration-300" :class="showParticipants ? 'rotate-180' : ''">keyboard_arrow_down</span>
                         </button>
@@ -644,7 +653,13 @@ session_write_close();
 
             <!-- Movie Grid -->
             <div class="flex-1 overflow-y-auto custom-scrollbar p-6">
-                <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-6">
+                <div x-show="moviesLoading">
+                    <?php $fetchLoaderShow = 'true'; $fetchLoaderLabel = 'Loading movies'; $fetchLoaderClass = 'py-16'; include __DIR__ . '/../frontend/components/fetch_loader.php'; ?>
+                </div>
+                <div x-show="!moviesLoading && filteredMovies.length === 0" x-cloak class="py-16 text-center text-sm text-white/40">
+                    No movies found matching your search.
+                </div>
+                <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-6" x-show="!moviesLoading && filteredMovies.length > 0">
                     <template x-for="movie in filteredMovies" :key="movie.id">
                         <div class="group relative aspect-[2/3] rounded-2xl overflow-hidden cursor-pointer bg-white/5" 
                              @click="selectMovie(movie)"

@@ -22,10 +22,11 @@ try {
     require_once '../profile_media_helper.php';
     require_once '../room_chat_helper.php';
     require_once '../schema_upgrade_helper.php';
+    require_once '../premium_benefits_helper.php';
     ensureAppSchema($conn);
     $pdo = $conn;
     // 1. Fetch room using room_id or room_code
-    $stmt = $pdo->prepare("SELECT room_id, room_code, host_id, movie_id, status, created_at FROM rooms WHERE (room_id = :id OR room_code = :code) LIMIT 1");
+    $stmt = $pdo->prepare("SELECT room_id, room_code, host_id, movie_id, status, created_at, max_members FROM rooms WHERE (room_id = :id OR room_code = :code) LIMIT 1");
     $stmt->execute(['id' => $roomId, 'code' => $roomId]);
     $room = $stmt->fetch(PDO::FETCH_ASSOC);
 
@@ -67,6 +68,11 @@ try {
     } catch (Throwable $ignore) {
         $messages = [];
     }
+
+    $occ = nexusRoomOccupancy($pdo, $room);
+    $room['members'] = $occ['members'];
+    $room['max_members'] = $occ['max_members'];
+    $room['occupancy'] = $occ['occupancy'];
 
     echo json_encode([
         'success' => true,

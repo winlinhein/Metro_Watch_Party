@@ -114,7 +114,10 @@
             </div>
         </template>
 
-        <div x-show="filteredMovies.length === 0" class="col-span-full py-20 text-center">
+        <div x-show="moviesLoading" class="col-span-full">
+            <?php $fetchLoaderShow = 'true'; $fetchLoaderLabel = 'Loading movies'; $fetchLoaderClass = 'py-20'; include __DIR__ . '/../frontend/components/fetch_loader.php'; ?>
+        </div>
+        <div x-show="!moviesLoading && filteredMovies.length === 0" x-cloak class="col-span-full py-20 text-center">
             <span class="material-symbols-outlined text-white/20 text-6xl mb-3">movie_off</span>
             <p class="text-sm font-bold text-white/40">No movies found matching your query.</p>
         </div>
@@ -435,7 +438,10 @@
                                         </div>
                                     </template>
 
-                                    <div x-show="!selectedMovie?.comments || selectedMovie?.comments.length === 0" class="py-12 flex flex-col items-center justify-center text-center opacity-50">
+                                    <div x-show="movieCommentsLoading">
+                                        <?php $fetchLoaderShow = 'true'; $fetchLoaderLabel = 'Loading reviews'; $fetchLoaderClass = 'py-10'; include __DIR__ . '/../frontend/components/fetch_loader.php'; ?>
+                                    </div>
+                                    <div x-show="!movieCommentsLoading && (!selectedMovie?.comments || selectedMovie?.comments.length === 0)" x-cloak class="py-12 flex flex-col items-center justify-center text-center opacity-50">
                                         <span class="material-symbols-outlined text-6xl text-white/20 mb-4 animate-pulse">forum</span>
                                         <p class="text-sm font-bold text-white uppercase tracking-widest">No reviews yet</p>
                                         <p class="text-xs text-white/60 mt-2">Be the first to share your thoughts on this title.</p>

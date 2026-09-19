@@ -54,7 +54,10 @@
                 </div>
             </div>
         </template>
-        <div x-show="notifications.length === 0" class="py-10 text-center text-xs text-white/40">
+        <div x-show="notificationsLoading">
+            <?php $fetchLoaderShow = 'true'; $fetchLoaderLabel = 'Loading alerts'; $fetchLoaderClass = 'py-8'; include __DIR__ . '/fetch_loader.php'; ?>
+        </div>
+        <div x-show="!notificationsLoading && notifications.length === 0" x-cloak class="py-10 text-center text-xs text-white/40">
             No notifications yet.
         </div>
     </div>

@@ -140,6 +140,12 @@ function nexusPrepareKeptRecords(PDO $conn): void
         return;
     }
 
+    $flag = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'nexus_kept_records_ok';
+    if (is_file($flag)) {
+        $ready = true;
+        return;
+    }
+
     nexusMakeUserRefNullable($conn, 'reports', 'reporter_id');
     nexusMakeUserRefNullable($conn, 'reports', 'reported_user_id');
     nexusMakeUserRefNullable($conn, 'reports', 'comment_id');
@@ -158,6 +164,7 @@ function nexusPrepareKeptRecords(PDO $conn): void
         }
     }
 
+    @touch($flag);
     $ready = true;
 }
 
