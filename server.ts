@@ -362,7 +362,7 @@ app.get("/backend/dashboard_stats_api.php", (req, res) => {
       { label: "Total Users", value: "150", change: "+12%", icon: "group" },
       { label: "Active Sessions", value: "0", change: "0%", icon: "live_tv" },
       { label: "Revenue", value: "$2,500", change: "+15%", icon: "payments" },
-      { label: "Server Load", value: "35%", change: "-2%", icon: "memory" }
+      { label: "Total Movies", value: "42", change: "+8%", icon: "movie" }
     ],
     charts: {
       "7": { revenue: make(7, 24, true), logins: make(7, 19, false) },

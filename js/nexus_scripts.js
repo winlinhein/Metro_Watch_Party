@@ -161,6 +161,16 @@ function userDashboard() {
         _liveRoom: null,
         showNotifications: false,
         showPremiumModal: false,
+        showRechargeModal: false,
+        selectedPointPack: 'bundle',
+        isRecharging: false,
+        claimablePoints: 0,
+        pointPacks: [
+            { id: 'starter', label: 'Starter', points: 500, price: 0.99, best: false },
+            { id: 'boost', label: 'Boost', points: 1500, price: 2.49, best: false },
+            { id: 'bundle', label: 'Bundle', points: 4000, price: 4.99, best: true },
+            { id: 'mega', label: 'Mega', points: 10000, price: 9.99, best: false }
+        ],
         friendsTab: 'connected',
         movieModalOpen: false,
         localLikedComments: new Set(JSON.parse(localStorage.getItem('nexus_liked_comments') || '[]')),
@@ -765,8 +775,17 @@ function userDashboard() {
                         const res = await fetch(`/user_backend/verify_payment.php?session_id=${sessionId}`);
                         const data = await res.json();
                         if (data.success) {
-                            this.justPaid = true;   // mark that payment was just completed
-                            if (window.showToast) window.showToast('Payment successful! Premium activated.', 'success');
+                            if (data.type === 'points') {
+                                if (data.points != null) this.userPoints = Number(data.points);
+                                if (window.showToast) {
+                                    const added = Number(data.points_added || 0);
+                                    window.showToast(added > 0 ? `Added ${added.toLocaleString()} points to your balance.` : 'Points top-up complete.', 'success');
+                                }
+                                this.fetchUserProfile();
+                            } else {
+                                this.justPaid = true;   // mark that payment was just completed
+                                if (window.showToast) window.showToast('Payment successful! Premium activated.', 'success');
+                            }
                         } else {
                             if (window.showToast) window.showToast(data.message || 'Payment verification failed.', 'error');
                         }
@@ -1241,8 +1260,6 @@ function userDashboard() {
 
         // Command Center Metrics
         statsLoading: true, stats: [
-            { label: 'Total Watch Time', value: 0, suffix: 'H', icon: 'timer', colorClass: 'bg-red-500/10 text-red-500 border border-red-500/20 group-hover:bg-red-500/20 group-hover:shadow-[0_0_20px_rgba(239,68,68,0.3)]', trendClass: 'text-green-400 border-green-400/20', trend: '+12%', desc: 'vs last week' },
-            { label: 'Sessions Hosted', value: 0, suffix: '', icon: 'cell_tower', colorClass: 'bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 group-hover:bg-indigo-500/20 group-hover:shadow-[0_0_20px_rgba(79,70,229,0.3)]', trendClass: 'text-green-400 border-green-400/20', trend: '+3', desc: 'new this week' },
             { label: 'Friends', value: 0, suffix: '', icon: 'group', colorClass: 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 group-hover:bg-emerald-500/20 group-hover:shadow-[0_0_20px_rgba(16,185,129,0.3)]', trendClass: 'text-emerald-400 border-emerald-400/20', trend: 'Online', desc: 'active', action: 'showFriendsPanel = true' },
             { label: 'Quests', value: 0, suffix: ' PTS', icon: 'stars', colorClass: 'bg-yellow-500/10 text-yellow-400 border border-yellow-500/20 group-hover:bg-yellow-500/20 group-hover:shadow-[0_0_20px_rgba(234,179,8,0.3)]', trendClass: 'text-yellow-400 border-yellow-400/20', trend: 'Available', desc: 'Daily quests', action: 'showQuestsPanel = true' }
         ],
@@ -1273,8 +1290,46 @@ function userDashboard() {
         claimingQuestId: null,
 
         get questPointsAvailable() {
-            const questStat = this.stats.find(s => s.label === 'Quests');
-            return questStat ? questStat.value : 0;
+            return Number(this.claimablePoints || 0);
+        },
+
+        openRechargeModal() {
+            if (!this.requireLogin({ modal: true, message: 'Login or register to top up points.' })) {
+                return;
+            }
+            this.selectedPointPack = this.selectedPointPack || 'bundle';
+            this.showRechargeModal = true;
+        },
+
+        async buyPointPack() {
+            if (this.isRecharging) return;
+            if (!this.requireLogin({ modal: true, message: 'Login or register to top up points.' })) {
+                return;
+            }
+            const pack = (this.pointPacks || []).find(p => p.id === this.selectedPointPack);
+            if (!pack) {
+                if (window.showToast) window.showToast('Choose a point pack first.', 'error');
+                return;
+            }
+            this.isRecharging = true;
+            try {
+                const res = await fetch('/user_backend/create_checkout_session.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ type: 'points', pack: pack.id })
+                });
+                const data = await res.json();
+                if (!data.id) throw new Error(data.error || 'Failed to create session');
+
+                const stripe = Stripe('pk_test_51U7dOOQ4txrxX3UyKFl8Esnat3ahKw22hUWtA1HpDKSozJXz9UBofzTjLNreSIOlt8sN6WM4gkS8PCw2k7fuqhUO00CcN5mWd8');
+                const { error } = await stripe.redirectToCheckout({ sessionId: data.id });
+                if (error) throw error;
+            } catch (err) {
+                console.error('Point top-up error:', err);
+                if (window.showToast) window.showToast(err.message || 'Payment failed to start.', 'error');
+            } finally {
+                this.isRecharging = false;
+            }
         },
 
         async loadMissions() {
@@ -1283,10 +1338,10 @@ function userDashboard() {
                 const data = await response.json();
                 
                 if (data.success) {
-                    // Update Total Points in stats array (only if Quests stat exists, for regular users)
+                    this.claimablePoints = Number(data.totalPoints || 0);
                     const questStat = this.stats.find(s => s.label === 'Quests');
                     if (questStat) {
-                        questStat.value = data.totalPoints;
+                        questStat.value = this.claimablePoints;
                     }
                     
                     // Populate daily, weekly, and monthly quests dynamically
@@ -1320,9 +1375,10 @@ function userDashboard() {
                 const data = await res.json();
                 if (data.success) {
                     if (window.showToast) window.showToast(`Claimed ${data.points_added} points!`, 'success');
+                    this.claimablePoints = Math.max(0, Number(this.claimablePoints || 0) - Number(data.points_added || 0));
                     const questStat = this.stats.find(s => s.label === 'Quests');
                     if (questStat) {
-                        questStat.value = Math.max(0, Number(questStat.value) - Number(data.points_added || 0));
+                        questStat.value = this.claimablePoints;
                     }
                     ['daily', 'weekly', 'monthly'].forEach(type => {
                         this.quests[type] = (this.quests[type] || []).map(q =>
@@ -4082,6 +4138,7 @@ function userDashboard() {
             if (this.isGuest) {
                 this.statsLoading = false;
                 this.stats = this.stats.map(stat => ({ ...stat, value: '0' }));
+                this.claimablePoints = 0;
                 this.friends = [];
                 this.pendingRequests = [];
                 this.quests = { daily: [], weekly: [], monthly: [] };
@@ -4096,9 +4153,8 @@ function userDashboard() {
                 }
 
                 this.statsLoading = true;
-                const statsJobs = [this.fetchFriends()];
+                const statsJobs = [this.fetchFriends(), this.fetchUserProfile()];
                 if (isRegularUser) statsJobs.push(this.loadMissions());
-                this.fetchUserProfile();
                 Promise.allSettled(statsJobs).finally(() => {
                     this.statsLoading = false;
                 });
@@ -5973,7 +6029,7 @@ function adminDashboard(userData = {}) {
             { label: "Total Users", value: "0", change: "0%", icon: "group" },
             { label: "Active Sessions", value: "0", change: "0%", icon: "live_tv" },
             { label: "Revenue", value: "$0", change: "0%", icon: "payments" },
-            { label: "Server Load", value: "0%", change: "0%", icon: "memory" }
+            { label: "Total Movies", value: "0", change: "0%", icon: "movie" }
         ],
         chartMode: 'revenue',
         chartRange: '7',

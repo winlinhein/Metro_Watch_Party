@@ -50,15 +50,17 @@ function stripeRequest($method, $path, $params = []) {
 
 // ========== CREATE CHECKOUT SESSION ==========
 function stripeCreateCheckoutSession($params) {
-    $required = ['price_id', 'mode', 'user_id', 'success_url', 'cancel_url'];
+    $required = ['mode', 'user_id', 'success_url', 'cancel_url'];
     foreach ($required as $field) {
         if (empty($params[$field])) throw new Exception("Missing required parameter: $field");
+    }
+    if (empty($params['price_id']) && empty($params['price_data'])) {
+        throw new Exception("Missing required parameter: price_id");
     }
 
     $requestParams = [
         'payment_method_types[]' => 'card',
         'mode' => $params['mode'],
-        'line_items[0][price]' => $params['price_id'],
         'line_items[0][quantity]' => 1,
         'success_url' => $params['success_url'],
         'cancel_url' => $params['cancel_url'],
@@ -66,5 +68,69 @@ function stripeCreateCheckoutSession($params) {
         'metadata[user_id]' => $params['user_id'],
         'metadata[type]' => $params['metadata']['type'] ?? 'premium'
     ];
+
+    if (!empty($params['price_id'])) {
+        $requestParams['line_items[0][price]'] = $params['price_id'];
+    } else {
+        $priceData = $params['price_data'];
+        $requestParams['line_items[0][price_data][currency]'] = $priceData['currency'] ?? 'usd';
+        $requestParams['line_items[0][price_data][unit_amount]'] = (int) $priceData['unit_amount'];
+        $requestParams['line_items[0][price_data][product_data][name]'] = $priceData['name'] ?? 'Nexus Top-up';
+    }
+
+    if (!empty($params['metadata']) && is_array($params['metadata'])) {
+        foreach ($params['metadata'] as $key => $value) {
+            $requestParams['metadata[' . $key . ']'] = $value;
+        }
+    }
+
     return stripeRequest('POST', '/v1/checkout/sessions', $requestParams);
+}
+
+function nexusPublicBaseUrl(): string
+{
+    $forwarded = strtolower((string) ($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? ''));
+    $https = $forwarded === 'https'
+        || (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off');
+    $host = $_SERVER['HTTP_HOST'] ?? 'localhost:8000';
+
+    return ($https ? 'https' : 'http') . '://' . $host;
+}
+
+function nexusPointPacks(): array
+{
+    return [
+        'starter' => [
+            'id' => 'starter',
+            'plan_id' => 2,
+            'points' => 500,
+            'price' => 0.99,
+            'name' => '500 Points',
+            'label' => 'Starter',
+        ],
+        'boost' => [
+            'id' => 'boost',
+            'plan_id' => 3,
+            'points' => 1500,
+            'price' => 2.49,
+            'name' => '1,500 Points',
+            'label' => 'Boost',
+        ],
+        'bundle' => [
+            'id' => 'bundle',
+            'plan_id' => 4,
+            'points' => 4000,
+            'price' => 4.99,
+            'name' => '4,000 Points',
+            'label' => 'Bundle',
+        ],
+        'mega' => [
+            'id' => 'mega',
+            'plan_id' => 5,
+            'points' => 10000,
+            'price' => 9.99,
+            'name' => '10,000 Points',
+            'label' => 'Mega',
+        ],
+    ];
 }

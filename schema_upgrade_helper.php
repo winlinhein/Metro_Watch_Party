@@ -7,7 +7,7 @@ function ensureAppSchema(PDO $conn): void
         return;
     }
 
-    $flag = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'nexus_app_schema_ok_v9';
+    $flag = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'nexus_app_schema_ok_v10';
     if (is_file($flag)) {
         $ready = true;
         return;
@@ -47,7 +47,12 @@ function ensureAppSchema(PDO $conn): void
         ");
         $conn->exec("
             INSERT INTO plans (plan_id, name, price, duration_days, is_active)
-            VALUES (1, 'Nexus Premium', 4.99, 30, 1)
+            VALUES
+                (1, 'Nexus Premium', 4.99, 30, 1),
+                (2, '500 Points', 0.99, 0, 1),
+                (3, '1,500 Points', 2.49, 0, 1),
+                (4, '4,000 Points', 4.99, 0, 1),
+                (5, '10,000 Points', 9.99, 0, 1)
             ON DUPLICATE KEY UPDATE
                 name = VALUES(name),
                 price = VALUES(price),

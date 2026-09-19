@@ -166,32 +166,17 @@ try {
            AND created_at < DATE_SUB(NOW(), INTERVAL 30 DAY)"
     ));
 
-    $activeConnections = scalarCount(
+    $totalMovies = scalarCount($conn, 'SELECT COUNT(*) FROM movies');
+    $moviesLast30 = scalarCount(
         $conn,
-        'SELECT COUNT(*) FROM persistent_session WHERE expired_at > UNIX_TIMESTAMP()'
+        'SELECT COUNT(*) FROM movies WHERE created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)'
     );
-    $connectionsLast7 = scalarCount(
+    $moviesPrev30 = scalarCount(
         $conn,
-        'SELECT COUNT(*) FROM persistent_session
-         WHERE created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)'
+        'SELECT COUNT(*) FROM movies
+         WHERE created_at >= DATE_SUB(NOW(), INTERVAL 60 DAY)
+           AND created_at < DATE_SUB(NOW(), INTERVAL 30 DAY)'
     );
-    $connectionsPrev7 = scalarCount(
-        $conn,
-        'SELECT COUNT(*) FROM persistent_session
-         WHERE created_at >= DATE_SUB(NOW(), INTERVAL 14 DAY)
-           AND created_at < DATE_SUB(NOW(), INTERVAL 7 DAY)'
-    );
-
-    $serverLoad = $totalUsers > 0
-        ? min(100, (int) round(($activeConnections / $totalUsers) * 100))
-        : 0;
-
-    $loadLast7 = $totalUsers > 0
-        ? min(100, (int) round(($connectionsLast7 / max($totalUsers, 1)) * 100))
-        : 0;
-    $loadPrev7 = $totalUsers > 0
-        ? min(100, (int) round(($connectionsPrev7 / max($totalUsers, 1)) * 100))
-        : 0;
 
     $stats = [
         [
@@ -213,10 +198,10 @@ try {
             'icon'   => 'payments',
         ],
         [
-            'label'  => 'Server Load',
-            'value'  => $serverLoad . '%',
-            'change' => formatChange((float) $loadLast7, (float) $loadPrev7),
-            'icon'   => 'memory',
+            'label'  => 'Total Movies',
+            'value'  => number_format($totalMovies),
+            'change' => formatChange((float) $moviesLast30, (float) $moviesPrev30),
+            'icon'   => 'movie',
         ],
     ];
 
