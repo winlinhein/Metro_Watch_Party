@@ -126,7 +126,10 @@
         </div>
 
         <!-- Empty State -->
-        <div x-show="filteredShopItems.length === 0" class="py-20 flex flex-col items-center justify-center text-center opacity-50 relative z-10">
+        <div x-show="shopLoading">
+            <?php $fetchLoaderShow = 'true'; $fetchLoaderLabel = 'Loading shop'; $fetchLoaderClass = 'py-20'; include __DIR__ . '/../frontend/components/fetch_loader.php'; ?>
+        </div>
+        <div x-show="!shopLoading && filteredShopItems.length === 0" x-cloak class="py-20 flex flex-col items-center justify-center text-center opacity-50 relative z-10">
             <span class="material-symbols-outlined text-6xl text-white/20 mb-4 animate-pulse">inventory_2</span>
             <p class="text-lg font-bold text-white uppercase tracking-widest">No Items Available</p>
             <p class="text-sm text-white/60 mt-2">Check back later for new stock.</p>

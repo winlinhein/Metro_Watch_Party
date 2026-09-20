@@ -7,13 +7,6 @@
             <h2 class="text-3xl font-bold text-white tracking-tight mb-1">Reports Analysis</h2>
             <p class="text-white/40 text-sm">Review user, room, comment, and ban-appeal cases.</p>
         </div>
-        <button class="relative px-6 py-3 overflow-hidden rounded-xl group hover:scale-105 active:scale-95 transition-all duration-300 shadow-xl shadow-red-500/20">
-            <span class="absolute inset-0 w-full h-full bg-gradient-to-r from-red-600 via-red-500 to-red-800 opacity-80 group-hover:opacity-100 transition-opacity"></span>
-            <span class="absolute -inset-1 w-full h-full bg-gradient-to-r from-red-500 via-red-400 to-red-600 blur-xl opacity-30 group-hover:opacity-60 transition-opacity animate-pulse"></span>
-            <div class="relative flex items-center gap-2 text-white font-bold text-sm tracking-wide">
-                <span class="material-symbols-outlined text-[18px]">download</span> Export Data
-            </div>
-        </button>
     </div>
 
     <!-- Stats Row -->
@@ -131,7 +124,12 @@
                     </template>
                     
                     <!-- Empty State -->
-                    <tr x-show="!filteredReports || filteredReports.length === 0">
+                    <tr x-show="reportsLoading">
+                        <td colspan="6" class="p-10">
+                            <?php $fetchLoaderShow = 'true'; $fetchLoaderLabel = 'Loading reports'; $fetchLoaderClass = 'py-6'; include __DIR__ . '/../components/fetch_loader.php'; ?>
+                        </td>
+                    </tr>
+                    <tr x-show="!reportsLoading && (!filteredReports || filteredReports.length === 0)">
                         <td colspan="6" class="p-10 text-center text-white/40">
                             <span class="material-symbols-outlined text-4xl mb-2 opacity-50">inbox</span>
                             <p>No reports found matching your criteria.</p>

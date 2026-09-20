@@ -1,7 +1,9 @@
 <?php
 
-$clientId = trim((string)(getenv('GOOGLE_CLIENT_ID') ?: ''));
-$clientSecret = trim((string)(getenv('GOOGLE_CLIENT_SECRET') ?: ''));
+require_once __DIR__ . '/curl_ssl_helper.php';
+
+$clientId = nexusAppEnv('GOOGLE_CLIENT_ID');
+$clientSecret = nexusAppEnv('GOOGLE_CLIENT_SECRET');
 
 $local = __DIR__ . '/google_oauth.local.php';
 if (is_file($local)) {

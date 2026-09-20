@@ -37,14 +37,24 @@ function decodeRoomChatText(?string $raw): array
 
 function formatRoomChatRow(array $row): array
 {
-    $decoded = decodeRoomChatText($row['message_text'] ?? '');
+    $imageUrl = trim((string)($row['image_url'] ?? ''));
+    $messageType = strtolower(trim((string)($row['message_type'] ?? '')));
+    if ($imageUrl !== '') {
+        $decoded = [
+            'type' => $messageType !== '' ? $messageType : 'image',
+            'image_url' => $imageUrl,
+            'text' => (string)($row['message_text'] ?? ''),
+        ];
+    } else {
+        $decoded = decodeRoomChatText($row['message_text'] ?? '');
+    }
     $sentAt = $row['sent_at'] ?? '';
     $time = $sentAt !== '' ? date('g:i A', strtotime((string)$sentAt)) : date('g:i A');
 
     return [
         'id' => isset($row['message_id']) ? (int)$row['message_id'] : null,
         'senderId' => isset($row['user_id']) && $row['user_id'] !== null ? (int)$row['user_id'] : null,
-        'name' => (string)($row['user_name'] ?? $row['guest_nickname'] ?? 'Guest'),
+        'name' => (string)($row['user_name'] ?? 'User'),
         'text' => $decoded['text'],
         'type' => $decoded['type'],
         'image_url' => $decoded['image_url'],
@@ -62,10 +72,11 @@ function fetchRoomChatMessages(PDO $conn, int $roomId, int $limit = 80): array
             rm.message_id,
             rm.room_id,
             rm.user_id,
-            rm.guest_nickname,
             rm.message_text,
+            rm.message_type,
+            rm.image_url,
             rm.sent_at,
-            COALESCE(u.user_name, rm.guest_nickname, 'Guest') AS user_name
+            COALESCE(u.user_name, 'User') AS user_name
         FROM room_messages rm
         LEFT JOIN users u ON u.user_id = rm.user_id
         WHERE rm.room_id = :room_id
@@ -91,9 +102,9 @@ function deleteRoomChat(PDO $conn, int $roomId): void
 
     $texts = [];
     try {
-        $stmt = $conn->prepare('SELECT message_text FROM room_messages WHERE room_id = :room_id');
+        $stmt = $conn->prepare('SELECT message_text, image_url FROM room_messages WHERE room_id = :room_id');
         $stmt->execute(['room_id' => $roomId]);
-        $texts = $stmt->fetchAll(PDO::FETCH_COLUMN) ?: [];
+        $texts = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
     } catch (Throwable $ignore) {
         $texts = [];
     }
@@ -109,10 +120,20 @@ function deleteRoomChat(PDO $conn, int $roomId): void
     }
 
     foreach ($texts as $raw) {
-        $decoded = decodeRoomChatText((string)$raw);
-        if (!empty($decoded['image_url'])) {
+        $imageUrl = '';
+        if (is_array($raw)) {
+            $imageUrl = trim((string)($raw['image_url'] ?? ''));
+            if ($imageUrl === '') {
+                $decoded = decodeRoomChatText((string)($raw['message_text'] ?? ''));
+                $imageUrl = (string)($decoded['image_url'] ?? '');
+            }
+        } else {
+            $decoded = decodeRoomChatText((string)$raw);
+            $imageUrl = (string)($decoded['image_url'] ?? '');
+        }
+        if ($imageUrl !== '') {
             try {
-                deleteStoredMedia($conn, $decoded['image_url']);
+                deleteStoredMedia($conn, $imageUrl);
             } catch (Throwable $ignore) {
             }
         }

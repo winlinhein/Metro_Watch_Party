@@ -13,6 +13,7 @@ session_write_close();
 require_once __DIR__ . '/../conn.php';
 require_once __DIR__ . '/../poster_helper.php';
 require_once __DIR__ . '/../schema_upgrade_helper.php';
+require_once __DIR__ . '/../premium_benefits_helper.php';
 ensureAppSchema($conn);
 
 try {
@@ -50,7 +51,18 @@ try {
     }
     unset($item);
 
-    echo json_encode(['success' => true, 'watchlist' => $watchlist], JSON_UNESCAPED_SLASHES);
+    require_once __DIR__ . '/../premium_benefits_helper.php';
+    $count = count($watchlist);
+    $cap = nexusWatchlistCap($conn, $user_id);
+
+    echo json_encode([
+        'success' => true,
+        'watchlist' => $watchlist,
+        'count' => $count,
+        'cap' => $cap,
+        'unlimited' => $cap === null,
+        'occupancy' => $cap === null ? ($count . '/Unlimited') : ($count . '/' . $cap),
+    ], JSON_UNESCAPED_SLASHES);
 } catch (PDOException $e) {
     http_response_code(500);
     echo json_encode(['success' => false, 'message' => 'Database error: ' . $e->getMessage()]);

@@ -101,7 +101,7 @@ if ($is_item_report) {
                m.title AS movie_title
         FROM rooms r
         LEFT JOIN users u ON u.user_id = r.host_id
-        LEFT JOIN movies m ON m.movie_id = r.movie_id AND r.movie_id > 0
+        LEFT JOIN movies m ON m.movie_id = r.movie_id
         WHERE r.room_id = ?
         LIMIT 1
     ");

@@ -46,7 +46,10 @@ try {
         exit;
     }
 
-    if ((int)$request['host_id'] !== $hostId) {
+    $roomStmt = $conn->prepare("SELECT room_id, host_id, max_members FROM rooms WHERE room_id = ? LIMIT 1");
+    $roomStmt->execute([(int)$request['room_id']]);
+    $room = $roomStmt->fetch(PDO::FETCH_ASSOC) ?: [];
+    if (!$room || (int)($room['host_id'] ?? 0) !== $hostId) {
         http_response_code(403);
         echo json_encode(['success' => false, 'message' => 'Only the host can respond']);
         exit;
@@ -56,10 +59,7 @@ try {
         require_once __DIR__ . '/../premium_benefits_helper.php';
         require_once __DIR__ . '/../schema_upgrade_helper.php';
         ensureAppSchema($conn);
-        $roomStmt = $conn->prepare("SELECT room_id, host_id, max_members FROM rooms WHERE room_id = ? LIMIT 1");
-        $roomStmt->execute([(int)$request['room_id']]);
-        $room = $roomStmt->fetch(PDO::FETCH_ASSOC) ?: [];
-        if ($room && nexusRoomIsFull($conn, $room, (int)$request['requester_id'])) {
+        if (nexusRoomIsFull($conn, $room, (int)$request['requester_id'])) {
             http_response_code(403);
             echo json_encode(['success' => false, 'message' => 'This room is full (' . nexusRoomMaxMembers($conn, $room) . ' people).']);
             exit;
@@ -80,20 +80,17 @@ try {
     ]);
     $type = $action === 'accept' ? 'join_request_accepted' : 'join_request_declined';
     $message = $action === 'accept'
-        ? ('accepted your request to join the watch party.|room:' . $roomId)
-        : ('declined your request to join the watch party.|room:' . $roomId);
-
-    $notifStmt = $conn->prepare("
-        INSERT INTO notifications (user_id, sender_id, type, message, is_read, created_at)
-        VALUES (:user_id, :sender_id, :type, :message, 0, NOW())
-    ");
-    $notifStmt->execute([
-        'user_id' => $targetId,
-        'sender_id' => $hostId,
-        'type' => $type,
-        'message' => $message,
-    ]);
-    $notifId = (int)$conn->lastInsertId();
+        ? 'accepted your request to join the watch party.'
+        : 'declined your request to join the watch party.';
+    $notifId = nexusInsertNotification(
+        $conn,
+        $targetId,
+        $hostId,
+        $type,
+        $message,
+        $roomId,
+        (int)$request['id']
+    );
 
     $hostName = (string)($_SESSION['user_name'] ?? 'The host');
     $media = getUserProfileMedia($conn, $hostId);

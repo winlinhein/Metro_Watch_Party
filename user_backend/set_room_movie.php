@@ -24,6 +24,8 @@ try {
     require_once __DIR__ . '/../poster_helper.php';
     require_once __DIR__ . '/../pusher_helper.php';
     require_once __DIR__ . '/../admin_rooms_helper.php';
+    require_once __DIR__ . '/../schema_upgrade_helper.php';
+    ensureAppSchema($conn);
 
     $roomStmt = $conn->prepare("SELECT room_id, host_id, status FROM rooms WHERE room_id = :id LIMIT 1");
     $roomStmt->execute(['id' => $roomId]);
@@ -61,6 +63,18 @@ try {
         'movie_id' => $movieId,
         'room_id' => $roomId,
     ]);
+
+    try {
+        $history = $conn->prepare("
+            INSERT INTO room_watch_history (room_id, movie_id, watched_at)
+            VALUES (:room_id, :movie_id, NOW())
+        ");
+        $history->execute([
+            'room_id' => $roomId,
+            'movie_id' => $movieId,
+        ]);
+    } catch (Throwable $ignore) {
+    }
 
     $movie['img'] = moviePosterUrl($movie['movie_id']);
     $movie['cover_image'] = $movie['img'];

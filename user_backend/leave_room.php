@@ -38,8 +38,10 @@ if ($roomCode) {
     require_once __DIR__ . '/../admin_rooms_helper.php';
     $channel = 'watch-party-' . $room['room_id'];
 
-    // If user is the host, tell everyone the party is over, then close the room.
-    if ((int)$room['host_id'] === (int)$userId) {
+    $park = isset($_REQUEST['park']) && $_REQUEST['park'] !== '' && $_REQUEST['park'] !== '0';
+
+    // Host explicitly ending the party (Leave button). Refresh / dashboard park must not close it.
+    if ((int)$room['host_id'] === (int)$userId && !$park) {
         closeWatchPartyRoom($conn, (int)$room['room_id'], [
             'from_user_id' => (int)$userId,
             'forced_by_admin' => false,

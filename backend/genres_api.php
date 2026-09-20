@@ -12,12 +12,6 @@ require_once __DIR__ . '/../conn.php';
 
 $method = $_SERVER['REQUEST_METHOD'];
 
-if ($method !== 'GET' && $role !== 'admin') {
-    http_response_code(403);
-    echo json_encode(['error' => 'Access denied: Admin permissions required']);
-    exit();
-}
-
 // -------------------------------------------------------------
 // GET: Retrieve all genres from the database
 // -------------------------------------------------------------

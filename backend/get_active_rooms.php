@@ -3,6 +3,7 @@ session_start();
 require_once __DIR__ . '/../conn.php';
 require_once __DIR__ . '/../poster_helper.php';
 require_once __DIR__ . '/../profile_media_helper.php';
+require_once __DIR__ . '/../premium_benefits_helper.php';
 
 header('Content-Type: application/json');
 
@@ -18,6 +19,7 @@ if (
 }
 
 session_write_close();
+ensureAppSchema($conn);
 
 try {
     $stmt = $conn->query("
@@ -26,12 +28,13 @@ try {
             r.room_code,
             r.host_id,
             r.movie_id,
+            r.max_members,
             r.created_at,
             COALESCE(u.user_name, u.email, 'Unknown') AS host_name,
             m.title AS movie_title
         FROM rooms r
         LEFT JOIN users u ON u.user_id = r.host_id
-        LEFT JOIN movies m ON m.movie_id = r.movie_id AND r.movie_id > 0
+        LEFT JOIN movies m ON m.movie_id = r.movie_id
         WHERE r.status = 'active'
         ORDER BY r.created_at DESC
     ");
@@ -50,11 +53,12 @@ try {
     if ($roomIds) {
         $placeholders = implode(',', array_fill(0, count($roomIds), '?'));
         $participantStmt = $conn->prepare("
-            SELECT room_id, user_id, user_name, peer_id, last_seen
-            FROM room_participants
-            WHERE room_id IN ({$placeholders})
-              AND last_seen > DATE_SUB(NOW(), INTERVAL 45 SECOND)
-            ORDER BY last_seen DESC
+            SELECT rp.room_id, rp.user_id, COALESCE(u.user_name, '') AS user_name, rp.peer_id, rp.last_seen
+            FROM room_participants rp
+            LEFT JOIN users u ON u.user_id = rp.user_id
+            WHERE rp.room_id IN ({$placeholders})
+              AND rp.last_seen > DATE_SUB(NOW(), INTERVAL 45 SECOND)
+            ORDER BY rp.last_seen DESC
         ");
         $participantStmt->execute($roomIds);
         foreach ($participantStmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
@@ -76,7 +80,7 @@ try {
         $mediaByUser[(int)$m['user_id']] = $m;
     }
 
-    $formatted = array_map(static function ($room) use ($participantsByRoom, $mediaByUser) {
+    $formatted = array_map(static function ($room) use ($participantsByRoom, $mediaByUser, $conn) {
         $roomId = (int)$room['room_id'];
         $hostId = (int)$room['host_id'];
         $movieId = (int)($room['movie_id'] ?? 0);
@@ -106,6 +110,8 @@ try {
             return $a['isHost'] ? -1 : 1;
         });
 
+        $occ = nexusRoomOccupancy($conn, $room, count($participants));
+
         return [
             'id' => $roomId,
             'name' => 'Room #' . $room['room_code'],
@@ -117,7 +123,9 @@ try {
             'movie_id' => $hasMovie ? $movieId : null,
             'movie_title' => $hasMovie ? $movieTitle : 'No movie selected',
             'movie_poster' => $hasMovie ? moviePosterUrl($movieId) : '',
-            'users' => count($participants),
+            'users' => $occ['members'],
+            'max_members' => $occ['max_members'],
+            'occupancy' => $occ['occupancy'],
             'participants' => $participants,
             'created_at' => $room['created_at'],
         ];

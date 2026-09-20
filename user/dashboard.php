@@ -69,6 +69,17 @@ session_write_close();
     // This safely passes the logged-in user's ID from your backend session to JS
     window.CURRENT_USER_ID = <?php echo json_encode($userId); ?>;
     window.NEXUS_USER = <?php echo json_encode($nexusUserBoot, JSON_UNESCAPED_SLASHES); ?>;
+    <?php
+    require_once __DIR__ . '/../pusher_helper.php';
+    require_once __DIR__ . '/../stripe_helper.php';
+    ?>
+    window.PUSHER_KEY = <?php echo json_encode(PUSHER_KEY); ?>;
+    window.PUSHER_CLUSTER = <?php echo json_encode(PUSHER_CLUSTER); ?>;
+    window.STRIPE_PUBLISHABLE_KEY = <?php echo json_encode(STRIPE_PUBLISHABLE_KEY); ?>;
+    <?php
+    require_once __DIR__ . '/../ice_servers_helper.php';
+    ?>
+    window.NEXUS_ICE_SERVERS = <?php echo json_encode(nexusIceServers(), JSON_UNESCAPED_SLASHES); ?>;
 </script>
 
 <!DOCTYPE html>
@@ -158,6 +169,14 @@ session_write_close();
             top: 0; left: 0; right: 0; height: 1px;
             background: linear-gradient(90deg, transparent, rgba(255,255,255,0.1), transparent);
         }
+        .speaking-ring {
+            box-shadow: 0 0 0 2px #34d399, 0 0 14px rgba(52, 211, 153, 0.85);
+            animation: speaking-pulse 1.15s ease-out infinite;
+        }
+        @keyframes speaking-pulse {
+            0%, 100% { box-shadow: 0 0 0 2px #34d399, 0 0 8px rgba(52, 211, 153, 0.45); }
+            50% { box-shadow: 0 0 0 3px #6ee7b7, 0 0 20px rgba(52, 211, 153, 0.95); }
+        }
         
         ::-webkit-scrollbar { width: 4px; }
         ::-webkit-scrollbar-track { background: transparent; }
@@ -215,6 +234,7 @@ session_write_close();
             mask-composite: exclude;
             background-size: 200% 200%;
             animation: borderGlow 6s linear infinite;
+            pointer-events: none;
         }
         @keyframes borderGlow {
             0% { background-position: 0% 0%; }
@@ -416,8 +436,21 @@ session_write_close();
 
     <link rel="stylesheet" href="https://cdn.plyr.io/3.7.8/plyr.css" />
     <script src="https://cdn.plyr.io/3.7.8/plyr.polyfilled.js"></script>
+    <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+    <script>
+        window.NEXUS_SIGNALING_URL = window.NEXUS_SIGNALING_URL || (
+            (location.port && location.port !== '3000')
+                ? (location.protocol + '//' + location.hostname + ':3000')
+                : ''
+        );
+        if (typeof io !== 'function') {
+            document.write('<script src="' + (window.NEXUS_SIGNALING_URL || (location.protocol + '//' + location.hostname + ':3000')) + '/socket.io/socket.io.js"><\/script>');
+        }
+    </script>
     <script src="../js/chat_emojis.js?v=1"></script>
-    <script src="../js/nexus_scripts.js?v=1789311200"></script>
+    <script src="../js/ice_servers.js?v=<?php echo time(); ?>"></script>
+    <script src="../js/live_room_client.js?v=<?php echo time(); ?>"></script>
+    <script src="../js/nexus_scripts.js?v=<?php echo time(); ?>"></script>
     <script src="../js/support_chatbot.js?v=3"></script>
 </head>
 <body class="h-screen w-screen flex flex-col relative selection:bg-red-500/30" data-barba="wrapper">
@@ -548,7 +581,10 @@ session_write_close();
                             </div>
                         </div>
                     </template>
-                    <div x-show="!(quests[questActiveTab] || []).length" class="py-12 text-center">
+                    <div x-show="statsLoading">
+                        <?php $fetchLoaderShow = 'true'; $fetchLoaderLabel = 'Loading quests'; $fetchLoaderClass = 'py-8'; include __DIR__ . '/../frontend/components/fetch_loader.php'; ?>
+                    </div>
+                    <div x-show="!statsLoading && !(quests[questActiveTab] || []).length" x-cloak class="py-12 text-center">
                         <span class="material-symbols-outlined text-white/25 text-[28px]">task_alt</span>
                         <p class="text-[11px] text-white/40 mt-2">No quests in this cycle yet.</p>
                     </div>
@@ -576,8 +612,8 @@ session_write_close();
     <div x-show="showFriendsPanel" 
         class="fixed inset-0 bg-black/70 backdrop-blur-md z-[120] transition-opacity duration-300 ease-out" 
         x-transition.opacity
-        @click="if (!showChatPanel) showFriendsPanel = false" 
-        :class="showChatPanel ? 'pointer-events-none' : ''"
+        @click="if (!showChatPanel && !showInviteModal) showFriendsPanel = false" 
+        :class="(showChatPanel || showInviteModal) ? 'pointer-events-none' : ''"
         style="display: none;"></div>
 
     <div class="fixed top-0 right-0 w-full md:w-[320px] h-screen bg-[#07070b]/95 backdrop-blur-2xl border-l border-white/10 z-[130] flex flex-col shadow-[0_0_60px_rgba(0,0,0,0.8)] transition-transform duration-300 ease-out" 
@@ -680,7 +716,10 @@ session_write_close();
                         </div>
                     </template>
 
-                    <div x-show="filteredFriends.length === 0" class="py-10 text-center">
+                    <div x-show="friendsLoading">
+                        <?php $fetchLoaderShow = 'true'; $fetchLoaderLabel = 'Loading friends'; $fetchLoaderClass = 'py-8'; include __DIR__ . '/../frontend/components/fetch_loader.php'; ?>
+                    </div>
+                    <div x-show="!friendsLoading && filteredFriends.length === 0" x-cloak class="py-10 text-center">
                         <span class="material-symbols-outlined text-white/30 text-[24px]">group_off</span>
                         <p class="text-[11px] text-white/40 mt-1">No friends found</p>
                     </div>
@@ -727,7 +766,10 @@ session_write_close();
                         </div>
                     </template>
 
-                    <div x-show="pendingRequests.length === 0" class="py-10 text-center">
+                    <div x-show="friendsLoading">
+                        <?php $fetchLoaderShow = 'true'; $fetchLoaderLabel = 'Loading requests'; $fetchLoaderClass = 'py-8'; include __DIR__ . '/../frontend/components/fetch_loader.php'; ?>
+                    </div>
+                    <div x-show="!friendsLoading && pendingRequests.length === 0" x-cloak class="py-10 text-center">
                         <span class="material-symbols-outlined text-white/30 text-[24px]">inbox</span>
                         <p class="text-[11px] text-white/40 mt-1">No pending requests</p>
                     </div>
@@ -750,8 +792,8 @@ session_write_close();
             </div>
         </template>
     </div>
-    <!-- Live User Search Modal -->
-    <div x-show="showInviteModal" class="fixed inset-0 z-[110] flex items-center justify-center" style="display: none;">
+    <!-- Live User Search Modal (above friends/quests drawers) -->
+    <div x-show="showInviteModal" class="fixed inset-0 z-[220] flex items-center justify-center" style="display: none;">
         <div class="absolute inset-0 bg-black/70 backdrop-blur-md" x-show="showInviteModal" x-transition.opacity @click="showInviteModal = false"></div>
         <div class="relative w-[90%] max-w-[480px] bg-[#050508]/95 backdrop-blur-3xl border border-white/10 rounded-3xl shadow-2xl flex flex-col max-h-[85vh] overflow-hidden z-10"
              x-show="showInviteModal"
@@ -853,7 +895,10 @@ session_write_close();
                     </div>
                 </template>
 
-                <div x-show="searchResults.length === 0" class="p-6 text-center text-xs text-white/40">
+                <div x-show="searchLoading">
+                    <?php $fetchLoaderShow = 'true'; $fetchLoaderLabel = 'Searching'; $fetchLoaderClass = 'py-8'; include __DIR__ . '/../frontend/components/fetch_loader.php'; ?>
+                </div>
+                <div x-show="!searchLoading && searchResults.length === 0" x-cloak class="p-6 text-center text-xs text-white/40">
                     No users matching "<span x-text="searchQuery"></span>" found.
                 </div>
             </div>
@@ -887,7 +932,8 @@ session_write_close();
                     <template x-for="(user, index) in visibleRoomParticipants" :key="user.peerId || user.userId || user.name || index">
                         <div class="relative w-10 h-10 overflow-visible shrink-0 -ml-2 first:ml-0"
                              :style="`z-index: ${20 - index}`"
-                             :title="user.name">
+                             :class="user.speaking ? 'speaking-ring rounded-full' : ''"
+                             :title="user.speaking ? ((user.name || 'User') + ' is talking') : user.name">
                             <div class="absolute inset-0 z-0 overflow-hidden rounded-full scale-[1.12] bg-black border-2 border-[#050508] shadow-lg">
                                 <img :src="user.avatar" class="absolute inset-0 h-full w-full object-cover" alt="">
                             </div>
@@ -902,6 +948,7 @@ session_write_close();
                          class="relative -ml-2 w-10 h-10 rounded-full bg-white/10 border-2 border-[#050508] flex items-center justify-center text-[10px] font-bold text-white/80 z-0">
                         +<span x-text="extraRoomParticipantCount"></span>
                     </div>
+                    <span class="ml-3 text-xs text-white/50 mono" x-text="activeRoomOccupancy"></span>
                 </button>
             </div>
             
@@ -982,48 +1029,78 @@ session_write_close();
                 <div class="max-w-[1400px] mx-auto space-y-8">
 
                 <?php include __DIR__ . '/../frontend/components/trending_movies.php'; ?>
-                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                    <template x-for="(stat, index) in stats" :key="index">
-                        <div class="glass-card rounded-2xl p-6 cursor-pointer hover-glow" @click="if(stat.label === 'Friends') showFriendsPanel = true; if(stat.label === 'Quests') showQuestsPanel = true">
-                            <div class="flex justify-between items-start mb-4">
-                                <div>
-                                    <p class="text-white/50 text-xs uppercase tracking-widest mono mb-2" x-text="stat.label"></p>
-                                    <div class="relative min-h-[40px] flex items-end">
-                                        <!-- Loading Spinner -->
-                                        <template x-if="statsLoading">
-                                            <div class="h-10 relative overflow-hidden flex items-center py-1">
-                                                <div class="relative w-9 h-9 flex items-center justify-center">
-                                                    <!-- Ambient Glow -->
-                                                    <div class="absolute inset-0 bg-indigo-500/20 rounded-full blur-md animate-pulse"></div>
-                                                    <!-- Outer Orbit Ring -->
-                                                    <div class="stat-loader-orbit-outer absolute inset-0 border-[2px] border-white/5 border-t-indigo-500 border-r-indigo-500 rounded-full shadow-[0_0_10px_rgba(99,102,241,0.2)]"></div>
-                                                    <!-- Inner Counter-Orbit Ring -->
-                                                    <div class="stat-loader-orbit-inner absolute inset-1.5 border-[2px] border-white/5 border-b-red-500 border-l-red-500 rounded-full shadow-[0_0_10px_rgba(239,68,68,0.2)]"></div>
-                                                    <!-- Core Energy Dot -->
-                                                    <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-2 h-2 bg-white shadow-[0_0_8px_#fff] rotate-45 animate-ping" style="animation-duration: 1.5s;"></div>
-                                                    <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-1.5 h-1.5 bg-white shadow-[0_0_8px_#fff] rotate-45"></div>
-                                                </div>
-                                            </div>
-                                        </template>
-                                        <!-- Actual Value -->
-                                        <template x-if="!statsLoading">
-                                            <h3 class="text-4xl font-bold text-white tracking-tight flex items-end gap-1">
-                                                <span class="font-mono" x-text="isGuest ? '0' : stat.value"></span>
-                                                <span class="text-lg text-white/50 mb-1" x-text="stat.suffix" x-show="stat.suffix"></span>
-                                            </h3>
-                                        </template>
-                                    </div>
-                                </div>
-                                <div class="w-12 h-12 rounded-xl flex items-center justify-center" :class="stat.colorClass">
-                                    <span class="material-symbols-outlined text-[24px]" x-text="stat.icon"></span>
-                                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div class="glass-card rounded-2xl p-6 cursor-pointer hover-glow" @click="showFriendsPanel = true">
+                        <div class="flex justify-between items-start mb-5">
+                            <div>
+                                <p class="text-white/50 text-xs uppercase tracking-widest mono mb-1">Friends</p>
+                                <p class="text-xs text-white/35">Your network at a glance</p>
                             </div>
-                            <div class="flex items-center gap-2 mt-4">
-                                <span class="text-[11px] px-2 py-1 rounded bg-white/5 mono border border-white/10" :class="stat.trendClass" x-text="stat.trend"></span>
-                                <span class="text-xs text-white/40" x-text="stat.desc"></span>
+                            <div class="w-12 h-12 rounded-xl flex items-center justify-center bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                                <span class="material-symbols-outlined text-[24px]">group</span>
                             </div>
                         </div>
-                    </template>
+                        <div class="min-h-[72px] flex items-center">
+                            <template x-if="statsLoading">
+                                <div class="h-10 relative overflow-hidden flex items-center py-1">
+                                    <div class="relative w-9 h-9 flex items-center justify-center">
+                                        <div class="absolute inset-0 bg-indigo-500/20 rounded-full blur-md animate-pulse"></div>
+                                        <div class="stat-loader-orbit-outer absolute inset-0 border-[2px] border-white/5 border-t-indigo-500 border-r-indigo-500 rounded-full"></div>
+                                        <div class="stat-loader-orbit-inner absolute inset-1.5 border-[2px] border-white/5 border-b-red-500 border-l-red-500 rounded-full"></div>
+                                    </div>
+                                </div>
+                            </template>
+                            <div x-show="!statsLoading" class="grid grid-cols-2 gap-4 w-full">
+                                <div>
+                                    <h3 class="text-4xl font-bold text-white tracking-tight font-mono" x-text="isGuest ? '0' : (friends.length || 0)"></h3>
+                                    <p class="text-[11px] uppercase tracking-widest text-white/40 mt-1">Total friends</p>
+                                </div>
+                                <div>
+                                    <h3 class="text-4xl font-bold text-emerald-400 tracking-tight font-mono" x-text="isGuest ? '0' : onlineFriendsCount"></h3>
+                                    <p class="text-[11px] uppercase tracking-widest text-white/40 mt-1">Online now</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="glass-card rounded-2xl p-6 cursor-pointer hover-glow" @click="showQuestsPanel = true">
+                        <div class="flex justify-between items-start mb-5">
+                            <div>
+                                <p class="text-white/50 text-xs uppercase tracking-widest mono mb-1">Quests</p>
+                                <p class="text-xs text-white/35">Points earned and ready to claim</p>
+                            </div>
+                            <div class="w-12 h-12 rounded-xl flex items-center justify-center bg-yellow-500/10 text-yellow-400 border border-yellow-500/20">
+                                <span class="material-symbols-outlined text-[24px]">stars</span>
+                            </div>
+                        </div>
+                        <div class="min-h-[72px] flex items-center">
+                            <template x-if="statsLoading">
+                                <div class="h-10 relative overflow-hidden flex items-center py-1">
+                                    <div class="relative w-9 h-9 flex items-center justify-center">
+                                        <div class="absolute inset-0 bg-indigo-500/20 rounded-full blur-md animate-pulse"></div>
+                                        <div class="stat-loader-orbit-outer absolute inset-0 border-[2px] border-white/5 border-t-indigo-500 border-r-indigo-500 rounded-full"></div>
+                                        <div class="stat-loader-orbit-inner absolute inset-1.5 border-[2px] border-white/5 border-b-red-500 border-l-red-500 rounded-full"></div>
+                                    </div>
+                                </div>
+                            </template>
+                            <div x-show="!statsLoading" class="grid grid-cols-2 gap-4 w-full">
+                                <div>
+                                    <h3 class="text-4xl font-bold text-white tracking-tight font-mono" x-text="isGuest ? '0' : Number(userPoints || 0).toLocaleString()"></h3>
+                                    <p class="text-[11px] uppercase tracking-widest text-white/40 mt-1">Total points</p>
+                                </div>
+                                <div>
+                                    <h3 class="text-4xl font-bold text-yellow-400 tracking-tight font-mono" x-text="isGuest ? '0' : Number(questPointsAvailable || 0).toLocaleString()"></h3>
+                                    <p class="text-[11px] uppercase tracking-widest text-white/40 mt-1">Ready to claim</p>
+                                </div>
+                            </div>
+                        </div>
+                        <button type="button"
+                                @click.stop="openRechargeModal()"
+                                class="mt-5 w-full px-4 py-2.5 rounded-xl bg-yellow-500/15 hover:bg-yellow-500/25 border border-yellow-500/30 text-yellow-300 text-xs font-bold uppercase tracking-widest flex items-center justify-center gap-2 transition-all">
+                            <span class="material-symbols-outlined text-[18px]">bolt</span>
+                            Recharge
+                        </button>
+                    </div>
                 </div>
 
                 <div class="grid grid-cols-1 xl:grid-cols-3 gap-8">
@@ -1093,11 +1170,11 @@ session_write_close();
                                         </p>
                                         
                                         <div class="flex items-center justify-between gap-3">
-                                            <span class="text-xs text-white/60 mono" x-text="(party.members || 0) + ' Members Active'"></span>
+                                            <span class="text-xs text-white/60 mono" x-text="(party.occupancy || ((party.members || 0) + '/' + (party.max_members || 5))) + ' Members'"></span>
                                             <button type="button"
-                                                    @click="party.in_room || party.request_status === 'accepted' ? enterFriendRoom(party) : requestJoinRoom(party)"
-                                                    :disabled="joiningRoomId === party.room_id"
-                                                    class="px-5 py-2 border text-white font-bold tracking-wide rounded-xl transition-all flex items-center gap-2 disabled:opacity-60"
+                                                    @click.stop="party.in_room || party.request_status === 'accepted' ? enterFriendRoom(party) : requestJoinRoom(party)"
+                                                    :disabled="joiningRoomId === party.room_id || party.request_status === 'pending'"
+                                                    class="relative z-10 px-5 py-2 border text-white font-bold tracking-wide rounded-xl transition-all flex items-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer"
                                                     :class="party.request_status === 'pending'
                                                         ? 'bg-white/5 border-white/10 text-white/70'
                                                         : 'bg-white/5 hover:bg-white/10 border-white/10'">
@@ -1113,7 +1190,13 @@ session_write_close();
                         </div>
 
                         <div class="glass-card rounded-2xl flex-1 min-h-[280px] p-8 flex flex-col items-center justify-center text-center relative overflow-hidden"
-                             x-show="!isGuest && friendRooms.length === 0"
+                             x-show="!isGuest && friendRoomsLoading"
+                             x-cloak>
+                            <?php $fetchLoaderShow = 'true'; $fetchLoaderLabel = 'Finding live parties'; $fetchLoaderClass = 'py-8'; include __DIR__ . '/../frontend/components/fetch_loader.php'; ?>
+                        </div>
+
+                        <div class="glass-card rounded-2xl flex-1 min-h-[280px] p-8 flex flex-col items-center justify-center text-center relative overflow-hidden"
+                             x-show="!isGuest && !friendRoomsLoading && friendRooms.length === 0"
                              x-cloak>
                             <div class="absolute inset-0 bg-gradient-to-br from-red-500/5 via-transparent to-indigo-500/5 pointer-events-none"></div>
                             <div class="absolute inset-6 rounded-xl border border-dashed border-white/10 pointer-events-none"></div>
@@ -1206,6 +1289,7 @@ session_write_close();
         <!-- Watchlist Section Included -->
         <?php include "user_movies.php"; ?>
         <?php include "user_premium.php"; ?>
+        <?php include "user_recharge.php"; ?>
         <?php include "user_shop.php"; ?>
         <?php if ($userRole !== 'guest'): ?>
             <?php include "watchlist.php"; ?>
@@ -1216,7 +1300,7 @@ session_write_close();
 
     <?php include __DIR__ . '/../frontend/components/host_party_fab.php'; ?>
 
-    <div x-show="!showMovieDetailModal && !showChatPanel && !showFriendsPanel && !showQuestsPanel && !showInviteModal" x-transition>
+    <div x-show="!showMovieDetailModal && !showChatPanel && !showFriendsPanel && !showQuestsPanel && !showInviteModal && !showRechargeModal" x-transition>
         <?php include __DIR__ . '/../frontend/components/support_chatbot.php'; ?>
     </div>
 

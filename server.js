@@ -213,6 +213,16 @@ io.on('connection', socket => {
         });
     });
 
+    socket.on('peer-speaking', (data) => {
+        if (!socket._roomId) return;
+        socket.to(socket._roomId).emit('peer-speaking', {
+            userId: socket._userId,
+            socketId: socket.id,
+            peerId: socket._peerId || (data && data.peerId),
+            speaking: !!(data && data.speaking)
+        });
+    });
+
     socket.on('disconnect', () => {
         if (socket._roomId) {
             socket.to(socket._roomId).emit('user-disconnected', {

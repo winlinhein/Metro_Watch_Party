@@ -50,13 +50,13 @@
                              :class="{
                                  'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30': !notif.avatar_url && (notif.type === 'friend_request' || notif.type === 'friend_accepted'),
                                  'bg-indigo-500/20 text-indigo-400 border border-indigo-500/30': !notif.avatar_url && (notif.type === 'party_invite' || notif.type === 'join_request' || notif.type === 'join_request_accepted'),
-                                 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/30': !notif.avatar_url && notif.type === 'quest',
-                                 'bg-red-500/20 text-red-400 border border-red-500/30': !notif.avatar_url && (notif.type === 'report_cancelled' || notif.type === 'report_alert'),
-                                 'bg-white/10 border border-white/10': !notif.avatar_url && !['friend_request','friend_accepted','party_invite','join_request','join_request_accepted','quest','report_cancelled','report_alert'].includes(notif.type)
+                                 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/30': !notif.avatar_url && (notif.type === 'quest' || notif.type === 'payment_success'),
+                                 'bg-red-500/20 text-red-400 border border-red-500/30': !notif.avatar_url && (notif.type === 'report_cancelled' || notif.type === 'report_alert' || notif.type === 'payment_failed'),
+                                 'bg-white/10 border border-white/10': !notif.avatar_url && !['friend_request','friend_accepted','party_invite','join_request','join_request_accepted','quest','report_cancelled','report_alert','payment_success','payment_failed'].includes(notif.type)
                              }">
                             <img x-show="notif.avatar_url" :src="resolveAvatarUrl(notif.avatar_url, notif.sender_name || 'User')" class="absolute inset-0 h-full w-full object-cover" alt="">
                             <span x-show="!notif.avatar_url" class="material-symbols-outlined text-[18px]" 
-                                  x-text="notif.type === 'friend_request' ? 'person_add' : (notif.type === 'friend_accepted' ? 'how_to_reg' : (notif.type === 'party_invite' || notif.type === 'join_request' || notif.type === 'join_request_accepted' ? 'movie' : (notif.type === 'report_cancelled' || notif.type === 'report_alert' ? 'flag' : 'notifications')))"></span>
+                                  x-text="notif.type === 'friend_request' ? 'person_add' : (notif.type === 'friend_accepted' ? 'how_to_reg' : (notif.type === 'party_invite' || notif.type === 'join_request' || notif.type === 'join_request_accepted' ? 'movie' : (notif.type === 'report_cancelled' || notif.type === 'report_alert' ? 'flag' : (notif.type === 'payment_success' || notif.type === 'payment_failed' ? 'payments' : 'notifications'))))"></span>
                         </div>
                         <img x-show="notif.border_preview" :src="notif.border_preview" class="absolute inset-0 z-10 h-full w-full scale-[1.4] object-contain pointer-events-none" alt="">
                     </div>
@@ -118,7 +118,10 @@
                 </div>
             </template>
 
-            <div x-show="notifications.length === 0" class="py-8 text-center text-xs text-white/40">
+            <div x-show="notificationsLoading">
+                <?php $fetchLoaderShow = 'true'; $fetchLoaderLabel = 'Loading alerts'; $fetchLoaderClass = 'py-8'; include __DIR__ . '/../frontend/components/fetch_loader.php'; ?>
+            </div>
+            <div x-show="!notificationsLoading && notifications.length === 0" x-cloak class="py-8 text-center text-xs text-white/40">
                 No notifications yet.
             </div>
         </div>

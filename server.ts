@@ -125,11 +125,36 @@ io.on("connection", (socket) => {
   });
 
   socket.on('toggle-video', (isVideoOn) => {
+      const on = (isVideoOn && typeof isVideoOn === 'object') ? !!(isVideoOn as any).isVideoOn : !!isVideoOn;
       const roomId = (socket as any)._roomId;
       const userId = (socket as any)._userId;
       if (roomId) {
-          socket.to(roomId).emit('peer-video-changed', { userId, socketId: socket.id, isVideoOn });
+          socket.to(roomId).emit('peer-video-changed', { userId, socketId: socket.id, isVideoOn: on });
       }
+  });
+
+  socket.on('peer-leave', (data) => {
+      const roomId = (socket as any)._roomId;
+      if (!roomId) return;
+      socket.to(roomId).emit('peer-leave', {
+          ...(data || {}),
+          userId: (data && (data as any).userId) || (socket as any)._userId,
+          peerId: (data && (data as any).peerId) || (socket as any)._peerId,
+          socketId: socket.id,
+          fromSocketId: socket.id,
+          fromUserId: (socket as any)._userId
+      });
+  });
+
+  socket.on('peer-speaking', (data) => {
+      const roomId = (socket as any)._roomId;
+      if (!roomId) return;
+      socket.to(roomId).emit('peer-speaking', {
+          userId: (socket as any)._userId,
+          socketId: socket.id,
+          peerId: (socket as any)._peerId || (data && (data as any).peerId),
+          speaking: !!(data && (data as any).speaking)
+      });
   });
 
   socket.on('disconnect', () => {
@@ -314,12 +339,36 @@ app.post("/user_backend/leave_room.php", (req, res) => {
 
 
 app.get("/backend/dashboard_stats_api.php", (req, res) => {
-  res.json([
-      { label: 'Total Users', value: '150', change: '+12%', icon: 'group' },
-      { label: 'Active Sessions', value: '10', change: '+5%', icon: 'live_tv' },
-      { label: 'Revenue', value: '$2,500', change: '+15%', icon: 'payments' },
-      { label: 'Server Load', value: '35%', change: '-2%', icon: 'memory' }
-  ]);
+  const make = (days, seed, isMoney) => {
+    const out = [];
+    let value = seed;
+    for (let i = days - 1; i >= 0; i--) {
+      value = Math.max(3, value + Math.round(Math.sin(i / 1.65) * 16 + ((i % 4) - 1.5) * 5));
+      const raw = isMoney ? value * 14.5 : value;
+      const date = new Date();
+      date.setDate(date.getDate() - i);
+      out.push({
+        label: days <= 7 ? date.toLocaleDateString("en-US", { weekday: "short" }) : date.toLocaleDateString("en-US", { day: "numeric", month: "short" }),
+        value: raw,
+        display: isMoney ? "$" + Math.round(raw).toLocaleString() : String(Math.round(raw)),
+        height: 40
+      });
+    }
+    const max = Math.max(...out.map((row) => Number(row.value) || 0), 1);
+    return out.map((row) => ({ ...row, height: Math.max(8, Math.round((Number(row.value) / max) * 100)) }));
+  };
+  res.json({
+    stats: [
+      { label: "Total Users", value: "150", change: "+12%", icon: "group" },
+      { label: "Active Sessions", value: "0", change: "0%", icon: "live_tv" },
+      { label: "Revenue", value: "$2,500", change: "+15%", icon: "payments" },
+      { label: "Total Movies", value: "42", change: "+8%", icon: "movie" }
+    ],
+    charts: {
+      "7": { revenue: make(7, 24, true), logins: make(7, 19, false) },
+      "30": { revenue: make(30, 21, true), logins: make(30, 17, false) }
+    }
+  });
 });
 app.post("/user_backend/mark_notifications_read.php", (req, res) => {
   res.json({ success: true });

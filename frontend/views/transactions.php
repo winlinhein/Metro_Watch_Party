@@ -4,7 +4,7 @@
     <div class="flex items-center justify-between mb-6 stagger-item">
         <div>
             <h2 class="text-3xl font-bold text-white tracking-tight mb-1">Transaction History</h2>
-            <p class="text-white/40 text-sm">Premium payments and billing activity across the network.</p>
+            <p class="text-white/40 text-sm">Premium and point-pack payments across the network.</p>
         </div>
     </div>
 
@@ -35,6 +35,7 @@
                         <th class="p-5 text-xs font-bold text-white/50 uppercase tracking-wider">Transaction</th>
                         <th class="p-5 text-xs font-bold text-white/50 uppercase tracking-wider">User</th>
                         <th class="p-5 text-xs font-bold text-white/50 uppercase tracking-wider">Plan</th>
+                        <th class="p-5 text-xs font-bold text-white/50 uppercase tracking-wider">Type</th>
                         <th class="p-5 text-xs font-bold text-white/50 uppercase tracking-wider">Gateway</th>
                         <th class="p-5 text-xs font-bold text-white/50 uppercase tracking-wider">Amount</th>
                         <th class="p-5 text-xs font-bold text-white/50 uppercase tracking-wider">Status</th>
@@ -69,6 +70,13 @@
                                 <span class="text-white/80 text-sm font-medium" x-text="txn.plan"></span>
                             </td>
                             <td class="p-5">
+                                <span class="px-3 py-1 rounded-md text-xs font-bold border"
+                                      :class="txn.type === 'Points'
+                                        ? 'bg-yellow-500/10 text-yellow-300 border-yellow-500/20'
+                                        : 'bg-indigo-500/10 text-indigo-300 border-indigo-500/20'"
+                                      x-text="txn.type || 'Premium'"></span>
+                            </td>
+                            <td class="p-5">
                                 <span class="text-white/60 text-sm flex items-center gap-2">
                                     <span class="material-symbols-outlined text-[16px] text-indigo-400">payments</span>
                                     <span x-text="txn.gateway"></span>
@@ -91,8 +99,13 @@
                         </tr>
                     </template>
 
-                    <tr x-show="filteredTransactions.length === 0" style="display: none;">
-                        <td colspan="7" class="p-10 text-center text-white/40">
+                    <tr x-show="transactionsLoading">
+                        <td colspan="8" class="p-10">
+                            <?php $fetchLoaderShow = 'true'; $fetchLoaderLabel = 'Loading transactions'; $fetchLoaderClass = 'py-6'; include __DIR__ . '/../components/fetch_loader.php'; ?>
+                        </td>
+                    </tr>
+                    <tr x-show="!transactionsLoading && filteredTransactions.length === 0" style="display: none;">
+                        <td colspan="8" class="p-10 text-center text-white/40">
                             <div class="flex flex-col items-center justify-center">
                                 <span class="material-symbols-outlined text-4xl mb-2 opacity-50">receipt_long</span>
                                 <p>No transactions found matching your filters.</p>

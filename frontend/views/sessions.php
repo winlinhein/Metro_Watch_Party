@@ -64,7 +64,7 @@
                                 </div>
                             </template>
                             <div x-show="(room.users || 0) > 5" class="relative -ml-2 w-8 h-8 rounded-full bg-white/10 border border-[#030305] flex items-center justify-center text-[10px] font-bold text-white/70" x-text="'+' + ((room.users || 0) - 5)"></div>
-                            <span class="ml-3 text-xs text-white/50" x-text="(room.users || 0) + ' online'"></span>
+                            <span class="ml-3 text-xs text-white/50 mono" x-text="room.occupancy || ((room.users || 0) + '/' + (room.max_members || 5))"></span>
                         </div>
 
                         <div class="flex items-center gap-2">
@@ -79,7 +79,10 @@
                 </div>
             </div>
         </template>
-        <template x-if="adminPage('rooms').total === 0">
+        <div x-show="roomsLoading" class="col-span-full">
+            <?php $fetchLoaderShow = 'true'; $fetchLoaderLabel = 'Loading sessions'; $fetchLoaderClass = 'py-20'; include __DIR__ . '/../components/fetch_loader.php'; ?>
+        </div>
+        <template x-if="!roomsLoading && adminPage('rooms').total === 0">
             <div class="col-span-full glass-card rounded-2xl p-16 flex flex-col items-center justify-center text-center border border-white/5">
                 <span class="material-symbols-outlined text-6xl text-white/20 mb-4">satellite_alt</span>
                 <h3 class="text-xl font-bold text-white mb-2" x-text="(searchQuery || '').trim() ? 'No matching sessions' : 'No Active Sessions'"></h3>
@@ -113,7 +116,7 @@
                     <p class="text-white/40 text-sm mono">
                         <span x-text="selectedRoom?.name"></span> &bull;
                         Host: <span class="text-white/70" x-text="selectedRoom?.host"></span> &bull;
-                        <span class="text-indigo-400" x-text="(selectedRoom?.users || 0) + ' online'"></span>
+                        <span class="text-indigo-400" x-text="selectedRoom?.occupancy || ((selectedRoom?.users || 0) + '/' + (selectedRoom?.max_members || 5))"></span>
                     </p>
                 </div>
             </div>

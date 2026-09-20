@@ -16,14 +16,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     $host_id = (int)$_SESSION['user_id'];
     $rawMovie = $_POST['movie_id'] ?? 0;
     $movie_id = is_array($rawMovie) ? 0 : (int)$rawMovie;
-    if ($movie_id < 0) {
-        $movie_id = 0;
-    }
-    if ($movie_id > 0) {
+    if ($movie_id <= 0) {
+        $movie_id = null;
+    } else {
         $movieCheck = $conn->prepare("SELECT movie_id FROM movies WHERE movie_id = ? LIMIT 1");
         $movieCheck->execute([$movie_id]);
         if (!$movieCheck->fetchColumn()) {
-            $movie_id = 0;
+            $movie_id = null;
         }
     }
     $room_code = substr(str_shuffle("0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ"), 0, 6);
@@ -43,7 +42,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         broadcastAdminRoomsChanged('create', [
             'room_id' => (int)$room_id,
             'host_id' => (int)$host_id,
-            'movie_id' => (int)$movie_id,
+            'movie_id' => $movie_id ? (int)$movie_id : null,
         ]);
         try {
             require_once __DIR__ . '/mission_progress.php';
@@ -56,7 +55,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             'success' => true,
             'room_code' => $room_code,
             'room_id' => $room_id,
-            'movie_id' => (int)$movie_id,
+            'movie_id' => $movie_id ? (int)$movie_id : null,
             'max_members' => (int)$maxMembers,
         ]);
     } catch (PDOException $e) {

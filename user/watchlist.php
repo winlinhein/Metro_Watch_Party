@@ -19,7 +19,11 @@
                     </div>
                     Your Watchlist
                 </h2>
-                <p class="text-white/40 mono text-sm uppercase tracking-widest pl-16">Queued for protocol initiation</p>
+                <p class="text-white/40 mono text-sm uppercase tracking-widest pl-16">
+                    <span x-text="watchlistOccupancy"></span>
+                    <span class="text-white/20">·</span>
+                    Queued for protocol initiation
+                </p>
             </div>
             <div class="flex items-center gap-3">
                 <select x-model="watchlistFilter" class="bg-[#0a0a0f] border border-white/10 rounded-2xl py-3 px-3 text-xs text-white outline-none">
@@ -119,6 +123,14 @@
                     </div>
                 </div>
             </template>
+        </div>
+        <div x-show="watchlistLoading">
+            <?php $fetchLoaderShow = 'true'; $fetchLoaderLabel = 'Loading watchlist'; $fetchLoaderClass = 'py-16'; include __DIR__ . '/../frontend/components/fetch_loader.php'; ?>
+        </div>
+        <div x-show="!watchlistLoading && filteredWatchlist.length === 0" x-cloak class="py-20 flex flex-col items-center justify-center text-center opacity-50">
+            <span class="material-symbols-outlined text-6xl text-white/20 mb-4">bookmark</span>
+            <p class="text-lg font-bold text-white uppercase tracking-widest">Watchlist is empty</p>
+            <p class="text-sm text-white/50 mt-2">Save a title from Movies and it will show up here.</p>
         </div>
         
         <!-- Bottom spacing -->

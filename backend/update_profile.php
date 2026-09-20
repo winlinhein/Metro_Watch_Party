@@ -1,6 +1,6 @@
 <?php
 session_start();
-if (empty($_SESSION['authenticated']) || $_SESSION['user_role'] !== 'admin') {
+if (empty($_SESSION['authenticated']) || !in_array((string)($_SESSION['user_role'] ?? ''), ['admin', 'moderator'], true)) {
     http_response_code(403);
     echo json_encode(['error' => 'Unauthorized']);
     exit();

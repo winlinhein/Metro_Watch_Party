@@ -1,6 +1,6 @@
 <!-- Fixed positioning to keep it floating at the bottom right -->
 <div class="fixed bottom-8 right-8 z-40"
-     x-show="!showMovieDetailModal && !showFriendsPanel && !showQuestsPanel && !showChatPanel && !showInviteModal"
+     x-show="!showMovieDetailModal && !showFriendsPanel && !showQuestsPanel && !showChatPanel && !showInviteModal && !showRechargeModal"
      x-transition>
     <button @click="hasActiveRoom ? returnToRoom() : (isGuest ? requireLogin() : createParty())"
             class="nexus-fab group relative flex items-center justify-center gap-2 text-white px-6 py-4 rounded-full font-bold overflow-hidden"

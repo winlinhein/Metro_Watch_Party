@@ -7,7 +7,7 @@ function ensureRoomParticipantSchema(PDO $conn): void
         return;
     }
 
-    $flag = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'nexus_room_schema_ok_v2';
+    $flag = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'nexus_room_schema_ok_v3';
     if (is_file($flag)) {
         $ready = true;
         return;
@@ -16,10 +16,11 @@ function ensureRoomParticipantSchema(PDO $conn): void
     $conn->exec("CREATE TABLE IF NOT EXISTS room_participants (
         room_id INT NOT NULL,
         user_id INT NOT NULL,
-        user_name VARCHAR(191) NOT NULL DEFAULT '',
         peer_id VARCHAR(64) NOT NULL,
         last_seen DATETIME NOT NULL,
         forced_muted TINYINT(1) NOT NULL DEFAULT 0,
+        forced_video_off TINYINT(1) NOT NULL DEFAULT 0,
+        chat_banned TINYINT(1) NOT NULL DEFAULT 0,
         PRIMARY KEY (peer_id),
         KEY room_seen (room_id, last_seen)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
@@ -41,13 +42,11 @@ function ensureRoomParticipantSchema(PDO $conn): void
     $conn->exec("CREATE TABLE IF NOT EXISTS room_join_requests (
         id INT NOT NULL AUTO_INCREMENT,
         room_id INT NOT NULL,
-        host_id INT NOT NULL,
         requester_id INT NOT NULL,
         status VARCHAR(20) NOT NULL DEFAULT 'pending',
         created_at DATETIME NOT NULL,
         PRIMARY KEY (id),
-        UNIQUE KEY room_requester (room_id, requester_id),
-        KEY host_status (host_id, status)
+        UNIQUE KEY room_requester (room_id, requester_id)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
 
     @touch($flag);

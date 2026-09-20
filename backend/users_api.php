@@ -16,11 +16,13 @@ if (
 }
 
 header('Content-Type: application/json');
+$actorId = (int)($_SESSION['user_id'] ?? 0);
 session_write_close();
 require_once __DIR__ . '/../conn.php';
 require_once __DIR__ . '/../profile_media_helper.php';
 require_once __DIR__ . '/../presence_helper.php';
 require_once __DIR__ . '/../schema_upgrade_helper.php';
+require_once __DIR__ . '/../staff_access_helper.php';
 
 $method = $_SERVER['REQUEST_METHOD'];
 
@@ -89,13 +91,6 @@ if ($method === 'GET') {
 // POST: Ban / status updates (promote/demote live in user_action.php)
 // -------------------------------------------------------------
 if ($method === 'POST') {
-    // Only full admins may mutate user status
-    if ($role !== 'admin') {
-        http_response_code(403);
-        echo json_encode(['error' => 'Admin privileges required for this action']);
-        exit();
-    }
-
     $input = json_decode(file_get_contents('php://input'), true);
 
     if (!$input || empty($input['action'])) {
@@ -105,11 +100,23 @@ if ($method === 'POST') {
     }
 
     $action = $input['action'];
-    $userId = $input['id'] ?? null;
+    $userId = (int)($input['id'] ?? 0);
 
     if (!$userId) {
         http_response_code(400);
         echo json_encode(['error' => 'User ID is required']);
+        exit();
+    }
+
+    $target = nexusLookupUserStaff($conn, $userId);
+    if (!$target || !nexusCanManageStaffTarget($role, $actorId, $target)) {
+        http_response_code(403);
+        echo json_encode(['error' => 'You can only manage users' . ($role === 'admin' ? ' and moderators' : '') . '.']);
+        exit();
+    }
+    if (($target['status'] ?? '') === 'pending' && in_array($action, ['ban', 'unban'], true)) {
+        http_response_code(400);
+        echo json_encode(['error' => 'Pending accounts can only be deleted.']);
         exit();
     }
 

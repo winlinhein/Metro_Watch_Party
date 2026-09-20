@@ -22,17 +22,6 @@ try {
     ensureAppSchema($conn);
     $userId = (int)$hold['user_id'];
 
-    $existing = $conn->prepare("
-        SELECT appeal_id FROM ban_appeals
-        WHERE user_id = ? AND status = 'pending'
-        LIMIT 1
-    ");
-    $existing->execute([$userId]);
-    if ($existing->fetchColumn()) {
-        header('Location: ../frontend/account_hold.php?appeal=pending');
-        exit();
-    }
-
     $existingReport = $conn->prepare("
         SELECT report_id FROM reports
         WHERE type = 'appeal'
@@ -51,12 +40,6 @@ try {
     $reporterName = (string)($userStmt->fetchColumn() ?: 'User');
 
     $conn->beginTransaction();
-
-    $stmt = $conn->prepare("
-        INSERT INTO ban_appeals (user_id, appeal_text, status, created_at)
-        VALUES (?, ?, 'pending', NOW())
-    ");
-    $stmt->execute([$userId, $appealText]);
 
     $reportStmt = $conn->prepare("
         INSERT INTO reports (reporter_id, reported_user_id, reported_room_id, comment_id, type, description)

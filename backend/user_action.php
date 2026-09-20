@@ -1,226 +1,116 @@
 <?php
 
 session_start();
-
 header('Content-Type: application/json');
 
 require_once __DIR__ . '/../conn.php';
 require_once __DIR__ . '/../pusher_helper.php';
+require_once __DIR__ . '/../staff_access_helper.php';
 
-/*
-|--------------------------------------------------------------------------
-| Admin Authentication
-|--------------------------------------------------------------------------
-*/
+$actorRole = nexusNormalizeStaffRole($_SESSION['user_role'] ?? '');
+$actorId = (int)($_SESSION['user_id'] ?? 0);
 
 if (
     empty($_SESSION['authenticated']) ||
     $_SESSION['authenticated'] !== true ||
-    ($_SESSION['user_role'] ?? '') !== 'admin'
+    !in_array($actorRole, ['admin', 'moderator'], true) ||
+    $actorId <= 0
 ) {
     http_response_code(403);
-
     echo json_encode([
         'success' => false,
-        'error' => 'Admin privileges required.'
+        'error' => 'Staff privileges required.',
     ]);
-
     exit;
 }
 
 session_write_close();
 
-/*
-|--------------------------------------------------------------------------
-| Read JSON Request
-|--------------------------------------------------------------------------
-*/
-
-$data = json_decode(
-    file_get_contents('php://input'),
-    true
-);
-
-$action = $data['action'] ?? '';
-
-/*
-|--------------------------------------------------------------------------
-| Only POST requests allowed
-|--------------------------------------------------------------------------
-*/
-
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-
     http_response_code(405);
-
     echo json_encode([
         'success' => false,
-        'error' => 'POST requests only.'
+        'error' => 'POST requests only.',
     ]);
-
     exit;
 }
 
-/*
-|--------------------------------------------------------------------------
-| PROMOTE USER TO MODERATOR
-| role_id = 3
-|--------------------------------------------------------------------------
-*/
-
-if ($action === 'promote_moderator') {
-
-    $userId = intval($data['id'] ?? 0);
-
-    if ($userId <= 0) {
-
-        echo json_encode([
-            'success' => false,
-            'error' => 'Invalid user ID.'
-        ]);
-
-        exit;
-    }
-
-    $stmt = $conn->prepare(
-        "UPDATE users
-         SET role_id = 3
-         WHERE user_id = ?"
-    );
-
-    if ($stmt->execute([$userId])) {
-
-        echo json_encode([
-            'success' => true,
-            'message' => 'User promoted to Moderator.'
-        ]);
-
-    } else {
-
-        echo json_encode([
-            'success' => false,
-            'error' => 'Database error occurred while promoting.'
-        ]);
-    }
-
-    exit;
+$data = json_decode((string)file_get_contents('php://input'), true);
+if (!is_array($data)) {
+    $data = [];
 }
 
-/*
-|--------------------------------------------------------------------------
-| DEMOTE ADMIN TO MODERATOR
-| role_id = 3
-|--------------------------------------------------------------------------
-*/
+$action = (string)($data['action'] ?? '');
+$userId = (int)($data['id'] ?? 0);
+
+function nexusRejectStaffAction(string $error, int $code = 403): void
+{
+    http_response_code($code);
+    echo json_encode(['success' => false, 'error' => $error]);
+    exit;
+}
 
 if ($action === 'demote_admin') {
+    nexusRejectStaffAction('Admins cannot act on other admins.');
+}
 
-    $userId = intval($data['id'] ?? 0);
+if ($userId <= 0) {
+    nexusRejectStaffAction('Invalid user ID.', 400);
+}
 
-    if ($userId <= 0) {
+$target = nexusLookupUserStaff($conn, $userId);
+if (!$target) {
+    nexusRejectStaffAction('User not found.', 404);
+}
 
-        echo json_encode([
-            'success' => false,
-            'error' => 'Invalid user ID.'
-        ]);
+if (!nexusCanManageStaffTarget($actorRole, $actorId, $target)) {
+    if (($target['role'] ?? '') === 'admin') {
+        nexusRejectStaffAction('Admins cannot act on other admins.');
+    }
+    nexusRejectStaffAction('You can only manage users' . ($actorRole === 'admin' ? ' and moderators' : '') . '.');
+}
 
-        exit;
+$targetRole = $target['role'];
+$targetStatus = $target['status'];
+$isPending = $targetStatus === 'pending';
+
+if ($isPending && in_array($action, ['promote_moderator', 'demote_moderator', 'ban'], true)) {
+    nexusRejectStaffAction('Pending accounts can only be deleted.', 400);
+}
+
+if ($action === 'promote_moderator') {
+    if ($targetRole !== 'user') {
+        nexusRejectStaffAction('Only standard users can be promoted.', 400);
     }
 
-    $stmt = $conn->prepare(
-        "UPDATE users
-         SET role_id = 3
-         WHERE user_id = ?"
-    );
-
+    $stmt = $conn->prepare("UPDATE users SET role_id = 3 WHERE user_id = ?");
     if ($stmt->execute([$userId])) {
-
-        echo json_encode([
-            'success' => true,
-            'message' => 'Admin demoted to Moderator.'
-        ]);
-
+        echo json_encode(['success' => true, 'message' => 'User promoted to Moderator.']);
     } else {
-
-        echo json_encode([
-            'success' => false,
-            'error' => 'Database error occurred while demoting the admin.'
-        ]);
+        echo json_encode(['success' => false, 'error' => 'Database error occurred while promoting.']);
     }
-
     exit;
 }
 
-/*
-|--------------------------------------------------------------------------
-| DEMOTE MODERATOR TO STANDARD USER
-| role_id = 2
-|--------------------------------------------------------------------------
-*/
-
 if ($action === 'demote_moderator') {
-
-    $userId = intval($data['id'] ?? 0);
-
-    if ($userId <= 0) {
-
-        echo json_encode([
-            'success' => false,
-            'error' => 'Invalid user ID.'
-        ]);
-
-        exit;
+    if ($targetRole !== 'moderator') {
+        nexusRejectStaffAction('Only moderators can be demoted.', 400);
     }
 
-    $stmt = $conn->prepare(
-        "UPDATE users
-         SET role_id = 2
-         WHERE user_id = ?"
-    );
-
+    $stmt = $conn->prepare("UPDATE users SET role_id = 2 WHERE user_id = ?");
     if ($stmt->execute([$userId])) {
         require_once __DIR__ . '/../profile_media_helper.php';
         nexusRevertUnearnedStaffBorder($conn, $userId);
-
-        echo json_encode([
-            'success' => true,
-            'message' => 'Moderator demoted to User.'
-        ]);
-
+        echo json_encode(['success' => true, 'message' => 'Moderator demoted to User.']);
     } else {
-
-        echo json_encode([
-            'success' => false,
-            'error' => 'Database error occurred while demoting.'
-        ]);
+        echo json_encode(['success' => false, 'error' => 'Database error occurred while demoting.']);
     }
-
     exit;
 }
 
-/*
-|--------------------------------------------------------------------------
-| BAN / SUSPEND USER
-|--------------------------------------------------------------------------
-*/
-
 if ($action === 'ban') {
-
-    $userId = intval($data['id'] ?? 0);
-
     $reason = $data['reason'] ?? 'Violation of terms';
-
     $notes = $data['notes'] ?? '';
-
-    if ($userId <= 0) {
-
-        echo json_encode([
-            'success' => false,
-            'error' => 'Invalid user ID.'
-        ]);
-
-        exit;
-    }
 
     require_once __DIR__ . '/../schema_upgrade_helper.php';
     ensureAppSchema($conn);
@@ -234,94 +124,44 @@ if ($action === 'ban') {
         $banReason = 'Violation of community guidelines';
     }
 
-    $stmt = $conn->prepare(
-        "UPDATE users
-         SET status = 'banned', ban_reason = ?
-         WHERE user_id = ?"
-    );
-
+    $stmt = $conn->prepare("UPDATE users SET status = 'banned', ban_reason = ? WHERE user_id = ?");
     if ($stmt->execute([$banReason, $userId])) {
-
-        /*
-        |--------------------------------------------------------------------------
-        | Pusher force logout
-        |--------------------------------------------------------------------------
-        */
-
-        triggerPusherEvent(
-            "user-{$userId}",
-            'force_logout',
-            [
-                'message' =>
-                    'Your account has been banned. Reason: ' .
-                    htmlspecialchars($reason)
-            ]
-        );
-
-        echo json_encode([
-            'success' => true,
-            'message' => 'User banned and disconnected.'
+        triggerPusherEvent("user-{$userId}", 'force_logout', [
+            'message' => 'Your account has been banned. Reason: ' . htmlspecialchars((string)$reason),
         ]);
-
+        echo json_encode(['success' => true, 'message' => 'User banned and disconnected.']);
     } else {
-
-        echo json_encode([
-            'success' => false,
-            'error' => 'Failed to ban user in the database.'
-        ]);
+        echo json_encode(['success' => false, 'error' => 'Failed to ban user in the database.']);
     }
-
     exit;
 }
-
-/*
-|--------------------------------------------------------------------------
-| RESTORE / UNBAN USER
-|--------------------------------------------------------------------------
-*/
 
 if ($action === 'unban') {
-
-    $userId = intval($data['id'] ?? 0);
-
-    if ($userId <= 0) {
-
-        echo json_encode([
-            'success' => false,
-            'error' => 'Invalid user ID.'
-        ]);
-
-        exit;
-    }
-
     require_once __DIR__ . '/../account_lifecycle_helper.php';
-
     try {
         nexusUnbanUser($conn, $userId);
-
-        echo json_encode([
-            'success' => true,
-            'message' => 'Account restored to active.'
-        ]);
+        echo json_encode(['success' => true, 'message' => 'Account restored to active.']);
     } catch (Throwable $e) {
-        echo json_encode([
-            'success' => false,
-            'error' => 'Failed to restore account.'
-        ]);
+        echo json_encode(['success' => false, 'error' => 'Failed to restore account.']);
     }
-
     exit;
 }
 
-/*
-|--------------------------------------------------------------------------
-| Unknown Action
-|--------------------------------------------------------------------------
-*/
+if ($action === 'delete') {
+    if (!$isPending) {
+        nexusRejectStaffAction('Only pending accounts can be deleted.', 400);
+    }
+    require_once __DIR__ . '/../account_lifecycle_helper.php';
+    try {
+        nexusPurgeUserAccount($conn, $userId);
+        echo json_encode(['success' => true, 'message' => 'Pending account deleted.']);
+    } catch (Throwable $e) {
+        echo json_encode(['success' => false, 'error' => 'Failed to delete account.']);
+    }
+    exit;
+}
 
 echo json_encode([
     'success' => false,
-    'error' => 'Invalid request method or action.'
+    'error' => 'Invalid request method or action.',
 ]);
-
-?>

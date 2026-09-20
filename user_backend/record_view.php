@@ -20,7 +20,7 @@ if (!$movieId) {
     exit;
 }
 
-$userId = $_SESSION['user_id'] ?? 0; // guests = 0; change if login required
+$userId = (int)($_SESSION['user_id'] ?? 0);
 
 try {
     
@@ -35,15 +35,16 @@ try {
 
     $conn->beginTransaction();
 
-    // 1. Insert watch history
-    $stmt = $conn->prepare("
-        INSERT INTO watch_history (user_id, movie_id, watched_at)
-        VALUES (:user_id, :movie_id, NOW())
-    ");
-    $stmt->execute([
-        'user_id' => $userId,
-        'movie_id' => $movieId
-    ]);
+    if ($userId > 0) {
+        $stmt = $conn->prepare("
+            INSERT INTO watch_history (user_id, movie_id, watched_at)
+            VALUES (:user_id, :movie_id, NOW())
+        ");
+        $stmt->execute([
+            'user_id' => $userId,
+            'movie_id' => $movieId
+        ]);
+    }
 
     // 2. Increment view count
     $stmt = $conn->prepare("
@@ -68,10 +69,12 @@ try {
     triggerPusherEvent("movie-{$movieId}", 'view_count_updated', $viewData);
 
     // 5. Update mission progress for watching a movie
-    try {
-        updateMissionProgress($userId, 'watch_movie', 1);
-    } catch (Exception $e) {
-        error_log('Mission update failed: ' . $e->getMessage());
+    if ($userId > 0) {
+        try {
+            updateMissionProgress($userId, 'watch_movie', 1);
+        } catch (Exception $e) {
+            error_log('Mission update failed: ' . $e->getMessage());
+        }
     }
 
     echo json_encode([
