@@ -1,4 +1,4 @@
-<div class="absolute inset-0 w-full h-full overflow-y-auto p-10 pb-32 tab-content scroll-smooth custom-scrollbar" 
+<div class="absolute inset-0 w-full h-full overflow-y-auto p-4 sm:p-6 md:p-10 pb-32 tab-content scroll-smooth custom-scrollbar" 
      x-show="currentTab === 'account'" style="display: none;">
     <!-- Account Settings Logic -->
     <div class="max-w-[1400px] mx-auto space-y-8 pb-24">
@@ -9,7 +9,7 @@
                 <span class="material-symbols-outlined text-3xl text-white">person</span>
             </div>
             <div>
-                <h1 class="text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-white to-white/50 uppercase tracking-widest">Account Details</h1>
+                <h1 class="text-2xl sm:text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-white to-white/50 uppercase tracking-wide sm:tracking-widest">Account Details</h1>
                 <p class="text-white/50 text-sm mt-1">Manage your identity, security, and appearance</p>
             </div>
         </div>

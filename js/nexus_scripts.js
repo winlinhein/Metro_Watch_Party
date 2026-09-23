@@ -5808,6 +5808,7 @@ function adminDashboard(userData = {}) {
 
         isNavOpen: false,
         sidebarOpen: (function () {
+            if (typeof window !== 'undefined' && window.innerWidth < 1024) return false;
             try {
                 const stored = localStorage.getItem('nexus_admin_sidebar');
                 if (stored === '0') return false;
@@ -7555,6 +7556,9 @@ function adminDashboard(userData = {}) {
     
         switchTab(tabId) {
             if (this.currentTab === tabId) return;
+            if (window.innerWidth < 1024 && this.sidebarOpen) {
+                this.toggleAdminSidebar(false);
+            }
             this.adminSearchType = 'all';
             const oldTab = this.currentTab;
             const order = (this.navItems || []).map((item) => item.id);
@@ -8133,6 +8137,15 @@ function adminDashboard(userData = {}) {
         },
 
          async initDashboard() {
+            if (window.innerWidth < 1024 && this.sidebarOpen) {
+                this.sidebarOpen = false;
+            }
+            this._onAdminResize = () => {
+                if (window.innerWidth < 1024 && this.sidebarOpen) {
+                    this.sidebarOpen = false;
+                }
+            };
+            window.addEventListener('resize', this._onAdminResize);
             if (!this.currentChartSeries.length) {
                 this.chartData = this.fallbackChartData();
             }

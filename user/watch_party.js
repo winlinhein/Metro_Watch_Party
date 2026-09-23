@@ -50,7 +50,7 @@ function watchParty() {
         hoveredMovieId: null,
         allMovies: [],
         // --- 1. UI State ---
-        showChat: true,
+        showChat: typeof window === 'undefined' || window.innerWidth >= 768,
         showParticipants: true,
         showControls: false,
         controlsTimeout: null,

@@ -908,9 +908,9 @@ session_write_close();
     <!-- Main Content -->
     <main class="flex-1 flex flex-col h-full overflow-hidden relative z-10 w-full">
         
-        <header class="h-24 grid grid-cols-[1fr_auto_1fr] items-center gap-4 px-10 shrink-0 border-b border-white/5 backdrop-blur-md relative z-50">
-            <div class="flex items-center gap-6">
-                <button @click="openNav()" class="header-menu-btn w-12 h-12 rounded-xl bg-gradient-to-tr from-indigo-500 to-red-600 flex items-center justify-center shadow-[0_0_20px_rgba(239,68,68,0.4)]">
+        <header class="h-16 sm:h-20 md:h-24 grid grid-cols-[auto_1fr_auto] sm:grid-cols-[1fr_auto_1fr] items-center gap-2 sm:gap-4 px-3 sm:px-6 md:px-10 shrink-0 border-b border-white/5 backdrop-blur-md relative z-50">
+            <div class="flex items-center gap-3 sm:gap-6">
+                <button @click="openNav()" class="header-menu-btn w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-gradient-to-tr from-indigo-500 to-red-600 flex items-center justify-center shadow-[0_0_20px_rgba(239,68,68,0.4)]">
                     <span class="material-symbols-outlined text-white font-bold text-[24px]">menu</span>
                 </button>
                 
@@ -921,7 +921,7 @@ session_write_close();
                 </a>
             </div>
 
-            <div class="flex items-center justify-center min-h-[2.5rem]">
+            <div class="flex items-center justify-center min-h-[2.5rem] min-w-0 overflow-hidden">
                 <button type="button"
                         x-show="hasActiveRoom"
                         x-cloak
@@ -948,11 +948,11 @@ session_write_close();
                          class="relative -ml-2 w-10 h-10 rounded-full bg-white/10 border-2 border-[#050508] flex items-center justify-center text-[10px] font-bold text-white/80 z-0">
                         +<span x-text="extraRoomParticipantCount"></span>
                     </div>
-                    <span class="ml-3 text-xs text-white/50 mono" x-text="activeRoomOccupancy"></span>
+                    <span class="ml-2 sm:ml-3 text-[10px] sm:text-xs text-white/50 mono hidden sm:inline" x-text="activeRoomOccupancy"></span>
                 </button>
             </div>
             
-            <div class="flex items-center justify-end gap-6">
+            <div class="flex items-center justify-end gap-2 sm:gap-4 md:gap-6">
                 <?php include 'user_notification.php'; ?>
 
                 <button @click="showFriendsPanel = true" class="relative w-10 h-10 rounded-xl bg-white/5 hover:bg-white/15 border border-white/5 flex items-center justify-center transition-all">
@@ -1006,16 +1006,16 @@ session_write_close();
                 <?php else: ?>
 
                 <!-- Login / Register for guests -->
-                <div class="relative z-[60] flex items-center gap-2">
+                <div class="relative z-[60] flex items-center gap-1.5 sm:gap-2">
                     <a href="../frontend/login.php"
-                       class="flex items-center gap-2 px-4 py-2 bg-[#050508]/40 border border-white/5 rounded-xl hover:bg-white/[0.05] transition-all">
+                       class="flex items-center gap-2 px-2.5 sm:px-4 py-2 bg-[#050508]/40 border border-white/5 rounded-xl hover:bg-white/[0.05] transition-all">
                         <span class="material-symbols-outlined text-white text-[18px]">login</span>
-                        <span class="text-sm font-bold text-white">Login</span>
+                        <span class="text-sm font-bold text-white hidden sm:inline">Login</span>
                     </a>
                     <a href="../frontend/register.php"
-                       class="flex items-center gap-2 px-4 py-2 bg-white text-black hover:bg-red-500 hover:text-white rounded-xl transition-all">
+                       class="flex items-center gap-2 px-2.5 sm:px-4 py-2 bg-white text-black hover:bg-red-500 hover:text-white rounded-xl transition-all">
                         <span class="material-symbols-outlined text-[18px]">person_add</span>
-                        <span class="text-sm font-bold">Register</span>
+                        <span class="text-sm font-bold hidden sm:inline">Register</span>
                     </a>
                 </div>
                 <?php endif; ?>
@@ -1025,7 +1025,7 @@ session_write_close();
         <!-- Tabs Container (Relative wrapper for Absolute children) -->
         <div class="relative flex-1 overflow-hidden h-full">
             <!-- Content -->
-            <div class="absolute inset-0 w-full h-full overflow-y-auto p-10 scroll-smooth custom-scrollbar" x-show="currentTab === 'dashboard'">
+            <div class="absolute inset-0 w-full h-full overflow-y-auto p-4 sm:p-6 md:p-10 pb-28 scroll-smooth custom-scrollbar" x-show="currentTab === 'dashboard'">
                 <div class="max-w-[1400px] mx-auto space-y-8">
 
                 <?php include __DIR__ . '/../frontend/components/trending_movies.php'; ?>
@@ -1052,11 +1052,11 @@ session_write_close();
                             </template>
                             <div x-show="!statsLoading" class="grid grid-cols-2 gap-4 w-full">
                                 <div>
-                                    <h3 class="text-4xl font-bold text-white tracking-tight font-mono" x-text="isGuest ? '0' : (friends.length || 0)"></h3>
+                                    <h3 class="text-2xl sm:text-4xl font-bold text-white tracking-tight font-mono" x-text="isGuest ? '0' : (friends.length || 0)"></h3>
                                     <p class="text-[11px] uppercase tracking-widest text-white/40 mt-1">Total friends</p>
                                 </div>
                                 <div>
-                                    <h3 class="text-4xl font-bold text-emerald-400 tracking-tight font-mono" x-text="isGuest ? '0' : onlineFriendsCount"></h3>
+                                    <h3 class="text-2xl sm:text-4xl font-bold text-emerald-400 tracking-tight font-mono" x-text="isGuest ? '0' : onlineFriendsCount"></h3>
                                     <p class="text-[11px] uppercase tracking-widest text-white/40 mt-1">Online now</p>
                                 </div>
                             </div>
@@ -1085,11 +1085,11 @@ session_write_close();
                             </template>
                             <div x-show="!statsLoading" class="grid grid-cols-2 gap-4 w-full">
                                 <div>
-                                    <h3 class="text-4xl font-bold text-white tracking-tight font-mono" x-text="isGuest ? '0' : Number(userPoints || 0).toLocaleString()"></h3>
+                                    <h3 class="text-2xl sm:text-4xl font-bold text-white tracking-tight font-mono" x-text="isGuest ? '0' : Number(userPoints || 0).toLocaleString()"></h3>
                                     <p class="text-[11px] uppercase tracking-widest text-white/40 mt-1">Total points</p>
                                 </div>
                                 <div>
-                                    <h3 class="text-4xl font-bold text-yellow-400 tracking-tight font-mono" x-text="isGuest ? '0' : Number(questPointsAvailable || 0).toLocaleString()"></h3>
+                                    <h3 class="text-2xl sm:text-4xl font-bold text-yellow-400 tracking-tight font-mono" x-text="isGuest ? '0' : Number(questPointsAvailable || 0).toLocaleString()"></h3>
                                     <p class="text-[11px] uppercase tracking-widest text-white/40 mt-1">Ready to claim</p>
                                 </div>
                             </div>

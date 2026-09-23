@@ -520,6 +520,8 @@ session_write_close();
         </div>
     </aside>
 
+    <div class="admin-mobile-backdrop" @click="toggleAdminSidebar(false)" aria-hidden="true"></div>
+
     <button type="button"
             class="admin-sidebar-toggle"
             data-admin-sidebar-toggle
@@ -537,9 +539,9 @@ session_write_close();
     <main class="admin-main flex-1 z-10 bg-[#030305]/50">
         
         <!-- Header -->
-        <header class="header h-24 flex items-center justify-between px-10 border-b border-white/5">
+        <header class="header h-24 flex items-center justify-between px-4 md:px-10 border-b border-white/5 gap-3">
             <div class="flex items-center gap-3">
-            <div class="flex items-center gap-3 bg-white/[0.03] border border-white/10 rounded-2xl px-5 py-3 w-[400px] focus-within:border-red-500/50 focus-within:bg-white/[0.05] transition-all duration-300 shadow-inner gs-header-item group">
+            <div class="flex items-center gap-3 bg-white/[0.03] border border-white/10 rounded-2xl px-3 sm:px-5 py-2.5 sm:py-3 w-full max-w-[400px] min-w-0 focus-within:border-red-500/50 focus-within:bg-white/[0.05] transition-all duration-300 shadow-inner gs-header-item group">
                 <span class="material-symbols-outlined text-white/40 group-focus-within:text-red-400 transition-colors">search</span>
                 <input type="text"
                        x-model="searchQuery"
