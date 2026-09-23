@@ -166,7 +166,7 @@ session_write_close();
     
 
     <!-- Sidebar / Server List (Discord style) -->
-    <div class="w-20 shrink-0 h-full bg-[#030305]/90 backdrop-blur-xl border-r border-white/5 flex flex-col items-center py-6 gap-4 z-20 relative">
+    <div class="wp-rail w-20 shrink-0 h-full bg-[#030305]/90 backdrop-blur-xl border-r border-white/5 flex flex-col items-center py-6 gap-4 z-20 relative">
         <button type="button" @click="goToDashboard()" class="w-12 h-12 rounded-[16px] bg-white/5 hover:bg-white/10 border border-white/10 flex items-center justify-center hover:scale-105 hover:rounded-[12px] transition-all duration-300 cursor-pointer" title="Back to dashboard">
             <span class="material-symbols-outlined text-white/80 font-bold">arrow_back</span>
         </button>
@@ -195,7 +195,7 @@ session_write_close();
     <div class="flex-1 flex flex-col h-full relative z-10 overflow-hidden bg-[#0a0a0f]/50">
         
         <!-- Header -->
-        <header class="h-16 border-b border-white/5 flex items-center justify-between px-6 shrink-0 bg-[#050508]/80 backdrop-blur-md relative z-30">
+        <header class="wp-header h-16 border-b border-white/5 flex items-center justify-between px-3 sm:px-6 shrink-0 bg-[#050508]/80 backdrop-blur-md relative z-30">
             <div class="flex items-center gap-4 min-w-0">
                 <span class="material-symbols-outlined text-red-500 text-[28px] shrink-0">movie</span>
                 <div class="min-w-0">
@@ -209,14 +209,14 @@ session_write_close();
                 </div>
             </div>
             <div class="flex items-center justify-end gap-3">
-               <button type="button" @click="openReportRoomModal()" class="px-3 py-2 bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 rounded-xl text-sm font-bold flex items-center gap-2 text-red-400 hover:text-red-300 transition-colors" title="Report this room">
+               <button type="button" @click="openReportRoomModal()" class="px-2.5 sm:px-3 py-2 bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 rounded-xl text-sm font-bold flex items-center gap-2 text-red-400 hover:text-red-300 transition-colors" title="Report this room">
                     <span class="material-symbols-outlined text-[18px]">flag</span>
-                    Report
+                    <span class="hidden sm:inline">Report</span>
                </button>
                <div class="relative">
-    <button @click="showInviteMenu = !showInviteMenu; if (showInviteMenu) refreshOnlineStatus()" class="px-4 py-2 bg-white/10 hover:bg-white/20 rounded-xl text-sm font-bold flex items-center gap-2 transition-colors">
+    <button @click="showInviteMenu = !showInviteMenu; if (showInviteMenu) refreshOnlineStatus()" class="px-2.5 sm:px-4 py-2 bg-white/10 hover:bg-white/20 rounded-xl text-sm font-bold flex items-center gap-2 transition-colors">
         <span class="material-symbols-outlined text-[18px]">person_add</span>
-        Invite
+        <span class="hidden sm:inline">Invite</span>
     </button>
 
     <!-- Dropdown Menu -->
@@ -242,7 +242,7 @@ session_write_close();
                         </div>
                         <span class="text-sm font-medium truncate" x-text="friend.user_name"></span>
                     </div>
-                    <button @click="inviteFriend(friend.user_id, friend.user_name)" class="text-emerald-400 hover:text-white hover:bg-emerald-500 p-1.5 rounded-lg transition-all opacity-0 group-hover:opacity-100">
+                    <button @click="inviteFriend(friend.user_id, friend.user_name)" class="text-emerald-400 hover:text-white hover:bg-emerald-500 p-1.5 rounded-lg transition-all sm:opacity-0 sm:group-hover:opacity-100">
                         <span class="material-symbols-outlined text-[16px]">send</span>
                     </button>
                 </div>
@@ -376,7 +376,7 @@ session_write_close();
             <div class="absolute inset-0 pointer-events-none z-10 gs-stage">
                 
                 <!-- Left Overlay: Participants (Vertical) -->
-                <div class="absolute left-6 top-6 bottom-24 w-40 flex flex-col gap-3 pointer-events-none">
+                <div class="wp-members absolute left-6 top-6 bottom-24 w-40 flex flex-col gap-3 pointer-events-none">
 
                     <!-- Participants Header & Toggle -->
                     <div class="flex items-center justify-between pointer-events-auto bg-black/20 backdrop-blur-sm px-3 py-2 rounded-xl border border-white/5 shadow-lg">
@@ -461,7 +461,7 @@ session_write_close();
             </button>
 
             <!-- Right: Chat & Activities -->
-            <div class="absolute right-0 top-0 bottom-0 w-[340px] shrink-0 border-l border-white/10 bg-[#030305]/40 backdrop-blur-md flex flex-col z-20 gs-chat shadow-2xl pointer-events-auto"
+            <div class="wp-chat absolute right-0 top-0 bottom-0 w-full sm:w-[340px] shrink-0 border-l border-white/10 bg-[#030305]/40 backdrop-blur-md flex flex-col z-20 gs-chat shadow-2xl pointer-events-auto"
                  x-show="showChat"
                  x-transition:enter="transition ease-out duration-300"
                  x-transition:enter-start="translate-x-full opacity-0"
@@ -563,7 +563,7 @@ session_write_close();
         </div>
 
         <!-- Bottom Controls (Voice/Video toggles) -->
-        <div class="h-20 border-t border-white/5 bg-[#050508]/90 backdrop-blur-xl flex items-center justify-center gap-4 px-6 relative z-30 gs-controls">
+        <div class="wp-controls h-16 sm:h-20 border-t border-white/5 bg-[#050508]/90 backdrop-blur-xl flex items-center justify-center gap-2 sm:gap-4 px-3 sm:px-6 relative z-30 gs-controls">
             <button @click="toggleMic($event)" class="w-12 h-12 rounded-xl flex items-center justify-center transition-all duration-300 shadow-lg border" :class="isMuted ? 'bg-red-500/10 border-red-500/20 text-red-500 hover:bg-red-500/20' : 'bg-white/10 border-white/10 text-white hover:bg-white/20'" :title="forcedMuted ? 'The host muted your microphone' : (isMuted ? 'Unmute' : 'Mute')">
                 <span class="material-symbols-outlined" x-text="isMuted ? 'mic_off' : 'mic'"></span>
             </button>
@@ -576,7 +576,7 @@ session_write_close();
             
             <div class="w-px h-8 bg-white/10 mx-2"></div>
             
-            <button type="button" @click="leaveRoom()" class="h-12 px-6 rounded-xl bg-red-600 hover:bg-red-500 text-white text-xs font-black uppercase tracking-widest shadow-[0_0_24px_rgba(239,68,68,0.35)] hover:shadow-[0_0_32px_rgba(239,68,68,0.5)] hover:scale-105 active:scale-95 transition-all duration-300">
+            <button type="button" @click="leaveRoom()" class="h-12 px-4 sm:px-6 rounded-xl bg-red-600 hover:bg-red-500 text-white text-xs font-black uppercase tracking-widest shadow-[0_0_24px_rgba(239,68,68,0.35)] hover:shadow-[0_0_32px_rgba(239,68,68,0.5)] hover:scale-105 active:scale-95 transition-all duration-300">
                 Leave
             </button>
         </div>

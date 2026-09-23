@@ -1,5 +1,5 @@
 <!-- User Movies View Container -->
-<div x-show="currentTab === 'movies'" style="display: none;" class="absolute inset-0 w-full h-full p-8 lg:p-12 pb-24 overflow-y-auto custom-scrollbar">
+<div x-show="currentTab === 'movies'" style="display: none;" class="absolute inset-0 w-full h-full p-4 sm:p-8 lg:p-12 pb-24 overflow-y-auto custom-scrollbar">
     
     <!-- Section Header -->
     <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-10 stagger-item">

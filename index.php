@@ -649,7 +649,7 @@ if ($sessionAuthed && $sessionUserId > 0 && in_array($sessionRole, ['user', 'adm
                 </div>
             </div>
 
-            <div class="home-visual relative lg:col-span-6 flex items-center justify-center min-h-[420px]">
+            <div class="home-visual relative lg:col-span-6 flex items-center justify-center min-h-0 sm:min-h-[320px] lg:min-h-[420px]">
                 <div class="relative w-full max-w-md z-10">
                     <div class="home-cinema-frame relative">
                         <div class="w-full aspect-video relative">

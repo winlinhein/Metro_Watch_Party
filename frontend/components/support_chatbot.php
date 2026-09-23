@@ -1,4 +1,4 @@
-<div class="fixed bottom-[7.5rem] right-8 z-40 flex flex-col items-end gap-3"
+<div class="fixed bottom-[5.5rem] right-4 sm:bottom-[7.5rem] sm:right-8 z-40 flex flex-col items-end gap-3"
      x-data="nexusSupportChat()"
      x-cloak
      @keydown.escape.window="open && close()">

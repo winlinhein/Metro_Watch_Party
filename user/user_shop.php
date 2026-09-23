@@ -1,5 +1,5 @@
 <!-- Shop Tab -->
-<div class="absolute inset-0 w-full h-full overflow-y-auto p-5 md:p-6 tab-content scroll-smooth custom-scrollbar" 
+<div class="absolute inset-0 w-full h-full overflow-y-auto p-4 sm:p-5 md:p-6 pb-28 tab-content scroll-smooth custom-scrollbar" 
      x-show="currentTab === 'shop'"
      x-transition:enter="transition-all duration-500 delay-300 cubic-bezier(0.34, 1.56, 0.64, 1)"
      x-transition:enter-start="opacity-0 translate-y-8"
@@ -8,7 +8,7 @@
      x-transition:leave-start="opacity-100 translate-y-0"
      x-transition:leave-end="opacity-0 -translate-y-8 absolute w-full"
      style="display: none;">
-    <div class="max-w-[1400px] mx-auto space-y-5 pb-16">
+    <div class="max-w-[1400px] mx-auto space-y-5 pb-28">
         
         <!-- Header & Points -->
         <div class="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-4 relative z-10">

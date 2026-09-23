@@ -6,7 +6,7 @@
      x-transition:leave="transition ease-in duration-200" 
      x-transition:leave-start="opacity-100 translate-y-0 scale-100" 
      x-transition:leave-end="opacity-0 translate-y-4 scale-95" 
-     class="absolute right-0 top-14 mt-4 w-96 bg-[#0a0a0c] border border-white/10 rounded-2xl shadow-[0_20px_60px_rgba(0,0,0,0.9)] z-50 transform origin-top-right overflow-hidden flex flex-col">
+     class="absolute right-0 top-14 mt-4 w-[min(24rem,calc(100vw-1.25rem))] bg-[#0a0a0c] border border-white/10 rounded-2xl shadow-[0_20px_60px_rgba(0,0,0,0.9)] z-50 transform origin-top-right overflow-hidden flex flex-col">
     <div class="flex justify-between items-center p-5 border-b border-white/5 bg-[#0a0a0c] relative z-10">
         <h3 class="text-white font-semibold tracking-wide flex items-center gap-2">
             Alerts 

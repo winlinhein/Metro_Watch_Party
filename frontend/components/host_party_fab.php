@@ -1,5 +1,5 @@
 <!-- Fixed positioning to keep it floating at the bottom right -->
-<div class="fixed bottom-8 right-8 z-40"
+<div class="fixed bottom-4 right-4 sm:bottom-8 sm:right-8 z-40"
      x-show="!showMovieDetailModal && !showFriendsPanel && !showQuestsPanel && !showChatPanel && !showInviteModal && !showRechargeModal"
      x-transition>
     <button @click="hasActiveRoom ? returnToRoom() : (isGuest ? requireLogin() : createParty())"
@@ -11,7 +11,7 @@
         <span class="material-symbols-outlined text-[24px] relative z-10 transition-transform duration-500 group-hover:scale-110"
               :class="hasActiveRoom ? '' : 'group-hover:rotate-90'"
               x-text="hasActiveRoom ? 'arrow_back' : 'add'"></span>
-        <span class="tracking-wide relative z-10" x-text="hasActiveRoom ? 'Back to room' : 'Host Party'"></span>
+        <span class="tracking-wide relative z-10 hidden sm:inline" x-text="hasActiveRoom ? 'Back to room' : 'Host Party'"></span>
         <span class="nexus-fab-sheen"></span>
     </button>
     <div class="absolute inset-0 bg-red-500 rounded-full animate-ping opacity-20 -z-10 pointer-events-none" style="animation-duration: 2s;"></div>

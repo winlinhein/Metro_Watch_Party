@@ -19,7 +19,7 @@
          x-transition:enter="transition ease-out duration-300"
          x-transition:enter-start="opacity-0 scale-95 -translate-y-2"
          x-transition:enter-end="opacity-100 scale-100 translate-y-0"
-         class="absolute right-0 top-full mt-4 w-[380px] bg-[#050508]/95 backdrop-blur-3xl border border-red-500/30 rounded-2xl shadow-[0_20px_60px_-15px_rgba(239,68,68,0.4)] p-4 z-50 overflow-hidden">
+         class="absolute right-0 top-full mt-4 w-[min(380px,calc(100vw-1.25rem))] bg-[#050508]/95 backdrop-blur-3xl border border-red-500/30 rounded-2xl shadow-[0_20px_60px_-15px_rgba(239,68,68,0.4)] p-4 z-50 overflow-hidden">
         
         <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-4 border-b border-white/10 pb-3 gap-2 sm:gap-0">
             <div class="flex items-center gap-3">
