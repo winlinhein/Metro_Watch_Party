@@ -234,6 +234,7 @@ function userDashboard() {
         reportDescription: '',
 
        // Account State
+        themeId: (typeof document !== 'undefined' && document.documentElement.getAttribute('data-theme')) || 'crimson',
         accountForm: {
             username: bootName,
             email: bootUser.email || ''
@@ -248,9 +249,24 @@ function userDashboard() {
                 : [])
         ],
         borderPage: 1,
+        moviePage: 1,
+        watchlistPage: 1,
+        shopPage: 1,
         viewportWidth: typeof window !== 'undefined' ? window.innerWidth : 1024,
         hasCustomAvatar: !!bootAvatarRaw,
-        selectedAvatar: bootAvatar,   
+        selectedAvatar: bootAvatar,
+
+        get themeChoices() {
+            return window.NEXUS_THEMES || [];
+        },
+
+        setTheme(id) {
+            const choices = this.themeChoices;
+            const next = choices.some((theme) => theme.id === id) ? id : 'crimson';
+            this.themeId = next;
+            document.documentElement.setAttribute('data-theme', next);
+            try { localStorage.setItem('nexus_theme', next); } catch (e) {}
+        },
 
         resolveShopImage(image) {
             if (!image) return '';
@@ -438,12 +454,143 @@ function userDashboard() {
         },
 
         get borderPageNumbers() {
-            return Array.from({ length: this.borderPageCount }, (_, i) => i + 1);
+            return this.visiblePageNumbers(this.borderPageCount, this.borderPage);
+        },
+
+        clampPage(page, count) {
+            const total = Math.max(1, Number(count) || 1);
+            return Math.min(Math.max(1, Number(page) || 1), total);
+        },
+
+        slicePage(list, page, size) {
+            const items = Array.isArray(list) ? list : [];
+            const pageSize = Math.max(1, Number(size) || 1);
+            const pages = Math.max(1, Math.ceil(items.length / pageSize));
+            const current = this.clampPage(page, pages);
+            const start = (current - 1) * pageSize;
+            return items.slice(start, start + pageSize);
+        },
+
+        visiblePageNumbers(count, current) {
+            const total = Math.max(1, Number(count) || 1);
+            const cur = this.clampPage(current, total);
+            const windowSize = 5;
+            let start = Math.max(1, cur - 2);
+            let end = Math.min(total, start + windowSize - 1);
+            start = Math.max(1, end - windowSize + 1);
+            const pages = [];
+            for (let i = start; i <= end; i++) pages.push(i);
+            return pages;
+        },
+
+        scrollTabPane(name) {
+            this.$nextTick(() => {
+                const pane = this.$root && this.$root.querySelector(`[data-tab-pane="${name}"]`);
+                if (pane) pane.scrollTo({ top: 0, behavior: 'smooth' });
+            });
         },
 
         setBorderPage(page) {
             const next = Math.min(Math.max(1, Number(page) || 1), this.borderPageCount);
             this.borderPage = next;
+        },
+
+        get movieCols() {
+            const w = this.viewportWidth;
+            if (w >= 1280) return 5;
+            if (w >= 1024) return 4;
+            if (w >= 768) return 3;
+            return 2;
+        },
+
+        get moviePageSize() {
+            return this.movieCols * 4;
+        },
+
+        get moviePageCount() {
+            return Math.max(1, Math.ceil((this.filteredMovies || []).length / this.moviePageSize));
+        },
+
+        get moviePageSafe() {
+            return this.clampPage(this.moviePage, this.moviePageCount);
+        },
+
+        get pagedMovies() {
+            return this.slicePage(this.filteredMovies, this.moviePage, this.moviePageSize);
+        },
+
+        get moviePageNumbers() {
+            return this.visiblePageNumbers(this.moviePageCount, this.moviePageSafe);
+        },
+
+        setMoviePage(page) {
+            this.moviePage = this.clampPage(page, this.moviePageCount);
+            this.scrollTabPane('movies');
+        },
+
+        get watchlistCols() {
+            const w = this.viewportWidth;
+            if (w >= 1280) return 4;
+            if (w >= 1024) return 3;
+            if (w >= 768) return 2;
+            return 1;
+        },
+
+        get watchlistPageSize() {
+            return this.watchlistCols * 4;
+        },
+
+        get watchlistPageCount() {
+            return Math.max(1, Math.ceil((this.filteredWatchlist || []).length / this.watchlistPageSize));
+        },
+
+        get watchlistPageSafe() {
+            return this.clampPage(this.watchlistPage, this.watchlistPageCount);
+        },
+
+        get pagedWatchlist() {
+            return this.slicePage(this.filteredWatchlist, this.watchlistPage, this.watchlistPageSize);
+        },
+
+        get watchlistPageNumbers() {
+            return this.visiblePageNumbers(this.watchlistPageCount, this.watchlistPageSafe);
+        },
+
+        setWatchlistPage(page) {
+            this.watchlistPage = this.clampPage(page, this.watchlistPageCount);
+            this.scrollTabPane('watchlist');
+        },
+
+        get shopCols() {
+            const w = this.viewportWidth;
+            if (w >= 1024) return 4;
+            if (w >= 768) return 3;
+            return 2;
+        },
+
+        get shopPageSize() {
+            return this.shopCols * 4;
+        },
+
+        get shopPageCount() {
+            return Math.max(1, Math.ceil((this.filteredShopItems || []).length / this.shopPageSize));
+        },
+
+        get shopPageSafe() {
+            return this.clampPage(this.shopPage, this.shopPageCount);
+        },
+
+        get pagedShopItems() {
+            return this.slicePage(this.filteredShopItems, this.shopPage, this.shopPageSize);
+        },
+
+        get shopPageNumbers() {
+            return this.visiblePageNumbers(this.shopPageCount, this.shopPageSafe);
+        },
+
+        setShopPage(page) {
+            this.shopPage = this.clampPage(page, this.shopPageCount);
+            this.scrollTabPane('shop');
         },
 
         buildAvailableBorders() {
@@ -4392,6 +4539,9 @@ function userDashboard() {
             this._onBorderResize = () => {
                 this.viewportWidth = window.innerWidth;
                 if (this.borderPage > this.borderPageCount) this.borderPage = this.borderPageCount;
+                if (this.moviePage > this.moviePageCount) this.moviePage = this.moviePageCount;
+                if (this.watchlistPage > this.watchlistPageCount) this.watchlistPage = this.watchlistPageCount;
+                if (this.shopPage > this.shopPageCount) this.shopPage = this.shopPageCount;
             };
             window.addEventListener('resize', this._onBorderResize);
             
@@ -4452,6 +4602,15 @@ function userDashboard() {
 
             // Search watcher – allow searching even for guests (backend returns public data)
             // but no actions will be possible.
+            this.$watch('movieSearchQuery', () => { this.moviePage = 1; });
+            this.$watch('movieFilter', () => { this.moviePage = 1; });
+            this.$watch('watchlistSearchQuery', () => { this.watchlistPage = 1; });
+            this.$watch('watchlistFilter', () => { this.watchlistPage = 1; });
+            this.$watch('shopSearchQuery', () => { this.shopPage = 1; });
+            this.$watch('shopRarityFilter', () => { this.shopPage = 1; });
+            this.$watch('borderSearchQuery', () => { this.borderPage = 1; });
+            this.$watch('borderRarityFilter', () => { this.borderPage = 1; });
+
             this.$watch('searchQuery', (query) => {
                 clearTimeout(this.searchTimeout);
                 const trimmed = (query || '').trim();

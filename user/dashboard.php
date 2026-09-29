@@ -87,22 +87,34 @@ session_write_close();
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script>
+        (function () {
+            var allowed = { crimson: 1, arctic: 1, amethyst: 1, verdant: 1 };
+            var theme = 'crimson';
+            try {
+                var saved = localStorage.getItem('nexus_theme');
+                if (saved && allowed[saved]) theme = saved;
+            } catch (e) {}
+            document.documentElement.setAttribute('data-theme', theme);
+        })();
+    </script>
     <?php include __DIR__ . '/../frontend/components/head_boot.php'; ?>
     <title>Nexus - User Dashboard</title>
     
     <!-- Tailwind CSS -->
+    <script src="../js/user_theme_colors.js?v=2"></script>
     <script src="https://cdn.tailwindcss.com/3.4.17"></script>
     <script>
         tailwind.config = {
             theme: {
                 extend: {
-                    colors: {
+                    colors: Object.assign({
                         nexus: {
                             dark: '#030305',
                             red: '#ef4444',
                             indigo: '#4f46e5'
                         }
-                    },
+                    }, window.nexusThemeColors || {}),
                     fontFamily: {
                         sans: ['Space Grotesk', 'sans-serif'],
                         mono: ['JetBrains Mono', 'monospace']
@@ -115,6 +127,7 @@ session_write_close();
     <!-- Google Fonts -->
     <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined" rel="stylesheet" />
+    <link rel="stylesheet" href="../frontend/assets/user-themes.css?v=2">
     <?php if ($avatarUrl !== ''): ?>
     <link rel="preload" as="image" href="<?php echo htmlspecialchars($avatarUrl, ENT_QUOTES, 'UTF-8'); ?>">
     <?php endif; ?>
@@ -133,18 +146,20 @@ session_write_close();
         html, body { color-scheme: dark; }
         body { 
             font-family: 'Space Grotesk', sans-serif; 
-            background-color: #030305; 
+            background-color: var(--nx-bg, #030305);
+            background-image: var(--nx-grad-page);
+            background-attachment: fixed; 
             color: #ffffff; 
             overflow: hidden;
         }
         select {
             color-scheme: dark;
-            background-color: #0a0a0f;
+            background-color: var(--nx-card, #0a0a0f);
             color: #f5f5f5;
         }
         select option,
         select optgroup {
-            background-color: #0a0a0f;
+            background-color: var(--nx-card, #0a0a0f);
             color: #f5f5f5;
         }
 
@@ -181,15 +196,15 @@ session_write_close();
         ::-webkit-scrollbar { width: 4px; }
         ::-webkit-scrollbar-track { background: transparent; }
         ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 10px; }
-        ::-webkit-scrollbar-thumb:hover { background: rgba(239,68,68,0.5); }
+        ::-webkit-scrollbar-thumb:hover { background: rgb(var(--nx-glow, 239 68 68) / 0.5); }
 
         .hover-glow {
             transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
         }
         .hover-glow:hover {
             transform: translateY(-5px);
-            box-shadow: 0 10px 40px -10px rgba(239, 68, 68, 0.2);
-            border-color: rgba(239, 68, 68, 0.4);
+            box-shadow: 0 10px 40px -10px rgb(var(--nx-glow, 239 68 68) / 0.2);
+            border-color: rgb(var(--nx-glow, 239 68 68) / 0.4);
         }
         
         .icon-bounce {
@@ -202,9 +217,7 @@ session_write_close();
         .bg-mesh {
             position: fixed;
             top: -20%; left: -20%; right: -20%; bottom: -20%;
-            background: 
-                radial-gradient(at 20% 20%, rgba(239, 68, 68, 0.08) 0px, transparent 40%),
-                radial-gradient(at 80% 80%, rgba(79, 70, 229, 0.08) 0px, transparent 40%);
+            background: var(--nx-grad-mesh);
             z-index: -2;
             will-change: transform;
         }
@@ -228,7 +241,7 @@ session_write_close();
             inset: 0;
             border-radius: inherit;
             padding: 1px;
-            background: linear-gradient(45deg, transparent, rgba(239, 68, 68, 0.6), transparent);
+            background: linear-gradient(45deg, transparent, rgb(var(--nx-glow, 239 68 68) / 0.6), transparent);
             -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
             -webkit-mask-composite: xor;
             mask-composite: exclude;

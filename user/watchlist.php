@@ -1,5 +1,6 @@
 <!-- Watchlist Tab -->
 <div class="absolute inset-0 w-full h-full overflow-y-auto p-4 sm:p-6 md:p-10 pb-28 tab-content scroll-smooth custom-scrollbar" 
+     data-tab-pane="watchlist"
      x-show="currentTab === 'watchlist'"
      x-transition:enter="transition-all duration-500 delay-300 cubic-bezier(0.34, 1.56, 0.64, 1)"
      x-transition:enter-start="opacity-0 translate-y-8"
@@ -76,7 +77,7 @@
         </div>
 
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
-            <template x-for="(item, index) in filteredWatchlist" :key="item.id || index">
+            <template x-for="(item, index) in pagedWatchlist" :key="item.id || index">
                 <div @click="openWatchlistMovie(item)"
                      class="nexus-card-enter relative group cursor-pointer perspective-container" 
                      :style="`animation-delay: ${index * 80}ms; perspective: 1100px;`">
@@ -126,6 +127,23 @@
         </div>
         <div x-show="watchlistLoading">
             <?php $fetchLoaderShow = 'true'; $fetchLoaderLabel = 'Loading watchlist'; $fetchLoaderClass = 'py-16'; include __DIR__ . '/../frontend/components/fetch_loader.php'; ?>
+        </div>
+        <div class="flex items-center justify-center gap-1.5 pt-8" x-show="!watchlistLoading && watchlistPageCount > 1" x-cloak>
+            <button type="button" @click="setWatchlistPage(watchlistPageSafe - 1)" :disabled="watchlistPageSafe <= 1"
+                    class="w-9 h-9 rounded-xl border border-white/10 bg-white/5 text-white/70 hover:bg-white/10 hover:text-white disabled:opacity-30 disabled:pointer-events-none flex items-center justify-center transition-colors">
+                <span class="material-symbols-outlined text-[18px]">chevron_left</span>
+            </button>
+            <template x-for="page in watchlistPageNumbers" :key="'watchlist-page-'+page">
+                <button type="button" @click="setWatchlistPage(page)"
+                        class="min-w-9 h-9 px-2 rounded-xl text-[11px] font-bold transition-colors"
+                        :class="page === watchlistPageSafe ? 'bg-red-500 text-white shadow-[0_0_12px_rgba(239,68,68,0.45)]' : 'bg-white/5 border border-white/10 text-white/60 hover:text-white hover:bg-white/10'">
+                    <span x-text="page"></span>
+                </button>
+            </template>
+            <button type="button" @click="setWatchlistPage(watchlistPageSafe + 1)" :disabled="watchlistPageSafe >= watchlistPageCount"
+                    class="w-9 h-9 rounded-xl border border-white/10 bg-white/5 text-white/70 hover:bg-white/10 hover:text-white disabled:opacity-30 disabled:pointer-events-none flex items-center justify-center transition-colors">
+                <span class="material-symbols-outlined text-[18px]">chevron_right</span>
+            </button>
         </div>
         <div x-show="!watchlistLoading && filteredWatchlist.length === 0" x-cloak class="py-20 flex flex-col items-center justify-center text-center opacity-50">
             <span class="material-symbols-outlined text-6xl text-white/20 mb-4">bookmark</span>

@@ -30,6 +30,17 @@ session_write_close();
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script>
+        (function () {
+            var allowed = { crimson: 1, arctic: 1, amethyst: 1, verdant: 1 };
+            var theme = 'crimson';
+            try {
+                var saved = localStorage.getItem('nexus_theme');
+                if (saved && allowed[saved]) theme = saved;
+            } catch (e) {}
+            document.documentElement.setAttribute('data-theme', theme);
+        })();
+    </script>
     <?php include __DIR__ . '/../frontend/components/head_boot.php'; ?>
     <title>Nexus - Watch Party</title>
     
@@ -53,7 +64,18 @@ session_write_close();
         window.NEXUS_ICE_SERVERS = <?php echo json_encode(nexusIceServers(), JSON_UNESCAPED_SLASHES); ?>;
     </script>
     
+    <script src="../js/user_theme_colors.js?v=2"></script>
     <script src="https://cdn.tailwindcss.com/3.4.17"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: window.nexusThemeColors || {}
+                }
+            }
+        };
+    </script>
+    <link rel="stylesheet" href="../frontend/assets/user-themes.css?v=2">
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.1/dist/cdn.min.js" crossorigin="anonymous"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js" crossorigin="anonymous" onerror="window.gsap=window.gsap||{to:()=>({to:()=>({}),fromTo:()=>({})}),fromTo:()=>({}),from:()=>({}),set:()=>{},timeline:()=>({to:()=>({}),fromTo:()=>({}),add:()=>({}),set:()=>({})}),config:()=>{},killTweensOf:()=>{}}"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js" crossorigin="anonymous" onerror="if(window.gsap)window.gsap.ScrollTrigger=window.gsap.ScrollTrigger||{create:()=>{},refresh:()=>{},kill:()=>{}}"></script>
@@ -65,18 +87,20 @@ session_write_close();
         html, body { color-scheme: dark; }
         body {
             font-family: 'Plus Jakarta Sans', sans-serif;
-            background-color: #050508;
+            background-color: var(--nx-bg, #041018);
+            background-image: var(--nx-grad-page);
+            background-attachment: fixed;
             color: #ffffff;
             overflow: hidden;
         }
         select {
             color-scheme: dark;
-            background-color: #0a0a0f;
+            background-color: var(--nx-card, #0a0a0f);
             color: #f5f5f5;
         }
         select option,
         select optgroup {
-            background-color: #0a0a0f;
+            background-color: var(--nx-card, #0a0a0f);
             color: #f5f5f5;
         }
         .mono {

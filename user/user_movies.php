@@ -1,5 +1,5 @@
 <!-- User Movies View Container -->
-<div x-show="currentTab === 'movies'" style="display: none;" class="absolute inset-0 w-full h-full p-4 sm:p-8 lg:p-12 pb-24 overflow-y-auto custom-scrollbar">
+<div x-show="currentTab === 'movies'" data-tab-pane="movies" style="display: none;" class="absolute inset-0 w-full h-full p-4 sm:p-8 lg:p-12 pb-24 overflow-y-auto custom-scrollbar">
     
     <!-- Section Header -->
     <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-10 stagger-item">
@@ -30,7 +30,7 @@
 
     <!-- Dynamic Movie Cards Grid -->
     <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6 lg:gap-8 pb-12 items-stretch">
-        <template x-for="(movie, index) in filteredMovies" :key="movie.id || movie.movie_id">
+        <template x-for="(movie, index) in pagedMovies" :key="movie.id || movie.movie_id">
             <div class="movie-card-container stagger-item nexus-card-enter h-full" :style="`animation-delay: ${index * 60}ms`">
                 <div @click="openMovieOrPremium(movie)"
                      @mousemove="trackCardTilt($event)"
@@ -123,7 +123,23 @@
         </div>
     </div>
 
-   
+    <div class="flex items-center justify-center gap-1.5 pb-8" x-show="!moviesLoading && moviePageCount > 1" x-cloak>
+        <button type="button" @click="setMoviePage(moviePageSafe - 1)" :disabled="moviePageSafe <= 1"
+                class="w-9 h-9 rounded-xl border border-white/10 bg-white/5 text-white/70 hover:bg-white/10 hover:text-white disabled:opacity-30 disabled:pointer-events-none flex items-center justify-center transition-colors">
+            <span class="material-symbols-outlined text-[18px]">chevron_left</span>
+        </button>
+        <template x-for="page in moviePageNumbers" :key="'movie-page-'+page">
+            <button type="button" @click="setMoviePage(page)"
+                    class="min-w-9 h-9 px-2 rounded-xl text-[11px] font-bold transition-colors"
+                    :class="page === moviePageSafe ? 'bg-indigo-500 text-white shadow-[0_0_12px_rgba(99,102,241,0.45)]' : 'bg-white/5 border border-white/10 text-white/60 hover:text-white hover:bg-white/10'">
+                <span x-text="page"></span>
+            </button>
+        </template>
+        <button type="button" @click="setMoviePage(moviePageSafe + 1)" :disabled="moviePageSafe >= moviePageCount"
+                class="w-9 h-9 rounded-xl border border-white/10 bg-white/5 text-white/70 hover:bg-white/10 hover:text-white disabled:opacity-30 disabled:pointer-events-none flex items-center justify-center transition-colors">
+            <span class="material-symbols-outlined text-[18px]">chevron_right</span>
+        </button>
+    </div>
 </div>
 
  <!-- Movie Detail & Playback Modal -->

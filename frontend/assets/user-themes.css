@@ -1,0 +1,359 @@
+:root,
+html[data-theme="crimson"] {
+    --nx-black: 0 0 0;
+    --nx-bg: #030305;
+    --nx-bg-rgb: 3 3 5;
+    --nx-surface: #050508;
+    --nx-surface-rgb: 5 5 8;
+    --nx-panel: #07070b;
+    --nx-panel-rgb: 7 7 11;
+    --nx-modal: #08080d;
+    --nx-modal-rgb: 8 8 13;
+    --nx-card: #0a0a0f;
+    --nx-card-rgb: 10 10 15;
+    --nx-elevated: #0c0c12;
+    --nx-elevated-rgb: 12 12 18;
+    --nx-inset: #111116;
+    --nx-inset-rgb: 17 17 22;
+    --nx-glow: 239 68 68;
+    --nx-glow-2: 79 70 229;
+    --nx-red-300: 252 165 165;
+    --nx-red-400: 248 113 113;
+    --nx-red-500: 239 68 68;
+    --nx-red-600: 220 38 38;
+    --nx-red-900: 127 29 29;
+    --nx-rose-500: 244 63 94;
+    --nx-rose-600: 225 29 72;
+    --nx-indigo-200: 199 210 254;
+    --nx-indigo-300: 165 180 252;
+    --nx-indigo-400: 129 140 248;
+    --nx-indigo-500: 99 102 241;
+    --nx-indigo-600: 79 70 229;
+    --nx-violet-400: 167 139 250;
+    --nx-violet-500: 139 92 246;
+    --nx-violet-600: 124 58 237;
+    --nx-fuchsia-300: 240 171 252;
+    --nx-fuchsia-400: 232 121 249;
+    --nx-fuchsia-500: 217 70 239;
+    --nx-fuchsia-600: 192 38 211;
+    --nx-purple-300: 216 180 254;
+    --nx-purple-400: 192 132 252;
+    --nx-purple-500: 168 85 247;
+    --nx-purple-600: 147 51 234;
+    --nx-emerald-300: 110 231 183;
+    --nx-emerald-400: 52 211 153;
+    --nx-emerald-500: 16 185 129;
+    --nx-emerald-600: 5 150 105;
+    --nx-emerald-700: 4 120 87;
+    --nx-grad-accent: linear-gradient(120deg, #fb7185 0%, #ef4444 46%, #6366f1 100%);
+    --nx-grad-soft: linear-gradient(135deg, rgb(239 68 68 / 0.24), rgb(99 102 241 / 0.14) 58%, transparent 100%);
+    --nx-grad-card: linear-gradient(155deg, rgb(239 68 68 / 0.18) 0%, transparent 34%), linear-gradient(180deg, #1a1016 0%, #0a0a0f 100%);
+    --nx-grad-veil: linear-gradient(160deg, rgb(239 68 68 / 0.22), rgb(79 70 229 / 0.1) 48%, transparent 74%), linear-gradient(180deg, rgb(18 8 12 / 0.94), rgb(5 5 8 / 0.92));
+    --nx-grad-page: radial-gradient(980px 560px at 6% -8%, rgb(239 68 68 / 0.32), transparent 56%), radial-gradient(820px 500px at 100% 0%, rgb(99 102 241 / 0.26), transparent 52%), linear-gradient(165deg, #1a0a10 0%, #030305 46%, #090714 100%);
+    --nx-grad-mesh: radial-gradient(at 14% 16%, rgb(239 68 68 / 0.28) 0px, transparent 42%), radial-gradient(at 86% 8%, rgb(244 63 94 / 0.18) 0px, transparent 40%), radial-gradient(at 74% 88%, rgb(99 102 241 / 0.24) 0px, transparent 48%);
+}
+
+html[data-theme="arctic"] {
+    --nx-black: 2 8 16;
+    --nx-bg: #041018;
+    --nx-bg-rgb: 4 16 24;
+    --nx-surface: #07141f;
+    --nx-surface-rgb: 7 20 31;
+    --nx-panel: #06111c;
+    --nx-panel-rgb: 6 17 28;
+    --nx-modal: #081622;
+    --nx-modal-rgb: 8 22 34;
+    --nx-card: #0b1c2b;
+    --nx-card-rgb: 11 28 43;
+    --nx-elevated: #0e2436;
+    --nx-elevated-rgb: 14 36 54;
+    --nx-inset: #123044;
+    --nx-inset-rgb: 18 48 68;
+    --nx-glow: 34 211 238;
+    --nx-glow-2: 59 130 246;
+    --nx-red-300: 165 243 252;
+    --nx-red-400: 103 232 249;
+    --nx-red-500: 34 211 238;
+    --nx-red-600: 8 145 178;
+    --nx-red-900: 22 78 99;
+    --nx-rose-500: 56 189 248;
+    --nx-rose-600: 2 132 199;
+    --nx-indigo-200: 191 219 254;
+    --nx-indigo-300: 147 197 253;
+    --nx-indigo-400: 96 165 250;
+    --nx-indigo-500: 59 130 246;
+    --nx-indigo-600: 37 99 235;
+    --nx-violet-400: 125 211 252;
+    --nx-violet-500: 14 165 233;
+    --nx-violet-600: 2 132 199;
+    --nx-fuchsia-300: 186 230 253;
+    --nx-fuchsia-400: 125 211 252;
+    --nx-fuchsia-500: 56 189 248;
+    --nx-fuchsia-600: 14 165 233;
+    --nx-purple-300: 191 219 254;
+    --nx-purple-400: 147 197 253;
+    --nx-purple-500: 96 165 250;
+    --nx-purple-600: 59 130 246;
+    --nx-emerald-300: 153 246 228;
+    --nx-emerald-400: 45 212 191;
+    --nx-emerald-500: 20 184 166;
+    --nx-emerald-600: 13 148 136;
+    --nx-emerald-700: 15 118 110;
+    --nx-grad-accent: linear-gradient(120deg, #a5f3fc 0%, #22d3ee 42%, #3b82f6 100%);
+    --nx-grad-soft: linear-gradient(135deg, rgb(34 211 238 / 0.24), rgb(59 130 246 / 0.16) 58%, transparent 100%);
+    --nx-grad-card: linear-gradient(155deg, rgb(34 211 238 / 0.18) 0%, transparent 36%), linear-gradient(180deg, #123044 0%, #0b1c2b 100%);
+    --nx-grad-veil: linear-gradient(160deg, rgb(34 211 238 / 0.22), rgb(59 130 246 / 0.12) 50%, transparent 74%), linear-gradient(180deg, rgb(7 20 31 / 0.94), rgb(4 16 24 / 0.92));
+    --nx-grad-page: radial-gradient(980px 560px at 0% -6%, rgb(34 211 238 / 0.28), transparent 56%), radial-gradient(800px 480px at 100% 4%, rgb(59 130 246 / 0.26), transparent 52%), linear-gradient(165deg, #06283a 0%, #041018 48%, #07182c 100%);
+    --nx-grad-mesh: radial-gradient(at 12% 18%, rgb(34 211 238 / 0.3) 0px, transparent 42%), radial-gradient(at 88% 10%, rgb(56 189 248 / 0.2) 0px, transparent 40%), radial-gradient(at 70% 90%, rgb(37 99 235 / 0.26) 0px, transparent 48%);
+}
+
+html[data-theme="amethyst"] {
+    --nx-black: 10 4 16;
+    --nx-bg: #120818;
+    --nx-bg-rgb: 18 8 24;
+    --nx-surface: #160a1e;
+    --nx-surface-rgb: 22 10 30;
+    --nx-panel: #14091c;
+    --nx-panel-rgb: 20 9 28;
+    --nx-modal: #1a0c28;
+    --nx-modal-rgb: 26 12 40;
+    --nx-card: #221033;
+    --nx-card-rgb: 34 16 51;
+    --nx-elevated: #2a1440;
+    --nx-elevated-rgb: 42 20 64;
+    --nx-inset: #351a4e;
+    --nx-inset-rgb: 53 26 78;
+    --nx-glow: 217 70 239;
+    --nx-glow-2: 139 92 246;
+    --nx-red-300: 245 208 254;
+    --nx-red-400: 232 121 249;
+    --nx-red-500: 217 70 239;
+    --nx-red-600: 192 38 211;
+    --nx-red-900: 112 26 117;
+    --nx-rose-500: 232 121 249;
+    --nx-rose-600: 192 38 211;
+    --nx-indigo-200: 221 214 254;
+    --nx-indigo-300: 196 181 253;
+    --nx-indigo-400: 167 139 250;
+    --nx-indigo-500: 139 92 246;
+    --nx-indigo-600: 124 58 237;
+    --nx-violet-400: 196 181 253;
+    --nx-violet-500: 167 139 250;
+    --nx-violet-600: 139 92 246;
+    --nx-fuchsia-300: 245 208 254;
+    --nx-fuchsia-400: 232 121 249;
+    --nx-fuchsia-500: 217 70 239;
+    --nx-fuchsia-600: 192 38 211;
+    --nx-purple-300: 233 213 255;
+    --nx-purple-400: 216 180 254;
+    --nx-purple-500: 192 132 252;
+    --nx-purple-600: 168 85 247;
+    --nx-emerald-300: 233 213 255;
+    --nx-emerald-400: 216 180 254;
+    --nx-emerald-500: 192 132 252;
+    --nx-emerald-600: 168 85 247;
+    --nx-emerald-700: 126 34 206;
+    --nx-grad-accent: linear-gradient(120deg, #f5d0fe 0%, #d946ef 44%, #8b5cf6 100%);
+    --nx-grad-soft: linear-gradient(135deg, rgb(217 70 239 / 0.26), rgb(139 92 246 / 0.16) 58%, transparent 100%);
+    --nx-grad-card: linear-gradient(155deg, rgb(217 70 239 / 0.2) 0%, transparent 36%), linear-gradient(180deg, #351a4e 0%, #221033 100%);
+    --nx-grad-veil: linear-gradient(160deg, rgb(217 70 239 / 0.24), rgb(139 92 246 / 0.12) 50%, transparent 74%), linear-gradient(180deg, rgb(26 12 40 / 0.94), rgb(18 8 24 / 0.92));
+    --nx-grad-page: radial-gradient(980px 560px at 4% -8%, rgb(217 70 239 / 0.32), transparent 56%), radial-gradient(820px 500px at 100% 0%, rgb(139 92 246 / 0.28), transparent 52%), linear-gradient(165deg, #2a1038 0%, #120818 46%, #1a0c28 100%);
+    --nx-grad-mesh: radial-gradient(at 14% 16%, rgb(217 70 239 / 0.3) 0px, transparent 42%), radial-gradient(at 84% 12%, rgb(232 121 249 / 0.18) 0px, transparent 40%), radial-gradient(at 72% 90%, rgb(139 92 246 / 0.28) 0px, transparent 48%);
+}
+
+html[data-theme="verdant"] {
+    --nx-black: 3 10 8;
+    --nx-bg: #06110e;
+    --nx-bg-rgb: 6 17 14;
+    --nx-surface: #0a1814;
+    --nx-surface-rgb: 10 24 20;
+    --nx-panel: #081410;
+    --nx-panel-rgb: 8 20 16;
+    --nx-modal: #0c1c18;
+    --nx-modal-rgb: 12 28 24;
+    --nx-card: #10241e;
+    --nx-card-rgb: 16 36 30;
+    --nx-elevated: #143028;
+    --nx-elevated-rgb: 20 48 40;
+    --nx-inset: #1a3d32;
+    --nx-inset-rgb: 26 61 50;
+    --nx-glow: 16 185 129;
+    --nx-glow-2: 20 184 166;
+    --nx-red-300: 167 243 208;
+    --nx-red-400: 52 211 153;
+    --nx-red-500: 16 185 129;
+    --nx-red-600: 5 150 105;
+    --nx-red-900: 6 78 59;
+    --nx-rose-500: 45 212 191;
+    --nx-rose-600: 13 148 136;
+    --nx-indigo-200: 153 246 228;
+    --nx-indigo-300: 94 234 212;
+    --nx-indigo-400: 45 212 191;
+    --nx-indigo-500: 20 184 166;
+    --nx-indigo-600: 13 148 136;
+    --nx-violet-400: 110 231 183;
+    --nx-violet-500: 52 211 153;
+    --nx-violet-600: 16 185 129;
+    --nx-fuchsia-300: 167 243 208;
+    --nx-fuchsia-400: 52 211 153;
+    --nx-fuchsia-500: 16 185 129;
+    --nx-fuchsia-600: 5 150 105;
+    --nx-purple-300: 153 246 228;
+    --nx-purple-400: 94 234 212;
+    --nx-purple-500: 45 212 191;
+    --nx-purple-600: 20 184 166;
+    --nx-emerald-300: 217 249 157;
+    --nx-emerald-400: 190 242 100;
+    --nx-emerald-500: 163 230 53;
+    --nx-emerald-600: 132 204 22;
+    --nx-emerald-700: 101 163 13;
+    --nx-grad-accent: linear-gradient(120deg, #d9f99d 0%, #10b981 46%, #14b8a6 100%);
+    --nx-grad-soft: linear-gradient(135deg, rgb(16 185 129 / 0.24), rgb(20 184 166 / 0.16) 58%, transparent 100%);
+    --nx-grad-card: linear-gradient(155deg, rgb(16 185 129 / 0.18) 0%, transparent 36%), linear-gradient(180deg, #1a3d32 0%, #10241e 100%);
+    --nx-grad-veil: linear-gradient(160deg, rgb(190 242 100 / 0.16), rgb(20 184 166 / 0.12) 50%, transparent 74%), linear-gradient(180deg, rgb(12 28 24 / 0.94), rgb(6 17 14 / 0.92));
+    --nx-grad-page: radial-gradient(980px 560px at 0% -6%, rgb(16 185 129 / 0.28), transparent 56%), radial-gradient(800px 480px at 100% 6%, rgb(20 184 166 / 0.22), transparent 52%), linear-gradient(165deg, #0c2a22 0%, #06110e 48%, #0a1c18 100%);
+    --nx-grad-mesh: radial-gradient(at 12% 18%, rgb(16 185 129 / 0.28) 0px, transparent 42%), radial-gradient(at 88% 12%, rgb(190 242 100 / 0.16) 0px, transparent 40%), radial-gradient(at 70% 90%, rgb(20 184 166 / 0.24) 0px, transparent 48%);
+}
+
+body {
+    background-color: var(--nx-bg);
+    background-image: var(--nx-grad-page);
+    background-attachment: fixed;
+}
+
+select,
+select option,
+select optgroup {
+    background-color: var(--nx-card);
+    color: #f5f5f5;
+}
+
+.bg-mesh {
+    background: var(--nx-grad-mesh);
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: rgb(var(--nx-glow) / 0.5);
+}
+
+.hover-glow:hover {
+    box-shadow: 0 10px 40px -10px rgb(var(--nx-glow) / 0.2);
+    border-color: rgb(var(--nx-glow) / 0.4);
+}
+
+.animated-gradient-border::after {
+    background: linear-gradient(45deg, transparent, rgb(var(--nx-glow) / 0.6), transparent);
+}
+
+.bg-\[\#030305\] { background-color: rgb(var(--nx-bg-rgb) / 1) !important; }
+.bg-\[\#030305\]\/90 { background-color: rgb(var(--nx-bg-rgb) / 0.9) !important; }
+.bg-\[\#030305\]\/50 { background-color: rgb(var(--nx-bg-rgb) / 0.5) !important; }
+.bg-\[\#030305\]\/40 { background-color: rgb(var(--nx-bg-rgb) / 0.4) !important; }
+.bg-\[\#050508\] { background-color: rgb(var(--nx-surface-rgb) / 1) !important; }
+.bg-\[\#050508\]\/95 { background-color: rgb(var(--nx-surface-rgb) / 0.95) !important; }
+.bg-\[\#050508\]\/90 { background-color: rgb(var(--nx-surface-rgb) / 0.9) !important; }
+.bg-\[\#050508\]\/80 { background-color: rgb(var(--nx-surface-rgb) / 0.8) !important; }
+.bg-\[\#050508\]\/60 { background-color: rgb(var(--nx-surface-rgb) / 0.6) !important; }
+.bg-\[\#050508\]\/40 { background-color: rgb(var(--nx-surface-rgb) / 0.4) !important; }
+.bg-\[\#07070b\]\/95 { background-color: rgb(var(--nx-panel-rgb) / 0.95) !important; }
+.bg-\[\#08080d\] { background-color: rgb(var(--nx-modal-rgb) / 1) !important; }
+.bg-\[\#0a0a0f\] { background-color: rgb(var(--nx-card-rgb) / 1) !important; }
+.bg-\[\#0a0a0f\]\/95 { background-color: rgb(var(--nx-card-rgb) / 0.95) !important; }
+.bg-\[\#0a0a0f\]\/80 { background-color: rgb(var(--nx-card-rgb) / 0.8) !important; }
+.bg-\[\#0a0a0f\]\/50 { background-color: rgb(var(--nx-card-rgb) / 0.5) !important; }
+.bg-\[\#0c0c12\] { background-color: rgb(var(--nx-elevated-rgb) / 1) !important; }
+.bg-\[\#0c0c12\]\/95 { background-color: rgb(var(--nx-elevated-rgb) / 0.95) !important; }
+.bg-\[\#111116\] { background-color: rgb(var(--nx-inset-rgb) / 1) !important; }
+.border-\[\#050508\] { border-color: rgb(var(--nx-surface-rgb) / 1) !important; }
+
+.from-\[\#050508\] {
+    --tw-gradient-from: rgb(var(--nx-surface-rgb) / 1) var(--tw-gradient-from-position) !important;
+    --tw-gradient-to: rgb(var(--nx-surface-rgb) / 0) var(--tw-gradient-to-position) !important;
+    --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to) !important;
+}
+.to-\[\#050508\] {
+    --tw-gradient-to: rgb(var(--nx-surface-rgb) / 1) var(--tw-gradient-to-position) !important;
+}
+.from-\[\#0a0a0f\] {
+    --tw-gradient-from: rgb(var(--nx-card-rgb) / 1) var(--tw-gradient-from-position) !important;
+    --tw-gradient-to: rgb(var(--nx-card-rgb) / 0) var(--tw-gradient-to-position) !important;
+    --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to) !important;
+}
+.via-\[\#050508\]\/20 {
+    --tw-gradient-stops: var(--tw-gradient-from), rgb(var(--nx-surface-rgb) / 0.2) var(--tw-gradient-via-position), var(--tw-gradient-to) !important;
+}
+.via-\[\#050508\]\/40 {
+    --tw-gradient-stops: var(--tw-gradient-from), rgb(var(--nx-surface-rgb) / 0.4) var(--tw-gradient-via-position), var(--tw-gradient-to) !important;
+}
+
+.bg-\[\#030305\],
+.bg-\[\#050508\],
+.bg-\[\#08080d\],
+.bg-\[\#0a0a0f\],
+.bg-\[\#0c0c12\],
+.bg-\[\#111116\] {
+    background-image: var(--nx-grad-card) !important;
+}
+
+.bg-\[\#050508\]\/95,
+.bg-\[\#050508\]\/90,
+.bg-\[\#07070b\]\/95,
+.bg-\[\#0a0a0f\]\/95,
+.bg-\[\#0a0a0f\]\/80,
+.bg-\[\#0c0c12\]\/95,
+.bg-\[\#030305\]\/90 {
+    background-image: var(--nx-grad-veil) !important;
+}
+
+.bg-red-500,
+.bg-red-600,
+.bg-rose-500,
+.bg-rose-600,
+.bg-indigo-500,
+.bg-indigo-600,
+.bg-violet-500,
+.bg-violet-600,
+.bg-fuchsia-500,
+.bg-fuchsia-600,
+.bg-purple-500,
+.bg-purple-600,
+.bg-emerald-500,
+.bg-emerald-600 {
+    background-image: var(--nx-grad-accent) !important;
+    background-color: transparent !important;
+}
+
+.bg-red-500\/10,
+.bg-red-500\/20,
+.bg-indigo-500\/10,
+.bg-indigo-500\/20,
+.bg-violet-500\/10,
+.bg-emerald-500\/10,
+.bg-emerald-500\/15,
+.bg-fuchsia-500\/10 {
+    background-image: var(--nx-grad-soft) !important;
+}
+
+.text-red-300:not([class*="bg-"]),
+.text-red-400:not([class*="bg-"]),
+.text-red-500:not([class*="bg-"]),
+.text-rose-400:not([class*="bg-"]),
+.text-rose-500:not([class*="bg-"]),
+.text-indigo-300:not([class*="bg-"]),
+.text-indigo-400:not([class*="bg-"]),
+.text-indigo-500:not([class*="bg-"]),
+.text-violet-400:not([class*="bg-"]),
+.text-fuchsia-300:not([class*="bg-"]),
+.text-fuchsia-400:not([class*="bg-"]),
+.text-emerald-300:not([class*="bg-"]),
+.text-emerald-400:not([class*="bg-"]),
+.text-emerald-500:not([class*="bg-"]) {
+    background-image: var(--nx-grad-accent);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent !important;
+}
+
+::-webkit-scrollbar-thumb {
+    background: var(--nx-grad-accent);
+}
