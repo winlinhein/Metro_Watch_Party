@@ -1,13 +1,6 @@
 <?php
 // /admin_backend/get_reports.php
 session_start();
-require_once __DIR__ . '/../conn.php';
-require_once __DIR__ . '/../profile_media_helper.php';
-require_once __DIR__ . '/../poster_helper.php';
-require_once __DIR__ . '/../account_lifecycle_helper.php';
-ensureAppSchema($conn);
-nexusPrepareKeptRecords($conn);
-
 header('Content-Type: application/json');
 
 // Ensure user is an admin or moderator
@@ -18,6 +11,13 @@ if (empty($_SESSION['user_role']) || !in_array($role, ['admin', 'moderator'], tr
 }
 
 session_write_close();
+
+require_once __DIR__ . '/../conn.php';
+require_once __DIR__ . '/../profile_media_helper.php';
+require_once __DIR__ . '/../poster_helper.php';
+require_once __DIR__ . '/../account_lifecycle_helper.php';
+ensureAppSchema($conn);
+nexusPrepareKeptRecords($conn);
 
 try {
     // Incorporating your corrected query with the many-to-many relationship

@@ -26,18 +26,25 @@ try {
             m.view_count,
             m.created_at,
             COALESCE(m.is_premium, 0) AS is_premium,
-            COALESCE(ROUND(AVG(r.rating), 1), 0) AS rating,
-            COALESCE(MAX(CASE WHEN ur.user_id = ? THEN ur.rating ELSE 0 END), 0) AS user_rating,
-            COALESCE(GROUP_CONCAT(DISTINCT g.genre_name SEPARATOR ', '), '') AS genres
+            COALESCE(r.avg_rating, 0) AS rating,
+            COALESCE(ur.rating, 0) AS user_rating,
+            COALESCE(g.genres, '') AS genres
         FROM movies m
-        LEFT JOIN movie_rating r ON r.movie_id = m.movie_id
+        LEFT JOIN (
+            SELECT movie_id, ROUND(AVG(rating), 1) AS avg_rating
+            FROM movie_rating
+            GROUP BY movie_id
+        ) r ON r.movie_id = m.movie_id
         LEFT JOIN movie_rating ur ON ur.movie_id = m.movie_id AND ur.user_id = ?
-        LEFT JOIN movie_and_genres mg ON mg.movie_id = m.movie_id
-        LEFT JOIN genres g ON g.genre_id = mg.genre_id
-        GROUP BY m.movie_id
+        LEFT JOIN (
+            SELECT mg.movie_id, GROUP_CONCAT(DISTINCT g.genre_name ORDER BY g.genre_name SEPARATOR ', ') AS genres
+            FROM movie_and_genres mg
+            JOIN genres g ON g.genre_id = mg.genre_id
+            GROUP BY mg.movie_id
+        ) g ON g.movie_id = m.movie_id
         ORDER BY m.created_at DESC
     ");
-    $stmt->execute([$current_user_id, $current_user_id]);
+    $stmt->execute([$current_user_id]);
     $movies = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
     foreach ($movies as &$movie) {

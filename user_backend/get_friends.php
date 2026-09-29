@@ -9,12 +9,12 @@ if (empty($_SESSION['user_id'])) {
     exit();
 }
 
+$currentUserId = (int)$_SESSION['user_id'];
+session_write_close();
+
 require_once __DIR__ . '/../conn.php';
 require_once __DIR__ . '/../profile_media_helper.php';
 require_once __DIR__ . '/../presence_helper.php';
-
-$currentUserId = (int)$_SESSION['user_id'];
-session_write_close();
 
 try {
     ensureUserLastSeenColumn($conn);

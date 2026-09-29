@@ -53,7 +53,9 @@ function watchParty() {
         showChat: typeof window === 'undefined' || window.innerWidth >= 768,
         showParticipants: true,
         showControls: false,
+        useTouchPad: false,
         controlsTimeout: null,
+        _seeking: false,
         isLoading: false,
         isConnecting: true,
         isLeaving: false,
@@ -139,6 +141,8 @@ function watchParty() {
         roomSyncTimer: null,
 
         async init() {
+            this.useTouchPad = window.matchMedia('(pointer: coarse)').matches || window.innerWidth < 1024;
+            if (this.useTouchPad) this.showControls = true;
             document.addEventListener('click', () => {
                 this.resumeAudioContext();
                 document.querySelectorAll('video').forEach((el) => {
@@ -2197,6 +2201,29 @@ function watchParty() {
             this.emitPlaybackSync();
         },
 
+        revealControls(e) {
+            const pointerType = e && e.pointerType;
+            this.showControls = true;
+            clearTimeout(this.controlsTimeout);
+            if (pointerType === 'touch' || this.useTouchPad) return;
+            this.controlsTimeout = setTimeout(() => {
+                if (this.isPlaying && !this._seeking) this.showControls = false;
+            }, 2500);
+        },
+
+        hideControls(e) {
+            if (this.useTouchPad || (e && e.pointerType === 'touch')) return;
+            if (this.isPlaying) this.showControls = false;
+        },
+
+        onVideoSurface() {
+            if (this.useTouchPad) {
+                this.showControls = true;
+                return;
+            }
+            this.togglePlay();
+        },
+
         updateProgress() {
             if (!this.$refs.videoPlayer) return;
             this.currentTime = this.$refs.videoPlayer.currentTime;
@@ -2207,11 +2234,40 @@ function watchParty() {
             }
         },
 
-        seek(e) {
-            if (!this.$refs.videoPlayer || !this.$refs.progressBar) return;
+        seekFromEvent(e) {
+            if (!this.$refs.videoPlayer || !this.$refs.progressBar || !this.duration) return;
             const rect = this.$refs.progressBar.getBoundingClientRect();
-            const pos = (e.clientX - rect.left) / rect.width;
+            const clientX = e.clientX != null ? e.clientX : (e.touches && e.touches[0] ? e.touches[0].clientX : 0);
+            const pos = Math.min(1, Math.max(0, (clientX - rect.left) / Math.max(rect.width, 1)));
             this.$refs.videoPlayer.currentTime = pos * this.duration;
+            this.currentTime = this.$refs.videoPlayer.currentTime;
+            this.progressPercent = pos * 100;
+        },
+
+        startSeek(e) {
+            if (!this.$refs.videoPlayer) return;
+            this._seeking = true;
+            this.showControls = true;
+            if (e.currentTarget && e.currentTarget.setPointerCapture && e.pointerId != null) {
+                try { e.currentTarget.setPointerCapture(e.pointerId); } catch (err) {}
+            }
+            this.seekFromEvent(e);
+        },
+
+        moveSeek(e) {
+            if (!this._seeking) return;
+            this.seekFromEvent(e);
+        },
+
+        endSeek(e) {
+            if (!this._seeking) return;
+            this.seekFromEvent(e);
+            this._seeking = false;
+            this.emitPlaybackSync();
+        },
+
+        seek(e) {
+            this.seekFromEvent(e);
             this.emitPlaybackSync();
         },
 

@@ -8,6 +8,8 @@ if (empty($_SESSION['user_id'])) {
     exit;
 }
 
+session_write_close();
+
 require_once __DIR__ . '/../conn.php';
 require_once __DIR__ . '/../point_pack_helper.php';
 ensureAppSchema($conn);

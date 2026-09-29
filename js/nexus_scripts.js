@@ -891,9 +891,29 @@ function userDashboard() {
         },
 
         // API Fetching
+        cacheKey(name) {
+            const id = Number(window.CURRENT_USER_ID) || 0;
+            return id ? `nexus_${name}_u${id}` : `nexus_${name}_guest`;
+        },
+
+        beginFetch(key) {
+            if (!this._inflight) this._inflight = Object.create(null);
+            if (this._inflight[key]) return this._inflight[key];
+            let finish = () => {};
+            const job = new Promise((resolve) => { finish = resolve; });
+            job.finish = finish;
+            this._inflight[key] = job;
+            return null;
+        },
+        endFetch(key) {
+            const job = this._inflight && this._inflight[key];
+            if (this._inflight) delete this._inflight[key];
+            if (job && typeof job.finish === 'function') job.finish();
+        },
+
         hydrateLocalCaches() {
             try {
-                const movies = JSON.parse(sessionStorage.getItem('nexus_movies_cache') || 'null');
+                const movies = JSON.parse(sessionStorage.getItem(this.cacheKey('movies')) || 'null');
                 if (Array.isArray(movies) && movies.length && !(this.movies || []).length) {
                     this.movies = movies.map(m => this._normalizeMovie(m));
                     this.moviesLoading = false;
@@ -901,8 +921,12 @@ function userDashboard() {
                 }
             } catch (e) {}
             try {
-                const friends = JSON.parse(sessionStorage.getItem('nexus_friends_cache') || 'null');
-                if (friends && Array.isArray(friends.friends) && !(this.friends || []).length) {
+                const friends = JSON.parse(
+                    sessionStorage.getItem(this.cacheKey('friends'))
+                    || sessionStorage.getItem('nexus_friends_cache')
+                    || 'null'
+                );
+                if (friends && Array.isArray(friends.friends) && friends.friends.length && !(this.friends || []).length) {
                     this.friends = friends.friends;
                     this.pendingRequests = friends.pending_requests || [];
                     this.friendsLoading = false;
@@ -910,7 +934,7 @@ function userDashboard() {
                 }
             } catch (e) {}
             try {
-                const rooms = JSON.parse(sessionStorage.getItem('nexus_friend_rooms_cache') || 'null');
+                const rooms = JSON.parse(sessionStorage.getItem(this.cacheKey('friend_rooms')) || 'null');
                 if (Array.isArray(rooms) && rooms.length && !(this.friendRooms || []).length) {
                     this.friendRooms = rooms;
                     this.friendRoomsLoading = false;
@@ -919,10 +943,12 @@ function userDashboard() {
         },
 
         persistMoviesCache() {
-            try { sessionStorage.setItem('nexus_movies_cache', JSON.stringify(this.movies || [])); } catch (e) {}
+            try { sessionStorage.setItem(this.cacheKey('movies'), JSON.stringify(this.movies || [])); } catch (e) {}
         },
 
         async fetchMovies() {
+            const pending = this.beginFetch('movies');
+            if (pending) return pending;
             if (!(this.movies || []).length) this.moviesLoading = true;
             try {
                 const response = await fetch('/user_backend/movies_api.php');
@@ -960,6 +986,7 @@ function userDashboard() {
                 this.movies = [];
             } finally {
                 this.moviesLoading = false;
+                this.endFetch('movies');
             }
         },
 
@@ -1350,6 +1377,8 @@ function userDashboard() {
         },
 
         async fetchPointPacks() {
+            const pending = this.beginFetch('pointPacks');
+            if (pending) return pending;
             if (!(this.pointPacks || []).length) this.packsLoading = true;
             try {
                 const res = await fetch('/user_backend/get_point_packages.php');
@@ -1372,6 +1401,7 @@ function userDashboard() {
                 console.error('Failed to load point packs', e);
             } finally {
                 this.packsLoading = false;
+                this.endFetch('pointPacks');
             }
             return this.pointPacks;
         },
@@ -1486,28 +1516,36 @@ function userDashboard() {
 
         loadMediaCaches() {
             try {
-                this.avatarCache = JSON.parse(sessionStorage.getItem('nexus_avatar_cache') || '{}');
+                this.avatarCache = JSON.parse(sessionStorage.getItem(this.cacheKey('avatars')) || '{}');
             } catch (e) {
                 this.avatarCache = {};
             }
             try {
-                this.chatHistoryCache = JSON.parse(sessionStorage.getItem('nexus_chat_cache') || '{}');
+                this.chatHistoryCache = JSON.parse(sessionStorage.getItem(this.cacheKey('chat')) || '{}');
             } catch (e) {
                 this.chatHistoryCache = {};
             }
         },
 
         persistAvatarCache() {
-            try { sessionStorage.setItem('nexus_avatar_cache', JSON.stringify(this.avatarCache)); } catch (e) {}
+            try { sessionStorage.setItem(this.cacheKey('avatars'), JSON.stringify(this.avatarCache)); } catch (e) {}
         },
 
         persistChatCache() {
-            try { sessionStorage.setItem('nexus_chat_cache', JSON.stringify(this.chatHistoryCache)); } catch (e) {}
+            try {
+                const persisted = {};
+                Object.entries(this.chatHistoryCache || {}).forEach(([id, list]) => {
+                    persisted[id] = (Array.isArray(list) ? list : [])
+                        .filter((msg) => !String(msg.image_url || '').startsWith('data:'))
+                        .slice(-80);
+                });
+                sessionStorage.setItem(this.cacheKey('chat'), JSON.stringify(persisted));
+            } catch (e) {}
         },
 
         applyCachedMedia(row, userIdKey = 'user_id') {
             if (!row || typeof row !== 'object') return row;
-            const id = Number(row[userIdKey] || row.user_id || row.sender_id || 0);
+            const id = Number(row[userIdKey] || 0);
             if (!id) return row;
             const cached = this.avatarCache[id] || {};
             const incomingAvatar = row.avatar_url || '';
@@ -1561,6 +1599,8 @@ function userDashboard() {
 
         // Fetch Friends & Incoming Pending Requests
         async fetchFriends(retries = 1) {
+            const pending = this.beginFetch('friends');
+            if (pending) return pending;
             if (!(this.friends || []).length) this.friendsLoading = true;
             let keepLoading = false;
             try {
@@ -1586,7 +1626,7 @@ function userDashboard() {
                     this.updateFriendsCount();
                     this.initAllChatSubscriptions();
                     try {
-                        sessionStorage.setItem('nexus_friends_cache', JSON.stringify({
+                        sessionStorage.setItem(this.cacheKey('friends'), JSON.stringify({
                             friends: this.friends,
                             pending_requests: this.pendingRequests
                         }));
@@ -1603,6 +1643,7 @@ function userDashboard() {
                 }
             } finally {
                 if (!keepLoading) this.friendsLoading = false;
+                this.endFetch('friends');
             }
         },
 
@@ -1931,6 +1972,8 @@ function userDashboard() {
         },
 
         async fetchNotifications() {
+            const pending = this.beginFetch('notifications');
+            if (pending) return pending;
             if (!(this.notifications || []).length) this.notificationsLoading = true;
             try {
                 const response = await fetch('/user_backend/get_notifications.php', { credentials: 'same-origin' });
@@ -1938,6 +1981,7 @@ function userDashboard() {
 
                 const data = await response.json();
                 if (data.success && Array.isArray(data.notifications)) {
+                    if (data.viewer_id && Number(data.viewer_id) !== Number(window.CURRENT_USER_ID)) return;
                     this.setNotificationList(data.notifications.map(n => this.applyCachedMedia(n, 'sender_id')));
                     this.persistAvatarCache();
                 }
@@ -1945,6 +1989,7 @@ function userDashboard() {
                 console.error('Notification error:', err);
             } finally {
                 this.notificationsLoading = false;
+                this.endFetch('notifications');
             }
         },
 
@@ -2078,7 +2123,7 @@ function userDashboard() {
 
             const panelOpen = !!this.showNotifications;
             this.notifications = [
-                {
+                this.applyCachedMedia({
                     id: incomingId || Date.now(),
                     type: data.type,
                     sender_id: data.sender_id,
@@ -2091,7 +2136,7 @@ function userDashboard() {
                     avatar_url: data.avatar_url || '',
                     border_preview: data.border_preview || '',
                     is_read: panelOpen ? 1 : 0
-                },
+                }, 'sender_id'),
                 ...this.notifications
             ];
 
@@ -2168,18 +2213,21 @@ function userDashboard() {
                 this.friendRoomsLoading = false;
                 return;
             }
+            const pending = this.beginFetch('friendRooms');
+            if (pending) return pending;
             if (!quiet && !(this.friendRooms || []).length) this.friendRoomsLoading = true;
             try {
                 const res = await fetch('/user_backend/get_friend_rooms.php');
                 const data = await res.json();
                 if (data.success) {
                     this.friendRooms = data.rooms || [];
-                    try { sessionStorage.setItem('nexus_friend_rooms_cache', JSON.stringify(this.friendRooms)); } catch (e) {}
+                    try { sessionStorage.setItem(this.cacheKey('friend_rooms'), JSON.stringify(this.friendRooms)); } catch (e) {}
                 }
             } catch (e) {
                 console.error('fetchFriendRooms', e);
             } finally {
                 this.friendRoomsLoading = false;
+                this.endFetch('friendRooms');
             }
         },
 
@@ -2478,6 +2526,30 @@ function userDashboard() {
                 (f.user_name || '').toLowerCase().includes(this.friendSearchQuery.toLowerCase())
             );
         },
+
+        ensureUserTabData(tabId) {
+            if (this.isGuest && ['watchlist', 'account', 'shop'].includes(tabId)) return;
+            if (tabId === 'movies' || tabId === 'dashboard') {
+                if (!(this.movies || []).length) {
+                    this.moviesLoading = true;
+                    this.fetchMovies();
+                }
+            }
+            if (!this.isGuest && (tabId === 'watchlist' || tabId === 'movies' || tabId === 'dashboard')) {
+                if (tabId === 'watchlist' && !(this.watchlist || []).length) this.watchlistLoading = true;
+                if (!(this.watchlist || []).length || tabId === 'watchlist') this.fetchWatchlist();
+            }
+            if (!this.isGuest && (tabId === 'shop' || tabId === 'account')) {
+                if (!(this.shopItems || []).length) {
+                    this.shopLoading = true;
+                    this.fetchShopItems().then(() => this.buildAvailableBorders());
+                } else {
+                    this.buildAvailableBorders();
+                }
+                if (!(this.pointPacks || []).length) this.fetchPointPacks();
+            }
+        },
+
         // Tab Navigation
         switchTab(tabId) {
             if (this.isGuest && ['watchlist', 'account'].includes(tabId)) {
@@ -2485,26 +2557,13 @@ function userDashboard() {
                 return;
             }
 
-            if (this.currentTab === tabId) return;
+            if (this.currentTab === tabId) {
+                this.ensureUserTabData(tabId);
+                return;
+            }
             const oldTab = this.currentTab;
             this.currentTab = tabId;
-            if (tabId === 'movies') {
-                if (!this.movies.length) {
-                    this.moviesLoading = true;
-                    this.fetchMovies();
-                }
-                if (!this.isGuest) this.fetchWatchlist();
-            }
-            if (tabId === 'watchlist') {
-                if (!(this.watchlist || []).length) this.watchlistLoading = true;
-                this.fetchWatchlist();
-            }
-            if (tabId === 'shop' || tabId === 'account') {
-                if (!this.shopItems.length) {
-                    this.shopLoading = true;
-                    this.fetchShopItems().then(() => this.buildAvailableBorders());
-                }
-            }
+            this.ensureUserTabData(tabId);
             const oldPanel = document.querySelector(`[data-tab-panel="${oldTab}"]`);
             const newPanel = document.querySelector(`[data-tab-panel="${tabId}"]`);
             if (oldPanel && newPanel && typeof window.gsap !== 'undefined') {
@@ -2652,6 +2711,63 @@ function userDashboard() {
             return friendName;
         },
 
+        activeChatPeerId() {
+            return Number(this.activeChatFriend?.user_id || this.activeChatFriend?.friend_id || this.activeChatFriend?.id) || 0;
+        },
+
+        mapChatMessage(msg, peerId) {
+            const me = Number(window.CURRENT_USER_ID) || 0;
+            const senderId = Number(msg.sender_id || (msg.sender === 'me' ? me : 0)) || 0;
+            const receiverId = Number(msg.receiver_id || 0) || 0;
+            const peer = Number(peerId) || (senderId && senderId !== me ? senderId : receiverId);
+            return {
+                id: msg.message_id || msg.id || ('live-' + Date.now()),
+                peer_id: peer,
+                sender_id: senderId,
+                receiver_id: receiverId,
+                sender: senderId === me ? 'me' : 'them',
+                text: msg.message_text || msg.text || '',
+                message_type: msg.message_type || 'text',
+                image_url: msg.image_url ? this.resolveMediaUrl(msg.image_url) : null,
+                time: this.formatTime(msg.time || msg.created_at || new Date()),
+                is_read: msg.is_read
+            };
+        },
+
+        threadFor(peerId) {
+            const id = Number(peerId) || 0;
+            const list = this.chatHistoryCache[id];
+            return Array.isArray(list) ? list.filter((msg) => Number(msg.peer_id) === id) : [];
+        },
+
+        rememberChatThread(peerId, messages) {
+            const id = Number(peerId) || 0;
+            if (!id) return;
+            const clean = (messages || []).filter((msg) => Number(msg.peer_id) === id).slice(-80);
+            this.chatHistoryCache = { ...this.chatHistoryCache, [id]: clean };
+            this.persistChatCache();
+        },
+
+        appendChatMessage(peerId, message) {
+            const id = Number(peerId) || 0;
+            if (!id || !message) return;
+            const tagged = { ...message, peer_id: id };
+            const thread = this.threadFor(id);
+            if (thread.some((msg) => String(msg.id) === String(tagged.id))) return;
+            const next = [...thread, tagged];
+            this.rememberChatThread(id, next);
+            if (this.showChatPanel && this.activeChatPeerId() === id) {
+                this.chatMessages = next.slice();
+                this.scrollToBottom();
+            }
+        },
+
+        showChatThread(peerId) {
+            const id = Number(peerId) || 0;
+            if (this.activeChatPeerId() !== id) return;
+            this.chatMessages = this.threadFor(id).slice();
+        },
+
         // Reusable Channel Subscription Helper
         subscribeToChatChannel(friendId) {
             const targetFriendId = Number(friendId);
@@ -2681,24 +2797,16 @@ function userDashboard() {
 
             channel.bind('new_message', (data) => {
                 const senderId = Number(data.sender_id);
-                if (senderId === Number(window.CURRENT_USER_ID)) return;
+                const receiverId = Number(data.receiver_id);
+                const me = Number(window.CURRENT_USER_ID);
+                if (!senderId || senderId === me) return;
+                if (receiverId && receiverId !== me) return;
+                if (senderId !== targetFriendId) return;
 
-                const activeFriendId = Number(this.activeChatFriend?.user_id || this.activeChatFriend?.friend_id || this.activeChatFriend?.id);
-                const isCurrentActiveChat = this.showChatPanel && activeFriendId === senderId;
+                const isCurrentActiveChat = this.showChatPanel && this.activeChatPeerId() === senderId;
+                this.appendChatMessage(senderId, this.mapChatMessage(data, senderId));
 
                 if (isCurrentActiveChat) {
-                    this.chatMessages = [...this.chatMessages, {
-                        id: data.message_id || data.id || 'live-' + Date.now(),
-                        sender: 'them',
-                        text: data.message_text || '',
-                        message_type: data.message_type || 'text',
-                        image_url: this.resolveMediaUrl(data.image_url || null),
-                        time: this.formatTime(data.time)
-                    }];
-                    this.chatHistoryCache[senderId] = this.chatMessages.filter(m => !String(m.image_url || '').startsWith('data:')).slice(-80);
-                    this.persistChatCache();
-                    this.scrollToBottom();
-
                     fetch('/user_backend/mark_as_read.php', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
@@ -2717,17 +2825,18 @@ function userDashboard() {
                 const senderId = Number(data.sender_id);
                 const currentUserId = Number(window.CURRENT_USER_ID);
 
-                // Receiver opened chat on another tab — sync unread badge here
                 if (readerId === currentUserId && senderId) {
                     this.clearFriendUnread(senderId);
                 }
 
-                // Sender sees read receipts in the active chat
-                const activeFriendId = Number(this.activeChatFriend?.user_id || this.activeChatFriend?.friend_id || this.activeChatFriend?.id);
-                if (readerId === activeFriendId) {
-                    this.chatMessages = this.chatMessages.map(msg =>
+                if (readerId === targetFriendId) {
+                    const next = this.threadFor(targetFriendId).map((msg) =>
                         msg.sender === 'me' ? { ...msg, is_read: 1 } : msg
                     );
+                    this.rememberChatThread(targetFriendId, next);
+                    if (this.activeChatPeerId() === targetFriendId) {
+                        this.chatMessages = next.slice();
+                    }
                 }
             });
         },
@@ -2743,13 +2852,13 @@ function userDashboard() {
             const friendId = Number(friend.user_id || friend.friend_id || friend.id);
             if (!friendId) return;
 
+            this._chatFetchToken = (this._chatFetchToken || 0) + 1;
+            const token = this._chatFetchToken;
             this.activeChatFriend = this.applyCachedMedia({ ...friend, user_id: friendId, unread_count: 0 });
-            const cachedMessages = this.chatHistoryCache[friendId];
-            this.chatMessages = Array.isArray(cachedMessages) ? cachedMessages : [];
+            this.chatMessages = this.threadFor(friendId).slice();
             this.showChatPanel = true;
             this.clearFriendUnread(friendId);
 
-            // Ensure live subscription is active for this friend immediately
             this.subscribeToChatChannel(friendId);
 
             this.$nextTick(() => {
@@ -2761,7 +2870,7 @@ function userDashboard() {
                 }
             });
 
-            const historyPromise = this.fetchChatHistory(friendId);
+            const historyPromise = this.fetchChatHistory(friendId, token);
             fetch('/user_backend/mark_as_read.php', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -3053,11 +3162,13 @@ function userDashboard() {
         },
 
         // 5. Updated fetchChatHistory Method
-        async fetchChatHistory(friendId) {
-            if (!friendId) return;
+        async fetchChatHistory(friendId, token = null) {
+            const peerId = Number(friendId) || 0;
+            if (!peerId) return;
+            const requestToken = token == null ? (this._chatFetchToken || 0) : token;
 
             try {
-                const res = await fetch(`/user_backend/get_chat_history.php?friend_id=${friendId}`);
+                const res = await fetch(`/user_backend/get_chat_history.php?friend_id=${peerId}`);
                 const rawText = await res.text();
 
                 let data;
@@ -3068,21 +3179,18 @@ function userDashboard() {
                     return;
                 }
 
-                if (data.success) {
-                   this.chatMessages = data.messages.map(msg => ({
-                        id: msg.message_id,
-                        sender: Number(msg.sender_id) === Number(window.CURRENT_USER_ID) ? 'me' : 'them',
-                        text: msg.message_text,
-                        message_type: msg.message_type || 'text',
-                        image_url: this.resolveMediaUrl(msg.image_url || null),
-                        time: this.formatTime(msg.time || msg.created_at),
-                        is_read: msg.is_read
-                    }));
-                    this.chatHistoryCache[friendId] = this.chatMessages.filter(m => !String(m.image_url || '').startsWith('data:')).slice(-80);
-                    this.persistChatCache();
-                    this.scrollToBottom();
-                } else {
+                if (!data.success || !Array.isArray(data.messages)) {
                     console.error("Backend error loading chats:", data.message);
+                    return;
+                }
+                if (Number(data.friend_id || peerId) !== peerId) return;
+                if (data.viewer_id && Number(data.viewer_id) !== Number(window.CURRENT_USER_ID)) return;
+
+                const mapped = data.messages.map((msg) => this.mapChatMessage(msg, peerId));
+                this.rememberChatThread(peerId, mapped);
+                if (requestToken === this._chatFetchToken && this.activeChatPeerId() === peerId) {
+                    this.chatMessages = this.threadFor(peerId).slice();
+                    this.scrollToBottom();
                 }
             } catch (e) {
                 console.error("Network error loading chat history:", e);
@@ -3094,34 +3202,42 @@ function userDashboard() {
             if ((!this.chatInput.trim() && !this.selectedImageFile) || !this.activeChatFriend) return;
             
             const receiverId = Number(this.activeChatFriend.user_id || this.activeChatFriend.friend_id || this.activeChatFriend.id);
+            const text = this.chatInput.trim();
+            const preview = this.selectedImagePreview;
             const formData = new FormData();
             formData.append('receiver_id', receiverId);
-            formData.append('message', this.chatInput.trim());
+            formData.append('message', text);
             if (this.selectedImageFile) {
                 formData.append('image', this.selectedImageFile);
             }
-            
-            // Optimistic UI for text
-            if (this.chatInput.trim()) {
-                this.chatMessages.push({
+
+            if (text) {
+                this.appendChatMessage(receiverId, {
                     id: 'local-' + Date.now(),
+                    sender_id: Number(window.CURRENT_USER_ID),
+                    receiver_id: receiverId,
                     sender: 'me',
-                    text: this.chatInput.trim(),
+                    text,
                     time: this.formatTime(new Date()),
                     is_read: 0,
                     message_type: 'text',
-                    image_url: null
+                    image_url: null,
+                    peer_id: receiverId
                 });
             }
-            // Optimistic UI for image (using local preview)
-            if (this.selectedImagePreview) {
-                this.chatMessages.push({
-                    id: 'temp-img-' + Date.now(),
+            let tempImageId = '';
+            if (preview) {
+                tempImageId = 'temp-img-' + Date.now();
+                this.appendChatMessage(receiverId, {
+                    id: tempImageId,
+                    sender_id: Number(window.CURRENT_USER_ID),
+                    receiver_id: receiverId,
                     sender: 'me',
                     message_type: 'image',
-                    image_url: this.selectedImagePreview,
+                    image_url: preview,
                     time: this.formatTime(new Date()),
-                    is_temp: true
+                    is_temp: true,
+                    peer_id: receiverId
                 });
             }
             
@@ -3136,16 +3252,22 @@ function userDashboard() {
                 });
                 
                 const data = await res.json();
-                if (data.success && data.data.message_type === 'image') {
-                    // Replace temp image message with real URL
-                    const tempMsg = this.chatMessages.find(m => m.id.startsWith('temp-img-'));
-                    if (tempMsg) {
-                        tempMsg.image_url = this.resolveMediaUrl(data.data.image_url);
-                        tempMsg.is_temp = false;
+                if (data.success && data.data && data.data.message_type === 'image' && tempImageId) {
+                    const thread = this.threadFor(receiverId).map((msg) => {
+                        if (String(msg.id) !== tempImageId) return msg;
+                        return {
+                            ...msg,
+                            image_url: this.resolveMediaUrl(data.data.image_url),
+                            is_temp: false,
+                            peer_id: receiverId
+                        };
+                    });
+                    this.chatHistoryCache = { ...this.chatHistoryCache, [receiverId]: thread };
+                    if (this.activeChatPeerId() === receiverId) {
+                        this.chatMessages = thread.slice();
                     }
                 } else if (!data.success) {
                     console.error('Send failed:', data.message);
-                    // Optionally remove the optimistic message or show error
                 }
             } catch (e) {
                 console.error('Network error:', e);
@@ -3546,6 +3668,8 @@ function userDashboard() {
         },
 
         async fetchShopItems() {
+            const pending = this.beginFetch('shop');
+            if (pending) return pending;
             if (!(this.shopItems || []).length) this.shopLoading = true;
             try {
                 const res = await fetch('/user_backend/get_shop_items.php');
@@ -3564,6 +3688,7 @@ function userDashboard() {
                 console.error('Failed to fetch shop items:', e);
             } finally {
                 this.shopLoading = false;
+                this.endFetch('shop');
             }
         },
 
@@ -3608,6 +3733,8 @@ function userDashboard() {
         },
 
         async fetchWatchlist() {
+            const pending = this.beginFetch('watchlist');
+            if (pending) return pending;
             if (!(this.watchlist || []).length) this.watchlistLoading = true;
             try {
                 const response = await fetch("/user_backend/get_watchlist.php");
@@ -3624,6 +3751,7 @@ function userDashboard() {
                 console.error("Failed to fetch watchlist:", e);
             } finally {
                 this.watchlistLoading = false;
+                this.endFetch('watchlist');
             }
         },
 
@@ -4247,8 +4375,14 @@ function userDashboard() {
             if (this._premiumTimer) clearInterval(this._premiumTimer);
             this._premiumTimer = setInterval(() => this.tickPremiumCountdown(), 1000);
             const bootMovies = this.fetchMovies();
+            const bootJobs = [bootMovies];
             if (!this.isGuest) {
-                Promise.allSettled([bootMovies, this.fetchWatchlist()]).finally(() => this.applyDeepLink());
+                bootJobs.push(
+                    this.fetchWatchlist(),
+                    this.fetchShopItems().then(() => this.buildAvailableBorders()),
+                    this.fetchPointPacks()
+                );
+                Promise.allSettled(bootJobs).finally(() => this.applyDeepLink());
             } else {
                 bootMovies.finally(() => this.applyDeepLink());
             }
@@ -5604,19 +5738,37 @@ function adminDashboard(userData = {}) {
             }
             return raw.split('?')[0];
         },
+        cacheKey(name) {
+            const id = Number(window.CURRENT_USER_ID || this.staffUserId) || 0;
+            return id ? `nexus_${name}_u${id}` : `nexus_${name}_guest`;
+        },
+        beginFetch(key) {
+            if (!this._inflight) this._inflight = Object.create(null);
+            if (this._inflight[key]) return this._inflight[key];
+            let finish = () => {};
+            const job = new Promise((resolve) => { finish = resolve; });
+            job.finish = finish;
+            this._inflight[key] = job;
+            return null;
+        },
+        endFetch(key) {
+            const job = this._inflight && this._inflight[key];
+            if (this._inflight) delete this._inflight[key];
+            if (job && typeof job.finish === 'function') job.finish();
+        },
         loadMediaCaches() {
             try {
-                this.avatarCache = JSON.parse(sessionStorage.getItem('nexus_avatar_cache') || '{}');
+                this.avatarCache = JSON.parse(sessionStorage.getItem(this.cacheKey('avatars')) || '{}');
             } catch (e) {
                 this.avatarCache = {};
             }
         },
         persistAvatarCache() {
-            try { sessionStorage.setItem('nexus_avatar_cache', JSON.stringify(this.avatarCache)); } catch (e) {}
+            try { sessionStorage.setItem(this.cacheKey('avatars'), JSON.stringify(this.avatarCache)); } catch (e) {}
         },
         applyCachedMedia(row, userIdKey = 'user_id') {
             if (!row || typeof row !== 'object') return row;
-            const id = Number(row[userIdKey] || row.user_id || row.sender_id || row.id || 0);
+            const id = Number(row[userIdKey] || 0);
             if (!id) return row;
             const cached = this.avatarCache[id] || {};
             const incomingAvatar = row.avatar_url || '';
@@ -6027,6 +6179,8 @@ function adminDashboard(userData = {}) {
             return decorated;
         },
         async fetchNotifications() {
+            const pending = this.beginFetch('notifications');
+            if (pending) return pending;
             if (!(this.notifications || []).length) this.notificationsLoading = true;
             try {
                 const response = await fetch('/backend/get_admin_notifications.php', { credentials: 'same-origin' });
@@ -6036,6 +6190,7 @@ function adminDashboard(userData = {}) {
                     if (!fallback.ok) return;
                     const data = await fallback.json();
                     if (data.success && Array.isArray(data.notifications)) {
+                        if (data.viewer_id && Number(data.viewer_id) !== Number(window.CURRENT_USER_ID)) return;
                         this.setNotificationList(data.notifications.map(n => this.decorateAdminNotification(this.applyCachedMedia(n, 'sender_id'))));
                         this.persistAvatarCache();
                     }
@@ -6044,6 +6199,7 @@ function adminDashboard(userData = {}) {
 
                 const data = await response.json();
                 if (data.success && Array.isArray(data.notifications)) {
+                    if (data.viewer_id && Number(data.viewer_id) !== Number(window.CURRENT_USER_ID)) return;
                     this.setNotificationList(data.notifications.map(n => this.decorateAdminNotification(this.applyCachedMedia(n, 'sender_id'))));
                     this.persistAvatarCache();
                 }
@@ -6051,6 +6207,7 @@ function adminDashboard(userData = {}) {
                 console.error('Notification network error:', err);
             } finally {
                 this.notificationsLoading = false;
+                this.endFetch('notifications');
             }
         },
         async toggleNotificationPanel() {
@@ -6162,7 +6319,7 @@ function adminDashboard(userData = {}) {
                 return;
             }
             const panelOpen = !!this.notificationsOpen;
-            const incoming = this.decorateAdminNotification({
+            const incoming = this.decorateAdminNotification(this.applyCachedMedia({
                 id: incomingId || Date.now(),
                 type: data.type,
                 sender_id: data.sender_id,
@@ -6174,7 +6331,7 @@ function adminDashboard(userData = {}) {
                 border_preview: data.border_preview || '',
                 is_read: panelOpen ? 1 : 0,
                 icon: data.icon
-            });
+            }, 'sender_id'));
             this.notifications = [incoming, ...this.notifications];
             if (panelOpen) {
                 this.markNotificationsAsRead();
@@ -6367,6 +6524,8 @@ function adminDashboard(userData = {}) {
         },
 
         async fetchStats() {
+            const pending = this.beginFetch('stats');
+            if (pending) return pending;
             this.statsLoading = true;
             try {
                 const response = await fetch('/backend/dashboard_stats_api.php');
@@ -6394,11 +6553,14 @@ function adminDashboard(userData = {}) {
                 console.error('Network error fetching dashboard stats:', err);
             } finally {
                 this.statsLoading = false;
+                this.endFetch('stats');
             }
         },
 
         // ADDED: Fetch users from the PHP backend API
         async fetchUsers() {
+            const pending = this.beginFetch('users');
+            if (pending) return pending;
             if (!(this.users || []).length) this.usersLoading = true;
             this.errorMessage = '';
             try {
@@ -6423,6 +6585,7 @@ function adminDashboard(userData = {}) {
                 console.error(err);
             } finally {
                 this.usersLoading = false;
+                this.endFetch('users');
             }
         },
 
@@ -6520,6 +6683,7 @@ function adminDashboard(userData = {}) {
         },
 
         init() {
+            if (bootStaffUserId) window.CURRENT_USER_ID = bootStaffUserId;
             localStorage.removeItem('activeBorder');
             this.loadMediaCaches();
             this.cacheOwnAdminMedia();
@@ -6573,6 +6737,8 @@ function adminDashboard(userData = {}) {
 
         // --- Fetch API Methods ---
        async fetchMovies() {
+            const pending = this.beginFetch('movies');
+            if (pending) return pending;
             if (!(this.movies || []).length) this.moviesLoading = true;
             try {
                 const response = await fetch('/backend/movies_api.php');
@@ -6585,6 +6751,7 @@ function adminDashboard(userData = {}) {
                 console.error('Network error fetching movies:', err);
             } finally {
                 this.moviesLoading = false;
+                this.endFetch('movies');
             }
         },
 
@@ -6636,6 +6803,8 @@ function adminDashboard(userData = {}) {
         },
 
         async fetchGenres() {
+            const pending = this.beginFetch('genres');
+            if (pending) return pending;
             try {
                 const response = await fetch('/backend/genres_api.php');
                 const text = await response.text();
@@ -6652,6 +6821,8 @@ function adminDashboard(userData = {}) {
                 }
             } catch (err) {
                 console.error("Network error fetching genres:", err);
+            } finally {
+                this.endFetch('genres');
             }
         },
 
@@ -6797,6 +6968,8 @@ function adminDashboard(userData = {}) {
         roomPollTimer: null,
 
         async fetchRooms() {
+            const pending = this.beginFetch('rooms');
+            if (pending) return pending;
             if (!(this.rooms || []).length) this.roomsLoading = true;
             try {
                 const res = await fetch('/backend/get_active_rooms.php');
@@ -6835,6 +7008,7 @@ function adminDashboard(userData = {}) {
                 console.error('fetchRooms error:', e);
             } finally {
                 this.roomsLoading = false;
+                this.endFetch('rooms');
             }
         },
 
@@ -6977,6 +7151,8 @@ function adminDashboard(userData = {}) {
         },
 
         async fetchReports() {
+            const pending = this.beginFetch('reports');
+            if (pending) return pending;
             if (!(this.reportsList || []).length) this.reportsLoading = true;
             try {
                 const response = await fetch('/backend/get_reports.php');
@@ -6991,10 +7167,13 @@ function adminDashboard(userData = {}) {
                 console.error("Error fetching reports:", error);
             } finally {
                 this.reportsLoading = false;
+                this.endFetch('reports');
             }
         },
 
         async fetchTransactions() {
+            const pending = this.beginFetch('transactions');
+            if (pending) return pending;
             if (!(this.transactions || []).length) this.transactionsLoading = true;
             try {
                 const response = await fetch('/backend/get_transactions.php');
@@ -7010,6 +7189,7 @@ function adminDashboard(userData = {}) {
                 console.error('Error fetching transactions:', error);
             } finally {
                 this.transactionsLoading = false;
+                this.endFetch('transactions');
             }
         },
 
@@ -7104,6 +7284,8 @@ function adminDashboard(userData = {}) {
         shopImageFile: null,   // holds File object for shop item image
 
         async fetchPointPackages() {
+            const pending = this.beginFetch('pointPacks');
+            if (pending) return pending;
             if (!(this.pointPackages || []).length) this.packsLoading = true;
             try {
                 const res = await fetch('/backend/point_packages_api.php?action=list');
@@ -7126,6 +7308,7 @@ function adminDashboard(userData = {}) {
                 if (this.showToast) this.showToast('Network error loading point packs', 'error');
             } finally {
                 this.packsLoading = false;
+                this.endFetch('pointPacks');
             }
         },
 
@@ -7205,6 +7388,8 @@ function adminDashboard(userData = {}) {
         },
 
         async fetchShopItems() {
+            const pending = this.beginFetch('shop');
+            if (pending) return pending;
             if (!(this.shopItems || []).length) this.shopLoading = true;
             try {
                 const res = await fetch('/backend/shop_items_api.php?action=list');
@@ -7233,6 +7418,7 @@ function adminDashboard(userData = {}) {
                 this.showToast('Network error loading shop items', 'error');
             } finally {
                 this.shopLoading = false;
+                this.endFetch('shop');
             }
         },
 
@@ -8137,6 +8323,7 @@ function adminDashboard(userData = {}) {
         },
 
          async initDashboard() {
+            if (bootStaffUserId) window.CURRENT_USER_ID = bootStaffUserId;
             if (window.innerWidth < 1024 && this.sidebarOpen) {
                 this.sidebarOpen = false;
             }
@@ -8171,18 +8358,32 @@ function adminDashboard(userData = {}) {
                 this.statsLoading = false;
                 this.moviesLoading = false;
                 this.roomsLoading = false;
+                this.usersLoading = false;
+                this.shopLoading = false;
+                this.packsLoading = false;
+                this.reportsLoading = false;
+                this.transactionsLoading = false;
                 this.notificationsLoading = false;
                 this.isLoading = false;
                 this.commentsLoading = false;
             }, 8000);
 
+            const visibleNow = Promise.allSettled([
+                this.fetchStats(),
+                this.fetchNotifications(),
+                this.fetchRooms(),
+                this.fetchMovies()
+            ]);
+            const fillRelated = Promise.allSettled([
+                this.fetchGenres(),
+                this.fetchUsers(),
+                this.fetchShopItems().then(() => this.fetchAdminProfile()),
+                this.fetchPointPackages(),
+                this.fetchReports(),
+                this.fetchTransactions()
+            ]);
             try {
-                await Promise.allSettled([
-                    this.fetchStats(),
-                    this.fetchNotifications(),
-                    this.fetchRooms(),
-                    this.fetchMovies()
-                ]);
+                await visibleNow;
             } finally {
                 clearTimeout(loadingSafety);
                 this.statsLoading = false;
@@ -8192,6 +8393,13 @@ function adminDashboard(userData = {}) {
                 this.isLoading = false;
                 this.commentsLoading = false;
             }
+            fillRelated.finally(() => {
+                this.usersLoading = false;
+                this.shopLoading = false;
+                this.packsLoading = false;
+                this.reportsLoading = false;
+                this.transactionsLoading = false;
+            });
 
             this.startPresenceHeartbeat();
 

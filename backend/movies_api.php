@@ -32,14 +32,23 @@ if ($method === 'GET') {
                 m.view_count,
                 m.created_at,
                 COALESCE(m.is_premium, 0) AS is_premium,
-                COALESCE(ROUND(AVG(r.rating), 1), 0) AS rating,
-                COALESCE(GROUP_CONCAT(DISTINCT g.genre_name SEPARATOR ', '), '') AS genre,
-                COALESCE(GROUP_CONCAT(DISTINCT g.genre_id), '') AS genre_ids
+                COALESCE(r.avg_rating, 0) AS rating,
+                COALESCE(g.genre, '') AS genre,
+                COALESCE(g.genre_ids, '') AS genre_ids
             FROM movies m
-            LEFT JOIN movie_and_genres mg ON m.movie_id = mg.movie_id
-            LEFT JOIN genres g ON mg.genre_id = g.genre_id
-            LEFT JOIN movie_rating r ON m.movie_id = r.movie_id
-            GROUP BY m.movie_id
+            LEFT JOIN (
+                SELECT movie_id, ROUND(AVG(rating), 1) AS avg_rating
+                FROM movie_rating
+                GROUP BY movie_id
+            ) r ON r.movie_id = m.movie_id
+            LEFT JOIN (
+                SELECT mg.movie_id,
+                       GROUP_CONCAT(DISTINCT gn.genre_name ORDER BY gn.genre_name SEPARATOR ', ') AS genre,
+                       GROUP_CONCAT(DISTINCT gn.genre_id ORDER BY gn.genre_id) AS genre_ids
+                FROM movie_and_genres mg
+                JOIN genres gn ON gn.genre_id = mg.genre_id
+                GROUP BY mg.movie_id
+            ) g ON g.movie_id = m.movie_id
             ORDER BY m.movie_id DESC
         ";
 

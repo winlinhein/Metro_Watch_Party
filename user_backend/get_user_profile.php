@@ -2,17 +2,17 @@
 session_start();
 header('Content-Type: application/json');
 
+if (empty($_SESSION['user_id'])) {
+    echo json_encode(['success' => false, 'message' => 'Not logged in']);
+    exit;
+}
+
+$userId = (int)$_SESSION['user_id'];
+session_write_close();
+
 try {
     require_once __DIR__ . '/../conn.php';
     require_once __DIR__ . '/../profile_media_helper.php';
-
-    if (empty($_SESSION['user_id'])) {
-        echo json_encode(['success' => false, 'message' => 'Not logged in']);
-        exit;
-    }
-
-    $userId = (int)$_SESSION['user_id'];
-    session_write_close();
 
     $stmt = $conn->prepare("SELECT user_name, email, avatar_url, points FROM users WHERE user_id = ?");
     $stmt->execute([$userId]);

@@ -1,7 +1,5 @@
 <?php
 session_start();
-require_once __DIR__ . '/../conn.php';
-require_once __DIR__ . '/../profile_media_helper.php';
 header('Content-Type: application/json');
 
 $role = $_SESSION['user_role'] ?? ($_SESSION['role'] ?? '');
@@ -12,6 +10,9 @@ if (empty($_SESSION['user_id']) || !in_array(strtolower((string)$role), ['admin'
 
 $admin_id = (int)$_SESSION['user_id'];
 session_write_close();
+
+require_once __DIR__ . '/../conn.php';
+require_once __DIR__ . '/../profile_media_helper.php';
 
 try {
     $stmt = $conn->prepare("
@@ -69,7 +70,7 @@ try {
     }
     unset($n);
 
-    echo json_encode(['success' => true, 'notifications' => $notifications]);
+    echo json_encode(['success' => true, 'viewer_id' => $admin_id, 'notifications' => $notifications]);
 } catch (Throwable $e) {
     echo json_encode(['success' => false, 'error' => $e->getMessage()]);
 }

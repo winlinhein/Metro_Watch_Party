@@ -991,7 +991,7 @@ session_write_close();
                     </div>
                     
                     <div class="absolute right-0 top-full mt-2 w-48 bg-[#050508] border border-white/10 rounded-xl shadow-2xl p-2 z-50" x-show="showProfileMenu" style="display: none;">
-                        <button @click="currentTab = 'account'; showProfileMenu = false" class="w-full text-left p-2 hover:bg-white/10 rounded-lg text-xs font-semibold text-white/70 hover:text-white flex items-center gap-2">
+                        <button @click="switchTab('account'); showProfileMenu = false" class="w-full text-left p-2 hover:bg-white/10 rounded-lg text-xs font-semibold text-white/70 hover:text-white flex items-center gap-2">
                             <span class="material-symbols-outlined text-[16px]">manage_accounts</span> Account
                         </button>
                         <button @click="showPremiumModal = true; showProfileMenu = false" class="w-full text-left p-2 hover:bg-white/10 rounded-lg text-xs font-semibold text-white/70 hover:text-white flex items-center justify-between gap-2 mt-1">

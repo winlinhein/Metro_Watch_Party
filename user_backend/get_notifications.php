@@ -9,13 +9,13 @@ if (empty($_SESSION['user_id'])) {
     exit();
 }
 
+$currentUserId = (int)$_SESSION['user_id'];
+session_write_close();
+
 require_once __DIR__ . '/../conn.php';
 require_once __DIR__ . '/../profile_media_helper.php';
 require_once __DIR__ . '/../schema_upgrade_helper.php';
 ensureAppSchema($conn);
-
-$currentUserId = (int)$_SESSION['user_id'];
-session_write_close();
 
 try {
     $stmt = $conn->prepare("
@@ -78,7 +78,7 @@ try {
     }
     unset($n);
 
-    echo json_encode(['success' => true, 'notifications' => $notifications]);
+    echo json_encode(['success' => true, 'viewer_id' => $currentUserId, 'notifications' => $notifications]);
 } catch (PDOException $e) {
     http_response_code(500);
     echo json_encode(['error' => $e->getMessage()]);

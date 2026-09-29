@@ -1,7 +1,7 @@
 <?php
 // Shared boot: SPA navigation helper + responsive layout.
 ?>
-<link rel="stylesheet" href="/frontend/assets/responsive.css?v=4">
+<link rel="stylesheet" href="/frontend/assets/responsive.css?v=5">
 <script>
 (function () {
     window.nexusNavigate = function (url, opts) {

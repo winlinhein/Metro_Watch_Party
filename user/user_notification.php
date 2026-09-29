@@ -40,7 +40,7 @@
         </div>
 
         <div class="space-y-3 max-h-[320px] overflow-y-auto custom-scrollbar pr-1">
-            <template x-for="notif in notifications" :key="'user-notif-' + notif.id">
+            <template x-for="notif in notifications" :key="'user-notif-' + notif.id + '-' + (notif.sender_id || 0)">
                 <div class="p-3 rounded-xl hover:bg-white/[0.05] border transition-all flex gap-3 items-start group/notif"
                      :class="Number(notif.is_read) === 0 ? 'bg-red-500/10 border-red-500/20' : 'bg-white/[0.02] border-white/5'">
                     

@@ -20,7 +20,7 @@
     
     <!-- Render Notifications Dynamically -->
     <div class="flex-1 overflow-y-auto max-h-[400px] p-2 space-y-1 bg-[#0a0a0c]">
-        <template x-for="notif in notifications" :key="'admin-notif-' + notif.id">
+        <template x-for="notif in notifications" :key="'admin-notif-' + notif.id + '-' + (notif.sender_id || 0)">
             <div class="flex gap-4 p-3 rounded-xl hover:bg-white/[0.04] transition-all duration-300 group relative overflow-hidden cursor-pointer"
                  :class="Number(notif.is_read) === 0 ? 'bg-red-500/10' : 'opacity-80 hover:opacity-100'"
                  @click="openNotification(notif)">

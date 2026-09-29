@@ -48,7 +48,12 @@ try {
     }
     unset($msg);
 
-    echo json_encode(['success' => true, 'messages' => $messages ?: []]);
+    echo json_encode([
+        'success' => true,
+        'friend_id' => $friendId,
+        'viewer_id' => $userId,
+        'messages' => $messages ?: []
+    ]);
 } catch (PDOException $e) {
     echo json_encode(['success' => false, 'message' => 'Database error: ' . $e->getMessage()]);
 }

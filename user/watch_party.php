@@ -272,13 +272,13 @@ session_write_close();
             </div>
             
             <!-- Main Movie Player Background -->
-            <div class="absolute inset-0 bg-black overflow-hidden group video-container z-0" @mousemove="showControls = true; clearTimeout(controlsTimeout); controlsTimeout = setTimeout(() => { if (isPlaying) showControls = false }, 2500)" @mouseleave="if (isPlaying) showControls = false">
+            <div class="absolute inset-0 bg-black overflow-hidden group video-container z-0" @pointerdown="revealControls($event)" @pointermove="revealControls($event)" @pointerleave="hideControls($event)">
                     
                     <template x-if="videoUrl && isYouTubeUrl(videoUrl)">
                         <iframe class="w-full h-full bg-black" :src="getYouTubeWatchEmbed(videoUrl)" title="Watch party movie" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe>
                     </template>
                     <template x-if="videoUrl && !isYouTubeUrl(videoUrl)">
-                        <video id="main-player" class="w-full h-full object-contain bg-black cursor-pointer" x-ref="videoPlayer" @click="togglePlay" @timeupdate="updateProgress" @ended="isPlaying = false" :src="videoUrl" playsinline preload="metadata" poster="https://images.unsplash.com/photo-1536440136628-849c177e76a1?auto=format&fit=crop&q=80&w=1600&h=900"></video>
+                        <video id="main-player" class="w-full h-full object-contain bg-black cursor-pointer" x-ref="videoPlayer" @click="onVideoSurface()" @timeupdate="updateProgress" @ended="isPlaying = false" :src="videoUrl" playsinline preload="metadata" poster="https://images.unsplash.com/photo-1536440136628-849c177e76a1?auto=format&fit=crop&q=80&w=1600&h=900"></video>
                     </template>
                     
                     <template x-if="!videoUrl">
@@ -316,17 +316,16 @@ session_write_close();
                     </div>
 
                     <!-- Player Controls Overlay -->
-                    <div class="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent flex flex-col justify-end p-6 z-20 transition-opacity duration-500 pointer-events-none" :class="(showControls && videoUrl && !isYouTubeUrl(videoUrl)) ? 'opacity-100' : 'opacity-0'" x-show="videoUrl && !isYouTubeUrl(videoUrl)">
+                    <div class="wp-player-overlay absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent flex flex-col justify-end p-6 z-20 transition-opacity duration-500 pointer-events-none" :class="(showControls && videoUrl && !isYouTubeUrl(videoUrl)) ? 'opacity-100' : 'opacity-0'" x-show="videoUrl && !isYouTubeUrl(videoUrl)">
                         
                         <!-- Progress Bar -->
-                        <div class="w-full h-1.5 bg-white/20 rounded-full mb-6 cursor-pointer relative group/progress pointer-events-auto" @click="seek" x-ref="progressBar">
-                            <!-- Buffer Bar -->
-                            <div class="absolute left-0 top-0 h-full bg-white/30 rounded-full transition-all duration-300" :style="`width: ${bufferPercent}%`"></div>
-                            <!-- Current Progress -->
-                            <div class="absolute left-0 top-0 h-full bg-gradient-to-r from-red-600 to-red-400 rounded-full shadow-[0_0_15px_rgba(239,68,68,0.8)] transition-all duration-100 ease-linear" :style="`width: ${progressPercent}%`"></div>
-                            <!-- Scrubber -->
-                            <div class="absolute top-1/2 -translate-y-1/2 w-4 h-4 bg-white rounded-full shadow-[0_0_10px_rgba(255,255,255,0.8)] scale-0 group-hover/progress:scale-100 transition-transform duration-200" :style="`left: calc(${progressPercent}% - 8px)`"></div>
-                            <!-- Tooltip (time hover) -->
+                        <div class="wp-seek w-full cursor-pointer relative group/progress pointer-events-auto touch-none select-none" @pointerdown.stop="startSeek($event)" @pointermove.stop="moveSeek($event)" @pointerup.stop="endSeek($event)" @pointercancel.stop="endSeek($event)" x-ref="progressBar">
+                            <span class="wp-touchpad-label">Touch pad · drag to seek</span>
+                            <div class="wp-seek-track absolute left-0 right-0 top-1/2 -translate-y-1/2 h-1.5 bg-white/20 rounded-full">
+                                <div class="absolute left-0 top-0 h-full bg-white/30 rounded-full" :style="`width: ${bufferPercent}%`"></div>
+                                <div class="absolute left-0 top-0 h-full bg-gradient-to-r from-red-600 to-red-400 rounded-full shadow-[0_0_15px_rgba(239,68,68,0.8)]" :style="`width: ${progressPercent}%`"></div>
+                            </div>
+                            <div class="wp-scrubber absolute top-1/2 -translate-y-1/2 w-4 h-4 bg-white rounded-full shadow-[0_0_10px_rgba(255,255,255,0.8)] scale-0 group-hover/progress:scale-100 transition-transform duration-200" :style="`left: calc(${progressPercent}% - 8px)`"></div>
                         </div>
 
                         <!-- Controls -->
@@ -336,16 +335,16 @@ session_write_close();
                                     <span class="material-symbols-outlined text-[36px]" x-text="isPlaying ? 'pause' : 'play_arrow'">play_arrow</span>
                                 </button>
                                 
-                                <button class="text-white hover:text-white/70 transition-colors transform hover:scale-110">
+                                <button class="wp-desktop-only text-white hover:text-white/70 transition-colors transform hover:scale-110">
                                     <span class="material-symbols-outlined text-[28px]">skip_next</span>
                                 </button>
                                 
-                                <div class="flex items-center gap-3 group/volume">
+                                <div class="wp-volume flex items-center gap-3 group/volume">
                                     <button class="text-white hover:text-red-400 transition-colors" @click="toggleMute">
                                         <span class="material-symbols-outlined text-[24px]" x-text="volume === 0 ? 'volume_off' : (volume < 0.5 ? 'volume_down' : 'volume_up')">volume_up</span>
                                     </button>
-                                    <div class="w-0 overflow-hidden group-hover/volume:w-24 transition-all duration-300 flex items-center">
-                                        <input type="range" min="0" max="1" step="0.05" x-model="volume" @input="updateVolume" class="w-full h-1 bg-white/30 rounded-lg appearance-none cursor-pointer accent-red-500">
+                                    <div class="wp-volume-slider w-0 overflow-hidden group-hover/volume:w-24 transition-all duration-300 flex items-center">
+                                        <input type="range" min="0" max="1" step="0.05" x-model="volume" @input="updateVolume" class="w-full h-8 bg-transparent cursor-pointer accent-red-500">
                                     </div>
                                 </div>
                                 
@@ -356,12 +355,12 @@ session_write_close();
                                 </div>
                             </div>
                             
-                            <div class="flex items-center gap-5">
-                                <button class="text-white hover:text-red-400 transition-colors relative group/cc">
+                            <div class="flex items-center gap-3 sm:gap-5">
+                                <button class="wp-desktop-only text-white hover:text-red-400 transition-colors relative group/cc">
                                     <span class="material-symbols-outlined text-[24px]">closed_caption</span>
                                     <div class="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full scale-0 group-hover/cc:scale-100 transition-transform"></div>
                                 </button>
-                                <button class="text-white hover:text-red-400 transition-colors transform hover:rotate-90 duration-300">
+                                <button class="wp-desktop-only text-white hover:text-red-400 transition-colors transform hover:rotate-90 duration-300">
                                     <span class="material-symbols-outlined text-[24px]">settings</span>
                                 </button>
                                 <button class="text-white hover:text-red-400 transition-colors transform hover:scale-110" @click="toggleFullscreen">
