@@ -22,6 +22,8 @@
     }
 })();
 
+var NEXUS_ACTIVE_ROOM_KEY = 'nexus_active_room';
+
 function pickTrendingMovies(movies, limit) {
     const cap = limit || 10;
     const list = Array.isArray(movies) ? movies.slice() : [];
@@ -2019,6 +2021,7 @@ function userDashboard() {
 
         returnToRoom() {
             if (!this.hasActiveRoom) return;
+            try { sessionStorage.setItem('nexus_room_returning', '1'); } catch (e) {}
             this.stopDashboardLiveRoom();
             if (typeof window.showPageLoader === 'function') window.showPageLoader();
             window.location.href = '/user/watch_party.php?room_id=' + encodeURIComponent(this.activeRoom.roomId);
@@ -2033,6 +2036,17 @@ function userDashboard() {
             if (Array.isArray(this.friends)) this.friends = this.friends.map(mark);
             if (Array.isArray(this.pendingRequests)) this.pendingRequests = this.pendingRequests.map(mark);
             if (Array.isArray(this.searchResults)) this.searchResults = this.searchResults.map(mark);
+            this.syncActiveChatPresence(set);
+        },
+
+        syncActiveChatPresence(onlineSet) {
+            const friend = this.activeChatFriend;
+            if (!friend) return;
+            const id = Number(friend.user_id || friend.friend_id || friend.id || 0);
+            if (!id) return;
+            const flag = onlineSet.has(id) ? 1 : 0;
+            if (Number(friend.is_online) === flag) return;
+            this.activeChatFriend = { ...friend, is_online: flag };
         },
 
         applyPresenceUpdate(userId, isOnline) {
@@ -2045,6 +2059,10 @@ function userDashboard() {
             this.friends = patch(this.friends);
             this.pendingRequests = patch(this.pendingRequests);
             this.searchResults = patch(this.searchResults);
+            const chatId = Number(this.activeChatFriend?.user_id || this.activeChatFriend?.friend_id || this.activeChatFriend?.id || 0);
+            if (chatId === id) {
+                this.activeChatFriend = { ...this.activeChatFriend, is_online: flag };
+            }
         },
 
         bindPresenceChannel() {
@@ -2068,6 +2086,19 @@ function userDashboard() {
                 } catch (e) {}
             };
             window.addEventListener('pagehide', goOffline);
+            window.addEventListener('pagehide', () => {
+                try {
+                    if (sessionStorage.getItem('nexus_room_returning') === '1') return;
+                    const room = readNexusActiveRoom();
+                    if (!room || !room.roomId || !room.peerId) return;
+                    const query = new URLSearchParams({
+                        room_id: String(room.roomId),
+                        peer_id: String(room.peerId),
+                        unload: '1'
+                    });
+                    navigator.sendBeacon('/user_backend/leave_room.php?' + query.toString());
+                } catch (e) {}
+            });
             window.addEventListener('pageshow', () => {
                 this.touchPresence();
             });
@@ -2076,7 +2107,11 @@ function userDashboard() {
         async touchPresence() {
             if (this.isGuest) return;
             try {
-                await fetch('/user_backend/heartbeat.php', { method: 'POST', credentials: 'same-origin' });
+                const res = await fetch('/user_backend/heartbeat.php', { method: 'POST', credentials: 'same-origin' });
+                const data = await res.json().catch(() => null);
+                if (data && data.banned) {
+                    window.location.replace(data.redirect || '/frontend/account_hold.php');
+                }
             } catch (e) {}
         },
 
@@ -3001,7 +3036,8 @@ function userDashboard() {
 
             this._chatFetchToken = (this._chatFetchToken || 0) + 1;
             const token = this._chatFetchToken;
-            this.activeChatFriend = this.applyCachedMedia({ ...friend, user_id: friendId, unread_count: 0 });
+            const live = (this.friends || []).find((row) => Number(row.user_id || row.friend_id || row.id) === friendId) || friend;
+            this.activeChatFriend = this.applyCachedMedia({ ...live, user_id: friendId, unread_count: 0 });
             this.chatMessages = this.threadFor(friendId).slice();
             this.showChatPanel = true;
             this.clearFriendUnread(friendId);
@@ -4236,6 +4272,10 @@ function userDashboard() {
             if (!window.CURRENT_USER_ID) return;
 
             const channel = this.pusherClient.subscribe(`user-${window.CURRENT_USER_ID}`);
+
+            channel.bind('force_logout', () => {
+                window.location.reload();
+            });
 
             channel.bind('notifications_read', () => {
                 this.unreadNotifCount = 0;
@@ -5887,6 +5927,18 @@ function adminDashboard(userData = {}) {
             return m + 'm';
         },
 
+        adminMovieGenres(movie) {
+            if (!movie) return [];
+            let genres = movie.genres;
+            if (typeof genres === 'string') {
+                genres = genres.split(',').map((s) => s.trim()).filter(Boolean);
+            }
+            if (!Array.isArray(genres) || !genres.length) {
+                genres = String(movie.genre || '').split(',').map((s) => s.trim()).filter(Boolean);
+            }
+            return genres.length ? genres : ['Movie'];
+        },
+
         avatarCache: {},
         mediaFileKey(url) {
             if (!url) return '';
@@ -6800,7 +6852,11 @@ function adminDashboard(userData = {}) {
 
         async touchPresence() {
             try {
-                await fetch('/user_backend/heartbeat.php', { method: 'POST', credentials: 'same-origin' });
+                const res = await fetch('/user_backend/heartbeat.php', { method: 'POST', credentials: 'same-origin' });
+                const data = await res.json().catch(() => null);
+                if (data && data.banned) {
+                    window.location.replace(data.redirect || '/frontend/account_hold.php');
+                }
             } catch (e) {}
         },
 

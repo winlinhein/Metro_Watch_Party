@@ -113,6 +113,74 @@ function nexusDashboardPath(string $role): string
     return '/user/dashboard.php';
 }
 
+function nexusDisconnectBannedUser(PDO $conn, int $userId, string $message): void
+{
+    if ($userId <= 0) {
+        return;
+    }
+    try {
+        ensureAppSchema($conn);
+        $conn->prepare("DELETE FROM persistent_session WHERE user_id = ?")->execute([$userId]);
+    } catch (Throwable $ignore) {
+    }
+    try {
+        require_once __DIR__ . '/presence_helper.php';
+        clearUserPresence($conn, $userId);
+    } catch (Throwable $ignore) {
+    }
+    if (!function_exists('triggerPusherEvent')) {
+        require_once __DIR__ . '/pusher_helper.php';
+    }
+    triggerPusherEvent("user-{$userId}", 'force_logout', [
+        'message' => $message,
+    ]);
+}
+
+function nexusGuardAuthenticatedSession(PDO $conn): ?string
+{
+    if (session_status() !== PHP_SESSION_ACTIVE) {
+        return null;
+    }
+    if (empty($_SESSION['authenticated']) || empty($_SESSION['user_id'])) {
+        return null;
+    }
+    if (strtolower((string)($_SESSION['user_role'] ?? '')) === 'guest') {
+        return null;
+    }
+
+    try {
+        $stmt = $conn->prepare("SELECT * FROM users WHERE user_id = ? LIMIT 1");
+        $stmt->execute([(int)$_SESSION['user_id']]);
+        $user = $stmt->fetch(PDO::FETCH_ASSOC);
+    } catch (Throwable $e) {
+        return null;
+    }
+    if (!$user) {
+        return null;
+    }
+
+    $role = (string)($_SESSION['user_role'] ?? '');
+    if ($role === '') {
+        $role = nexusRoleName($conn, (int)($user['role_id'] ?? 0));
+    }
+    $blocked = nexusHoldIfBlocked($conn, $user, $role);
+    if (!$blocked) {
+        return null;
+    }
+
+    unset($_SESSION['authenticated']);
+    try {
+        require_once __DIR__ . '/presence_helper.php';
+        clearUserPresence($conn, (int)$user['user_id']);
+    } catch (Throwable $ignore) {
+    }
+    try {
+        nexusClearPersistentSession($conn, (int)$user['user_id']);
+    } catch (Throwable $ignore) {
+    }
+    return $blocked;
+}
+
 function nexusHoldIfBlocked(PDO $conn, array $user, string $role): ?string
 {
     ensureAppSchema($conn);

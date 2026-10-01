@@ -28,13 +28,19 @@
                         <template x-if="activeChatFriend?.border_preview">
                             <img :src="activeChatFriend?.border_preview || ''" class="absolute inset-0 z-10 h-full w-full scale-[1.4] object-contain pointer-events-none" alt="">
                         </template>
-                        <span class="absolute bottom-0 right-0 w-3 h-3 bg-emerald-500 border-2 border-[#050508] rounded-full z-20"></span>
+                        <span class="absolute bottom-0 right-0 w-3 h-3 border-2 border-[#050508] rounded-full z-20"
+                              :class="isUserOnline(activeChatFriend)
+                                ? 'bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.9)]'
+                                : 'bg-gray-500'"
+                              :title="isUserOnline(activeChatFriend) ? 'Online' : 'Offline'"></span>
                     </div>
                     <div>
                         <h3 class="font-bold text-white tracking-wide" x-text="activeChatFriend?.user_name || 'User'"></h3>
-                        <p class="text-[10px] font-mono text-emerald-400 uppercase tracking-widest flex items-center gap-1">
-                            <span class="w-1 h-1 rounded-full bg-emerald-400 animate-ping"></span>
-                            Secure Link Active
+                        <p class="text-[10px] font-mono uppercase tracking-widest flex items-center gap-1"
+                           :class="isUserOnline(activeChatFriend) ? 'text-emerald-400' : 'text-white/35'">
+                            <span class="w-1 h-1 rounded-full"
+                                  :class="isUserOnline(activeChatFriend) ? 'bg-emerald-400 animate-ping' : 'bg-gray-500'"></span>
+                            <span x-text="isUserOnline(activeChatFriend) ? 'Online' : 'Offline'"></span>
                         </p>
                     </div>
                 </div>

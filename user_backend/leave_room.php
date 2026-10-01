@@ -39,6 +39,15 @@ if ($roomCode) {
     $channel = 'watch-party-' . $room['room_id'];
 
     $park = isset($_REQUEST['park']) && $_REQUEST['park'] !== '' && $_REQUEST['park'] !== '0';
+    $unload = isset($_REQUEST['unload']) && $_REQUEST['unload'] !== '' && $_REQUEST['unload'] !== '0';
+
+    // Tab or browser close. Backdate presence so a refresh can rejoin, then
+    // the sweeper deletes the room once the host or everyone is actually gone.
+    if ($unload) {
+        markRoomParticipantUnloaded($conn, (int)$room['room_id'], (int)$userId, (string)($_REQUEST['peer_id'] ?? ''));
+        echo json_encode(['success' => true, 'message' => 'Participant detached']);
+        exit;
+    }
 
     // Host explicitly ending the party (Leave button). Refresh / dashboard park must not close it.
     if ((int)$room['host_id'] === (int)$userId && !$park) {
@@ -70,6 +79,8 @@ if ($roomCode) {
         'room_id' => (int)$room['room_id'],
         'user_id' => (int)$userId,
     ]);
+
+    sweepAbandonedRooms($conn);
 
     echo json_encode(['success' => true, 'message' => 'Participant left']);
 

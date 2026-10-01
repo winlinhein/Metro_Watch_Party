@@ -19,6 +19,8 @@ try {
     require_once __DIR__ . '/../room_schema_helper.php';
     ensureAppSchema($conn);
     ensureRoomParticipantSchema($conn);
+    require_once __DIR__ . '/../admin_rooms_helper.php';
+    sweepAbandonedRooms($conn);
 
     $stmt = $conn->prepare("
         SELECT

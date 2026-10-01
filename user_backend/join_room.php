@@ -34,6 +34,9 @@ try {
     $roomStmt = $conn->prepare("SELECT room_id, host_id, status, max_members FROM rooms WHERE room_id = :id LIMIT 1");
     $roomStmt->execute(['id' => $roomId]);
     $room = $roomStmt->fetch(PDO::FETCH_ASSOC);
+    sweepAbandonedRooms($conn);
+    $roomStmt->execute(['id' => $roomId]);
+    $room = $roomStmt->fetch(PDO::FETCH_ASSOC);
     if (!$room || isRoomClosed($room['status'] ?? '')) {
         http_response_code(404);
         echo json_encode(['success' => false, 'message' => 'This watch party has ended.', 'is_ended' => true]);
@@ -112,11 +115,6 @@ try {
         require_once __DIR__ . '/../profile_media_helper.php';
         $peers = attachProfileMedia($conn, $peers);
         $selfMedia = getUserProfileMedia($conn, $userId);
-        require_once __DIR__ . '/../notifications_helper.php';
-        deleteMatchingNotifications($conn, $userId, [
-            'types' => ['party_invite', 'join_request_accepted'],
-            'room_id' => $roomId,
-        ]);
         touchUserPresence($conn, $userId);
     } else {
         $conn->prepare("UPDATE users SET last_seen = NOW() WHERE user_id = ?")->execute([$userId]);
@@ -134,16 +132,43 @@ try {
         'chat_banned' => $chatBanned,
     ];
 
+    $response = json_encode([
+        'success' => true,
+        'peers' => $peers,
+        'you' => $payload,
+    ]);
+    while (ob_get_level() > 0) {
+        ob_end_clean();
+    }
+    header('Content-Length: ' . strlen($response));
+    echo $response;
+    if (function_exists('fastcgi_finish_request')) {
+        fastcgi_finish_request();
+    } else {
+        @flush();
+    }
+
     if (!$heartbeat || !$alreadyThere) {
-        require_once __DIR__ . '/../pusher_helper.php';
-        triggerPusherEvent("watch-party-{$roomId}", 'peer-join', $payload);
-        broadcastAdminRoomsChanged('join', [
-            'room_id' => $roomId,
-            'user_id' => $userId,
-        ]);
+        try {
+            require_once __DIR__ . '/../pusher_helper.php';
+            triggerPusherEvent("watch-party-{$roomId}", 'peer-join', $payload);
+            broadcastAdminRoomsChanged('join', [
+                'room_id' => $roomId,
+                'user_id' => $userId,
+            ]);
+        } catch (Throwable $ignore) {
+        }
     }
 
     if (!$heartbeat) {
+        try {
+            require_once __DIR__ . '/../notifications_helper.php';
+            deleteMatchingNotifications($conn, $userId, [
+                'types' => ['party_invite', 'join_request_accepted'],
+                'room_id' => $roomId,
+            ]);
+        } catch (Throwable $ignore) {
+        }
         try {
             require_once __DIR__ . '/mission_progress.php';
             updateMissionProgress($userId, 'join_room', 1);
@@ -151,12 +176,7 @@ try {
             error_log('join_room mission update: ' . $e->getMessage());
         }
     }
-
-    echo json_encode([
-        'success' => true,
-        'peers' => $peers,
-        'you' => $payload,
-    ]);
+    exit;
 } catch (Throwable $e) {
     http_response_code(500);
     echo json_encode(['success' => false, 'message' => 'Failed to join room']);

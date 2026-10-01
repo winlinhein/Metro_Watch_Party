@@ -21,6 +21,7 @@ try {
     require_once __DIR__ . '/../schema_upgrade_helper.php';
     ensureAppSchema($conn);
     ensureRoomParticipantSchema($conn);
+    sweepAbandonedRooms($conn);
 
     $room = null;
     if ($roomId !== '') {

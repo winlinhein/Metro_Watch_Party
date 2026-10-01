@@ -11,6 +11,8 @@ session_write_close();
 
 try {
     require_once __DIR__ . "/../conn.php";
+    require_once __DIR__ . "/../admin_rooms_helper.php";
+    sweepAbandonedRooms($conn);
 
     $stmt = $conn->prepare("
         SELECT r.room_id AS id,

@@ -525,7 +525,7 @@ function createNexusLiveRoom(options) {
                     });
                 })
                 .catch(() => {});
-        }, 8000);
+        }, 3000);
     }
 
     async function startLocalMedia() {
@@ -550,20 +550,20 @@ function createNexusLiveRoom(options) {
             stopped = false;
             const unlock = () => resumeAudio();
             document.addEventListener('click', unlock, { once: true });
-            try {
-                const servers = (typeof window.nexusLoadIceServers === 'function')
-                    ? await window.nexusLoadIceServers()
-                    : iceServers;
-                if (Array.isArray(servers) && servers.length) {
-                    iceServers.splice(0, iceServers.length, ...servers);
-                }
-            } catch (e) {}
             bindPusher();
-            await connectSocket();
-            try { await startLocalMedia(); } catch (e) {
-                console.warn('Dashboard live camera/mic unavailable', e);
+            const announced = announce();
+            connectSocket();
+            if (typeof window.nexusLoadIceServers === 'function') {
+                window.nexusLoadIceServers().then((servers) => {
+                    if (Array.isArray(servers) && servers.length) {
+                        iceServers.splice(0, iceServers.length, ...servers);
+                    }
+                }).catch(() => {});
             }
-            await announce();
+            startLocalMedia().catch((e) => {
+                console.warn('Dashboard live camera/mic unavailable', e);
+            });
+            await announced;
             startSync();
         },
         stop() {

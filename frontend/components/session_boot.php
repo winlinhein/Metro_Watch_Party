@@ -18,4 +18,15 @@ if (empty($_SESSION['authenticated']) || empty($_SESSION['user_id'])) {
     }
 } else {
     nexusKeepSessionCookie();
+    try {
+        require_once __DIR__ . '/../../conn.php';
+        $blocked = nexusGuardAuthenticatedSession($conn);
+        if ($blocked) {
+            header('Location: ' . $blocked);
+            exit();
+        }
+        require_once __DIR__ . '/../../admin_rooms_helper.php';
+        sweepAbandonedRooms($conn);
+    } catch (Throwable $ignore) {
+    }
 }

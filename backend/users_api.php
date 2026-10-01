@@ -126,6 +126,8 @@ if ($method === 'POST') {
             ensureAppSchema($conn);
             $stmt = $conn->prepare("UPDATE users SET status = 'banned' WHERE user_id = ?");
             $stmt->execute([$userId]);
+            require_once __DIR__ . '/../auth_flow_helper.php';
+            nexusDisconnectBannedUser($conn, (int)$userId, 'Your account has been banned.');
 
             echo json_encode([
                 'success' => true,

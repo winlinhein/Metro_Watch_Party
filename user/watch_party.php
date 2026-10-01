@@ -285,7 +285,7 @@ session_write_close();
         <div id="content-area" class="flex-1 flex overflow-hidden relative">
 
             <div class="fixed inset-0 z-[200] bg-[#050508]/90 backdrop-blur-md flex flex-col items-center justify-center gap-4"
-                 x-show="isConnecting || isLeaving"
+                 x-show="isLeaving || (isConnecting && !videoUrl)"
                  x-transition.opacity
                  x-cloak>
                 <div class="w-14 h-14 border-4 border-red-500/25 border-t-red-500 rounded-full animate-spin"></div>
@@ -300,7 +300,7 @@ session_write_close();
                         <iframe class="w-full h-full bg-black" :src="getYouTubeWatchEmbed(videoUrl)" title="Watch party movie" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe>
                     </template>
                     <template x-if="videoUrl && !isYouTubeUrl(videoUrl)">
-                        <video id="main-player" class="w-full h-full object-contain bg-black cursor-pointer" x-ref="videoPlayer" @click="onVideoSurface()" @timeupdate="updateProgress" @ended="isPlaying = false" :src="videoUrl" playsinline preload="metadata" poster="https://images.unsplash.com/photo-1536440136628-849c177e76a1?auto=format&fit=crop&q=80&w=1600&h=900"></video>
+                        <video id="main-player" class="w-full h-full object-contain bg-black cursor-pointer" x-ref="videoPlayer" @click="onVideoSurface()" @timeupdate="updateProgress" @ended="isPlaying = false" :src="videoUrl" playsinline autoplay preload="auto"></video>
                     </template>
                     
                     <template x-if="!videoUrl">
