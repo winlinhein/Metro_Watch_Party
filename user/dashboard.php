@@ -102,7 +102,7 @@ session_write_close();
     <title>Nexus - User Dashboard</title>
     
     <!-- Tailwind CSS -->
-    <script src="../js/user_theme_colors.js?v=2"></script>
+    <script src="../js/user_theme_colors.js?v=4"></script>
     <script src="https://cdn.tailwindcss.com/3.4.17"></script>
     <script>
         tailwind.config = {
@@ -127,7 +127,7 @@ session_write_close();
     <!-- Google Fonts -->
     <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined" rel="stylesheet" />
-    <link rel="stylesheet" href="../frontend/assets/user-themes.css?v=2">
+    <link rel="stylesheet" href="../frontend/assets/user-themes.css?v=5">
     <?php if ($avatarUrl !== ''): ?>
     <link rel="preload" as="image" href="<?php echo htmlspecialchars($avatarUrl, ENT_QUOTES, 'UTF-8'); ?>">
     <?php endif; ?>
@@ -241,7 +241,7 @@ session_write_close();
             inset: 0;
             border-radius: inherit;
             padding: 1px;
-            background: linear-gradient(45deg, transparent, rgb(var(--nx-glow, 239 68 68) / 0.6), transparent);
+            background: linear-gradient(45deg, transparent, rgb(var(--nx-glow, 239 68 68) / 0.55), transparent);
             -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
             -webkit-mask-composite: xor;
             mask-composite: exclude;
@@ -256,7 +256,7 @@ session_write_close();
         }
         
         :root {
-            --plyr-color-main: #ef4444; /* Nexus Red */
+            --plyr-color-main: rgb(var(--nx-glow, 239 68 68));
         }
 
         @keyframes nexus-stat-spin {
@@ -307,7 +307,7 @@ session_write_close();
             left: 0; top: 50%;
             width: 3px; height: 0;
             border-radius: 999px;
-            background: linear-gradient(180deg, #ef4444, #6366f1);
+            background: var(--nx-grad-accent, linear-gradient(180deg, #ef4444, #6366f1));
             transform: translateY(-50%);
             transition: height 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
         }
@@ -342,7 +342,7 @@ session_write_close();
             position: absolute;
             inset: -5px;
             border-radius: 16px;
-            border: 1px solid rgba(239,68,68,0.35);
+            border: 1px solid rgb(var(--nx-glow, 239 68 68) / 0.45);
             opacity: 0;
             animation: headerRing 2.4s ease-out infinite;
         }
@@ -377,7 +377,7 @@ session_write_close();
         }
         .nexus-media-card:hover {
             transform: perspective(980px) rotateX(var(--rx)) rotateY(var(--ry)) translateY(-12px);
-            box-shadow: 0 28px 50px -18px rgba(99,102,241,0.35);
+            box-shadow: 0 28px 50px -18px rgb(var(--nx-glow-2, 99 102 241) / 0.35);
         }
         .nexus-shop-card {
             transform: perspective(900px) rotateX(var(--rx)) rotateY(var(--ry)) translateY(0);
@@ -385,14 +385,14 @@ session_write_close();
         }
         .nexus-shop-card:hover {
             transform: perspective(900px) rotateX(var(--rx)) rotateY(var(--ry)) translateY(-10px) scale(1.02);
-            box-shadow: 0 24px 40px -16px rgba(139,92,246,0.35);
+            box-shadow: 0 24px 40px -16px rgb(var(--nx-glow, 217 70 239) / 0.35);
         }
         .nexus-watch-card {
             transition: transform 0.65s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.65s ease, border-color 0.45s ease;
         }
         .group:hover .nexus-watch-card {
             transform: translateY(-18px) rotateX(10deg) scale(1.02);
-            box-shadow: 0 40px 80px rgba(239,68,68,0.22);
+            box-shadow: 0 40px 80px rgb(var(--nx-glow, 239 68 68) / 0.22);
         }
         .nexus-card-shine {
             position: absolute;
@@ -418,7 +418,7 @@ session_write_close();
             position: absolute;
             inset: -8px;
             border-radius: 999px;
-            border: 1px solid rgba(239,68,68,0.35);
+            border: 1px solid rgb(var(--nx-glow, 239 68 68) / 0.45);
             animation: fabOrbit 2.8s linear infinite;
             pointer-events: none;
         }

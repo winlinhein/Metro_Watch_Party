@@ -46,29 +46,29 @@ html[data-theme="crimson"] {
     --nx-emerald-600: 5 150 105;
     --nx-emerald-700: 4 120 87;
     --nx-grad-accent: linear-gradient(120deg, #fb7185 0%, #ef4444 46%, #6366f1 100%);
-    --nx-grad-soft: linear-gradient(135deg, rgb(239 68 68 / 0.24), rgb(99 102 241 / 0.14) 58%, transparent 100%);
-    --nx-grad-card: linear-gradient(155deg, rgb(239 68 68 / 0.18) 0%, transparent 34%), linear-gradient(180deg, #1a1016 0%, #0a0a0f 100%);
-    --nx-grad-veil: linear-gradient(160deg, rgb(239 68 68 / 0.22), rgb(79 70 229 / 0.1) 48%, transparent 74%), linear-gradient(180deg, rgb(18 8 12 / 0.94), rgb(5 5 8 / 0.92));
-    --nx-grad-page: radial-gradient(980px 560px at 6% -8%, rgb(239 68 68 / 0.32), transparent 56%), radial-gradient(820px 500px at 100% 0%, rgb(99 102 241 / 0.26), transparent 52%), linear-gradient(165deg, #1a0a10 0%, #030305 46%, #090714 100%);
-    --nx-grad-mesh: radial-gradient(at 14% 16%, rgb(239 68 68 / 0.28) 0px, transparent 42%), radial-gradient(at 86% 8%, rgb(244 63 94 / 0.18) 0px, transparent 40%), radial-gradient(at 74% 88%, rgb(99 102 241 / 0.24) 0px, transparent 48%);
+    --nx-grad-soft: linear-gradient(135deg, rgb(239 68 68 / 0.22), rgb(99 102 241 / 0.12) 60%, transparent 100%);
+    --nx-grad-card: linear-gradient(155deg, rgb(239 68 68 / 0.14) 0%, transparent 36%), linear-gradient(180deg, #101014 0%, #07070b 100%);
+    --nx-grad-veil: linear-gradient(160deg, rgb(239 68 68 / 0.16), rgb(79 70 229 / 0.08) 50%, transparent 76%), linear-gradient(180deg, rgb(8 8 12 / 0.96), rgb(3 3 5 / 0.94));
+    --nx-grad-page: radial-gradient(920px 520px at 8% -10%, rgb(239 68 68 / 0.2), transparent 58%), radial-gradient(780px 460px at 100% 0%, rgb(99 102 241 / 0.16), transparent 54%), linear-gradient(180deg, #07060a 0%, #030305 52%, #05040c 100%);
+    --nx-grad-mesh: radial-gradient(at 14% 16%, rgb(239 68 68 / 0.2) 0px, transparent 44%), radial-gradient(at 86% 10%, rgb(244 63 94 / 0.12) 0px, transparent 40%), radial-gradient(at 72% 88%, rgb(99 102 241 / 0.16) 0px, transparent 48%);
 }
 
 html[data-theme="arctic"] {
-    --nx-black: 2 8 16;
-    --nx-bg: #041018;
-    --nx-bg-rgb: 4 16 24;
-    --nx-surface: #07141f;
-    --nx-surface-rgb: 7 20 31;
-    --nx-panel: #06111c;
-    --nx-panel-rgb: 6 17 28;
-    --nx-modal: #081622;
-    --nx-modal-rgb: 8 22 34;
-    --nx-card: #0b1c2b;
-    --nx-card-rgb: 11 28 43;
-    --nx-elevated: #0e2436;
-    --nx-elevated-rgb: 14 36 54;
-    --nx-inset: #123044;
-    --nx-inset-rgb: 18 48 68;
+    --nx-black: 1 4 8;
+    --nx-bg: #02070c;
+    --nx-bg-rgb: 2 7 12;
+    --nx-surface: #041018;
+    --nx-surface-rgb: 4 16 24;
+    --nx-panel: #030c14;
+    --nx-panel-rgb: 3 12 20;
+    --nx-modal: #05141e;
+    --nx-modal-rgb: 5 20 30;
+    --nx-card: #071824;
+    --nx-card-rgb: 7 24 36;
+    --nx-elevated: #0a1e2c;
+    --nx-elevated-rgb: 10 30 44;
+    --nx-inset: #0c2434;
+    --nx-inset-rgb: 12 36 52;
     --nx-glow: 34 211 238;
     --nx-glow-2: 59 130 246;
     --nx-red-300: 165 243 252;
@@ -99,30 +99,30 @@ html[data-theme="arctic"] {
     --nx-emerald-500: 20 184 166;
     --nx-emerald-600: 13 148 136;
     --nx-emerald-700: 15 118 110;
-    --nx-grad-accent: linear-gradient(120deg, #a5f3fc 0%, #22d3ee 42%, #3b82f6 100%);
-    --nx-grad-soft: linear-gradient(135deg, rgb(34 211 238 / 0.24), rgb(59 130 246 / 0.16) 58%, transparent 100%);
-    --nx-grad-card: linear-gradient(155deg, rgb(34 211 238 / 0.18) 0%, transparent 36%), linear-gradient(180deg, #123044 0%, #0b1c2b 100%);
-    --nx-grad-veil: linear-gradient(160deg, rgb(34 211 238 / 0.22), rgb(59 130 246 / 0.12) 50%, transparent 74%), linear-gradient(180deg, rgb(7 20 31 / 0.94), rgb(4 16 24 / 0.92));
-    --nx-grad-page: radial-gradient(980px 560px at 0% -6%, rgb(34 211 238 / 0.28), transparent 56%), radial-gradient(800px 480px at 100% 4%, rgb(59 130 246 / 0.26), transparent 52%), linear-gradient(165deg, #06283a 0%, #041018 48%, #07182c 100%);
-    --nx-grad-mesh: radial-gradient(at 12% 18%, rgb(34 211 238 / 0.3) 0px, transparent 42%), radial-gradient(at 88% 10%, rgb(56 189 248 / 0.2) 0px, transparent 40%), radial-gradient(at 70% 90%, rgb(37 99 235 / 0.26) 0px, transparent 48%);
+    --nx-grad-accent: linear-gradient(120deg, #67e8f9 0%, #22d3ee 42%, #3b82f6 100%);
+    --nx-grad-soft: linear-gradient(135deg, rgb(34 211 238 / 0.2), rgb(59 130 246 / 0.12) 60%, transparent 100%);
+    --nx-grad-card: linear-gradient(155deg, rgb(34 211 238 / 0.14) 0%, transparent 36%), linear-gradient(180deg, #0a1e2c 0%, #041018 100%);
+    --nx-grad-veil: linear-gradient(160deg, rgb(34 211 238 / 0.16), rgb(59 130 246 / 0.08) 50%, transparent 76%), linear-gradient(180deg, rgb(4 16 24 / 0.96), rgb(2 7 12 / 0.94));
+    --nx-grad-page: radial-gradient(920px 520px at 0% -8%, rgb(34 211 238 / 0.18), transparent 58%), radial-gradient(780px 460px at 100% 4%, rgb(59 130 246 / 0.16), transparent 54%), linear-gradient(180deg, #031018 0%, #02070c 52%, #040c16 100%);
+    --nx-grad-mesh: radial-gradient(at 12% 18%, rgb(34 211 238 / 0.18) 0px, transparent 44%), radial-gradient(at 88% 10%, rgb(56 189 248 / 0.12) 0px, transparent 40%), radial-gradient(at 70% 90%, rgb(59 130 246 / 0.16) 0px, transparent 48%);
 }
 
 html[data-theme="amethyst"] {
-    --nx-black: 10 4 16;
-    --nx-bg: #120818;
-    --nx-bg-rgb: 18 8 24;
-    --nx-surface: #160a1e;
-    --nx-surface-rgb: 22 10 30;
-    --nx-panel: #14091c;
-    --nx-panel-rgb: 20 9 28;
-    --nx-modal: #1a0c28;
-    --nx-modal-rgb: 26 12 40;
-    --nx-card: #221033;
-    --nx-card-rgb: 34 16 51;
-    --nx-elevated: #2a1440;
-    --nx-elevated-rgb: 42 20 64;
-    --nx-inset: #351a4e;
-    --nx-inset-rgb: 53 26 78;
+    --nx-black: 6 2 10;
+    --nx-bg: #080310;
+    --nx-bg-rgb: 8 3 16;
+    --nx-surface: #0c0614;
+    --nx-surface-rgb: 12 6 20;
+    --nx-panel: #0a0412;
+    --nx-panel-rgb: 10 4 18;
+    --nx-modal: #100818;
+    --nx-modal-rgb: 16 8 24;
+    --nx-card: #140a1c;
+    --nx-card-rgb: 20 10 28;
+    --nx-elevated: #1a1024;
+    --nx-elevated-rgb: 26 16 36;
+    --nx-inset: #20142c;
+    --nx-inset-rgb: 32 20 44;
     --nx-glow: 217 70 239;
     --nx-glow-2: 139 92 246;
     --nx-red-300: 245 208 254;
@@ -153,30 +153,30 @@ html[data-theme="amethyst"] {
     --nx-emerald-500: 192 132 252;
     --nx-emerald-600: 168 85 247;
     --nx-emerald-700: 126 34 206;
-    --nx-grad-accent: linear-gradient(120deg, #f5d0fe 0%, #d946ef 44%, #8b5cf6 100%);
-    --nx-grad-soft: linear-gradient(135deg, rgb(217 70 239 / 0.26), rgb(139 92 246 / 0.16) 58%, transparent 100%);
-    --nx-grad-card: linear-gradient(155deg, rgb(217 70 239 / 0.2) 0%, transparent 36%), linear-gradient(180deg, #351a4e 0%, #221033 100%);
-    --nx-grad-veil: linear-gradient(160deg, rgb(217 70 239 / 0.24), rgb(139 92 246 / 0.12) 50%, transparent 74%), linear-gradient(180deg, rgb(26 12 40 / 0.94), rgb(18 8 24 / 0.92));
-    --nx-grad-page: radial-gradient(980px 560px at 4% -8%, rgb(217 70 239 / 0.32), transparent 56%), radial-gradient(820px 500px at 100% 0%, rgb(139 92 246 / 0.28), transparent 52%), linear-gradient(165deg, #2a1038 0%, #120818 46%, #1a0c28 100%);
-    --nx-grad-mesh: radial-gradient(at 14% 16%, rgb(217 70 239 / 0.3) 0px, transparent 42%), radial-gradient(at 84% 12%, rgb(232 121 249 / 0.18) 0px, transparent 40%), radial-gradient(at 72% 90%, rgb(139 92 246 / 0.28) 0px, transparent 48%);
+    --nx-grad-accent: linear-gradient(120deg, #f0abfc 0%, #d946ef 44%, #8b5cf6 100%);
+    --nx-grad-soft: linear-gradient(135deg, rgb(217 70 239 / 0.2), rgb(139 92 246 / 0.12) 60%, transparent 100%);
+    --nx-grad-card: linear-gradient(155deg, rgb(217 70 239 / 0.14) 0%, transparent 36%), linear-gradient(180deg, #1a1024 0%, #0c0614 100%);
+    --nx-grad-veil: linear-gradient(160deg, rgb(217 70 239 / 0.16), rgb(139 92 246 / 0.08) 50%, transparent 76%), linear-gradient(180deg, rgb(16 8 24 / 0.96), rgb(8 3 16 / 0.94));
+    --nx-grad-page: radial-gradient(920px 520px at 6% -8%, rgb(217 70 239 / 0.18), transparent 58%), radial-gradient(780px 460px at 100% 0%, rgb(139 92 246 / 0.16), transparent 54%), linear-gradient(180deg, #120818 0%, #080310 52%, #100614 100%);
+    --nx-grad-mesh: radial-gradient(at 14% 16%, rgb(217 70 239 / 0.18) 0px, transparent 44%), radial-gradient(at 84% 12%, rgb(232 121 249 / 0.12) 0px, transparent 40%), radial-gradient(at 72% 90%, rgb(139 92 246 / 0.16) 0px, transparent 48%);
 }
 
 html[data-theme="verdant"] {
-    --nx-black: 3 10 8;
-    --nx-bg: #06110e;
-    --nx-bg-rgb: 6 17 14;
-    --nx-surface: #0a1814;
-    --nx-surface-rgb: 10 24 20;
-    --nx-panel: #081410;
-    --nx-panel-rgb: 8 20 16;
-    --nx-modal: #0c1c18;
-    --nx-modal-rgb: 12 28 24;
-    --nx-card: #10241e;
-    --nx-card-rgb: 16 36 30;
-    --nx-elevated: #143028;
-    --nx-elevated-rgb: 20 48 40;
-    --nx-inset: #1a3d32;
-    --nx-inset-rgb: 26 61 50;
+    --nx-black: 2 6 4;
+    --nx-bg: #030a08;
+    --nx-bg-rgb: 3 10 8;
+    --nx-surface: #061410;
+    --nx-surface-rgb: 6 20 16;
+    --nx-panel: #04110e;
+    --nx-panel-rgb: 4 17 14;
+    --nx-modal: #071814;
+    --nx-modal-rgb: 7 24 20;
+    --nx-card: #0a1c18;
+    --nx-card-rgb: 10 28 24;
+    --nx-elevated: #0e241e;
+    --nx-elevated-rgb: 14 36 30;
+    --nx-inset: #122c24;
+    --nx-inset-rgb: 18 44 36;
     --nx-glow: 16 185 129;
     --nx-glow-2: 20 184 166;
     --nx-red-300: 167 243 208;
@@ -207,12 +207,12 @@ html[data-theme="verdant"] {
     --nx-emerald-500: 163 230 53;
     --nx-emerald-600: 132 204 22;
     --nx-emerald-700: 101 163 13;
-    --nx-grad-accent: linear-gradient(120deg, #d9f99d 0%, #10b981 46%, #14b8a6 100%);
-    --nx-grad-soft: linear-gradient(135deg, rgb(16 185 129 / 0.24), rgb(20 184 166 / 0.16) 58%, transparent 100%);
-    --nx-grad-card: linear-gradient(155deg, rgb(16 185 129 / 0.18) 0%, transparent 36%), linear-gradient(180deg, #1a3d32 0%, #10241e 100%);
-    --nx-grad-veil: linear-gradient(160deg, rgb(190 242 100 / 0.16), rgb(20 184 166 / 0.12) 50%, transparent 74%), linear-gradient(180deg, rgb(12 28 24 / 0.94), rgb(6 17 14 / 0.92));
-    --nx-grad-page: radial-gradient(980px 560px at 0% -6%, rgb(16 185 129 / 0.28), transparent 56%), radial-gradient(800px 480px at 100% 6%, rgb(20 184 166 / 0.22), transparent 52%), linear-gradient(165deg, #0c2a22 0%, #06110e 48%, #0a1c18 100%);
-    --nx-grad-mesh: radial-gradient(at 12% 18%, rgb(16 185 129 / 0.28) 0px, transparent 42%), radial-gradient(at 88% 12%, rgb(190 242 100 / 0.16) 0px, transparent 40%), radial-gradient(at 70% 90%, rgb(20 184 166 / 0.24) 0px, transparent 48%);
+    --nx-grad-accent: linear-gradient(120deg, #bef264 0%, #10b981 46%, #14b8a6 100%);
+    --nx-grad-soft: linear-gradient(135deg, rgb(16 185 129 / 0.2), rgb(20 184 166 / 0.12) 60%, transparent 100%);
+    --nx-grad-card: linear-gradient(155deg, rgb(16 185 129 / 0.14) 0%, transparent 36%), linear-gradient(180deg, #0e241e 0%, #061410 100%);
+    --nx-grad-veil: linear-gradient(160deg, rgb(16 185 129 / 0.16), rgb(20 184 166 / 0.08) 50%, transparent 76%), linear-gradient(180deg, rgb(6 20 16 / 0.96), rgb(3 10 8 / 0.94));
+    --nx-grad-page: radial-gradient(920px 520px at 0% -8%, rgb(16 185 129 / 0.18), transparent 58%), radial-gradient(780px 460px at 100% 6%, rgb(20 184 166 / 0.14), transparent 54%), linear-gradient(180deg, #041410 0%, #030a08 52%, #061210 100%);
+    --nx-grad-mesh: radial-gradient(at 12% 18%, rgb(16 185 129 / 0.18) 0px, transparent 44%), radial-gradient(at 88% 12%, rgb(190 242 100 / 0.1) 0px, transparent 40%), radial-gradient(at 70% 90%, rgb(20 184 166 / 0.14) 0px, transparent 48%);
 }
 
 body {
@@ -320,7 +320,6 @@ select optgroup {
 .bg-emerald-500,
 .bg-emerald-600 {
     background-image: var(--nx-grad-accent) !important;
-    background-color: transparent !important;
 }
 
 .bg-red-500\/10,
@@ -356,4 +355,16 @@ select optgroup {
 
 ::-webkit-scrollbar-thumb {
     background: var(--nx-grad-accent);
+}
+
+.stat-loader-orbit-outer,
+.nexus-fetch-orbit-outer {
+    border-top-color: rgb(var(--nx-glow-2)) !important;
+    border-right-color: rgb(var(--nx-glow)) !important;
+}
+
+.stat-loader-orbit-inner,
+.nexus-fetch-orbit-inner {
+    border-bottom-color: rgb(var(--nx-glow)) !important;
+    border-left-color: rgb(var(--nx-glow-2)) !important;
 }

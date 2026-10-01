@@ -64,7 +64,7 @@ session_write_close();
         window.NEXUS_ICE_SERVERS = <?php echo json_encode(nexusIceServers(), JSON_UNESCAPED_SLASHES); ?>;
     </script>
     
-    <script src="../js/user_theme_colors.js?v=2"></script>
+    <script src="../js/user_theme_colors.js?v=4"></script>
     <script src="https://cdn.tailwindcss.com/3.4.17"></script>
     <script>
         tailwind.config = {
@@ -75,7 +75,7 @@ session_write_close();
             }
         };
     </script>
-    <link rel="stylesheet" href="../frontend/assets/user-themes.css?v=2">
+    <link rel="stylesheet" href="../frontend/assets/user-themes.css?v=5">
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.1/dist/cdn.min.js" crossorigin="anonymous"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js" crossorigin="anonymous" onerror="window.gsap=window.gsap||{to:()=>({to:()=>({}),fromTo:()=>({})}),fromTo:()=>({}),from:()=>({}),set:()=>{},timeline:()=>({to:()=>({}),fromTo:()=>({}),add:()=>({}),set:()=>({})}),config:()=>{},killTweensOf:()=>{}}"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js" crossorigin="anonymous" onerror="if(window.gsap)window.gsap.ScrollTrigger=window.gsap.ScrollTrigger||{create:()=>{},refresh:()=>{},kill:()=>{}}"></script>
@@ -87,9 +87,7 @@ session_write_close();
         html, body { color-scheme: dark; }
         body {
             font-family: 'Plus Jakarta Sans', sans-serif;
-            background-color: var(--nx-bg, #041018);
-            background-image: var(--nx-grad-page);
-            background-attachment: fixed;
+            background-color: var(--nx-surface, #050508);
             color: #ffffff;
             overflow: hidden;
         }

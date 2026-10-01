@@ -421,7 +421,7 @@ function userDashboard() {
         },
 
         get borderPageSize() {
-            return this.borderCols * 2;
+            return this.borderCols * 4;
         },
 
         get borderPageCount() {

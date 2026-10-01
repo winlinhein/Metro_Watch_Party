@@ -95,31 +95,31 @@
     #nexus-page-loader .border-t-2 {
         inset: 0;
         border-top-width: 2px;
-        border-color: #ef4444;
+        border-color: rgb(var(--nx-glow, 239 68 68));
         animation-duration: 1s;
     }
     #nexus-page-loader .border-r-2 {
         inset: 0.5rem;
         border-right-width: 2px;
-        border-color: #6366f1;
+        border-color: rgb(var(--nx-glow-2, 99 102 241));
         animation-duration: 1.5s;
         animation-direction: reverse;
     }
     #nexus-page-loader .border-b-2 {
         inset: 1rem;
         border-bottom-width: 2px;
-        border-color: #10b981;
+        border-color: rgb(var(--nx-glow, 16 185 129));
         animation-duration: 2s;
     }
     #nexus-page-loader .w-12.h-12 {
         width: 3rem;
         height: 3rem;
         border-radius: 0.75rem;
-        background: linear-gradient(to top right, #6366f1, #dc2626);
+        background: var(--nx-grad-accent, linear-gradient(to top right, #6366f1, #dc2626));
         display: flex;
         align-items: center;
         justify-content: center;
-        box-shadow: 0 0 30px rgba(239, 68, 68, 0.5);
+        box-shadow: 0 0 30px rgb(var(--nx-glow, 239 68 68) / 0.5);
         position: relative;
         z-index: 20;
         color: #fff;
@@ -128,7 +128,7 @@
     #nexus-page-loader .mix-blend-screen {
         position: absolute;
         inset: 0;
-        background: rgba(239, 68, 68, 0.2);
+        background: rgb(var(--nx-glow, 239 68 68) / 0.22);
         filter: blur(40px);
         border-radius: 9999px;
         mix-blend-mode: screen;
@@ -144,7 +144,7 @@
         letter-spacing: 0.3em;
         text-transform: uppercase;
         color: transparent;
-        background-image: linear-gradient(to right, #ef4444, #ffffff, #6366f1);
+        background-image: var(--nx-grad-accent, linear-gradient(to right, #ef4444, #ffffff, #6366f1));
         -webkit-background-clip: text;
         background-clip: text;
         filter: drop-shadow(0 0 15px rgba(255, 255, 255, 0.3));
@@ -162,9 +162,9 @@
         height: 100%;
         width: 100%;
         border-radius: 9999px;
-        background-image: linear-gradient(to right, #ef4444, #6366f1, #ef4444);
+        background-image: var(--nx-grad-accent, linear-gradient(to right, #ef4444, #6366f1, #ef4444));
         background-size: 200% auto;
-        box-shadow: 0 0 15px rgba(239, 68, 68, 0.8);
+        box-shadow: 0 0 15px rgb(var(--nx-glow, 239 68 68) / 0.8);
         animation: gradientMove 3s linear infinite;
     }
     #nexus-page-loader .mt-4 {
@@ -177,7 +177,7 @@
         width: 0.375rem;
         height: 0.375rem;
         border-radius: 9999px;
-        background: #10b981;
+        background: rgb(var(--nx-glow-2, 16 185 129));
         animation: nexus-ping 1s cubic-bezier(0, 0, 0.2, 1) infinite;
     }
     #nexus-page-loader .loader-status {

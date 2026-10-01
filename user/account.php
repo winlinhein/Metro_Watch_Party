@@ -21,7 +21,7 @@
                         <span class="material-symbols-outlined text-red-500">format_paint</span>
                         Color Theme
                     </h2>
-                    <p class="text-xs text-white/45 mt-1">Each theme is a gradient. It washes the background, cards, buttons, and highlights.</p>
+                    <p class="text-xs text-white/45 mt-1">Each theme keeps a dark room and paints the accents as a gradient.</p>
                 </div>
             </div>
             <div class="grid grid-cols-2 lg:grid-cols-4 gap-3">
@@ -29,7 +29,7 @@
                     <button type="button" @click="setTheme(theme.id)"
                             class="text-left rounded-2xl border p-3 transition-all duration-300 hover:-translate-y-0.5"
                             :class="themeId === theme.id ? 'border-red-500 bg-red-500/10 shadow-[0_0_18px_rgba(239,68,68,0.15)]' : 'border-white/10 bg-black/30 hover:border-white/25'">
-                        <span class="block h-14 rounded-xl border border-white/10 mb-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.25)]" :style="'background:' + theme.gradient"></span>
+                        <span class="block h-14 rounded-xl border border-white/10 mb-3" :style="'background:' + theme.gradient"></span>
                         <span class="flex items-center justify-between gap-2">
                             <span>
                                 <span class="block text-sm font-bold text-white" x-text="theme.name"></span>
@@ -131,7 +131,7 @@
                     </button>
                 </div>
 
-                <!-- Border Selection Grid: 2 rows + pagination, owned first -->
+                <!-- Border Selection Grid: 4 rows + pagination, owned first -->
                 <div class="flex-1 min-w-0 flex flex-col">
                     <div class="relative z-20 mb-4 space-y-3">
                         <div class="flex items-center justify-between gap-3">
@@ -154,7 +154,7 @@
                             </select>
                         </div>
                     </div>
-                    <div class="relative z-0 grid grid-cols-2 md:grid-cols-3 grid-rows-2 gap-3 pt-3 overflow-visible auto-rows-fr">
+                    <div class="relative z-0 grid grid-cols-2 md:grid-cols-3 grid-rows-4 gap-3 pt-3 overflow-visible auto-rows-fr">
                         <template x-for="border in pagedBorders" :key="border.id">
                             <button type="button" @click="border.owned ? setActiveBorder(border.id) : null"
                                     class="relative p-4 rounded-xl border flex flex-col items-center justify-center gap-3 transition-all duration-300 transform h-full"
