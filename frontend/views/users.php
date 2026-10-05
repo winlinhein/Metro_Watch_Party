@@ -209,8 +209,11 @@
 
                             </td>
 
-                            <td class="p-5 text-white/55 text-xs font-medium">
-                                <span x-text="formatLastLogin(user.last_login_unix, false)"></span>
+                            <td class="p-5 text-xs font-medium">
+                                <span
+                                    :class="isUserOnline(user) ? 'text-emerald-400 font-semibold' : 'text-white/55'"
+                                    x-text="isUserOnline(user) ? 'Online' : formatLastLogin(user.last_login_unix, false)"
+                                ></span>
                             </td>
 
                             <td class="p-5 text-white/80 font-bold mono relative">

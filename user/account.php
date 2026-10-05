@@ -1,7 +1,7 @@
 <div class="absolute inset-0 w-full h-full overflow-y-auto p-4 sm:p-6 md:p-10 pb-32 tab-content scroll-smooth custom-scrollbar" 
      x-show="currentTab === 'account'" style="display: none;">
     <!-- Account Settings Logic -->
-    <div class="max-w-[1400px] mx-auto space-y-8 pb-24">
+    <div class="max-w-[1400px] mx-auto space-y-8">
         
         <!-- Header -->
         <div class="flex items-center gap-4 mb-8">
@@ -131,7 +131,7 @@
                     </button>
                 </div>
 
-                <!-- Border Selection Grid: 4 rows + pagination, owned first -->
+                <!-- Border Selection Grid: 2 rows + pagination, owned first -->
                 <div class="flex-1 min-w-0 flex flex-col">
                     <div class="relative z-20 mb-4 space-y-3">
                         <div class="flex items-center justify-between gap-3">
@@ -154,7 +154,7 @@
                             </select>
                         </div>
                     </div>
-                    <div class="relative z-0 grid grid-cols-2 md:grid-cols-3 grid-rows-4 gap-3 pt-3 overflow-visible auto-rows-fr">
+                    <div class="relative z-0 grid grid-cols-2 md:grid-cols-3 grid-rows-2 gap-3 pt-3 overflow-visible auto-rows-fr">
                         <template x-for="border in pagedBorders" :key="border.id">
                             <button type="button" @click="border.owned ? setActiveBorder(border.id) : null"
                                     class="relative p-4 rounded-xl border flex flex-col items-center justify-center gap-3 transition-all duration-300 transform h-full"
@@ -214,7 +214,7 @@
         </div>
     </div>
     <!-- Danger Zone -->
-    <div class="mt-12 pt-8 border-t border-white/10">
+    <div class="mt-4 pt-4 border-t border-white/10">
         <h4 class="text-xs font-extrabold text-red-400 uppercase tracking-widest mb-3">Danger Zone</h4>
         
         <div class="p-6 rounded-2xl bg-red-500/[0.04] border border-red-500/20 backdrop-blur-md flex flex-col sm:flex-row sm:items-center justify-between gap-4">

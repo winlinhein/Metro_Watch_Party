@@ -1,4 +1,84 @@
 <?php // frontend/components/toast.php ?>
+<style>
+    #nexus-toast-container {
+        --toast-accent: var(--nx-glow, 239 68 68);
+    }
+    #nexus-toast.nexus-toast-error {
+        box-shadow: 0 15px 50px rgb(var(--toast-accent) / 0.22);
+    }
+    #nexus-toast.nexus-toast-error #toast-bg-glow {
+        background-image: linear-gradient(to top right, rgb(var(--toast-accent) / 0.45), rgb(var(--toast-accent) / 0.08), transparent);
+    }
+    #nexus-toast.nexus-toast-error #toast-icon-wrapper {
+        background: rgb(var(--toast-accent) / 0.12);
+        border-color: rgb(var(--toast-accent) / 0.45);
+        box-shadow: 0 0 20px rgb(var(--toast-accent) / 0.45);
+    }
+    #nexus-toast.nexus-toast-error #toast-icon-bg {
+        background: rgb(var(--toast-accent) / 0.22);
+    }
+    #nexus-toast.nexus-toast-error #toast-icon {
+        color: rgb(var(--toast-accent)) !important;
+        background: none !important;
+        -webkit-text-fill-color: rgb(var(--toast-accent));
+        filter: drop-shadow(0 0 10px rgb(var(--toast-accent)));
+    }
+    #nexus-toast.nexus-toast-error #toast-divider {
+        background-image: linear-gradient(to right, rgb(var(--toast-accent) / 0.75), transparent);
+    }
+    #nexus-toast.nexus-toast-error #nexus-toast-progress {
+        background: rgb(var(--toast-accent));
+        box-shadow: 0 0 15px rgb(var(--toast-accent));
+    }
+    #nexus-message-toasts {
+        position: fixed;
+        top: 5.25rem;
+        right: 0;
+        z-index: 9998;
+        display: flex;
+        flex-direction: column;
+        align-items: flex-end;
+        gap: 8px;
+        width: max-content;
+        max-width: 100%;
+        pointer-events: none;
+    }
+    .nexus-msg-toast {
+        pointer-events: auto;
+        width: 210px;
+        max-width: 68vw;
+        margin: 0;
+        padding: 8px 14px 8px 12px;
+        border: 1px solid rgb(var(--nx-glow, 239 68 68) / 0.4);
+        border-right: 0;
+        border-radius: 14px 0 0 14px;
+        background: rgb(var(--nx-surface-rgb, 5 5 8) / 0.94);
+        box-shadow: -10px 8px 24px rgba(0, 0, 0, 0.4);
+        color: #fff;
+        text-align: left;
+        cursor: pointer;
+        overflow: hidden;
+    }
+    .nexus-msg-toast-name {
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: 0.03em;
+        color: rgb(var(--nx-glow, 239 68 68));
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    .nexus-msg-toast-text {
+        margin-top: 2px;
+        font-size: 12px;
+        line-height: 1.3;
+        color: rgba(255, 255, 255, 0.72);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+</style>
+<div id="nexus-message-toasts" aria-live="polite"></div>
 <div id="nexus-toast-container" class="fixed bottom-10 right-10 z-[9999] p-0 w-full max-w-[380px] pointer-events-none hidden" style="perspective: 1200px;">
     <div id="nexus-toast" class="pointer-events-auto relative bg-[#050505]/95 backdrop-blur-2xl border border-white/10 rounded-2xl shadow-[0_30px_60px_rgba(0,0,0,0.9)] overflow-hidden flex flex-col p-0 opacity-0 transform translate-y-[150px] rotate-x-[-30deg] rotate-y-[15deg] scale-90">
         
@@ -57,17 +137,9 @@
             toast.className = "pointer-events-auto relative bg-[#050505]/95 backdrop-blur-2xl border border-white/10 rounded-2xl shadow-[0_30px_60px_rgba(0,0,0,0.9)] overflow-hidden flex flex-col p-0 opacity-0 transform translate-y-[150px] rotate-x-[-30deg] rotate-y-[15deg] scale-90";
 
             if (toastType === 'error') {
-                toast.classList.add('shadow-[0_15px_50px_rgba(239,68,68,0.2)]');
-                if (bgGlow) bgGlow.classList.add('from-red-600/40', 'via-red-900/5');
-                if (iconWrapper) iconWrapper.classList.add('bg-red-500/10', 'border-red-500/40', 'shadow-[0_0_20px_rgba(239,68,68,0.5)]');
-                if (iconBg) iconBg.classList.add('bg-red-500/20');
-                if (icon) {
-                    icon.classList.add('text-red-500', 'drop-shadow-[0_0_12px_rgba(239,68,68,1)]');
-                    icon.textContent = 'error';
-                }
+                toast.classList.add('nexus-toast-error');
+                if (icon) icon.textContent = 'error';
                 if (title) title.textContent = 'System Error';
-                if (divider) divider.classList.add('from-red-500/50');
-                if (progressBar) progressBar.classList.add('bg-red-500', 'shadow-[0_0_15px_rgba(239,68,68,1)]');
             } else {
                 toast.classList.add('shadow-[0_15px_50px_rgba(34,197,94,0.2)]');
                 if (bgGlow) bgGlow.classList.add('from-green-500/40', 'via-green-900/5');
@@ -159,7 +231,7 @@
                 const closeToast = () => {
                     const exitTl = gsap.timeline({
                         onComplete: () => {
-                            if(container) container.remove();
+                            if (container) container.classList.add('hidden');
                         }
                     });
                     
@@ -185,5 +257,57 @@
                 }, (displayDuration + 1.2) * 1000);
             }
         }
+    };
+
+    window.showMessageToast = function (payload) {
+        const data = payload && typeof payload === 'object' ? payload : { text: payload };
+        const name = String(data.name || 'New message').trim() || 'New message';
+        const text = String(data.text || 'Sent a message').trim() || 'Sent a message';
+        let stack = document.getElementById('nexus-message-toasts');
+        if (!stack) {
+            stack = document.createElement('div');
+            stack.id = 'nexus-message-toasts';
+            stack.setAttribute('aria-live', 'polite');
+            document.body.appendChild(stack);
+        }
+
+        while (stack.children.length >= 3) {
+            stack.removeChild(stack.firstElementChild);
+        }
+
+        const card = document.createElement('button');
+        card.type = 'button';
+        card.className = 'nexus-msg-toast';
+        const nameEl = document.createElement('div');
+        nameEl.className = 'nexus-msg-toast-name';
+        nameEl.textContent = name;
+        const textEl = document.createElement('div');
+        textEl.className = 'nexus-msg-toast-text';
+        textEl.textContent = text;
+        card.appendChild(nameEl);
+        card.appendChild(textEl);
+        stack.appendChild(card);
+
+        let closed = false;
+        const closeCard = () => {
+            if (closed) return;
+            closed = true;
+            const removeCard = () => { if (card.parentNode) card.parentNode.removeChild(card); };
+            if (typeof gsap !== 'undefined') {
+                gsap.to(card, { x: '110%', opacity: 0, duration: 0.28, ease: 'power2.in', onComplete: removeCard });
+            } else {
+                removeCard();
+            }
+        };
+
+        card.addEventListener('click', () => {
+            if (typeof data.onClick === 'function') data.onClick();
+            closeCard();
+        });
+
+        if (typeof gsap !== 'undefined') {
+            gsap.fromTo(card, { x: '110%', opacity: 0 }, { x: 0, opacity: 1, duration: 0.38, ease: 'power3.out' });
+        }
+        setTimeout(closeCard, 4500);
     };
 </script>

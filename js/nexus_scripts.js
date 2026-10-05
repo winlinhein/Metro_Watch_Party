@@ -500,7 +500,7 @@ function userDashboard() {
         },
 
         get borderPageSize() {
-            return this.borderCols * 4;
+            return this.borderCols * 2;
         },
 
         get borderPageCount() {
@@ -3065,8 +3065,16 @@ function userDashboard() {
                     });
                 } else {
                     const friendName = this.incrementFriendUnread(senderId);
-                    if (friendName && typeof window.showToast === 'function') {
-                        window.showToast(`New message from ${friendName}`, 'info');
+                    if (friendName && typeof window.showMessageToast === 'function') {
+                        const preview = (data.image_url || data.message_type === 'image')
+                            ? 'Sent a photo'
+                            : String(data.message_text || data.text || 'New message');
+                        const friend = (this.friends || []).find((row) => Number(row.user_id || row.friend_id || row.id) === senderId);
+                        window.showMessageToast({
+                            name: friendName,
+                            text: preview,
+                            onClick: friend ? () => this.openChat(friend) : null
+                        });
                     }
                 }
             });
