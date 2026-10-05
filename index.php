@@ -605,7 +605,7 @@ if ($sessionAuthed && $sessionUserId > 0 && in_array($sessionRole, ['user', 'adm
                 </h1>
 
                 <p class="home-hero-lead text-lg text-white/60 mb-8 max-w-xl font-light leading-relaxed">
-                    Create a room, invite your people, and stream the same frame at the same millisecond — with live chat, video, and zero lag.
+                    Create a room, invite your friends, and stream in frame-perfect sync with live chat, video, and zero latency.
                 </p>
 
                 <div class="home-hero-actions flex flex-wrap items-center gap-4">
@@ -777,8 +777,8 @@ if ($sessionAuthed && $sessionUserId > 0 && in_array($sessionRole, ['user', 'adm
                         <span class="absolute bottom-3 left-4 text-[9px] mono tracking-[0.25em] text-red-200/80">SYNC ENGINE</span>
                     </div>
                     <div class="p-5 flex flex-col flex-1">
-                        <h4 class="text-lg font-bold mb-2">Perfect Sync</h4>
-                        <p class="text-sm text-white/50 leading-relaxed mb-4 flex-1">Everyone sees the same frame at the same time — millisecond playback lock across the room.</p>
+                        <h4 class="text-lg font-bold mb-2">Frame-Perfect Sync</h4>
+                        <p class="text-sm text-white/50 leading-relaxed mb-4 flex-1">Every frame synchronized to the millisecond. Everyone sees, pauses, and reacts together in real time.</p>
                         <a href="#how-it-works" class="text-sm font-bold text-white/80 hover:text-red-400 transition-colors cursor-pointer">Learn more →</a>
                     </div>
                 </article>
@@ -791,8 +791,8 @@ if ($sessionAuthed && $sessionUserId > 0 && in_array($sessionRole, ['user', 'adm
                         <span class="absolute bottom-3 left-4 text-[9px] mono tracking-[0.25em] text-indigo-200/80">SPATIAL COMMS</span>
                     </div>
                     <div class="p-5 flex flex-col flex-1">
-                        <h4 class="text-lg font-bold mb-2">Spatial Audio & Video</h4>
-                        <p class="text-sm text-white/50 leading-relaxed mb-4 flex-1">Voice and video that duck when dialogue hits, so you never miss a line or a reaction.</p>
+                        <h4 class="text-lg font-bold mb-2">Smart Spatial Audio & Video</h4>
+                        <p class="text-sm text-white/50 leading-relaxed mb-4 flex-1">Automatic audio-ducking during movie dialogues—so you never miss a line or a friend's reaction.</p>
                         <a href="#how-it-works" class="text-sm font-bold text-white/80 hover:text-indigo-400 transition-colors cursor-pointer">Learn more →</a>
                     </div>
                 </article>
@@ -805,8 +805,8 @@ if ($sessionAuthed && $sessionUserId > 0 && in_array($sessionRole, ['user', 'adm
                         <span class="absolute bottom-3 left-4 text-[9px] mono tracking-[0.25em] text-emerald-200/80">SECURE UPLINK</span>
                     </div>
                     <div class="p-5 flex flex-col flex-1">
-                        <h4 class="text-lg font-bold mb-2">Secure Rooms</h4>
-                        <p class="text-sm text-white/50 leading-relaxed mb-4 flex-1">Invite-only links, host controls, and instant moderation. Your party stays yours.</p>
+                        <h4 class="text-lg font-bold mb-2">Private & Secure Rooms</h4>
+                        <p class="text-sm text-white/50 leading-relaxed mb-4 flex-1">Invite-only links, full host controls, and instant moderation—keeping your watch party truly private.</p>
                         <a href="frontend/register.php" class="text-sm font-bold text-white/80 hover:text-emerald-400 transition-colors cursor-pointer">Get started →</a>
                     </div>
                 </article>
@@ -868,7 +868,7 @@ if ($sessionAuthed && $sessionUserId > 0 && in_array($sessionRole, ['user', 'adm
             <div class="home-reveal mb-7 max-w-3xl">
                 <h2 class="text-sm font-bold text-red-500 tracking-widest uppercase mb-2 mono">Inside a room</h2>
                 <h3 class="text-2xl md:text-4xl font-bold tracking-tight mb-3">The same theatre. Different couches.</h3>
-                <p class="text-white/50 text-base leading-relaxed">A Nexus room is a shared player, a live chat, and a lock on the same millisecond. Hosts control play, guests react, and nobody waits for “wait, where are you?”</p>
+                <p class="text-white/50 text-base leading-relaxed">A Nexus room brings together a shared player, live chat, and millisecond-accurate sync. Hosts lead the show, guests react, and no one ever asks, 'Wait, where are you at?'</p>
             </div>
 
             <div class="home-room-shell home-bento-card relative">
@@ -1004,7 +1004,7 @@ if ($sessionAuthed && $sessionUserId > 0 && in_array($sessionRole, ['user', 'adm
             <div class="home-reveal mb-7 md:flex md:items-end md:justify-between gap-6">
                 <div>
                     <h2 class="text-sm font-bold text-indigo-400 tracking-widest uppercase mb-1.5 mono">Deployment Sequence</h2>
-                    <h3 class="text-2xl md:text-4xl font-bold tracking-tight">Four steps to first light</h3>
+                    <h3 class="text-2xl md:text-4xl font-bold tracking-tight">Start watching in 4 easy steps.</h3>
                 </div>
                 <p class="text-white/45 max-w-md mt-3 md:mt-0 text-sm">Click a step to preview the flow. This is the same path from guest drop-in to a locked, chatting room.</p>
             </div>
@@ -1020,7 +1020,7 @@ if ($sessionAuthed && $sessionUserId > 0 && in_array($sessionRole, ['user', 'adm
                             </div>
                             <div>
                                 <h4 class="text-base font-bold mb-0.5">Connect</h4>
-                                <p class="text-sm text-white/50 leading-relaxed">Sign in, or drop in as a guest. The protocol boots instantly — no install, no plugin.</p>
+                                <p class="text-sm text-white/50 leading-relaxed">Sign in or jump in as a guest. Boots instantly in your browser—no app or plugins needed.</p>
                             </div>
                         </div>
                     </button>
@@ -1031,7 +1031,7 @@ if ($sessionAuthed && $sessionUserId > 0 && in_array($sessionRole, ['user', 'adm
                             </div>
                             <div>
                                 <h4 class="text-base font-bold mb-0.5">Select</h4>
-                                <p class="text-sm text-white/50 leading-relaxed">Pick a title from the library or your watchlist. That film becomes the room’s source.</p>
+                                <p class="text-sm text-white/50 leading-relaxed">Pick a title from the library or your watchlist to set as the room's movie source.</p>
                             </div>
                         </div>
                     </button>
@@ -1042,7 +1042,7 @@ if ($sessionAuthed && $sessionUserId > 0 && in_array($sessionRole, ['user', 'adm
                             </div>
                             <div>
                                 <h4 class="text-base font-bold mb-0.5">Uplink</h4>
-                                <p class="text-sm text-white/50 leading-relaxed">Spin a private room and fire the invite to your crew. They land in the same lobby.</p>
+                                <p class="text-sm text-white/50 leading-relaxed">Create a private room and share the invite link with your crew to gather everyone instantly.</p>
                             </div>
                         </div>
                     </button>
@@ -1053,7 +1053,7 @@ if ($sessionAuthed && $sessionUserId > 0 && in_array($sessionRole, ['user', 'adm
                             </div>
                             <div>
                                 <h4 class="text-base font-bold mb-0.5">Engage</h4>
-                                <p class="text-sm text-white/50 leading-relaxed">Hit play. Chat, react, and stay locked on the same frame until the credits.</p>
+                                <p class="text-sm text-white/50 leading-relaxed">Hit play. Chat, react, and stay locked in frame-perfect sync until the credits roll.</p>
                             </div>
                         </div>
                     </button>
