@@ -27,6 +27,10 @@ if (empty($_SESSION['authenticated']) || empty($_SESSION['user_id'])) {
         }
         require_once __DIR__ . '/../../admin_rooms_helper.php';
         sweepAbandonedRooms($conn);
+        if (strtolower((string)($_SESSION['user_role'] ?? '')) === 'user') {
+            require_once __DIR__ . '/../../user_backend/mission_progress.php';
+            nexusAwardDailyLogin((int)$_SESSION['user_id']);
+        }
     } catch (Throwable $ignore) {
     }
 }

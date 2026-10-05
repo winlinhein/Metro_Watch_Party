@@ -65,6 +65,15 @@ try {
         exit;
     }
 
+    $banStmt = $conn->prepare("SELECT 1 FROM room_kicks WHERE room_id = :room_id AND user_id = :user_id LIMIT 1");
+    $banStmt->execute(['room_id' => $roomId, 'user_id' => $requesterId]);
+    if ($banStmt->fetchColumn()) {
+        http_response_code(403);
+        ob_end_clean();
+        echo json_encode(['success' => false, 'message' => 'The host banned you from this room.']);
+        exit;
+    }
+
     $friendStmt = $conn->prepare("
         SELECT 1 FROM user_friends
         WHERE status = 'accepted'

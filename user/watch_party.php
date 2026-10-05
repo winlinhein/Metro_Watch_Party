@@ -12,6 +12,7 @@ $userEmail = $_SESSION['user_email'] ?? '';
 $userAvatar = '';
 $userBorder = '';
 $isPremium = false;
+$roomBoot = null;
 try {
     require_once __DIR__ . '/../conn.php';
     require_once __DIR__ . '/../profile_media_helper.php';
@@ -20,6 +21,49 @@ try {
     $userAvatar = $media['avatar_url'] ?? '';
     $userBorder = $media['border_preview'] ?? '';
     $isPremium = !empty(resolveUserPremium($conn, (int)$userId)['is_premium']);
+
+    $requestedRoom = trim((string)($_GET['room_id'] ?? ''));
+    if ($requestedRoom !== '') {
+        $roomStmt = $conn->prepare("SELECT room_id, room_code, host_id, movie_id, status, max_members FROM rooms WHERE room_id = :id OR room_code = :code LIMIT 1");
+        $roomStmt->execute(['id' => $requestedRoom, 'code' => $requestedRoom]);
+        $bootRoom = $roomStmt->fetch(PDO::FETCH_ASSOC) ?: null;
+        $bootStatus = strtolower((string)($bootRoom['status'] ?? ''));
+        if ($bootRoom && !in_array($bootStatus, ['ended', 'deleted'], true)) {
+            $bootMovie = null;
+            $movieId = (int)($bootRoom['movie_id'] ?? 0);
+            if ($movieId > 0) {
+                $movieStmt = $conn->prepare("SELECT movie_id, title, description, video_url, actual_video_url, duration FROM movies WHERE movie_id = :movie_id LIMIT 1");
+                $movieStmt->execute(['movie_id' => $movieId]);
+                $bootMovie = $movieStmt->fetch(PDO::FETCH_ASSOC) ?: null;
+                if ($bootMovie) {
+                    $bootMovie['id'] = (int)$bootMovie['movie_id'];
+                    $bootMovie['trailer'] = $bootMovie['video_url'];
+                    $bootMovie['stream_url'] = $bootMovie['actual_video_url'] ?: $bootMovie['video_url'];
+                }
+            }
+            $peerStmt = $conn->prepare("
+                SELECT rp.user_id, COALESCE(u.user_name, 'User') AS user_name, rp.peer_id,
+                       rp.forced_muted, rp.forced_video_off, rp.chat_banned
+                FROM room_participants rp
+                LEFT JOIN users u ON u.user_id = rp.user_id
+                WHERE rp.room_id = :room_id
+                  AND rp.user_id <> :self_id
+                  AND rp.last_seen > DATE_SUB(NOW(), INTERVAL 45 SECOND)
+            ");
+            $peerStmt->execute(['room_id' => (int)$bootRoom['room_id'], 'self_id' => (int)$userId]);
+            $bootPeers = attachProfileMedia($conn, $peerStmt->fetchAll(PDO::FETCH_ASSOC) ?: []);
+            $roomBoot = [
+                'room' => [
+                    'room_id' => (int)$bootRoom['room_id'],
+                    'room_code' => $bootRoom['room_code'],
+                    'host_id' => (int)$bootRoom['host_id'],
+                    'max_members' => (int)($bootRoom['max_members'] ?? 0),
+                ],
+                'movie' => $bootMovie,
+                'peers' => $bootPeers,
+            ];
+        }
+    }
 } catch (Throwable $e) {
     error_log('watch_party profile media: ' . $e->getMessage());
 }
@@ -62,6 +106,7 @@ session_write_close();
         require_once __DIR__ . '/../ice_servers_helper.php';
         ?>
         window.NEXUS_ICE_SERVERS = <?php echo json_encode(nexusIceServers(), JSON_UNESCAPED_SLASHES); ?>;
+        window.NEXUS_ROOM_BOOT = <?php echo json_encode($roomBoot, JSON_UNESCAPED_SLASHES); ?>;
     </script>
     
     <script src="../js/user_theme_colors.js?v=4"></script>
@@ -76,6 +121,31 @@ session_write_close();
         };
     </script>
     <link rel="stylesheet" href="../frontend/assets/user-themes.css?v=5">
+    <script>
+        window.nexusLockModalScroll = window.nexusLockModalScroll || (function () {
+            const open = new Set();
+            const capture = { capture: true, passive: false };
+            function blockBackgroundScroll(event) {
+                const node = event.target;
+                if (node && node.closest && node.closest('[data-nexus-modal]')) return;
+                event.preventDefault();
+            }
+            return function (isOpen, key) {
+                const id = key || 'modal';
+                if (isOpen) open.add(id);
+                else open.delete(id);
+                const locked = open.size > 0;
+                document.documentElement.classList.toggle('nexus-modal-open', locked);
+                document.removeEventListener('wheel', blockBackgroundScroll, true);
+                document.removeEventListener('touchmove', blockBackgroundScroll, true);
+                if (locked) {
+                    document.addEventListener('wheel', blockBackgroundScroll, capture);
+                    document.addEventListener('touchmove', blockBackgroundScroll, capture);
+                }
+            };
+        })();
+    </script>
+    <script defer src="https://cdn.jsdelivr.net/npm/@alpinejs/teleport@3.14.1/dist/cdn.min.js"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.1/dist/cdn.min.js" crossorigin="anonymous"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js" crossorigin="anonymous" onerror="window.gsap=window.gsap||{to:()=>({to:()=>({}),fromTo:()=>({})}),fromTo:()=>({}),from:()=>({}),set:()=>{},timeline:()=>({to:()=>({}),fromTo:()=>({}),add:()=>({}),set:()=>({})}),config:()=>{},killTweensOf:()=>{}}"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js" crossorigin="anonymous" onerror="if(window.gsap)window.gsap.ScrollTrigger=window.gsap.ScrollTrigger||{create:()=>{},refresh:()=>{},kill:()=>{}}"></script>
@@ -90,6 +160,10 @@ session_write_close();
             background-color: var(--nx-surface, #050508);
             color: #ffffff;
             overflow: hidden;
+        }
+        html.nexus-modal-open,
+        html.nexus-modal-open body {
+            overflow: hidden !important;
         }
         select {
             color-scheme: dark;
@@ -285,12 +359,11 @@ session_write_close();
         <div id="content-area" class="flex-1 flex overflow-hidden relative">
 
             <div class="fixed inset-0 z-[200] bg-[#050508]/90 backdrop-blur-md flex flex-col items-center justify-center gap-4"
-                 x-show="isLeaving || (isConnecting && !videoUrl)"
+                 x-show="isLeaving"
                  x-transition.opacity
                  x-cloak>
                 <div class="w-14 h-14 border-4 border-red-500/25 border-t-red-500 rounded-full animate-spin"></div>
                 <p class="text-sm font-bold uppercase tracking-[0.2em] text-white/80" x-text="connectionHint"></p>
-                <p class="text-xs text-white/40" x-show="isConnecting && !isLeaving">Finding people in this room…</p>
             </div>
             
             <!-- Main Movie Player Background -->
@@ -445,7 +518,7 @@ session_write_close();
                                     <span class="material-symbols-outlined text-[10px]" :class="user.videoOn === false ? 'text-red-500' : 'text-green-500'" x-text="user.videoOn === false ? 'videocam_off' : 'videocam'"></span>
                                     <span x-show="user.chatBanned" class="material-symbols-outlined text-[10px] text-red-400">comments_disabled</span>
                                 </div>
-                                <div x-show="isHost && !user.isSelf" class="absolute top-1 right-1 z-30 grid grid-cols-2 gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <div x-show="isHost && !user.isSelf" class="absolute top-1 right-1 z-30 grid grid-cols-3 gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                                     <button type="button" @click.stop="hostMuteMember(user)" class="w-7 h-7 rounded-lg bg-black/70 border border-white/15 text-white hover:bg-red-500 hover:border-red-400 flex items-center justify-center" :title="user.muted ? 'Unmute member' : 'Mute member'">
                                         <span class="material-symbols-outlined text-[15px]" x-text="user.muted ? 'mic_off' : 'mic'"></span>
                                     </button>
@@ -455,8 +528,11 @@ session_write_close();
                                     <button type="button" @click.stop="hostBanChat(user)" class="w-7 h-7 rounded-lg bg-black/70 border border-white/15 text-white hover:bg-red-500 hover:border-red-400 flex items-center justify-center" :title="user.chatBanned ? 'Allow chat' : 'Ban from chat'">
                                         <span class="material-symbols-outlined text-[15px]" x-text="user.chatBanned ? 'comments_disabled' : 'chat'"></span>
                                     </button>
-                                    <button type="button" @click.stop="kickMember(user)" class="w-7 h-7 rounded-lg bg-black/70 border border-white/15 text-white hover:bg-red-600 hover:border-red-400 flex items-center justify-center" title="Remove from room">
+                                    <button type="button" @click.stop="kickMember(user)" class="w-7 h-7 rounded-lg bg-black/70 border border-white/15 text-white hover:bg-red-600 hover:border-red-400 flex items-center justify-center" title="Kick from room">
                                         <span class="material-symbols-outlined text-[15px]">person_remove</span>
+                                    </button>
+                                    <button type="button" @click.stop="banMember(user)" class="w-7 h-7 rounded-lg bg-black/70 border border-white/15 text-white hover:bg-red-600 hover:border-red-400 flex items-center justify-center" title="Ban from room">
+                                        <span class="material-symbols-outlined text-[15px]">block</span>
                                     </button>
                                 </div>
                                 <div class="absolute inset-0 rounded-[10px] pointer-events-none z-10 transition-opacity duration-150"
@@ -604,7 +680,8 @@ session_write_close();
     </div>
 
     <!-- Movie Selection Modal -->
-    <div x-show="showMovieModal" class="fixed inset-0 z-[100] flex flex-col justify-end pointer-events-auto" style="display: none;">
+    <template x-teleport="body">
+    <div x-show="showMovieModal" data-nexus-modal x-effect="window.nexusLockModalScroll(showMovieModal, 'wp-movie')" class="fixed inset-0 z-[200] flex flex-col justify-end pointer-events-auto overscroll-contain" style="display: none;">
         <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" x-show="showMovieModal" x-transition.opacity @click="showMovieModal = false"></div>
         
         <div class="relative w-full h-[70vh] bg-[#050508] border-t border-white/10 rounded-t-3xl flex flex-col shadow-2xl z-10 overflow-hidden" 
@@ -721,9 +798,12 @@ session_write_close();
             </div>
         </div>
     </div>
+    </template>
 
+    <template x-teleport="body">
     <div x-show="showInviteSentModal"
-         class="fixed inset-0 z-[200] flex items-center justify-center p-4"
+         data-nexus-modal x-effect="window.nexusLockModalScroll(showInviteSentModal, 'wp-invite-sent')"
+         class="fixed inset-0 z-[200] flex items-center justify-center p-4 overscroll-contain"
          style="display: none;">
         <div class="absolute inset-0 bg-black/75 backdrop-blur-sm"
              @click="showInviteSentModal = false"
@@ -752,12 +832,15 @@ session_write_close();
             </div>
         </div>
     </div>
+    </template>
 
     <?php include __DIR__ . '/report_room_modal.php'; ?>
 
+    <template x-teleport="body">
     <div x-show="confirmDialog.open"
+         data-nexus-modal x-effect="window.nexusLockModalScroll(confirmDialog.open, 'wp-confirm')"
          x-cloak
-         class="fixed inset-0 z-[220] flex items-center justify-center p-4"
+         class="fixed inset-0 z-[220] flex items-center justify-center p-4 overscroll-contain"
          style="display: none;"
          x-transition.opacity>
         <div class="absolute inset-0 bg-black/80 backdrop-blur-md" @click="resolveConfirm(false)"></div>
@@ -789,6 +872,7 @@ session_write_close();
             </div>
         </div>
     </div>
+    </template>
 </div>
 
     <?php include __DIR__ . '/../frontend/components/barba_scripts.php'; ?>

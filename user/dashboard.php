@@ -140,6 +140,7 @@ session_write_close();
     <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js" crossorigin="anonymous" onerror="if(window.gsap)window.gsap.ScrollTrigger=window.gsap.ScrollTrigger||{create:()=>{},refresh:()=>{},kill:()=>{}}"></script>
     <script>if(window.gsap) gsap.config({nullTargetWarn: false});</script>
     <script defer src="https://cdn.jsdelivr.net/npm/@alpinejs/collapse@3.14.1/dist/cdn.min.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/@alpinejs/teleport@3.14.1/dist/cdn.min.js"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.1/dist/cdn.min.js" crossorigin="anonymous"></script>
     
     <style>
@@ -151,6 +152,15 @@ session_write_close();
             background-attachment: fixed; 
             color: #ffffff; 
             overflow: hidden;
+        }
+        html.nexus-modal-open,
+        html.nexus-modal-open body {
+            overflow: hidden !important;
+        }
+        html.nexus-modal-open [data-tab-panel],
+        html.nexus-modal-open [data-tab-pane],
+        html.nexus-modal-open .tab-content {
+            overflow: hidden !important;
         }
         select {
             color-scheme: dark;
@@ -449,16 +459,13 @@ session_write_close();
 
     <link rel="stylesheet" href="https://cdn.plyr.io/3.7.8/plyr.css" />
     <script src="https://cdn.plyr.io/3.7.8/plyr.polyfilled.js"></script>
-    <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+    <script src="https://cdn.socket.io/4.7.5/socket.io.min.js" defer></script>
     <script>
         window.NEXUS_SIGNALING_URL = window.NEXUS_SIGNALING_URL || (
             (location.port && location.port !== '3000')
                 ? (location.protocol + '//' + location.hostname + ':3000')
                 : ''
         );
-        if (typeof io !== 'function') {
-            document.write('<script src="' + (window.NEXUS_SIGNALING_URL || (location.protocol + '//' + location.hostname + ':3000')) + '/socket.io/socket.io.js"><\/script>');
-        }
     </script>
     <script src="../js/chat_emojis.js?v=1"></script>
     <script src="../js/ice_servers.js?v=<?php echo time(); ?>"></script>
@@ -806,7 +813,8 @@ session_write_close();
         </template>
     </div>
     <!-- Live User Search Modal (above friends/quests drawers) -->
-    <div x-show="showInviteModal" class="fixed inset-0 z-[220] flex items-center justify-center" style="display: none;">
+    <template x-teleport="body">
+    <div x-show="showInviteModal" data-nexus-modal x-effect="window.nexusLockModalScroll(showInviteModal, 'user-invite')" class="fixed inset-0 z-[220] flex items-center justify-center p-4 overscroll-contain" style="display: none;">
         <div class="absolute inset-0 bg-black/70 backdrop-blur-md" x-show="showInviteModal" x-transition.opacity @click="showInviteModal = false"></div>
         <div class="relative w-[90%] max-w-[480px] bg-[#050508]/95 backdrop-blur-3xl border border-white/10 rounded-3xl shadow-2xl flex flex-col max-h-[85vh] overflow-hidden z-10"
              x-show="showInviteModal"
@@ -917,6 +925,7 @@ session_write_close();
             </div>
         </div>
     </div>
+    </template>
 
     <!-- Main Content -->
     <main class="flex-1 flex flex-col h-full overflow-hidden relative z-10 w-full">
@@ -1038,7 +1047,7 @@ session_write_close();
         <!-- Tabs Container (Relative wrapper for Absolute children) -->
         <div class="relative flex-1 overflow-hidden h-full">
             <!-- Content -->
-            <div class="absolute inset-0 w-full h-full overflow-y-auto p-4 sm:p-6 md:p-10 pb-28 scroll-smooth custom-scrollbar" x-show="currentTab === 'dashboard'">
+            <div class="absolute inset-0 w-full h-full overflow-y-auto p-4 sm:p-6 md:p-10 pb-28 scroll-smooth custom-scrollbar tab-content" data-tab-pane="dashboard" x-show="currentTab === 'dashboard'">
                 <div class="max-w-[1400px] mx-auto space-y-8">
 
                 <?php include __DIR__ . '/../frontend/components/trending_movies.php'; ?>

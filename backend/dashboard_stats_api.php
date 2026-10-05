@@ -71,10 +71,18 @@ function buildDailyChartSeries(PDO $conn, int $days, string $type): array
             }
         } else {
             $stmt = $conn->query(
-                "SELECT DATE(created_at) AS bucket, COUNT(*) AS total
-                 FROM persistent_session
-                 WHERE created_at >= DATE_SUB(CURDATE(), INTERVAL {$span} DAY)
-                 GROUP BY DATE(created_at)"
+                "SELECT bucket, COUNT(*) AS total
+                 FROM (
+                    SELECT user_id, DATE(created_at) AS bucket
+                    FROM login_history
+                    WHERE status = 'success'
+                      AND created_at >= DATE_SUB(CURDATE(), INTERVAL {$span} DAY)
+                    UNION
+                    SELECT user_id, DATE(created_at) AS bucket
+                    FROM persistent_session
+                    WHERE created_at >= DATE_SUB(CURDATE(), INTERVAL {$span} DAY)
+                 ) daily_logins
+                 GROUP BY bucket"
             );
             foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
                 $map[(string)$row['bucket']] = (float)$row['total'];

@@ -170,8 +170,9 @@
 </div>
 
 <!-- Avatar/Border Modal -->
-<div x-show="avatarModalOpen" class="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm" style="display: none;" x-transition>
-    <div class="glass-card rounded-2xl p-8 max-w-md w-full relative max-h-[90vh] overflow-y-auto" @click.away="avatarModalOpen = false">
+<template x-teleport="body">
+<div x-show="avatarModalOpen" data-nexus-modal x-effect="window.nexusLockModalScroll(avatarModalOpen, 'admin-avatar')" class="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm overscroll-contain" style="display: none;" x-transition @click.self="avatarModalOpen = false">
+    <div class="glass-card rounded-2xl p-8 max-w-md w-full relative max-h-[90vh] overflow-y-auto" @click.stop>
         <button @click="avatarModalOpen = false" class="absolute top-4 right-4 text-white/40 hover:text-white transition-colors z-10">
             <span class="material-symbols-outlined">close</span>
         </button>
@@ -222,16 +223,19 @@
         </div>
     </div>
 </div>
+</template>
 
 <!-- Account Deletion Confirmation Modal -->
 <template x-teleport="body">
-    <div x-show="deleteAccountModalOpen" 
-         class="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/85 backdrop-blur-md" 
+    <div x-show="deleteAccountModalOpen"
+         data-nexus-modal x-effect="window.nexusLockModalScroll(deleteAccountModalOpen, 'admin-delete-account')"
+         class="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/85 backdrop-blur-md overscroll-contain" 
          style="display: none;" 
-         x-transition.opacity>
+         x-transition.opacity
+         @click.self="deleteAccountModalOpen = false">
         
         <div class="w-full max-w-md bg-[#0c0c12] border border-red-500/30 rounded-3xl shadow-2xl overflow-hidden p-6 space-y-5 relative"
-             @click.away="deleteAccountModalOpen = false">
+             @click.stop>
             
             <!-- Modal Header -->
             <div class="flex items-center gap-3.5">

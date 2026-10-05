@@ -190,20 +190,23 @@ function nexusHoldIfBlocked(PDO $conn, array $user, string $role): ?string
     $deletionAt = $user['deletion_requested_at'] ?? null;
 
     if (!empty($deletionAt)) {
-        if (function_exists('nexusDeletionExpired') && nexusDeletionExpired($deletionAt)) {
+        $deletionState = nexusDeletionState($conn, $userId);
+        if ($deletionState && $deletionState['expired']) {
             if (function_exists('nexusPurgeUserAccount')) {
                 nexusPurgeUserAccount($conn, $userId);
             }
             return '/frontend/login.php?error=' . urlencode('This account was permanently deleted after the 24-hour waiting period.');
         }
-        $_SESSION['account_hold'] = [
-            'user_id' => $userId,
-            'email' => $email,
-            'role' => $role,
-            'mode' => 'deletion',
-            'deletion_requested_at' => $deletionAt,
-        ];
-        return '/frontend/account_hold.php';
+        if ($deletionState) {
+            $_SESSION['account_hold'] = [
+                'user_id' => $userId,
+                'email' => $email,
+                'role' => $role,
+                'mode' => 'deletion',
+                'deletion_requested_at' => $deletionState['deletion_requested_at'],
+            ];
+            return '/frontend/account_hold.php';
+        }
     }
 
     if ($status === 'banned') {

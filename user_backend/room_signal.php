@@ -19,10 +19,17 @@ $allowed = [
     'answer' => true,
     'ice-candidate' => true,
     'peer-leave' => true,
+    'peer-park' => true,
+    'peer-resume' => true,
     'new_message' => true,
     'playback-sync' => true,
     'toggle-mic' => true,
     'toggle-video' => true,
+    'movie-changed' => true,
+    'force-leave' => true,
+    'force-mute' => true,
+    'force-video' => true,
+    'force-chat-ban' => true,
 ];
 
 if ($roomId <= 0 || $event === '' || empty($allowed[$event])) {
@@ -39,9 +46,28 @@ if (!is_array($payload)) {
 $payload['fromUserId'] = $userId;
 $payload['roomId'] = $roomId;
 
+$hostOnly = [
+    'force-leave' => true,
+    'force-mute' => true,
+    'force-video' => true,
+    'force-chat-ban' => true,
+];
+
 try {
-    if ($event === 'new_message') {
+    if (!empty($hostOnly[$event]) || $event === 'new_message') {
         require_once __DIR__ . '/../conn.php';
+    }
+    if (!empty($hostOnly[$event])) {
+        $hostStmt = $conn->prepare('SELECT host_id, status FROM rooms WHERE room_id = :id LIMIT 1');
+        $hostStmt->execute(['id' => $roomId]);
+        $room = $hostStmt->fetch(PDO::FETCH_ASSOC);
+        if (!$room || (int)$room['host_id'] !== $userId) {
+            http_response_code(403);
+            echo json_encode(['success' => false, 'message' => 'Only the host can do that']);
+            exit;
+        }
+    }
+    if ($event === 'new_message') {
         try {
             $banStmt = $conn->prepare("SELECT chat_banned FROM room_participants WHERE room_id = :room_id AND user_id = :user_id LIMIT 1");
             $banStmt->execute(['room_id' => $roomId, 'user_id' => $userId]);

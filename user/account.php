@@ -232,14 +232,17 @@
     </div>
 </div>
 
-<!-- Account Deletion Confirmation Modal (unchanged) -->
-<div x-show="deleteAccountModalOpen" 
-     class="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/85 backdrop-blur-md" 
-     style="display: none;" 
-     x-transition.opacity>
+<!-- Account Deletion Confirmation Modal -->
+<template x-teleport="body">
+<div x-show="deleteAccountModalOpen"
+     data-nexus-modal x-effect="window.nexusLockModalScroll(deleteAccountModalOpen, 'user-delete-account')"
+     class="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/85 backdrop-blur-md overscroll-contain"
+     style="display: none;"
+     x-transition.opacity
+     @click.self="closeDeleteAccountModal()">
     
     <div class="w-full max-w-md bg-[#0c0c12] border border-red-500/30 rounded-3xl shadow-2xl overflow-hidden p-6 space-y-5 relative"
-         @click.away="closeDeleteAccountModal()">
+         @click.stop>
         
         <!-- Modal Header -->
         <div class="flex items-center gap-3.5">
@@ -287,3 +290,4 @@
         </div>
     </div>
 </div>
+</template>

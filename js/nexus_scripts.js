@@ -22,6 +22,29 @@
     }
 })();
 
+window.nexusLockModalScroll = (function () {
+    const open = new Set();
+    const capture = { capture: true, passive: false };
+    function blockBackgroundScroll(event) {
+        const node = event.target;
+        if (node && node.closest && node.closest('[data-nexus-modal]')) return;
+        event.preventDefault();
+    }
+    return function (isOpen, key) {
+        const id = key || 'modal';
+        if (isOpen) open.add(id);
+        else open.delete(id);
+        const locked = open.size > 0;
+        document.documentElement.classList.toggle('nexus-modal-open', locked);
+        document.removeEventListener('wheel', blockBackgroundScroll, true);
+        document.removeEventListener('touchmove', blockBackgroundScroll, true);
+        if (locked) {
+            document.addEventListener('wheel', blockBackgroundScroll, capture);
+            document.addEventListener('touchmove', blockBackgroundScroll, capture);
+        }
+    };
+})();
+
 var NEXUS_ACTIVE_ROOM_KEY = 'nexus_active_room';
 
 function pickTrendingMovies(movies, limit) {
@@ -1285,11 +1308,7 @@ function userDashboard() {
                 const data = await res.json();
 
                 if (data.success) {
-                    if (window.showToast) window.showToast(data.message || 'Account deletion scheduled for 24 hours.', 'success');
-                    // Redirect to login page after short delay
-                    setTimeout(() => {
-                        window.nexusNavigate('/frontend/login.php');
-                    }, 1500);
+                    window.location.replace('/frontend/login.php');
                 } else {
                     this.deleteAccountError = data.message || 'Failed to delete account.';
                 }
@@ -1923,6 +1942,7 @@ function userDashboard() {
                 avatar: this.resolveAvatarUrl((window.NEXUS_USER && window.NEXUS_USER.avatar_url) || window.USER_AVATAR || '', window.NEXUS_USER && window.NEXUS_USER.username),
                 border: (window.NEXUS_USER && window.NEXUS_USER.border_preview) || window.USER_BORDER || '',
                 pusherClient: this.pusherClient,
+                peers: room.participants || [],
                 onParticipants: (peers) => this.mergeLiveRoomParticipants(peers),
                 onSpeaking: (info) => this.setLiveRoomSpeaking(info),
                 onPeerLeave: (peer) => this.dropLiveRoomParticipant(peer),
@@ -4544,17 +4564,16 @@ function userDashboard() {
             // 2. Update savedProfile / avatar / border instantly from boot payload
             this.applyBootProfile(window.NEXUS_USER);
 
+            this.hydrateActiveRoom();
+            if (this._activeRoomTimer) clearInterval(this._activeRoomTimer);
+            this._activeRoomTimer = setInterval(() => this.refreshActiveRoom(), 15000);
+            this.initPusher();
+            this.startDashboardLiveRoom();
+
             // Source of truth is the DB via fetchUserProfile — drop stale local border cache
             localStorage.removeItem('activeBorder');
 
             if (typeof gsap !== 'undefined') gsap.config({ nullTargetWarn: false });
-
-            this.hydrateActiveRoom();
-            if (this._activeRoomTimer) clearInterval(this._activeRoomTimer);
-            this._activeRoomTimer = setInterval(() => this.refreshActiveRoom(), 15000);
-
-            this.initPusher();
-            this.startDashboardLiveRoom();
             this.loadMediaCaches();
             this.cacheOwnMedia();
             this.hydrateLocalCaches();
@@ -6156,9 +6175,25 @@ function adminDashboard(userData = {}) {
                 });
                 const data = await res.json();
                 if (data.success) {
-                    // Remove from both arrays (modal + global list)
-                    this.movieComments = this.movieComments.filter(c => c.id !== commentId && c.parent_id !== commentId);
-                    this.comments = this.comments.filter(c => c.id !== commentId && c.parent_id !== commentId);
+                    const removeThread = (list, rootId) => {
+                        const drop = new Set([Number(rootId)]);
+                        let changed = true;
+                        const rows = list || [];
+                        while (changed) {
+                            changed = false;
+                            rows.forEach((row) => {
+                                const id = Number(row.id);
+                                const parent = Number(row.parent_id);
+                                if (!drop.has(id) && drop.has(parent)) {
+                                    drop.add(id);
+                                    changed = true;
+                                }
+                            });
+                        }
+                        return rows.filter((row) => !drop.has(Number(row.id)));
+                    };
+                    this.movieComments = removeThread(this.movieComments, commentId);
+                    this.comments = removeThread(this.comments, commentId);
                     this.showToast('Comment deleted', 'success');
                 } else {
                     this.showToast(data.error || 'Delete failed', 'error');
@@ -7471,23 +7506,18 @@ function adminDashboard(userData = {}) {
             this.openEditMovieModal(movie);
             this.movieTab = 'comments';
             await this.fetchMovieCommentsForAdmin(movieId);
-            
             this.highlightCommentId = commentId;
-            
-            // Expand replies if the highlighted comment is a reply
-            for (let c of this.nestedMovieComments) {
-                if (c.replies && c.replies.some(r => r.id == commentId)) {
-                    c.show_replies = true;
-                }
-            }
 
-            // Scroll to the comment
-            setTimeout(() => {
+            const revealComment = () => {
                 const el = document.getElementById('admin-comment-' + commentId);
-                if (el) {
-                    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                }
-            }, 400);
+                if (!el) return false;
+                el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                return true;
+            };
+            this.$nextTick(() => {
+                if (revealComment()) return;
+                setTimeout(revealComment, 300);
+            });
         },
 
         // Shop       
@@ -7941,7 +7971,7 @@ function adminDashboard(userData = {}) {
                 const data = await response.json();
 
                 if (data.success) {
-                    window.nexusNavigate('../frontend/login.php?deletion_scheduled=1');
+                    window.location.replace('/frontend/login.php');
                 } else {
                     // 2. Server-side check: Incorrect password / session error
                     const errorMsg = data.message || data.error || 'Failed to delete account.';

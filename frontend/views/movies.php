@@ -99,8 +99,8 @@
     
     <!-- Redesigned Modal (Teleported to body) -->
     <template x-teleport="body">
-        <div x-show="movieModalOpen" class="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 bg-black/85 backdrop-blur-md" style="display: none;" x-transition.opacity>
-            <div class="w-full max-w-2xl bg-[#0c0c12] border border-white/10 rounded-3xl shadow-2xl overflow-hidden relative max-h-[90vh] flex flex-col" @click.away="movieModalOpen = false">
+        <div x-show="movieModalOpen" data-nexus-modal x-effect="window.nexusLockModalScroll(movieModalOpen, 'admin-movie')" class="fixed inset-0 z-[200] flex items-center justify-center p-4 sm:p-6 bg-black/85 backdrop-blur-md overscroll-contain" style="display: none;" x-transition.opacity @click.self="movieModalOpen = false">
+            <div class="w-full max-w-2xl bg-[#0c0c12] border border-white/10 rounded-3xl shadow-2xl overflow-hidden relative max-h-[90vh] flex flex-col" @click.stop>
                 
                 <!-- Modal Header Bar -->
                 <div class="px-8 py-6 border-b border-white/5 flex items-center justify-between bg-white/[0.02]">
@@ -118,7 +118,7 @@
                     </button>
                 </div>
 
-                <div x-data="{ movieTab: 'details' }" class="p-8 overflow-y-auto flex-1 space-y-6">
+                <div class="p-8 overflow-y-auto flex-1 space-y-6">
                     
                     <!-- Segmented Tab Controls -->
                     <div class="grid grid-cols-2 p-1.5 bg-black/40 border border-white/10 rounded-2xl max-w-xs">

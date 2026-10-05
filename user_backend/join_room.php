@@ -34,9 +34,6 @@ try {
     $roomStmt = $conn->prepare("SELECT room_id, host_id, status, max_members FROM rooms WHERE room_id = :id LIMIT 1");
     $roomStmt->execute(['id' => $roomId]);
     $room = $roomStmt->fetch(PDO::FETCH_ASSOC);
-    sweepAbandonedRooms($conn);
-    $roomStmt->execute(['id' => $roomId]);
-    $room = $roomStmt->fetch(PDO::FETCH_ASSOC);
     if (!$room || isRoomClosed($room['status'] ?? '')) {
         http_response_code(404);
         echo json_encode(['success' => false, 'message' => 'This watch party has ended.', 'is_ended' => true]);
@@ -59,7 +56,7 @@ try {
     $kickStmt->execute(['room_id' => $roomId, 'user_id' => $userId]);
     if ($kickStmt->fetchColumn()) {
         http_response_code(403);
-        echo json_encode(['success' => false, 'message' => 'The host removed you from the room.', 'is_kicked' => true]);
+        echo json_encode(['success' => false, 'message' => 'The host banned you from this room.', 'is_kicked' => true]);
         exit;
     }
 
@@ -110,10 +107,10 @@ try {
     $peerStmt->execute(['room_id' => $roomId, 'peer_id' => $peerId]);
     $peers = $peerStmt->fetchAll(PDO::FETCH_ASSOC);
 
+    require_once __DIR__ . '/../profile_media_helper.php';
+    $peers = attachProfileMedia($conn, $peers);
     $selfMedia = ['avatar_url' => '', 'border_preview' => ''];
     if (!$heartbeat) {
-        require_once __DIR__ . '/../profile_media_helper.php';
-        $peers = attachProfileMedia($conn, $peers);
         $selfMedia = getUserProfileMedia($conn, $userId);
         touchUserPresence($conn, $userId);
     } else {
@@ -146,6 +143,11 @@ try {
         fastcgi_finish_request();
     } else {
         @flush();
+    }
+
+    try {
+        sweepAbandonedRooms($conn);
+    } catch (Throwable $ignore) {
     }
 
     if (!$heartbeat || !$alreadyThere) {

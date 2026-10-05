@@ -157,8 +157,10 @@
     </div>
 
     <!-- Confirm Purchase Modal -->
-    <div x-show="showConfirmModal" 
-         class="fixed inset-0 z-[100] flex items-center justify-center p-4"
+    <template x-teleport="body">
+    <div x-show="showConfirmModal"
+         data-nexus-modal x-effect="window.nexusLockModalScroll(showConfirmModal, 'user-shop-confirm')"
+         class="fixed inset-0 z-[200] flex items-center justify-center p-4 overscroll-contain"
          style="display: none;">
         <!-- Backdrop -->
         <div x-show="showConfirmModal"
@@ -221,6 +223,7 @@
             </template>
         </div>
     </div>
+    </template>
 
     <!-- Background Ambient Glow -->
     <div class="fixed inset-0 pointer-events-none z-0 overflow-hidden" x-show="currentTab === 'shop'">

@@ -18,7 +18,7 @@ $videoOn = isset($_POST['video_on']) ? (($_POST['video_on'] === '1' || $_POST['v
 $chatBanned = isset($_POST['banned']) ? (($_POST['banned'] === '1' || $_POST['banned'] === 'true') ? true : false) : true;
 session_write_close();
 
-if ($roomId <= 0 || $targetUserId <= 0 || !in_array($action, ['kick', 'mute', 'video', 'chatban'], true)) {
+if ($roomId <= 0 || $targetUserId <= 0 || !in_array($action, ['kick', 'ban', 'mute', 'video', 'chatban'], true)) {
     http_response_code(400);
     echo json_encode(['success' => false, 'message' => 'Invalid host action']);
     exit;
@@ -44,6 +44,8 @@ try {
     require_once __DIR__ . '/../conn.php';
     require_once __DIR__ . '/../pusher_helper.php';
     require_once __DIR__ . '/../admin_rooms_helper.php';
+    require_once __DIR__ . '/../room_schema_helper.php';
+    ensureRoomParticipantSchema($conn);
 
     $stmt = $conn->prepare("SELECT room_id, host_id, status FROM rooms WHERE room_id = :id LIMIT 1");
     $stmt->execute(['id' => $roomId]);
@@ -61,8 +63,6 @@ try {
         exit;
     }
 
-    ensureRoomParticipantFlags($conn);
-
     $baseEvent = [
         'targetUserId' => $targetUserId,
         'targetPeerId' => $targetPeerId,
@@ -71,35 +71,48 @@ try {
         'peerId' => $targetPeerId,
     ];
 
-    if ($action === 'kick') {
-        try {
-            $conn->exec("CREATE TABLE IF NOT EXISTS room_kicks (
-                room_id INT NOT NULL,
-                user_id INT NOT NULL,
-                kicked_at DATETIME NOT NULL,
-                PRIMARY KEY (room_id, user_id)
-            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
-            $conn->prepare("
-                INSERT INTO room_kicks (room_id, user_id, kicked_at)
-                VALUES (:room_id, :user_id, NOW())
-                ON DUPLICATE KEY UPDATE kicked_at = NOW()
-            ")->execute(['room_id' => $roomId, 'user_id' => $targetUserId]);
-        } catch (Throwable $ignore) {}
+    if ($action === 'kick' || $action === 'ban') {
+        if ($action === 'ban') {
+            try {
+                $conn->exec("CREATE TABLE IF NOT EXISTS room_kicks (
+                    room_id INT NOT NULL,
+                    user_id INT NOT NULL,
+                    kicked_at DATETIME NOT NULL,
+                    PRIMARY KEY (room_id, user_id)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+                $conn->prepare("
+                    INSERT INTO room_kicks (room_id, user_id, kicked_at)
+                    VALUES (:room_id, :user_id, NOW())
+                    ON DUPLICATE KEY UPDATE kicked_at = NOW()
+                ")->execute(['room_id' => $roomId, 'user_id' => $targetUserId]);
+            } catch (Throwable $ignore) {}
+        }
 
         try {
             $conn->prepare("DELETE FROM room_participants WHERE room_id = :room_id AND user_id = :user_id")
                 ->execute(['room_id' => $roomId, 'user_id' => $targetUserId]);
         } catch (Throwable $ignore) {}
 
-        triggerPusherEvent("watch-party-{$roomId}", 'force-leave', $baseEvent + [
-            'message' => 'The host removed you from the room.',
-        ]);
-        broadcastAdminRoomsChanged('kick', [
+        $message = $action === 'ban'
+            ? 'The host banned you from the room.'
+            : 'The host removed you from the room.';
+        $pusherPayload = $baseEvent + [
+            'message' => $message,
+            'banned' => $action === 'ban',
+        ];
+        $json = json_encode(['success' => true, 'action' => $action]);
+        header('Content-Length: ' . strlen($json));
+        echo $json;
+        if (function_exists('fastcgi_finish_request')) {
+            fastcgi_finish_request();
+        } else {
+            @flush();
+        }
+        triggerPusherEvent("watch-party-{$roomId}", 'force-leave', $pusherPayload);
+        broadcastAdminRoomsChanged($action, [
             'room_id' => $roomId,
             'user_id' => $targetUserId,
         ]);
-
-        echo json_encode(['success' => true, 'action' => 'kick']);
         exit;
     }
 
@@ -116,12 +129,18 @@ try {
             ]);
         } catch (Throwable $ignore) {}
 
+        $json = json_encode(['success' => true, 'action' => 'mute', 'muted' => $muted]);
+        header('Content-Length: ' . strlen($json));
+        echo $json;
+        if (function_exists('fastcgi_finish_request')) {
+            fastcgi_finish_request();
+        } else {
+            @flush();
+        }
         triggerPusherEvent("watch-party-{$roomId}", 'force-mute', $baseEvent + [
             'muted' => $muted,
             'isMuted' => $muted,
         ]);
-
-        echo json_encode(['success' => true, 'action' => 'mute', 'muted' => $muted]);
         exit;
     }
 
@@ -138,12 +157,18 @@ try {
             ]);
         } catch (Throwable $ignore) {}
 
+        $json = json_encode(['success' => true, 'action' => 'video', 'videoOn' => $videoOn]);
+        header('Content-Length: ' . strlen($json));
+        echo $json;
+        if (function_exists('fastcgi_finish_request')) {
+            fastcgi_finish_request();
+        } else {
+            @flush();
+        }
         triggerPusherEvent("watch-party-{$roomId}", 'force-video', $baseEvent + [
             'videoOn' => $videoOn,
             'isVideoOn' => $videoOn,
         ]);
-
-        echo json_encode(['success' => true, 'action' => 'video', 'videoOn' => $videoOn]);
         exit;
     }
 
@@ -159,13 +184,19 @@ try {
         ]);
     } catch (Throwable $ignore) {}
 
+    $json = json_encode(['success' => true, 'action' => 'chatban', 'chatBanned' => $chatBanned]);
+    header('Content-Length: ' . strlen($json));
+    echo $json;
+    if (function_exists('fastcgi_finish_request')) {
+        fastcgi_finish_request();
+    } else {
+        @flush();
+    }
     triggerPusherEvent("watch-party-{$roomId}", 'force-chat-ban', $baseEvent + [
         'chatBanned' => $chatBanned,
         'banned' => $chatBanned,
         'message' => $chatBanned ? 'The host banned you from room chat.' : 'The host allowed you to chat again.',
     ]);
-
-    echo json_encode(['success' => true, 'action' => 'chatban', 'chatBanned' => $chatBanned]);
 } catch (Throwable $e) {
     http_response_code(500);
     echo json_encode(['success' => false, 'message' => 'Host action failed']);

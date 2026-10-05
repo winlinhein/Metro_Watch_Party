@@ -120,6 +120,15 @@ session_write_close();
         .admin-main [data-tab-panel] {
             padding-top: 7.5rem !important;
         }
+        html.nexus-modal-open,
+        html.nexus-modal-open body {
+            overflow: hidden !important;
+        }
+        html.nexus-modal-open [data-tab-panel],
+        html.nexus-modal-open [data-tab-pane],
+        html.nexus-modal-open .tab-content {
+            overflow: hidden !important;
+        }
         .glass-card {
             background: linear-gradient(135deg, rgba(255,255,255,0.04) 0%, rgba(255,255,255,0.01) 100%);
             border: 1px solid rgba(255,255,255,0.05);
@@ -443,7 +452,7 @@ session_write_close();
 
     <link rel="stylesheet" href="https://cdn.plyr.io/3.7.8/plyr.css" />
     <script src="https://cdn.plyr.io/3.7.8/plyr.polyfilled.js"></script>
-    <script src="../js/nexus_scripts.js?v=1790900000"></script>
+    <script src="../js/nexus_scripts.js?v=1790994000"></script>
     <script src="https://unpkg.com/htmx.org@1.9.10/dist/htmx.min.js" crossorigin="anonymous"></script>
 </head>
 <body class="h-screen w-screen flex relative selection:bg-red-500/30" data-barba="wrapper">

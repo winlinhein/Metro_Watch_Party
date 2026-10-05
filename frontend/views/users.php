@@ -323,10 +323,12 @@
     </div>
 
     <!-- Ban User Modal -->
+    <template x-teleport="body">
     <div
         x-show="banModalOpen"
+        data-nexus-modal x-effect="window.nexusLockModalScroll(banModalOpen, 'admin-ban')"
         style="display: none;"
-        class="fixed inset-0 z-[100] flex items-center justify-center"
+        class="fixed inset-0 z-[200] flex items-center justify-center p-4 overscroll-contain"
         x-transition.opacity
     >
 
@@ -439,5 +441,6 @@
         </div>
 
     </div>
+    </template>
 
 </div>

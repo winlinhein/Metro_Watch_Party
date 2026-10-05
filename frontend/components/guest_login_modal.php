@@ -1,5 +1,7 @@
+<template x-teleport="body">
 <div x-show="$data.showGuestLoginModal"
-     class="fixed inset-0 z-[140] flex items-center justify-center p-4"
+     data-nexus-modal x-effect="window.nexusLockModalScroll($data.showGuestLoginModal, 'user-guest-login')"
+     class="fixed inset-0 z-[200] flex items-center justify-center p-4 overscroll-contain"
      style="display: none;">
     <div x-show="$data.showGuestLoginModal"
          x-transition:enter="transition ease-out duration-300"
@@ -49,3 +51,4 @@
         </div>
     </div>
 </div>
+</template>

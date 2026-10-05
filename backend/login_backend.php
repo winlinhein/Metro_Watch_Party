@@ -105,20 +105,29 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                 $role = $type['role'] ?? 'user';
 
                 if (!empty($user['deletion_requested_at'])) {
-                    if (nexusDeletionExpired($user['deletion_requested_at'])) {
-                        nexusPurgeUserAccount($conn, (int)$userID);
+                    $deletionState = nexusDeletionState($conn, (int)$userID);
+                    if ($deletionState && $deletionState['expired']) {
+                        try {
+                            nexusPurgeUserAccount($conn, (int)$userID);
+                        } catch (Throwable $purgeError) {
+                            error_log('purge on login: ' . $purgeError->getMessage());
+                            header("Location: ../frontend/login.php?error=" . urlencode("This account is past the 24-hour deletion window, but it could not be removed yet. Try again."));
+                            exit();
+                        }
                         header("Location: ../frontend/login.php?error=" . urlencode("This account was permanently deleted after the 24-hour waiting period."));
                         exit();
                     }
-                    $_SESSION['account_hold'] = [
-                        'user_id' => (int)$userID,
-                        'email' => $email,
-                        'role' => $role,
-                        'mode' => 'deletion',
-                        'deletion_requested_at' => $user['deletion_requested_at'],
-                    ];
-                    header("Location: ../frontend/account_hold.php");
-                    exit();
+                    if ($deletionState) {
+                        $_SESSION['account_hold'] = [
+                            'user_id' => (int)$userID,
+                            'email' => $email,
+                            'role' => $role,
+                            'mode' => 'deletion',
+                            'deletion_requested_at' => $deletionState['deletion_requested_at'],
+                        ];
+                        header("Location: ../frontend/account_hold.php");
+                        exit();
+                    }
                 }
 
                 // Status Check

@@ -24,6 +24,10 @@ try {
         ]);
         exit;
     }
+    if (strtolower((string)($_SESSION['user_role'] ?? '')) === 'user') {
+        require_once __DIR__ . '/mission_progress.php';
+        nexusAwardDailyLogin($userId);
+    }
     session_write_close();
     require_once __DIR__ . '/../admin_rooms_helper.php';
     sweepAbandonedRooms($conn);

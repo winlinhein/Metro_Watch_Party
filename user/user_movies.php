@@ -143,7 +143,8 @@
 </div>
 
  <!-- Movie Detail & Playback Modal -->
-    <div x-show="showMovieDetailModal" class="fixed inset-0 z-[120] flex items-center justify-center p-4" style="display: none;">
+    <template x-teleport="body">
+    <div x-show="showMovieDetailModal" data-nexus-modal x-effect="window.nexusLockModalScroll(showMovieDetailModal, 'user-movie')" class="fixed inset-0 z-[200] flex items-center justify-center p-4 overscroll-contain" style="display: none;">
         <div class="absolute inset-0 bg-black/80 backdrop-blur-xl" @click="closeMovieDetail()"></div>
         
         <div class="relative w-full max-w-4xl bg-[#08080d] border border-white/10 rounded-3xl overflow-hidden shadow-2xl z-10 flex flex-col max-h-[90vh]" x-show="showMovieDetailModal" x-transition:enter="transition ease-out duration-300" x-transition:enter-start="opacity-0 scale-95" x-transition:enter-end="opacity-100 scale-100">
@@ -470,3 +471,4 @@
             </template>
         </div>
     </div>
+    </template>

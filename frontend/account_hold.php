@@ -1,5 +1,6 @@
 <?php
 session_start();
+require_once __DIR__ . '/../conn.php';
 require_once __DIR__ . '/../account_lifecycle_helper.php';
 
 $hold = $_SESSION['account_hold'] ?? null;
@@ -9,6 +10,27 @@ if (!$hold || empty($hold['mode'])) {
 }
 
 $mode = (string)$hold['mode'];
+$deletionState = null;
+if ($mode === 'deletion') {
+    $deletionState = nexusDeletionState($conn, (int)($hold['user_id'] ?? 0));
+    if (!$deletionState) {
+        unset($_SESSION['account_hold']);
+        header('Location: login.php');
+        exit();
+    }
+    $_SESSION['account_hold']['deletion_requested_at'] = $deletionState['deletion_requested_at'];
+    if ($deletionState['expired']) {
+        try {
+            nexusPurgeUserAccount($conn, (int)($hold['user_id'] ?? 0));
+        } catch (Throwable $e) {
+            error_log('purge on hold page: ' . $e->getMessage());
+        }
+        unset($_SESSION['account_hold']);
+        header('Location: login.php?error=' . urlencode('This account was permanently deleted after the 24-hour waiting period.'));
+        exit();
+    }
+}
+
 $error = trim((string)($_GET['error'] ?? ''));
 $notice = trim((string)($_GET['notice'] ?? ''));
 $appealState = trim((string)($_GET['appeal'] ?? ''));
@@ -16,8 +38,7 @@ if ($appealState === '' && $notice !== '') {
     $appealState = stripos($notice, 'already') !== false ? 'pending' : 'sent';
 }
 $banReason = (string)($hold['ban_reason'] ?? 'Violation of community guidelines');
-$deadlineTs = $mode === 'deletion' ? nexusDeletionDeadline($hold['deletion_requested_at'] ?? null) : null;
-$deadlineIso = $deadlineTs ? date('c', $deadlineTs) : '';
+$remainingSeconds = $deletionState ? max(0, (int)$deletionState['remaining_seconds']) : 0;
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -42,9 +63,9 @@ $deadlineIso = $deadlineTs ? date('c', $deadlineTs) : '';
             <span class="material-symbols-outlined text-white/60 text-[20px]">arrow_back</span>
         </a>
 
-        <div class="absolute inset-0 z-0 overflow-hidden pointer-events-none">
-            <div class="absolute top-[-20%] left-[-10%] w-[600px] h-[600px] bg-red-600 rounded-full blur-[160px] opacity-20"></div>
-            <div class="absolute bottom-[-15%] right-[-10%] w-[500px] h-[500px] bg-indigo-600 rounded-full blur-[140px] opacity-30"></div>
+        <div class="absolute inset-0 z-0 overflow-hidden pointer-events-none" id="particles-container">
+            <div id="blob1" class="absolute top-[-20%] left-[-10%] w-[600px] h-[600px] bg-red-600 rounded-full blur-[160px] opacity-20"></div>
+            <div id="blob2" class="absolute bottom-[-15%] right-[-10%] w-[500px] h-[500px] bg-indigo-600 rounded-full blur-[140px] opacity-30"></div>
         </div>
 
         <div class="absolute inset-0 z-0 overflow-hidden pointer-events-none flex items-center justify-center opacity-60 mask-radial">
@@ -172,18 +193,18 @@ $deadlineIso = $deadlineTs ? date('c', $deadlineTs) : '';
     <script>
     function accountHoldPage() {
         return {
-            deadline: <?php echo json_encode($deadlineIso); ?>,
+            remaining: <?php echo (int)$remainingSeconds; ?>,
+            endsAt: 0,
             countdown: '--:--:--',
             timer: null,
             init() {
-                if (!this.deadline) return;
+                if (!this.remaining) return;
+                this.endsAt = Date.now() + (this.remaining * 1000);
                 this.tick();
                 this.timer = setInterval(() => this.tick(), 1000);
             },
             tick() {
-                const end = Date.parse(this.deadline);
-                if (!end) return;
-                const left = Math.max(0, end - Date.now());
+                const left = Math.max(0, this.endsAt - Date.now());
                 const h = Math.floor(left / 3600000);
                 const m = Math.floor((left % 3600000) / 60000);
                 const s = Math.floor((left % 60000) / 1000);
@@ -191,6 +212,7 @@ $deadlineIso = $deadlineTs ? date('c', $deadlineTs) : '';
                 if (left <= 0 && this.timer) {
                     clearInterval(this.timer);
                     this.countdown = '00:00:00';
+                    window.location.replace('account_hold.php');
                 }
             }
         };

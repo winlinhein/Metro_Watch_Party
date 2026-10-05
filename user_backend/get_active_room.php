@@ -55,7 +55,7 @@ try {
     $kickStmt = $conn->prepare("SELECT 1 FROM room_kicks WHERE room_id = :room_id AND user_id = :user_id LIMIT 1");
     $kickStmt->execute(['room_id' => $room['room_id'], 'user_id' => $userId]);
     if ($kickStmt->fetchColumn()) {
-        echo json_encode(['success' => false, 'message' => 'The host removed you from the room.', 'is_kicked' => true]);
+        echo json_encode(['success' => false, 'message' => 'The host banned you from this room.', 'is_kicked' => true]);
         exit;
     }
 

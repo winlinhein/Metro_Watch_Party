@@ -1,6 +1,8 @@
 <!-- Report Reply Modal -->
-<div x-show="showReportItemModal" 
-     class="fixed inset-0 z-[1010] flex items-center justify-center p-4"
+<template x-teleport="body">
+<div x-show="showReportItemModal"
+     data-nexus-modal x-effect="window.nexusLockModalScroll(showReportItemModal, 'user-report-item')"
+     class="fixed inset-0 z-[200] flex items-center justify-center p-4 overscroll-contain"
      style="display: none;"
      id="report-item-modal-wrapper">
      
@@ -71,3 +73,4 @@
         </div>
     </div>
 </div>
+</template>

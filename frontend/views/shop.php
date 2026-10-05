@@ -128,10 +128,11 @@
     <?php $pagerKey = 'shop'; include __DIR__ . '/../components/admin_pagination.php'; ?>
 
     <!-- Add/Edit Item Modal -->
-    <div x-show="modalOpen" style="display: none;" class="fixed inset-0 z-[100] flex items-center justify-center">
+    <template x-teleport="body">
+    <div x-show="modalOpen" data-nexus-modal x-effect="window.nexusLockModalScroll(modalOpen, 'admin-shop-item')" style="display: none;" class="fixed inset-0 z-[200] flex items-center justify-center p-4 overscroll-contain">
         <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" @click="closeModal()" x-show="modalOpen" x-transition.opacity></div>
         
-        <div class="relative bg-[#0a0a0f] border border-white/10 rounded-2xl p-8 max-w-md w-full shadow-2xl"
+        <div class="relative bg-[#0a0a0f] border border-white/10 rounded-2xl p-8 max-w-md w-full shadow-2xl max-h-[90vh] overflow-y-auto"
              x-show="modalOpen"
              x-transition:enter="transition ease-out duration-300"
              x-transition:enter-start="opacity-0 translate-y-8 scale-95"
@@ -206,11 +207,13 @@
              </div>
         </div>
     </div>
+    </template>
 
     <!-- Add/Edit Point Pack Modal -->
-    <div x-show="pointPackModalOpen" style="display: none;" class="fixed inset-0 z-[100] flex items-center justify-center">
+    <template x-teleport="body">
+    <div x-show="pointPackModalOpen" data-nexus-modal x-effect="window.nexusLockModalScroll(pointPackModalOpen, 'admin-point-pack')" style="display: none;" class="fixed inset-0 z-[200] flex items-center justify-center p-4 overscroll-contain">
         <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" @click="closePointPackModal()" x-show="pointPackModalOpen" x-transition.opacity></div>
-        <div class="relative bg-[#0a0a0f] border border-white/10 rounded-2xl p-8 max-w-md w-full shadow-2xl"
+        <div class="relative bg-[#0a0a0f] border border-white/10 rounded-2xl p-8 max-w-md w-full shadow-2xl max-h-[90vh] overflow-y-auto"
              x-show="pointPackModalOpen"
              x-transition:enter="transition ease-out duration-300"
              x-transition:enter-start="opacity-0 translate-y-8 scale-95"
@@ -265,4 +268,5 @@
              </div>
         </div>
     </div>
+    </template>
 </div>

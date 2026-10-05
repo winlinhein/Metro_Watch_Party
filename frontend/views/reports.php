@@ -143,12 +143,12 @@
 
     <!-- View Report Modal (Teleported to body) -->
     <template x-teleport="body">
-        <div x-show="viewModalOpen" style="display: none;" class="fixed inset-0 z-[100] flex items-center justify-center">
+        <div x-show="viewModalOpen" data-nexus-modal x-effect="window.nexusLockModalScroll(viewModalOpen, 'admin-report')" style="display: none;" class="fixed inset-0 z-[200] flex items-center justify-center p-4 overscroll-contain">
             <!-- Backdrop -->
             <div class="absolute inset-0 bg-black/70 backdrop-blur-sm" @click="dismissReport()" x-show="viewModalOpen" x-transition.opacity></div>
             
             <!-- Modal Content -->
-            <div class="relative bg-[#0a0a0f] border border-white/10 rounded-2xl p-8 max-w-lg w-full shadow-2xl"
+            <div class="relative bg-[#0a0a0f] border border-white/10 rounded-2xl p-8 max-w-lg w-full shadow-2xl max-h-[90vh] overflow-y-auto"
                 x-show="viewModalOpen"
                 x-transition:enter="transition ease-out duration-300"
                 x-transition:enter-start="opacity-0 translate-y-8 scale-95"
