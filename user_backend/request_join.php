@@ -161,7 +161,7 @@ try {
         'room_id' => $roomId,
         'request_id' => $requestId,
         'request_status' => 'pending',
-        'time' => date('h:i A'),
+        'created_unix' => (int)$conn->query('SELECT UNIX_TIMESTAMP(created_at) FROM room_join_requests WHERE id = ' . (int)$requestId)->fetchColumn(),
         'avatar' => $media['avatar_url'] ?? '',
         'border' => $media['border_preview'] ?? '',
         'created_at' => date('Y-m-d H:i:s'),

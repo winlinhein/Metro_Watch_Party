@@ -12,6 +12,7 @@ session_write_close();
 
 require_once __DIR__ . '/../conn.php';
 require_once __DIR__ . '/../poster_helper.php';
+require_once __DIR__ . '/../presence_helper.php';
 require_once __DIR__ . '/../schema_upgrade_helper.php';
 require_once __DIR__ . '/../premium_benefits_helper.php';
 ensureAppSchema($conn);
@@ -40,7 +41,10 @@ try {
     $watchlist = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
     foreach ($watchlist as &$item) {
-        $item['year'] = !empty($item['created_at']) ? date('Y', strtotime($item['created_at'])) : 'N/A';
+        $uploaded = !empty($item['created_at']) ? strtotime($item['created_at'] . ' UTC') : false;
+        $item['year'] = $uploaded
+            ? gmdate('Y', $uploaded + (nexusViewerOffsetMinutes() * 60))
+            : 'N/A';
         $item['rating'] = 'N/A';
         $item['genre'] = !empty($item['genre']) ? $item['genre'] : 'Movie';
         $item['status'] = 'Saved';

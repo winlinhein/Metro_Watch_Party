@@ -33,6 +33,7 @@ if ($method === 'GET') {
     try {
         ensureAppSchema($conn);
         ensureUserLastSeenColumn($conn);
+        $lastLoginSql = nexusLastLoginUnixSql('u.user_id');
         $sql = "
             SELECT 
                 u.user_id AS id,
@@ -45,6 +46,7 @@ if ($method === 'GET') {
                 u.role_id,
                 u.avatar_url,
                 u.last_seen,
+                {$lastLoginSql},
                 r.role AS role_name
             FROM users u
             LEFT JOIN roles r ON u.role_id = r.role_id
@@ -75,6 +77,7 @@ if ($method === 'GET') {
                 'border_preview' => $u['border_preview'] ?? '',
                 'border_id'      => (int)($u['border_id'] ?? 0),
                 'is_online'      => onlineFlagFromLastSeen($u['last_seen'] ?? null),
+                'last_login_unix'=> isset($u['last_login_unix']) ? (int)$u['last_login_unix'] : null,
             ];
         }, $rawUsers);
 

@@ -716,6 +716,7 @@ session_write_close();
                                     </div>
                                     <div class="min-w-0 flex-1 cursor-pointer" @click.stop="toggleDropdown(friend, $event)">
                                         <h4 class="text-xs font-semibold text-white/90 truncate" x-text="friend.user_name"></h4>
+                                        <p class="text-[9px] text-white/35 truncate" x-text="formatLastLogin(friend.last_login_unix)"></p>
                                     </div>
                                 </div>
                                 
@@ -768,6 +769,7 @@ session_write_close();
                                     <div class="min-w-0 flex-1 cursor-pointer" @click.stop="toggleDropdown(req, $event)">
                                         <h4 class="text-xs font-semibold text-white truncate" x-text="req.user_name"></h4>
                                         <p class="text-[9px] text-yellow-400 uppercase font-mono tracking-wider">Added you</p>
+                                        <p class="text-[9px] text-white/35 truncate" x-text="formatLastLogin(req.last_login_unix)"></p>
                                     </div>
                                 </div>
                             </div>
@@ -872,6 +874,7 @@ session_write_close();
                             <div class="min-w-0 flex-1 cursor-pointer" @click.stop="toggleDropdown(user, $event)">
                                 <h4 class="text-xs font-bold text-white truncate" x-text="user.user_name"></h4>
                                 <p class="text-[10px] text-white/40 truncate" x-text="user.email"></p>
+                                <p class="text-[9px] text-white/35 truncate" x-text="formatLastLogin(user.last_login_unix)"></p>
                             </div>
                         </div>
 

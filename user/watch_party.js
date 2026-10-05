@@ -1,3 +1,47 @@
+(function () {
+    try {
+        var mins = -new Date().getTimezoneOffset();
+        document.cookie = 'nexus_tz_offset=' + mins + ';path=/;max-age=31536000;SameSite=Lax';
+    } catch (e) {}
+})();
+
+if (!window.nexusFormatClock) {
+    window.nexusFormatClock = function (input) {
+        if (input === null || input === undefined || input === '') return null;
+        if (input instanceof Date) return isNaN(input.getTime()) ? null : input;
+        if (typeof input === 'number' || (typeof input === 'string' && /^\d+$/.test(String(input).trim()))) {
+            const n = Number(input);
+            const date = new Date(n < 1e12 ? n * 1000 : n);
+            return isNaN(date.getTime()) ? null : date;
+        }
+        if (typeof input === 'string' && input.includes(' ') && !input.includes('T')) {
+            const date = new Date(input.trim().replace(' ', 'T') + 'Z');
+            return isNaN(date.getTime()) ? null : date;
+        }
+        const date = new Date(input);
+        return isNaN(date.getTime()) ? null : date;
+    };
+}
+
+if (!window.nexusFormatWhen) {
+    window.nexusFormatWhen = function (input, style) {
+        const date = window.nexusFormatClock(input);
+        if (!date) return '';
+        if (style === 'time') return date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+        if (style === 'date') return date.toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' });
+        return date.toLocaleString([], { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' });
+    };
+}
+
+function nexusRoomMessageTime(data) {
+    const stamp = data && (data.created_unix || data.sent_at || data.created_at);
+    if (stamp) {
+        const formatted = window.nexusFormatWhen(stamp, 'time');
+        if (formatted) return formatted;
+    }
+    return (data && data.time) || new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+}
+
 const NEXUS_ACTIVE_ROOM_KEY = 'nexus_active_room';
 
 function writeNexusActiveRoom(data) {
@@ -747,7 +791,7 @@ function watchParty() {
                 type: 'join_request',
                 name: data.sender_name || data.name || 'A friend',
                 text: data.message || data.text || 'wants to join the watch party.',
-                time: data.time || new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                time: nexusRoomMessageTime(data),
                 avatar: data.avatar_url || data.avatar || '',
                 border: data.border_preview || data.border || '',
                 senderId,
@@ -2551,7 +2595,7 @@ function watchParty() {
                 border = border || this.selfBorder();
             }
             if (!avatar) avatar = this.resolveAvatarUrl('', name);
-            return { ...data, name, avatar, border };
+            return { ...data, name, avatar, border, time: nexusRoomMessageTime(data) };
         },
 
         hydrateRoomChat(rows) {
@@ -2618,7 +2662,7 @@ function watchParty() {
                 text,
                 type: file ? 'image' : 'text',
                 image_url: localPreview || null,
-                time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                time: new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }),
                 avatar: this.selfAvatar(),
                 border: this.selfBorder(),
                 isSelf: true,
@@ -2651,6 +2695,10 @@ function watchParty() {
                     msg.id = data.data.id || msg.id;
                     msg.image_url = data.data.image_url || msg.image_url;
                     msg.type = data.data.type || msg.type;
+                    if (data.data.created_unix) {
+                        msg.created_unix = data.data.created_unix;
+                        msg.time = window.nexusFormatWhen(data.data.created_unix, 'time') || msg.time;
+                    }
                     livePayload = { ...msg, ...data.data, isSelf: false };
                 } else if (file) {
                     this.messages = this.messages.filter((m) => m !== msg);

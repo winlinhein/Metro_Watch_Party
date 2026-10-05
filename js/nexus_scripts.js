@@ -45,6 +45,62 @@ window.nexusLockModalScroll = (function () {
     };
 })();
 
+window.nexusFormatClock = function (input) {
+    if (input === null || input === undefined || input === '') return null;
+    if (input instanceof Date) return isNaN(input.getTime()) ? null : input;
+    if (typeof input === 'number' || (typeof input === 'string' && /^\d+$/.test(input.trim()))) {
+        const n = Number(input);
+        const date = new Date(n < 1e12 ? n * 1000 : n);
+        return isNaN(date.getTime()) ? null : date;
+    }
+    if (typeof input === 'string' && input.includes(' ') && !input.includes('T')) {
+        const date = new Date(input.trim().replace(' ', 'T') + 'Z');
+        return isNaN(date.getTime()) ? null : date;
+    }
+    const date = new Date(input);
+    return isNaN(date.getTime()) ? null : date;
+};
+
+(function () {
+    try {
+        var mins = -new Date().getTimezoneOffset();
+        document.cookie = 'nexus_tz_offset=' + mins + ';path=/;max-age=31536000;SameSite=Lax';
+    } catch (e) {}
+})();
+
+window.nexusFormatWhen = function (input, style) {
+    const date = window.nexusFormatClock(input);
+    if (!date) return '';
+    if (style === 'time') {
+        return date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+    }
+    if (style === 'date') {
+        return date.toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' });
+    }
+    return date.toLocaleString([], {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+        hour: 'numeric',
+        minute: '2-digit'
+    });
+};
+
+window.nexusFormatLastLogin = function (unix, withLabel) {
+    const date = window.nexusFormatClock(unix);
+    const label = withLabel === false ? '' : 'Last login · ';
+    if (!date) return withLabel === false ? 'Never' : 'No login yet';
+    const now = new Date();
+    const sameDay = date.toDateString() === now.toDateString();
+    const yesterday = new Date(now);
+    yesterday.setDate(now.getDate() - 1);
+    const time = date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+    if (sameDay) return label + time;
+    if (date.toDateString() === yesterday.toDateString()) return label + 'Yesterday ' + time;
+    const day = date.toLocaleDateString([], { month: 'short', day: 'numeric' });
+    return label + day + ', ' + time;
+};
+
 var NEXUS_ACTIVE_ROOM_KEY = 'nexus_active_room';
 
 function pickTrendingMovies(movies, limit) {
@@ -80,9 +136,7 @@ function pickTrendingMovies(movies, limit) {
 }
 
 function parsePremiumEndDate(raw) {
-    if (!raw) return null;
-    const date = new Date(String(raw).replace(' ', 'T'));
-    return Number.isNaN(date.getTime()) ? null : date;
+    return window.nexusFormatClock(raw);
 }
 
 function formatPremiumCountdown(end) {
@@ -1052,7 +1106,8 @@ function userDashboard() {
             let genres = m.genres;
             if (typeof genres === 'string') genres = genres.split(',').map(s => s.trim()).filter(Boolean);
             if (!Array.isArray(genres)) genres = [];
-            const year = m.year || (m.created_at ? new Date(m.created_at).getFullYear() : 2024);
+            const uploaded = m.created_at ? window.nexusFormatClock(m.created_at) : null;
+            const year = m.year || (uploaded ? uploaded.getFullYear() : 2024);
             return {
                 ...m,
                 genres,
@@ -1375,7 +1430,9 @@ function userDashboard() {
                 if (!this.watchlist.find(w => (w.id || w.movie_id) === movieId)) {
                     this.watchlist = [{
                         ...movie,
-                        year: movie.created_at ? new Date(movie.created_at).getFullYear() : "2024",
+                        year: (movie.created_at && window.nexusFormatClock(movie.created_at))
+                            ? window.nexusFormatClock(movie.created_at).getFullYear()
+                            : "2024",
                         genre: movie.genres && movie.genres.length > 0 ? movie.genres[0] : (movie.genre || "Movie"),
                         rating: movie.rating ? movie.rating + " / 5" : "N/A",
                         status: "Next Up",
@@ -1818,6 +1875,10 @@ function userDashboard() {
         isUserOnline(user) {
             if (!user) return false;
             return Number(user.is_online) === 1 || user.is_online === true;
+        },
+
+        formatLastLogin(unix, withLabel) {
+            return window.nexusFormatLastLogin(unix, withLabel);
         },
 
         get onlineFriendsCount() {
@@ -2871,21 +2932,9 @@ function userDashboard() {
         
         // 1. Time Formatting Helper (Uniform Time Display)
         formatTime(timeInput) {
-            if (!timeInput) return '';
-            
-            if (typeof timeInput === 'string' && /^([0-1]?[0-9]|2[0-3]):[0-5][0-9]\s?(AM|PM)?$/i.test(timeInput.trim())) {
-                return timeInput.trim();
-            }
-
-            let parsableTime = timeInput;
-            if (typeof timeInput === 'string' && timeInput.includes(' ') && !timeInput.includes('T')) {
-                parsableTime = timeInput.replace(' ', 'T') + 'Z'; 
-            }
-
-            const date = new Date(parsableTime);
-            if (isNaN(date.getTime())) return timeInput;
-
-            return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            const date = window.nexusFormatClock(timeInput);
+            if (!date) return '';
+            return date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
         },
 
         // Add activeSubscriptions to your state object at the top:
@@ -2931,7 +2980,7 @@ function userDashboard() {
                 text: msg.message_text || msg.text || '',
                 message_type: msg.message_type || 'text',
                 image_url: msg.image_url ? this.resolveMediaUrl(msg.image_url) : null,
-                time: this.formatTime(msg.time || msg.created_at || new Date()),
+                time: this.formatTime(msg.created_unix || msg.created_at || new Date()),
                 is_read: msg.is_read
             };
         },
@@ -6774,7 +6823,8 @@ function adminDashboard(userData = {}) {
             if (pending) return pending;
             this.statsLoading = true;
             try {
-                const response = await fetch('/backend/dashboard_stats_api.php');
+                const tzOffset = -new Date().getTimezoneOffset();
+                const response = await fetch('/backend/dashboard_stats_api.php?tz_offset=' + encodeURIComponent(tzOffset));
                 const text = await response.text();
 
                 try {
@@ -6838,6 +6888,10 @@ function adminDashboard(userData = {}) {
         isUserOnline(user) {
             if (!user) return false;
             return Number(user.is_online) === 1 || user.is_online === true;
+        },
+
+        formatLastLogin(unix, withLabel) {
+            return window.nexusFormatLastLogin(unix, withLabel);
         },
 
         applyOnlineIds(ids) {

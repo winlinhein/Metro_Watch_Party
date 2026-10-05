@@ -18,6 +18,7 @@ session_write_close();
 
 try {
     ensureUserLastSeenColumn($conn);
+    $lastLoginSql = nexusLastLoginUnixSql('u.user_id');
     if ($query === '') {
         $stmt = $conn->prepare("
             SELECT 
@@ -26,6 +27,7 @@ try {
                 u.email, 
                 u.is_premium,
                 u.last_seen,
+                {$lastLoginSql},
                 f.status AS friend_status,
                 f.user_id_1 AS requester_id
             FROM users u
@@ -48,6 +50,7 @@ try {
                 u.email, 
                 u.is_premium,
                 u.last_seen,
+                {$lastLoginSql},
                 f.status AS friend_status,
                 f.user_id_1 AS requester_id
             FROM users u

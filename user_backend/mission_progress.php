@@ -2,12 +2,13 @@
 // /user_backend/mission_progress.php
 require_once __DIR__ . '/../conn.php';
 require_once __DIR__ . '/../pusher_helper.php';
+require_once __DIR__ . '/../presence_helper.php';
 
 /**
  * Get the current cycle key (e.g., '2025-03-15' for daily, '2025-11' for weekly, '2025-03' for monthly)
  */
 function getCurrentCycleKey(string $cycleType): string {
-    $today = new DateTime();
+    $today = nexusViewerNow();
     switch ($cycleType) {
         case 'daily':
             return $today->format('Y-m-d');
@@ -127,6 +128,7 @@ function nexusRecordDailyLoginVisit(PDO $conn, int $userId): void
         return;
     }
     try {
+        $offset = nexusViewerOffsetMinutes();
         $stmt = $conn->prepare("
             INSERT INTO login_history (user_id, status)
             SELECT ?, 'success'
@@ -135,8 +137,8 @@ function nexusRecordDailyLoginVisit(PDO $conn, int $userId): void
                 SELECT 1 FROM login_history
                 WHERE user_id = ?
                   AND status = 'success'
-                  AND created_at >= CURDATE()
-                  AND created_at < DATE_ADD(CURDATE(), INTERVAL 1 DAY)
+                  AND DATE(DATE_ADD(attempted_at, INTERVAL {$offset} MINUTE))
+                      = DATE(DATE_ADD(UTC_TIMESTAMP(), INTERVAL {$offset} MINUTE))
             )
         ");
         $stmt->execute([$userId, $userId]);

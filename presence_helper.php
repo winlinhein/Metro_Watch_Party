@@ -20,6 +20,37 @@ function ensureUserLastSeenColumn(PDO $conn): void
     $ready = true;
 }
 
+function nexusLastLoginUnixSql(string $userIdColumn): string
+{
+    return "(SELECT UNIX_TIMESTAMP(MAX(lh.attempted_at))
+        FROM login_history lh
+        WHERE lh.user_id = {$userIdColumn}
+          AND lh.status = 'success') AS last_login_unix";
+}
+
+function nexusViewerOffsetMinutes(): int
+{
+    $raw = $_GET['tz_offset'] ?? ($_COOKIE['nexus_tz_offset'] ?? null);
+    if ($raw === null || $raw === '') {
+        return 0;
+    }
+    $minutes = (int)$raw;
+    if ($minutes < -840 || $minutes > 840) {
+        return 0;
+    }
+    return $minutes;
+}
+
+function nexusViewerNow(): DateTimeImmutable
+{
+    $utc = new DateTimeImmutable('now', new DateTimeZone('UTC'));
+    $offset = nexusViewerOffsetMinutes();
+    if ($offset === 0) {
+        return $utc;
+    }
+    return $utc->modify(sprintf('%+d minutes', $offset));
+}
+
 function broadcastPresence(int $userId, bool $online): void
 {
     if ($userId <= 0) {

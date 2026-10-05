@@ -90,7 +90,7 @@
                         <tr class="hover:bg-white/5 border-b border-white/5 transition-colors group">
                             <td class="p-5">
                                 <div class="font-bold text-white mono mb-0.5" x-text="report.id"></div>
-                                <div class="text-xs text-white/40" x-text="report.date"></div>
+                                <div class="text-xs text-white/40" x-text="window.nexusFormatWhen(report.created_unix || report.created_at, 'date') || report.date"></div>
                             </td>
                             <td class="p-5 font-medium text-white/70" x-text="report.user"></td>
                             <td class="p-5">
@@ -228,7 +228,7 @@
                                             <div class="w-7 h-7 rounded-full bg-gradient-to-tr from-indigo-500 to-purple-600 flex items-center justify-center font-bold text-xs text-white uppercase"
                                                 x-text="reportCommentDetails.user_name ? reportCommentDetails.user_name.charAt(0) : 'U'"></div>
                                             <span class="text-white font-medium text-sm" x-text="reportCommentDetails.user_name"></span>
-                                            <span class="text-white/40 text-xs" x-text="new Date(reportCommentDetails.created_at).toLocaleString()"></span>
+                                            <span class="text-white/40 text-xs" x-text="window.nexusFormatWhen(reportCommentDetails.created_unix || reportCommentDetails.created_at, 'datetime')"></span>
                                         </div>
                                         <p class="text-white/90 text-sm leading-relaxed" x-text="reportCommentDetails.comment_text"></p>
                                         <div class="flex items-center gap-2 text-xs text-white/40">

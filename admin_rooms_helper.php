@@ -28,7 +28,12 @@ function sweepAbandonedRooms(PDO $conn): void
     }
 
     try {
-        $rooms = $conn->query("SELECT room_id, host_id, created_at FROM rooms WHERE status = 'active'")->fetchAll(PDO::FETCH_ASSOC);
+        $rooms = $conn->query("
+            SELECT room_id, host_id, created_at,
+                   (created_at > DATE_SUB(NOW(), INTERVAL 20 SECOND)) AS is_fresh
+            FROM rooms
+            WHERE status = 'active'
+        ")->fetchAll(PDO::FETCH_ASSOC);
     } catch (Throwable $ignore) {
         return;
     }
@@ -55,8 +60,7 @@ function sweepAbandonedRooms(PDO $conn): void
         }
 
         if ($count === 0) {
-            $createdTs = strtotime((string)($room['created_at'] ?? ''));
-            if ($createdTs && $createdTs > time() - 20) {
+            if (!empty($room['is_fresh'])) {
                 continue;
             }
             closeWatchPartyRoom($conn, $roomId, [

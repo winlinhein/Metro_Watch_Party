@@ -40,7 +40,7 @@
                     </p>
                     <span class="text-white/30 text-[10px] mono mt-1 flex items-center gap-1">
                         <span class="material-symbols-outlined text-[12px]">schedule</span>
-                        <span x-text="notif.time || notif.created_at"></span>
+                        <span x-text="window.nexusFormatWhen(notif.created_unix || notif.created_at, 'datetime') || notif.time || ''"></span>
                     </span>
                 </div>
                 <div class="relative z-10 flex flex-col items-center gap-2 shrink-0">

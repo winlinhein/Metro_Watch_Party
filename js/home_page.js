@@ -1,6 +1,11 @@
 (function () {
     'use strict';
 
+    try {
+        var mins = -new Date().getTimezoneOffset();
+        document.cookie = 'nexus_tz_offset=' + mins + ';path=/;max-age=31536000;SameSite=Lax';
+    } catch (e) {}
+
     let homeCtx = null;
     let featuredTween = null;
 
@@ -548,7 +553,15 @@
 
     function parsePremiumEnd(raw) {
         if (!raw) return null;
-        const normalized = String(raw).replace(' ', 'T');
+        const text = String(raw).trim();
+        if (/^\d+$/.test(text)) {
+            const n = Number(text);
+            const date = new Date(n < 1e12 ? n * 1000 : n);
+            return Number.isNaN(date.getTime()) ? null : date;
+        }
+        const normalized = text.includes(' ') && !text.includes('T')
+            ? text.replace(' ', 'T') + 'Z'
+            : text;
         const date = new Date(normalized);
         return Number.isNaN(date.getTime()) ? null : date;
     }

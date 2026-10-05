@@ -18,6 +18,7 @@ require_once __DIR__ . '/../presence_helper.php';
 
 try {
     ensureUserLastSeenColumn($conn);
+    $lastLoginSql = nexusLastLoginUnixSql('u.user_id');
     $friendsStmt = $conn->prepare("
         SELECT 
             u.user_id, 
@@ -26,6 +27,7 @@ try {
             u.is_premium,
             uf.status,
             u.last_seen,
+            {$lastLoginSql},
             (
                 SELECT COUNT(*)
                 FROM friends_message m
@@ -57,7 +59,8 @@ try {
             u.user_name, 
             u.email, 
             u.is_premium,
-            u.last_seen
+            u.last_seen,
+            {$lastLoginSql}
         FROM user_friends uf
         JOIN users u ON u.user_id = uf.user_id_1
         WHERE uf.user_id_2 = :current_id AND uf.status = 'pending'

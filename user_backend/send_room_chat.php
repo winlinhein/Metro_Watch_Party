@@ -112,6 +112,9 @@ try {
         'image_url' => $imageUrl,
     ]);
     $messageId = (int)$conn->lastInsertId();
+    $timeStmt = $conn->prepare('SELECT UNIX_TIMESTAMP(sent_at) FROM room_messages WHERE message_id = ?');
+    $timeStmt->execute([$messageId]);
+    $createdUnix = (int)$timeStmt->fetchColumn();
 
     $media = ['avatar_url' => '', 'border_preview' => ''];
     try {
@@ -126,7 +129,7 @@ try {
         'text' => $messageText,
         'type' => $messageType,
         'image_url' => $imageUrl,
-        'time' => date('g:i A'),
+        'created_unix' => $createdUnix,
         'avatar' => $media['avatar_url'] ?? '',
         'border' => $media['border_preview'] ?? '',
     ];

@@ -262,7 +262,7 @@
                                                 </div>
                                                 <div>
                                                     <p class="font-bold text-xs text-white" x-text="comment.user_name"></p>
-                                                    <p class="text-[10px] text-white/40 font-mono" x-text="new Date(comment.created_at).toLocaleString()"></p>
+                                                    <p class="text-[10px] text-white/40 font-mono" x-text="window.nexusFormatWhen(comment.created_unix || comment.created_at, 'datetime')"></p>
                                                 </div>
                                             </div>
                                             <button @click="deleteComment(comment.id)"
@@ -321,7 +321,7 @@
                                                             <span class="material-symbols-outlined text-[12px]">favorite</span>
                                                             <span x-text="reply.likes_count || 0"></span>
                                                         </span>
-                                                        <span x-text="new Date(reply.created_at).toLocaleString()"></span>
+                                                        <span x-text="window.nexusFormatWhen(reply.created_unix || reply.created_at, 'datetime')"></span>
                                                     </div>
                                                 </div>
                                             </template>

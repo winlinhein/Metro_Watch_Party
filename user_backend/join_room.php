@@ -60,17 +60,6 @@ try {
         exit;
     }
 
-    $conn->prepare("
-        DELETE FROM room_participants
-        WHERE room_id = :room_id
-          AND (last_seen < DATE_SUB(NOW(), INTERVAL 45 SECOND)
-               OR (user_id = :user_id AND peer_id <> :peer_id))
-    ")->execute([
-        'room_id' => $roomId,
-        'user_id' => $userId,
-        'peer_id' => $peerId,
-    ]);
-
     $existsStmt = $conn->prepare("SELECT 1 FROM room_participants WHERE peer_id = :peer_id LIMIT 1");
     $existsStmt->execute(['peer_id' => $peerId]);
     $alreadyThere = (bool)$existsStmt->fetchColumn();
@@ -82,6 +71,20 @@ try {
             room_id = VALUES(room_id),
             user_id = VALUES(user_id),
             last_seen = NOW()
+    ")->execute([
+        'room_id' => $roomId,
+        'user_id' => $userId,
+        'peer_id' => $peerId,
+    ]);
+
+    $conn->prepare("
+        DELETE FROM room_participants
+        WHERE room_id = :room_id
+          AND peer_id <> :peer_id
+          AND (
+                last_seen < DATE_SUB(NOW(), INTERVAL 45 SECOND)
+                OR user_id = :user_id
+          )
     ")->execute([
         'room_id' => $roomId,
         'user_id' => $userId,

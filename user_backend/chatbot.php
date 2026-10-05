@@ -37,6 +37,7 @@ if ($message === '') {
 require_once __DIR__ . '/../conn.php';
 require_once __DIR__ . '/../poster_helper.php';
 require_once __DIR__ . '/../premium_status_helper.php';
+require_once __DIR__ . '/../presence_helper.php';
 
 $q = normalizeChatQuery($message);
 $result = handleChatIntent($conn, $q, $message, $context, [
@@ -150,7 +151,12 @@ function handleChatIntent(PDO $conn, string $q, string $original, array $context
             try {
                 $premium = resolveUserPremium($conn, $user['user_id']);
                 if (!empty($premium['is_premium'])) {
-                    $until = $premium['premium_expires_at'] ?? '';
+                    $untilRaw = (string)($premium['premium_expires_at'] ?? '');
+                    $until = $untilRaw;
+                    $untilTs = $untilRaw !== '' ? strtotime($untilRaw . ' UTC') : false;
+                    if ($untilTs) {
+                        $until = gmdate('M j, Y g:i A', $untilTs + (nexusViewerOffsetMinutes() * 60));
+                    }
                     $extra = $until
                         ? "\n\nYour Premium is on through {$until}. You can manage it from the Premium tab."
                         : "\n\nYou already have Premium active.";

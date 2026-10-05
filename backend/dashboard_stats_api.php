@@ -16,6 +16,7 @@ if (
 header('Content-Type: application/json');
 session_write_close();
 require_once __DIR__ . '/../conn.php';
+require_once __DIR__ . '/../presence_helper.php';
 
 function formatChange(float $current, float $previous): string
 {
@@ -53,18 +54,21 @@ function paymentAmountToDollars(float $amount): float
     return $amount;
 }
 
-function buildDailyChartSeries(PDO $conn, int $days, string $type): array
+function buildDailyChartSeries(PDO $conn, int $days, string $type, int $offsetMinutes): array
 {
     $map = [];
     $span = max(0, $days - 1);
+    $offset = max(-840, min(840, $offsetMinutes));
+    $lookback = $span + 2;
     try {
         if ($type === 'revenue') {
             $stmt = $conn->query(
-                "SELECT DATE(created_at) AS bucket, COALESCE(SUM(amount), 0) AS total
+                "SELECT DATE(DATE_ADD(created_at, INTERVAL {$offset} MINUTE)) AS bucket,
+                        COALESCE(SUM(amount), 0) AS total
                  FROM payment_transactions
                  WHERE status = 'success'
-                   AND created_at >= DATE_SUB(CURDATE(), INTERVAL {$span} DAY)
-                 GROUP BY DATE(created_at)"
+                   AND created_at >= DATE_SUB(UTC_TIMESTAMP(), INTERVAL {$lookback} DAY)
+                 GROUP BY bucket"
             );
             foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
                 $map[(string)$row['bucket']] = paymentAmountToDollars((float)$row['total']);
@@ -73,14 +77,14 @@ function buildDailyChartSeries(PDO $conn, int $days, string $type): array
             $stmt = $conn->query(
                 "SELECT bucket, COUNT(*) AS total
                  FROM (
-                    SELECT user_id, DATE(created_at) AS bucket
+                    SELECT user_id, DATE(DATE_ADD(attempted_at, INTERVAL {$offset} MINUTE)) AS bucket
                     FROM login_history
                     WHERE status = 'success'
-                      AND created_at >= DATE_SUB(CURDATE(), INTERVAL {$span} DAY)
+                      AND attempted_at >= DATE_SUB(UTC_TIMESTAMP(), INTERVAL {$lookback} DAY)
                     UNION
-                    SELECT user_id, DATE(created_at) AS bucket
+                    SELECT user_id, DATE(DATE_ADD(created_at, INTERVAL {$offset} MINUTE)) AS bucket
                     FROM persistent_session
-                    WHERE created_at >= DATE_SUB(CURDATE(), INTERVAL {$span} DAY)
+                    WHERE created_at >= DATE_SUB(UTC_TIMESTAMP(), INTERVAL {$lookback} DAY)
                  ) daily_logins
                  GROUP BY bucket"
             );
@@ -94,8 +98,9 @@ function buildDailyChartSeries(PDO $conn, int $days, string $type): array
 
     $series = [];
     $values = [];
+    $localToday = nexusViewerNow()->setTime(0, 0);
     for ($i = $days - 1; $i >= 0; $i--) {
-        $date = (new DateTimeImmutable('today'))->modify('-' . $i . ' days');
+        $date = $localToday->modify('-' . $i . ' days');
         $key = $date->format('Y-m-d');
         $value = (float)($map[$key] ?? 0);
         $values[] = $value;
@@ -212,8 +217,9 @@ try {
         ],
     ];
 
-    $revenue30 = buildDailyChartSeries($conn, 30, 'revenue');
-    $logins30 = buildDailyChartSeries($conn, 30, 'logins');
+    $tzOffset = nexusViewerOffsetMinutes();
+    $revenue30 = buildDailyChartSeries($conn, 30, 'revenue', $tzOffset);
+    $logins30 = buildDailyChartSeries($conn, 30, 'logins', $tzOffset);
     $charts = [
         '7' => [
             'revenue' => rescaleChartSeries(array_slice($revenue30, -7), 'revenue'),

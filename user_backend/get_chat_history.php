@@ -23,7 +23,7 @@ try {
     $stmt = $conn->prepare("
         SELECT message_id, sender_id, receiver_id, message_text, is_read,
                message_type, image_url,
-               DATE_FORMAT(created_at, '%h:%i %p') AS time 
+               UNIX_TIMESTAMP(created_at) AS created_unix 
         FROM friends_message 
         WHERE (sender_id = :user_id_1 AND receiver_id = :friend_id_1)
            OR (sender_id = :friend_id_2 AND receiver_id = :user_id_2)

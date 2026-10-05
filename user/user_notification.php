@@ -103,7 +103,7 @@
                             </button>
                         </div>
 
-                        <p class="text-[9px] text-white/40 uppercase tracking-widest mt-1.5 font-mono" x-text="notif.created_at"></p>
+                        <p class="text-[9px] text-white/40 uppercase tracking-widest mt-1.5 font-mono" x-text="window.nexusFormatWhen(notif.created_unix || notif.created_at, 'datetime') || notif.time || ''"></p>
                     </div>
 
                     <div class="flex flex-col items-center gap-2 shrink-0">

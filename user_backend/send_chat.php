@@ -70,9 +70,10 @@ if ($messageType === 'text' && empty($messageText)) {
 try {
     $stmt = $conn->prepare("INSERT INTO friends_message (sender_id, receiver_id, message_text, message_type, image_url) VALUES (?, ?, ?, ?, ?)");
     $stmt->execute([$senderId, $receiverId, $messageText, $messageType, $imageUrl]);
-    $messageId = $conn->lastInsertId();
-
-    $time = date('h:i A');
+    $messageId = (int)$conn->lastInsertId();
+    $timeStmt = $conn->prepare("SELECT UNIX_TIMESTAMP(created_at) FROM friends_message WHERE message_id = ?");
+    $timeStmt->execute([$messageId]);
+    $createdUnix = (int)$timeStmt->fetchColumn();
 
     $minId = min($senderId, $receiverId);
     $maxId = max($senderId, $receiverId);
@@ -85,7 +86,7 @@ try {
         'message_text' => $messageText,
         'message_type' => $messageType,
         'image_url'    => $imageUrl,
-        'time'         => $time
+        'created_unix' => $createdUnix
     ];
 
     jsonRespondAndContinue(['success' => true, 'data' => $payload]);

@@ -73,6 +73,10 @@
                         </th>
 
                         <th class="p-5 text-xs font-bold text-white/50 uppercase tracking-wider">
+                            Last login
+                        </th>
+
+                        <th class="p-5 text-xs font-bold text-white/50 uppercase tracking-wider">
                             Points
                         </th>
 
@@ -205,6 +209,10 @@
 
                             </td>
 
+                            <td class="p-5 text-white/55 text-xs font-medium">
+                                <span x-text="formatLastLogin(user.last_login_unix, false)"></span>
+                            </td>
+
                             <td class="p-5 text-white/80 font-bold mono relative">
 
                                 <span x-text="user.points"></span>
@@ -300,7 +308,7 @@
                         style="display: none;"
                     >
                         <td
-                            colspan="5"
+                            colspan="6"
                             class="p-10 text-center text-white/40"
                         >
                             <div class="flex flex-col items-center justify-center">

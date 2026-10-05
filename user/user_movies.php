@@ -107,7 +107,7 @@
                                       class="px-2 py-0.5 rounded text-[10px] font-bold tracking-wider uppercase border border-white/10 text-white/50 bg-white/5 shrink-0"
                                       x-text="'+' + ((movie.genres || []).length - 2)"></span>
                             </div>
-                            <span class="text-[11px] text-white/40 font-bold mono shrink-0" x-text="formatMovieDuration(movie.duration) || (movie.created_at ? new Date(movie.created_at).getFullYear() : '')"></span>
+                            <span class="text-[11px] text-white/40 font-bold mono shrink-0" x-text="formatMovieDuration(movie.duration) || ((movie.created_at && window.nexusFormatClock(movie.created_at)) ? window.nexusFormatClock(movie.created_at).getFullYear() : '')"></span>
                         </div>
                     </div>
                 </div>
@@ -359,7 +359,7 @@
                                                     </div>
                                                 </div>
                                                 <div class="flex items-center gap-2">
-                                                    <span class="text-[10px] text-white/40" x-text="comment.created_at || ''"></span>
+                                                    <span class="text-[10px] text-white/40" x-text="window.nexusFormatWhen(comment.created_unix || comment.created_at, 'datetime')"></span>
                                                     <button x-show="isOwnComment(comment)" @click="deleteOwnComment(comment.id || comment.comment_id)" class="opacity-0 group-hover:opacity-100 text-white/30 hover:text-red-400 transition-all focus:opacity-100" title="Delete Comment">
                                                         <span class="material-symbols-outlined text-[16px]">delete</span>
                                                     </button>
@@ -439,7 +439,7 @@
                                                                 <span class="text-[11px] font-bold text-white/90" x-text="reply.user_name || 'User'"></span>
                                                             </div>
                                                             <div class="flex items-center gap-2">
-                                                                <span class="text-[9px] text-white/30" x-text="reply.created_at || ''"></span>
+                                                                <span class="text-[9px] text-white/30" x-text="window.nexusFormatWhen(reply.created_unix || reply.created_at, 'datetime')"></span>
                                                                 <button x-show="isOwnComment(reply)" @click="deleteOwnComment(reply.id || reply.comment_id)" class="opacity-0 group-hover:opacity-100 text-white/30 hover:text-red-400 transition-all focus:opacity-100" title="Delete Reply">
                                                                     <span class="material-symbols-outlined text-[14px]">delete</span>
                                                                 </button>
