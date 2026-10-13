@@ -110,7 +110,7 @@ session_write_close();
     </script>
     
     <script src="../js/user_theme_colors.js?v=4"></script>
-    <script src="https://cdn.tailwindcss.com/3.4.17"></script>
+    <script src="https://cdn.jsdelivr.net/npm/tailwindcss-cdn@3.4.10/tailwindcss.js"></script>
     <script>
         tailwind.config = {
             theme: {
@@ -244,7 +244,7 @@ session_write_close();
         document.write('<script src="https://cdn.jsdelivr.net/npm/socket.io-client@4.7.5/dist/socket.io.min.js"><\/script>');
     }
 </script>
-<script src="https://unpkg.com/htmx.org@1.9.10/dist/htmx.min.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/htmx.org@1.9.10/dist/htmx.min.js" crossorigin="anonymous"></script>
 
 <!-- 2. Your Custom Scripts Last -->
 <script src="../js/chat_emojis.js?v=1"></script>

@@ -10,7 +10,7 @@ require_once __DIR__ . '/components/otp_boot.php';
     <?php include __DIR__ . '/components/head_boot.php'; ?>
     <title>Password Reset OTP - Nexus</title>
     <!-- Tailwind CSS (Play CDN) -->
-    <script src="https://cdn.tailwindcss.com/3.4.17"></script>
+    <script src="https://cdn.jsdelivr.net/npm/tailwindcss-cdn@3.4.10/tailwindcss.js"></script>
     
     <!-- Google Fonts & Material Symbols -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;900&display=swap" rel="stylesheet">

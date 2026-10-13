@@ -36,7 +36,7 @@ if ($sessionAuthed && $sessionUserId > 0 && in_array($sessionRole, ['user', 'adm
     <?php include __DIR__ . '/frontend/components/head_boot.php'; ?>
     <title>Nexus - Watch Movies Together</title>
     
-    <script src="https://cdn.tailwindcss.com/3.4.17"></script>
+    <script src="https://cdn.jsdelivr.net/npm/tailwindcss-cdn@3.4.10/tailwindcss.js"></script>
     <script>
         tailwind.config = {
             theme: {
@@ -435,7 +435,7 @@ if ($sessionAuthed && $sessionUserId > 0 && in_array($sessionRole, ['user', 'adm
 
     <link rel="stylesheet" href="https://cdn.plyr.io/3.7.8/plyr.css" />
     <script src="https://cdn.plyr.io/3.7.8/plyr.polyfilled.js"></script>
-    <script src="https://unpkg.com/htmx.org@1.9.10/dist/htmx.min.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/htmx.org@1.9.10/dist/htmx.min.js" crossorigin="anonymous"></script>
 </head>
 <body class="overflow-x-hidden" data-barba="wrapper">
     <?php include __DIR__ . '/frontend/components/page_loader.php'; ?>

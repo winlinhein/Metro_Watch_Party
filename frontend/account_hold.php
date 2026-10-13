@@ -47,7 +47,7 @@ $remainingSeconds = $deletionState ? max(0, (int)$deletionState['remaining_secon
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <?php include __DIR__ . '/components/head_boot.php'; ?>
     <title><?php echo $mode === 'banned' ? 'Account Banned' : 'Deletion Pending'; ?> - Nexus</title>
-    <script src="https://cdn.tailwindcss.com/3.4.17"></script>
+    <script src="https://cdn.jsdelivr.net/npm/tailwindcss-cdn@3.4.10/tailwindcss.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;900&display=swap" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet" />
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.1/dist/cdn.min.js" crossorigin="anonymous"></script>
