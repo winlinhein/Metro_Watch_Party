@@ -1331,7 +1331,7 @@ session_write_close();
 
     <?php include __DIR__ . '/../frontend/components/host_party_fab.php'; ?>
 
-    <div x-show="!showMovieDetailModal && !showChatPanel && !showFriendsPanel && !showQuestsPanel && !showInviteModal && !showRechargeModal" x-transition>
+    <div x-show="!showMovieDetailModal && !showChatPanel && !showFriendsPanel && !showQuestsPanel && !showInviteModal && !showRechargeModal && currentTab !== 'account'" x-transition>
         <?php include __DIR__ . '/../frontend/components/support_chatbot.php'; ?>
     </div>
 
