@@ -1,9 +1,14 @@
 <?php
 // /admin_backend/get_reports.php
+require_once __DIR__ . '/../error_response_helper.php';
 session_start();
 header('Content-Type: application/json');
 
-// Ensure user is an admin or moderator
+// Ensure the session completed the OTP step, and that the user is an admin or moderator
+if (empty($_SESSION['authenticated'])) {
+    echo json_encode(['error' => 'Unauthorized access.']);
+    exit;
+}
 $role = strtolower((string)($_SESSION['user_role'] ?? ''));
 if (empty($_SESSION['user_role']) || !in_array($role, ['admin', 'moderator'], true)) {
     echo json_encode(['error' => 'Unauthorized access.']);
@@ -147,6 +152,7 @@ try {
     echo json_encode(['success' => true, 'reports' => $formatted_reports]);
 
 } catch (Exception $e) {
-    echo json_encode(['success' => false, 'error' => 'Database error: ' . $e->getMessage()]);
+    nexusSafeError($e);
+    echo json_encode(['error' => 'Database error.']);
 }
 ?>

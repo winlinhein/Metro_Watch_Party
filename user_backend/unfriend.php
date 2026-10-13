@@ -1,5 +1,6 @@
 <?php
 // /user_backend/unfriend.php
+require_once __DIR__ . '/../error_response_helper.php';
 
 session_start();
 
@@ -47,5 +48,6 @@ try {
     }
 } catch (Throwable $e) {
     http_response_code(500);
-    echo json_encode(['success' => false, 'message' => 'Database error: ' . $e->getMessage()]);
+    nexusSafeError($e);
+    echo json_encode(['success' => false, 'message' => 'Database error.']);
 }

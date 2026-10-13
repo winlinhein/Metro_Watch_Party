@@ -1,5 +1,6 @@
 <?php
 // user_backend/get_notifications.php
+require_once __DIR__ . '/../error_response_helper.php';
 session_start();
 header('Content-Type: application/json');
 
@@ -81,5 +82,6 @@ try {
     echo json_encode(['success' => true, 'viewer_id' => $currentUserId, 'notifications' => $notifications]);
 } catch (PDOException $e) {
     http_response_code(500);
-    echo json_encode(['error' => $e->getMessage()]);
+    nexusSafeError($e);
+    echo json_encode(['error' => 'Database error.']);
 }

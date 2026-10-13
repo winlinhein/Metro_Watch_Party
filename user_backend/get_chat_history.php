@@ -1,5 +1,6 @@
 <?php
 session_start();
+require_once __DIR__ . '/../error_response_helper.php';
 header('Content-Type: application/json');
 
 if (empty($_SESSION['user_id'])) {
@@ -55,6 +56,7 @@ try {
         'messages' => $messages ?: []
     ]);
 } catch (PDOException $e) {
-    echo json_encode(['success' => false, 'message' => 'Database error: ' . $e->getMessage()]);
+    nexusSafeError($e);
+    echo json_encode(['success' => false, 'message' => 'Database error.']);
 }
 exit();

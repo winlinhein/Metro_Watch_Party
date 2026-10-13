@@ -1,5 +1,6 @@
 <?php
 header('Content-Type: application/json');
+require_once __DIR__ . '/../error_response_helper.php';
 header('Cache-Control: private, max-age=20, stale-while-revalidate=60');
 
 session_start();
@@ -63,5 +64,6 @@ try {
     echo json_encode($movies);
 } catch (PDOException $e) {
     http_response_code(500);
-    echo json_encode(['error' => 'Database error: ' . $e->getMessage()]);
+    nexusSafeError($e);
+    echo json_encode(['error' => 'Database error.']);
 }

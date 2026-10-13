@@ -8,7 +8,6 @@ function test_input($data) {
 }
 
 $email = $_SESSION['verify_email'] ?? '';
-$role  = $_SESSION['user_role'] ?? '';
 $otpErr = "";
 
 if (empty($email)) {

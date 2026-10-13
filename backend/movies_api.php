@@ -1,5 +1,6 @@
 <?php
 session_start();
+require_once __DIR__ . '/../error_response_helper.php';
 $role = strtolower((string)($_SESSION['user_role'] ?? ''));
 if (empty($_SESSION['authenticated']) || !in_array($role, ['admin', 'moderator'], true)) {
     http_response_code(403);
@@ -70,7 +71,8 @@ if ($method === 'GET') {
 
     } catch (Exception $e) {
         http_response_code(500);
-        echo json_encode(['error' => 'Database query failed: ' . $e->getMessage()]);
+        nexusSafeError($e);
+        echo json_encode(['error' => 'Database error.']);
         exit();
     }
 }
@@ -108,7 +110,8 @@ if ($method === 'POST') {
         } catch (Exception $e) {
             $conn->rollBack();
             http_response_code(500);
-            echo json_encode(['error' => 'Delete failed: ' . $e->getMessage()]);
+            nexusSafeError($e);
+            echo json_encode(['error' => 'Database error.']);
         }
         exit();
     }
@@ -235,7 +238,8 @@ if ($method === 'POST') {
     } catch (Exception $e) {
         $conn->rollBack();
         http_response_code(500);
-        echo json_encode(['error' => 'Failed to save movie: ' . $e->getMessage()]);
+        nexusSafeError($e);
+        echo json_encode(['error' => 'Database error.']);
     }
     exit();
 }

@@ -1,12 +1,22 @@
 <?php
 require_once __DIR__ . '/curl_ssl_helper.php';
 
-$host     = nexusAppEnv('DB_HOST', 'watch-party-2026-15g-watch-party-2026-15g.d.aivencloud.com');
-$port     = nexusAppEnv('DB_PORT', '11935');
-$dbname   = nexusAppEnv('DB_NAME', 'watch_party');
-$username = nexusAppEnv('DB_USER', 'avnadmin');
-$password = nexusAppEnv('DB_PASSWORD', 'AVNS_z2RQMzEQu-6JpqDFWmP');
+// Credentials must come from the environment only. Never hardcode secrets here:
+// this file is committed to git, so any fallback value is published to the world.
+$host     = nexusAppEnv('DB_HOST');
+$port     = nexusAppEnv('DB_PORT', '3306');
+$dbname   = nexusAppEnv('DB_NAME');
+$username = nexusAppEnv('DB_USER');
+$password = nexusAppEnv('DB_PASSWORD');
 $charset  = 'utf8mb4';
+
+if ($host === '' || $dbname === '' || $username === '' || $password === '') {
+    error_log('DB connection error: missing DB_HOST/DB_NAME/DB_USER/DB_PASSWORD environment variables.');
+    http_response_code(500);
+    header('Content-Type: application/json');
+    echo json_encode(['error' => 'Database configuration is incomplete.']);
+    exit();
+}
 
 $dsn = "mysql:host=$host;port=$port;dbname=$dbname;charset=$charset";
 

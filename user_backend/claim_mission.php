@@ -48,9 +48,21 @@ try {
     // Begin transaction to atomically claim and add points
     $conn->beginTransaction();
 
-    // Mark as claimed
-    $stmt = $conn->prepare("UPDATE user_missions SET claimed_at = NOW() WHERE user_id = ? AND mission_id = ?");
+    // Mark as claimed. The 'claimed_at IS NULL' guard makes this atomic: if a
+    // concurrent request already claimed the mission, rowCount() is 0 and we
+    // must not credit the points a second time.
+    $stmt = $conn->prepare("
+        UPDATE user_missions
+        SET claimed_at = NOW()
+        WHERE user_id = ? AND mission_id = ? AND claimed_at IS NULL
+    ");
     $stmt->execute([$userId, $missionId]);
+
+    if ($stmt->rowCount() < 1) {
+        $conn->rollBack();
+        echo json_encode(['success' => false, 'message' => 'Mission not claimable']);
+        exit;
+    }
 
     $points = nexusMissionPoints((int)$mission['points_reward'], nexusIsPremium($conn, $userId));
 

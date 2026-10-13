@@ -5809,6 +5809,7 @@ window.moveToNext = function(current, event) {
 window.otpForm = function() {
     return {
         otpCode: '',
+        showPassword: false,
         inputs: [],
         timeLeft: 0,
         otpDuration: 180,

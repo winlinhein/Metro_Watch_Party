@@ -256,23 +256,6 @@ if (!empty($_SESSION['authenticated']) && !empty($_SESSION['user_id'])) {
                 Dismiss
             </button>
         </div>
-    </div><!-- Error Modal Popup -->
-    <div id="errorModal" onclick="closeErrorModalOnBackdrop(event)" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md hidden opacity-0 transition-opacity duration-300">
-        <div id="errorModalCard" class="w-full max-w-sm glass-card p-6 rounded-2xl border border-red-500/30 bg-[#0a0a0c] text-center shadow-[0_0_50px_rgba(220,38,38,0.25)] transform scale-95 transition-transform duration-300">
-            <div class="w-12 h-12 bg-red-600/15 text-red-500 rounded-full flex items-center justify-center mx-auto mb-3 border border-red-500/30">
-                <span class="material-symbols-outlined text-2xl">warning</span>
-            </div>
-            <h3 class="text-lg font-bold text-white uppercase tracking-wider mb-2">Notice</h3>
-            
-            <!-- Error Bullet List -->
-            <ul id="errorList" class="text-xs text-red-300 space-y-2 my-4 text-left bg-red-950/20 p-3.5 rounded-xl border border-red-900/40">
-                <!-- Injected via JS -->
-            </ul>
-
-            <button type="button" onclick="closeErrorModal()" class="w-full bg-gradient-to-r from-red-600 to-indigo-600 text-white font-black text-xs uppercase tracking-widest py-3 rounded-xl hover:shadow-[0_0_20px_rgba(220,38,38,0.4)] transition-all">
-                Dismiss
-            </button>
-        </div>
     </div>
 
     <!-- GSAP Animations & Interactions -->

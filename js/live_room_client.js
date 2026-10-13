@@ -13,6 +13,9 @@ function createNexusLiveRoom(options) {
     let lastBroadcastSpeaking = null;
     let stopped = false;
     let mediaReady = Promise.resolve();
+    // Bound once here so start()/stop() cannot accumulate listeners. Declaring
+    // this inside start() leaked one handler per start() call.
+    const unlockAudio = () => resumeAudio();
     const iceServers = (typeof window.nexusIceServers === 'function')
         ? window.nexusIceServers()
         : [
@@ -520,11 +523,25 @@ function createNexusLiveRoom(options) {
     async function connectSocket() {
         if (typeof io !== 'function') return;
         const url = signalingUrl();
-        const socketOpts = { transports: ['websocket'], timeout: 2000, reconnection: false };
+        const socketOpts = {
+            // Reconnection must stay on: room-ended / force-leave are delivered
+            // over this socket, so a permanent drop silently strands the user.
+            transports: ['websocket', 'polling'],
+            timeout: 8000,
+            reconnection: true,
+            reconnectionAttempts: Infinity,
+            reconnectionDelay: 1000,
+            reconnectionDelayMax: 5000
+        };
         socket = url ? io(url, socketOpts) : io(socketOpts);
+        // Runs on the first connect and on every reconnect, so the room is
+        // re-joined automatically after a dropped connection.
         socket.on('connect', () => {
             if (self.userId) socket.emit('register-user', self.userId);
             if (self.roomId) socket.emit('join-room', String(self.roomId), self.userId, self.userName, self.peerId);
+        });
+        socket.on('connect_error', (err) => {
+            console.warn('Watch party signaling unavailable:', err && err.message ? err.message : err);
         });
         [
             'existing-users', 'user-connected', 'user-disconnected', 'peer-leave',
@@ -622,8 +639,7 @@ function createNexusLiveRoom(options) {
     return {
         async start() {
             stopped = false;
-            const unlock = () => resumeAudio();
-            document.addEventListener('pointerdown', unlock);
+            document.addEventListener('pointerdown', unlockAudio);
             bindPusher();
             mediaReady = startLocalMedia().catch((e) => {
                 console.warn('Dashboard live mic unavailable', e);
@@ -645,6 +661,7 @@ function createNexusLiveRoom(options) {
         },
         stop() {
             stopped = true;
+            document.removeEventListener('pointerdown', unlockAudio);
             if (syncTimer) {
                 clearInterval(syncTimer);
                 syncTimer = null;

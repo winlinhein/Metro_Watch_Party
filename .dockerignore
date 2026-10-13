@@ -7,3 +7,13 @@ bun.lock
 server.ts
 .gitignore
 metadata.json
+
+# Scratch, backup and credential artefacts must never ship in the image.
+*.bak
+*.old
+*.orig
+*.log
+*.sql
+*.ini
+google_oauth.local.php
+.git

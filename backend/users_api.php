@@ -1,5 +1,6 @@
 <?php
 session_start();
+require_once __DIR__ . '/../error_response_helper.php';
 
 $role = strtolower((string)($_SESSION['user_role'] ?? ''));
 
@@ -85,7 +86,8 @@ if ($method === 'GET') {
         exit();
     } catch (Exception $e) {
         http_response_code(500);
-        echo json_encode(['error' => 'Database query failed: ' . $e->getMessage()]);
+        nexusSafeError($e);
+        echo json_encode(['error' => 'Database error.']);
         exit();
     }
 }
@@ -140,7 +142,8 @@ if ($method === 'POST') {
             exit();
         } catch (Exception $e) {
             http_response_code(500);
-            echo json_encode(['error' => 'Failed to suspend user: ' . $e->getMessage()]);
+            nexusSafeError($e);
+            echo json_encode(['error' => 'Database error.']);
             exit();
         }
     }
@@ -158,7 +161,8 @@ if ($method === 'POST') {
             exit();
         } catch (Exception $e) {
             http_response_code(500);
-            echo json_encode(['error' => 'Failed to restore user: ' . $e->getMessage()]);
+            nexusSafeError($e);
+            echo json_encode(['error' => 'Database error.']);
             exit();
         }
     }

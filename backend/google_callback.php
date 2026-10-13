@@ -72,6 +72,11 @@ try {
     if ($googleId === '' || $email === '') {
         throw new RuntimeException('Google did not return an email for this account.');
     }
+    if (!$verified) {
+        // Without this check an unverified Google address could be matched to an
+        // existing password account by email and logged in as that user.
+        throw new RuntimeException('Google has not verified this email address, so it cannot be used to sign in.');
+    }
     if ($name === '') {
         $name = strstr($email, '@', true) ?: 'Nexus User';
     }

@@ -1,5 +1,6 @@
 <?php
 session_start();
+require_once __DIR__ . '/../error_response_helper.php';
 require_once __DIR__ . '/../conn.php';
 require_once __DIR__ . '/../account_lifecycle_helper.php';
 header('Content-Type: application/json');
@@ -28,5 +29,6 @@ try {
     echo json_encode(['success' => true, 'message' => 'Friend removed.']);
 } catch (PDOException $e) {
     http_response_code(500);
-    echo json_encode(['success' => false, 'message' => 'Database error: ' . $e->getMessage()]);
+    nexusSafeError($e);
+    echo json_encode(['success' => false, 'message' => 'Database error.']);
 }

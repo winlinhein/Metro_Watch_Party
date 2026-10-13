@@ -59,14 +59,15 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
         try {
             $stmt = $conn->prepare("
                 SELECT user_id, role_id, hashed_password, status, failed_login_attempts, lock_out_until,
-                       deletion_requested_at, ban_reason
+                       last_failed_login, deletion_requested_at, ban_reason
                 FROM users 
                 WHERE email = :email
             ");
             $stmt->execute([':email' => $email]);
         } catch (Throwable $e) {
             $stmt = $conn->prepare("
-                SELECT user_id, role_id, hashed_password, status, failed_login_attempts, lock_out_until
+                SELECT user_id, role_id, hashed_password, status, failed_login_attempts, lock_out_until,
+                       last_failed_login
                 FROM users 
                 WHERE email = :email
             ");
@@ -175,9 +176,17 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
                     $_SESSION['verify_email'] = $email;
                     $_SESSION['otp_type'] = 'login';
-                    $_SESSION['user_role'] = $role;
                     $_SESSION['remember_login'] = !empty($_POST['remember']);
+                    // NOTE: do NOT set $_SESSION['user_role'] here. The password is
+                    // only the first factor; the role is written after the OTP check
+                    // inside nexusFinishLogin() -> nexusEstablishSession().
+                    unset($_SESSION['user_role']);
                     header("Location: ../frontend/otp-login.php");
+                    exit();
+                } else {
+                    // Any status other than active/pending/banned (e.g. 'suspended')
+                    // previously fell through and produced a blank 200 page.
+                    header("Location: ../frontend/login.php?error=" . urlencode("Your account cannot sign in right now. Please contact support."));
                     exit();
                 }
             } else {

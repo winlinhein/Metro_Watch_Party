@@ -1,5 +1,6 @@
 <?php
 session_start();
+require_once __DIR__ . '/../error_response_helper.php';
 
 $role = strtolower((string)($_SESSION['user_role'] ?? ''));
 if (
@@ -237,5 +238,6 @@ try {
     ]);
 } catch (Exception $e) {
     http_response_code(500);
-    echo json_encode(['error' => 'Failed to load dashboard stats: ' . $e->getMessage()]);
+    nexusSafeError($e);
+    echo json_encode(['error' => 'Database error.']);
 }

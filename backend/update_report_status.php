@@ -1,5 +1,6 @@
 <?php
 session_start();
+require_once __DIR__ . '/../error_response_helper.php';
 require_once __DIR__ . '/../conn.php';
 require_once __DIR__ . '/../schema_upgrade_helper.php';
 require_once __DIR__ . '/../pusher_helper.php';
@@ -7,7 +8,7 @@ require_once __DIR__ . '/../profile_media_helper.php';
 
 header('Content-Type: application/json');
 
-if (empty($_SESSION['user_role']) || !in_array(strtolower((string)$_SESSION['user_role']), ['admin', 'moderator'], true)) {
+if (empty($_SESSION['authenticated']) || empty($_SESSION['user_role']) || !in_array(strtolower((string)$_SESSION['user_role']), ['admin', 'moderator'], true)) {
     echo json_encode(['success' => false, 'message' => 'Unauthorized']);
     exit;
 }
@@ -107,5 +108,6 @@ try {
         'notified' => $notified,
     ]);
 } catch (Exception $e) {
-    echo json_encode(['success' => false, 'message' => 'Database error: ' . $e->getMessage()]);
+    nexusSafeError($e);
+    echo json_encode(['success' => false, 'message' => 'Database error.']);
 }

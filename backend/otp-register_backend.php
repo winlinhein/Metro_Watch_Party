@@ -2,6 +2,7 @@
 // otp-register_backend.php - Dedicated Account Activation Endpoint
 session_start();
 require_once __DIR__ . '/../conn.php';
+require_once __DIR__ . '/../otp_helper.php';
 
 function test_input($data) {
     return htmlspecialchars(trim(stripslashes($data)), ENT_QUOTES, 'UTF-8');
@@ -35,6 +36,12 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
     }
 
     try {
+        // Brute-force guard: refuse once the attempt allowance is exhausted.
+        if (nexusOtpIsLockedOut($conn, $email, 'register')) {
+            header("Location: ../frontend/otp-register.php?error=" . urlencode("Too many incorrect codes. Please request a new activation code."));
+            exit();
+        }
+
         // 3. Query `otp_verification` for registration OTP
         $stmt = $conn->prepare("
             SELECT * FROM otp_verification 
@@ -63,6 +70,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
         // 5. Invalid Code Check
         if ($otp !== $stored_otp) {
+            nexusOtpRegisterFailure($conn, $email, 'register');
             header("Location: ../frontend/otp-register.php?error=" . urlencode("Invalid verification code. Please try again."));
             exit();
         }
@@ -74,16 +82,27 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
         $update_user = $conn->prepare("UPDATE users SET status = 'active' WHERE email = :email AND status = 'pending'");
         $update_user->execute([':email' => $email]);
 
+        if ($update_user->rowCount() < 1) {
+            // No pending row for this email: already active, or removed.
+            $conn->rollBack();
+            unset($_SESSION['verify_email']);
+            header("Location: ../frontend/login.php?error=" . urlencode("This account is no longer awaiting activation. Please log in or register again."));
+            exit();
+        }
+
         // Step B: Clean up registration OTP token
         $delete_otp = $conn->prepare("DELETE FROM otp_verification WHERE email = :email AND otp_type = 'register'");
         $delete_otp->execute([':email' => $email]);
 
+        // Step C: Clear the brute-force counter now that activation succeeded
+        nexusOtpClearFailures($conn, $email);
+
         $conn->commit();
 
-        // Step C: Clear verification session variable
+        // Step D: Clear verification session variable
         unset($_SESSION['verify_email']);
 
-        // Step D: Redirect to login view with success notification
+        // Step E: Redirect to login view with success notification
         header("Location: ../frontend/login.php?success=" . urlencode("Account activated successfully! You can now log in."));
         exit();
 

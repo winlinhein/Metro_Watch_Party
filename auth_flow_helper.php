@@ -53,6 +53,12 @@ function nexusKeepSessionCookie(): void
     if (session_status() !== PHP_SESSION_ACTIVE) {
         return;
     }
+    // Only extend the PHP session cookie when the user actually asked to be
+    // remembered. Otherwise the cookie stays a browser-session cookie, so
+    // closing the browser signs the user out as the login form promises.
+    if (empty($_SESSION['nexus_remember'])) {
+        return;
+    }
     $params = session_get_cookie_params();
     $lifetime = NEXUS_REMEMBER_DAYS * 86400;
     setcookie(session_name(), session_id(), [
@@ -227,18 +233,26 @@ function nexusHoldIfBlocked(PDO $conn, array $user, string $role): ?string
     return null;
 }
 
-function nexusEstablishSession(array $user, string $role): void
+function nexusEstablishSession(array $user, string $role, bool $remember = false): void
 {
     if (session_status() !== PHP_SESSION_ACTIVE) {
         session_start();
+    }
+    // Prevent session fixation: the pre-authentication id must never become
+    // the authenticated id. Done once, here, for every login path.
+    if (empty($_SESSION['authenticated'])) {
+        session_regenerate_id(true);
     }
     $_SESSION['authenticated'] = true;
     $_SESSION['user_id'] = (int)($user['user_id'] ?? 0);
     $_SESSION['user_name'] = (string)($user['user_name'] ?? 'User');
     $_SESSION['user_email'] = (string)($user['email'] ?? '');
     $_SESSION['user_role'] = $role;
+    $_SESSION['nexus_remember'] = $remember;
     unset($_SESSION['account_hold'], $_SESSION['verify_email'], $_SESSION['otp_type']);
-    nexusKeepSessionCookie();
+    if ($remember) {
+        nexusKeepSessionCookie();
+    }
 }
 
 function nexusCreatePersistentSession(PDO $conn, int $userId): void
@@ -343,7 +357,7 @@ function nexusResumePersistentLogin(PDO $conn): ?string
             return $blocked;
         }
 
-        nexusEstablishSession($row, $role);
+        nexusEstablishSession($row, $role, true);
         if ($role === 'user') {
             require_once __DIR__ . '/user_backend/mission_progress.php';
             nexusAwardDailyLogin((int)$row['user_id']);
@@ -366,7 +380,7 @@ function nexusFinishLogin(PDO $conn, array $user, bool $remember = true): string
         return $blocked;
     }
 
-    nexusEstablishSession($user, $role);
+    nexusEstablishSession($user, $role, $remember);
     if ($role === 'user') {
         require_once __DIR__ . '/user_backend/mission_progress.php';
         nexusAwardDailyLogin((int)($user['user_id'] ?? 0));

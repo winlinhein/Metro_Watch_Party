@@ -1,5 +1,6 @@
 <?php
 session_start();
+require_once __DIR__ . '/../error_response_helper.php';
 header('Content-Type: application/json');
 
 if (empty($_SESSION['user_id'])) {
@@ -20,8 +21,16 @@ if (empty($currentPassword) || empty($newPassword)) {
     exit();
 }
 
-if (strlen($newPassword) < 6) {
-    echo json_encode(['success' => false, 'message' => 'New password must be at least 6 characters.']);
+// Same policy as registration (register_backend.php) so a user cannot weaken
+// their password after signing up.
+if (
+    strlen($newPassword) < 8 ||
+    !preg_match('/[A-Z]/', $newPassword) ||
+    !preg_match('/[a-z]/', $newPassword) ||
+    !preg_match('/[0-9]/', $newPassword) ||
+    !preg_match('/[!@#$%^&*(),.?":{}|]/', $newPassword)
+) {
+    echo json_encode(['success' => false, 'message' => 'Password must be at least 8 characters and include upper case, lower case, a number and a symbol.']);
     exit();
 }
 
@@ -41,5 +50,6 @@ try {
 
     echo json_encode(['success' => true, 'message' => 'Password updated successfully.']);
 } catch (PDOException $e) {
-    echo json_encode(['success' => false, 'message' => 'Database error: ' . $e->getMessage()]);
+    nexusSafeError($e);
+    echo json_encode(['success' => false, 'message' => 'Database error.']);
 }
