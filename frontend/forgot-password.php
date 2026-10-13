@@ -77,7 +77,7 @@
             <?php endif; ?>
 
             <!-- Form attached to JS validation with novalidate -->
-            <form action="../backend/forgot-password_backend.php?action=forgot_password" method="POST" class="space-y-6" id="recoveryForm" data-barba-prevent onsubmit="return validateRecoveryForm()" novalidate>
+            <form action="../backend/forgot-password_backend.php?action=forgot_password" method="POST" class="space-y-6" id="recoveryForm" data-barba-prevent onsubmit="return validateForgotPasswordForm()" novalidate>
                 
                 <!-- Email Field -->
                 <div class="floating-label-group gs-stagger">

@@ -1,5 +1,6 @@
 <?php
 session_start();
+require_once __DIR__ . '/../error_response_helper.php';
 header('Content-Type: application/json');
 
 try {
@@ -66,7 +67,11 @@ try {
 
     echo json_encode(['success' => true, 'avatar_url' => $avatarUrl]);
 } catch (Throwable $e) {
-    error_log('upload_avatar error: ' . $e->getMessage());
+    nexusSafeError($e);
     http_response_code(500);
-    echo json_encode(['success' => false, 'message' => $e->getMessage() ?: 'Failed to upload avatar']);
+    // Validation messages from media_store_helper are safe to show; anything
+    // else (e.g. PDO errors) must not leak database details to the client.
+    $isValidation = $e instanceof RuntimeException || $e instanceof InvalidArgumentException;
+    $message = ($isValidation && $e->getMessage() !== '') ? $e->getMessage() : 'Could not upload the image.';
+    echo json_encode(['success' => false, 'message' => $message]);
 }

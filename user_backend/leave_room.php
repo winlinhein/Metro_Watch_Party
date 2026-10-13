@@ -1,5 +1,6 @@
 <?php
 session_start();
+require_once __DIR__ . '/../error_response_helper.php';
 header('Content-Type: application/json');
 
 $userId = $_SESSION['user_id'] ?? null;
@@ -39,6 +40,15 @@ if ($roomCode) {
     $channel = 'watch-party-' . $room['room_id'];
 
     $park = isset($_REQUEST['park']) && $_REQUEST['park'] !== '' && $_REQUEST['park'] !== '0';
+    $unload = isset($_REQUEST['unload']) && $_REQUEST['unload'] !== '' && $_REQUEST['unload'] !== '0';
+
+    // Tab or browser close. Backdate presence so a refresh can rejoin, then
+    // the sweeper deletes the room once the host or everyone is actually gone.
+    if ($unload) {
+        markRoomParticipantUnloaded($conn, (int)$room['room_id'], (int)$userId, (string)($_REQUEST['peer_id'] ?? ''));
+        echo json_encode(['success' => true, 'message' => 'Participant detached']);
+        exit;
+    }
 
     // Host explicitly ending the party (Leave button). Refresh / dashboard park must not close it.
     if ((int)$room['host_id'] === (int)$userId && !$park) {
@@ -71,9 +81,12 @@ if ($roomCode) {
         'user_id' => (int)$userId,
     ]);
 
+    sweepAbandonedRooms($conn);
+
     echo json_encode(['success' => true, 'message' => 'Participant left']);
 
 } catch (Exception $e) {
     http_response_code(500);
-    echo json_encode(['success' => false, 'message' => 'Database update error: ' . $e->getMessage()]);
+    nexusSafeError($e);
+    echo json_encode(['success' => false, 'message' => 'Database error.']);
 }

@@ -12,6 +12,7 @@ $userEmail = $_SESSION['user_email'] ?? '';
 $userAvatar = '';
 $userBorder = '';
 $isPremium = false;
+$roomBoot = null;
 try {
     require_once __DIR__ . '/../conn.php';
     require_once __DIR__ . '/../profile_media_helper.php';
@@ -20,6 +21,49 @@ try {
     $userAvatar = $media['avatar_url'] ?? '';
     $userBorder = $media['border_preview'] ?? '';
     $isPremium = !empty(resolveUserPremium($conn, (int)$userId)['is_premium']);
+
+    $requestedRoom = trim((string)($_GET['room_id'] ?? ''));
+    if ($requestedRoom !== '') {
+        $roomStmt = $conn->prepare("SELECT room_id, room_code, host_id, movie_id, status, max_members FROM rooms WHERE room_id = :id OR room_code = :code LIMIT 1");
+        $roomStmt->execute(['id' => $requestedRoom, 'code' => $requestedRoom]);
+        $bootRoom = $roomStmt->fetch(PDO::FETCH_ASSOC) ?: null;
+        $bootStatus = strtolower((string)($bootRoom['status'] ?? ''));
+        if ($bootRoom && !in_array($bootStatus, ['ended', 'deleted'], true)) {
+            $bootMovie = null;
+            $movieId = (int)($bootRoom['movie_id'] ?? 0);
+            if ($movieId > 0) {
+                $movieStmt = $conn->prepare("SELECT movie_id, title, description, video_url, actual_video_url, duration FROM movies WHERE movie_id = :movie_id LIMIT 1");
+                $movieStmt->execute(['movie_id' => $movieId]);
+                $bootMovie = $movieStmt->fetch(PDO::FETCH_ASSOC) ?: null;
+                if ($bootMovie) {
+                    $bootMovie['id'] = (int)$bootMovie['movie_id'];
+                    $bootMovie['trailer'] = $bootMovie['video_url'];
+                    $bootMovie['stream_url'] = $bootMovie['actual_video_url'] ?: $bootMovie['video_url'];
+                }
+            }
+            $peerStmt = $conn->prepare("
+                SELECT rp.user_id, COALESCE(u.user_name, 'User') AS user_name, rp.peer_id,
+                       rp.forced_muted, rp.forced_video_off, rp.chat_banned
+                FROM room_participants rp
+                LEFT JOIN users u ON u.user_id = rp.user_id
+                WHERE rp.room_id = :room_id
+                  AND rp.user_id <> :self_id
+                  AND rp.last_seen > DATE_SUB(NOW(), INTERVAL 45 SECOND)
+            ");
+            $peerStmt->execute(['room_id' => (int)$bootRoom['room_id'], 'self_id' => (int)$userId]);
+            $bootPeers = attachProfileMedia($conn, $peerStmt->fetchAll(PDO::FETCH_ASSOC) ?: []);
+            $roomBoot = [
+                'room' => [
+                    'room_id' => (int)$bootRoom['room_id'],
+                    'room_code' => $bootRoom['room_code'],
+                    'host_id' => (int)$bootRoom['host_id'],
+                    'max_members' => (int)($bootRoom['max_members'] ?? 0),
+                ],
+                'movie' => $bootMovie,
+                'peers' => $bootPeers,
+            ];
+        }
+    }
 } catch (Throwable $e) {
     error_log('watch_party profile media: ' . $e->getMessage());
 }
@@ -30,6 +74,17 @@ session_write_close();
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script>
+        (function () {
+            var allowed = { crimson: 1, arctic: 1, amethyst: 1, verdant: 1 };
+            var theme = 'crimson';
+            try {
+                var saved = localStorage.getItem('nexus_theme');
+                if (saved && allowed[saved]) theme = saved;
+            } catch (e) {}
+            document.documentElement.setAttribute('data-theme', theme);
+        })();
+    </script>
     <?php include __DIR__ . '/../frontend/components/head_boot.php'; ?>
     <title>Nexus - Watch Party</title>
     
@@ -51,9 +106,46 @@ session_write_close();
         require_once __DIR__ . '/../ice_servers_helper.php';
         ?>
         window.NEXUS_ICE_SERVERS = <?php echo json_encode(nexusIceServers(), JSON_UNESCAPED_SLASHES); ?>;
+        window.NEXUS_ROOM_BOOT = <?php echo json_encode($roomBoot, JSON_UNESCAPED_SLASHES); ?>;
     </script>
     
+    <script src="../js/user_theme_colors.js?v=4"></script>
     <script src="https://cdn.tailwindcss.com/3.4.17"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: window.nexusThemeColors || {}
+                }
+            }
+        };
+    </script>
+    <link rel="stylesheet" href="../frontend/assets/user-themes.css?v=5">
+    <script>
+        window.nexusLockModalScroll = window.nexusLockModalScroll || (function () {
+            const open = new Set();
+            const capture = { capture: true, passive: false };
+            function blockBackgroundScroll(event) {
+                const node = event.target;
+                if (node && node.closest && node.closest('[data-nexus-modal]')) return;
+                event.preventDefault();
+            }
+            return function (isOpen, key) {
+                const id = key || 'modal';
+                if (isOpen) open.add(id);
+                else open.delete(id);
+                const locked = open.size > 0;
+                document.documentElement.classList.toggle('nexus-modal-open', locked);
+                document.removeEventListener('wheel', blockBackgroundScroll, true);
+                document.removeEventListener('touchmove', blockBackgroundScroll, true);
+                if (locked) {
+                    document.addEventListener('wheel', blockBackgroundScroll, capture);
+                    document.addEventListener('touchmove', blockBackgroundScroll, capture);
+                }
+            };
+        })();
+    </script>
+    <script defer src="https://cdn.jsdelivr.net/npm/@alpinejs/teleport@3.14.1/dist/cdn.min.js"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.1/dist/cdn.min.js" crossorigin="anonymous"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js" crossorigin="anonymous" onerror="window.gsap=window.gsap||{to:()=>({to:()=>({}),fromTo:()=>({})}),fromTo:()=>({}),from:()=>({}),set:()=>{},timeline:()=>({to:()=>({}),fromTo:()=>({}),add:()=>({}),set:()=>({})}),config:()=>{},killTweensOf:()=>{}}"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js" crossorigin="anonymous" onerror="if(window.gsap)window.gsap.ScrollTrigger=window.gsap.ScrollTrigger||{create:()=>{},refresh:()=>{},kill:()=>{}}"></script>
@@ -65,18 +157,22 @@ session_write_close();
         html, body { color-scheme: dark; }
         body {
             font-family: 'Plus Jakarta Sans', sans-serif;
-            background-color: #050508;
+            background-color: var(--nx-surface, #050508);
             color: #ffffff;
             overflow: hidden;
         }
+        html.nexus-modal-open,
+        html.nexus-modal-open body {
+            overflow: hidden !important;
+        }
         select {
             color-scheme: dark;
-            background-color: #0a0a0f;
+            background-color: var(--nx-card, #0a0a0f);
             color: #f5f5f5;
         }
         select option,
         select optgroup {
-            background-color: #0a0a0f;
+            background-color: var(--nx-card, #0a0a0f);
             color: #f5f5f5;
         }
         .mono {
@@ -263,22 +359,21 @@ session_write_close();
         <div id="content-area" class="flex-1 flex overflow-hidden relative">
 
             <div class="fixed inset-0 z-[200] bg-[#050508]/90 backdrop-blur-md flex flex-col items-center justify-center gap-4"
-                 x-show="isConnecting || isLeaving"
+                 x-show="isLeaving"
                  x-transition.opacity
                  x-cloak>
                 <div class="w-14 h-14 border-4 border-red-500/25 border-t-red-500 rounded-full animate-spin"></div>
                 <p class="text-sm font-bold uppercase tracking-[0.2em] text-white/80" x-text="connectionHint"></p>
-                <p class="text-xs text-white/40" x-show="isConnecting && !isLeaving">Finding people in this room…</p>
             </div>
             
             <!-- Main Movie Player Background -->
-            <div class="absolute inset-0 bg-black overflow-hidden group video-container z-0" @mousemove="showControls = true; clearTimeout(controlsTimeout); controlsTimeout = setTimeout(() => { if (isPlaying) showControls = false }, 2500)" @mouseleave="if (isPlaying) showControls = false">
+            <div class="absolute inset-0 bg-black overflow-hidden group video-container z-0" @pointerdown="revealControls($event)" @pointermove="revealControls($event)" @pointerleave="hideControls($event)">
                     
                     <template x-if="videoUrl && isYouTubeUrl(videoUrl)">
                         <iframe class="w-full h-full bg-black" :src="getYouTubeWatchEmbed(videoUrl)" title="Watch party movie" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe>
                     </template>
                     <template x-if="videoUrl && !isYouTubeUrl(videoUrl)">
-                        <video id="main-player" class="w-full h-full object-contain bg-black cursor-pointer" x-ref="videoPlayer" @click="togglePlay" @timeupdate="updateProgress" @ended="isPlaying = false" :src="videoUrl" playsinline preload="metadata" poster="https://images.unsplash.com/photo-1536440136628-849c177e76a1?auto=format&fit=crop&q=80&w=1600&h=900"></video>
+                        <video id="main-player" class="w-full h-full object-contain bg-black cursor-pointer" x-ref="videoPlayer" @click="onVideoSurface()" @timeupdate="updateProgress" @ended="isPlaying = false" :src="videoUrl" playsinline autoplay preload="auto"></video>
                     </template>
                     
                     <template x-if="!videoUrl">
@@ -316,17 +411,16 @@ session_write_close();
                     </div>
 
                     <!-- Player Controls Overlay -->
-                    <div class="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent flex flex-col justify-end p-6 z-20 transition-opacity duration-500 pointer-events-none" :class="(showControls && videoUrl && !isYouTubeUrl(videoUrl)) ? 'opacity-100' : 'opacity-0'" x-show="videoUrl && !isYouTubeUrl(videoUrl)">
+                    <div class="wp-player-overlay absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent flex flex-col justify-end p-6 z-20 transition-opacity duration-500 pointer-events-none" :class="(showControls && videoUrl && !isYouTubeUrl(videoUrl)) ? 'opacity-100' : 'opacity-0'" x-show="videoUrl && !isYouTubeUrl(videoUrl)">
                         
                         <!-- Progress Bar -->
-                        <div class="w-full h-1.5 bg-white/20 rounded-full mb-6 cursor-pointer relative group/progress pointer-events-auto" @click="seek" x-ref="progressBar">
-                            <!-- Buffer Bar -->
-                            <div class="absolute left-0 top-0 h-full bg-white/30 rounded-full transition-all duration-300" :style="`width: ${bufferPercent}%`"></div>
-                            <!-- Current Progress -->
-                            <div class="absolute left-0 top-0 h-full bg-gradient-to-r from-red-600 to-red-400 rounded-full shadow-[0_0_15px_rgba(239,68,68,0.8)] transition-all duration-100 ease-linear" :style="`width: ${progressPercent}%`"></div>
-                            <!-- Scrubber -->
-                            <div class="absolute top-1/2 -translate-y-1/2 w-4 h-4 bg-white rounded-full shadow-[0_0_10px_rgba(255,255,255,0.8)] scale-0 group-hover/progress:scale-100 transition-transform duration-200" :style="`left: calc(${progressPercent}% - 8px)`"></div>
-                            <!-- Tooltip (time hover) -->
+                        <div class="wp-seek w-full cursor-pointer relative group/progress pointer-events-auto touch-none select-none" @pointerdown.stop="startSeek($event)" @pointermove.stop="moveSeek($event)" @pointerup.stop="endSeek($event)" @pointercancel.stop="endSeek($event)" x-ref="progressBar">
+                            <span class="wp-touchpad-label">Touch pad · drag to seek</span>
+                            <div class="wp-seek-track absolute left-0 right-0 top-1/2 -translate-y-1/2 h-1.5 bg-white/20 rounded-full">
+                                <div class="absolute left-0 top-0 h-full bg-white/30 rounded-full" :style="`width: ${bufferPercent}%`"></div>
+                                <div class="absolute left-0 top-0 h-full bg-gradient-to-r from-red-600 to-red-400 rounded-full shadow-[0_0_15px_rgba(239,68,68,0.8)]" :style="`width: ${progressPercent}%`"></div>
+                            </div>
+                            <div class="wp-scrubber absolute top-1/2 -translate-y-1/2 w-4 h-4 bg-white rounded-full shadow-[0_0_10px_rgba(255,255,255,0.8)] scale-0 group-hover/progress:scale-100 transition-transform duration-200" :style="`left: calc(${progressPercent}% - 8px)`"></div>
                         </div>
 
                         <!-- Controls -->
@@ -336,16 +430,16 @@ session_write_close();
                                     <span class="material-symbols-outlined text-[36px]" x-text="isPlaying ? 'pause' : 'play_arrow'">play_arrow</span>
                                 </button>
                                 
-                                <button class="text-white hover:text-white/70 transition-colors transform hover:scale-110">
+                                <button class="wp-desktop-only text-white hover:text-white/70 transition-colors transform hover:scale-110">
                                     <span class="material-symbols-outlined text-[28px]">skip_next</span>
                                 </button>
                                 
-                                <div class="flex items-center gap-3 group/volume">
+                                <div class="wp-volume flex items-center gap-3 group/volume">
                                     <button class="text-white hover:text-red-400 transition-colors" @click="toggleMute">
                                         <span class="material-symbols-outlined text-[24px]" x-text="volume === 0 ? 'volume_off' : (volume < 0.5 ? 'volume_down' : 'volume_up')">volume_up</span>
                                     </button>
-                                    <div class="w-0 overflow-hidden group-hover/volume:w-24 transition-all duration-300 flex items-center">
-                                        <input type="range" min="0" max="1" step="0.05" x-model="volume" @input="updateVolume" class="w-full h-1 bg-white/30 rounded-lg appearance-none cursor-pointer accent-red-500">
+                                    <div class="wp-volume-slider w-0 overflow-hidden group-hover/volume:w-24 transition-all duration-300 flex items-center">
+                                        <input type="range" min="0" max="1" step="0.05" x-model="volume" @input="updateVolume" class="w-full h-8 bg-transparent cursor-pointer accent-red-500">
                                     </div>
                                 </div>
                                 
@@ -356,12 +450,12 @@ session_write_close();
                                 </div>
                             </div>
                             
-                            <div class="flex items-center gap-5">
-                                <button class="text-white hover:text-red-400 transition-colors relative group/cc">
+                            <div class="flex items-center gap-3 sm:gap-5">
+                                <button class="wp-desktop-only text-white hover:text-red-400 transition-colors relative group/cc">
                                     <span class="material-symbols-outlined text-[24px]">closed_caption</span>
                                     <div class="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full scale-0 group-hover/cc:scale-100 transition-transform"></div>
                                 </button>
-                                <button class="text-white hover:text-red-400 transition-colors transform hover:rotate-90 duration-300">
+                                <button class="wp-desktop-only text-white hover:text-red-400 transition-colors transform hover:rotate-90 duration-300">
                                     <span class="material-symbols-outlined text-[24px]">settings</span>
                                 </button>
                                 <button class="text-white hover:text-red-400 transition-colors transform hover:scale-110" @click="toggleFullscreen">
@@ -424,7 +518,7 @@ session_write_close();
                                     <span class="material-symbols-outlined text-[10px]" :class="user.videoOn === false ? 'text-red-500' : 'text-green-500'" x-text="user.videoOn === false ? 'videocam_off' : 'videocam'"></span>
                                     <span x-show="user.chatBanned" class="material-symbols-outlined text-[10px] text-red-400">comments_disabled</span>
                                 </div>
-                                <div x-show="isHost && !user.isSelf" class="absolute top-1 right-1 z-30 grid grid-cols-2 gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <div x-show="isHost && !user.isSelf" class="absolute top-1 right-1 z-30 grid grid-cols-3 gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                                     <button type="button" @click.stop="hostMuteMember(user)" class="w-7 h-7 rounded-lg bg-black/70 border border-white/15 text-white hover:bg-red-500 hover:border-red-400 flex items-center justify-center" :title="user.muted ? 'Unmute member' : 'Mute member'">
                                         <span class="material-symbols-outlined text-[15px]" x-text="user.muted ? 'mic_off' : 'mic'"></span>
                                     </button>
@@ -434,8 +528,11 @@ session_write_close();
                                     <button type="button" @click.stop="hostBanChat(user)" class="w-7 h-7 rounded-lg bg-black/70 border border-white/15 text-white hover:bg-red-500 hover:border-red-400 flex items-center justify-center" :title="user.chatBanned ? 'Allow chat' : 'Ban from chat'">
                                         <span class="material-symbols-outlined text-[15px]" x-text="user.chatBanned ? 'comments_disabled' : 'chat'"></span>
                                     </button>
-                                    <button type="button" @click.stop="kickMember(user)" class="w-7 h-7 rounded-lg bg-black/70 border border-white/15 text-white hover:bg-red-600 hover:border-red-400 flex items-center justify-center" title="Remove from room">
+                                    <button type="button" @click.stop="kickMember(user)" class="w-7 h-7 rounded-lg bg-black/70 border border-white/15 text-white hover:bg-red-600 hover:border-red-400 flex items-center justify-center" title="Kick from room">
                                         <span class="material-symbols-outlined text-[15px]">person_remove</span>
+                                    </button>
+                                    <button type="button" @click.stop="banMember(user)" class="w-7 h-7 rounded-lg bg-black/70 border border-white/15 text-white hover:bg-red-600 hover:border-red-400 flex items-center justify-center" title="Ban from room">
+                                        <span class="material-symbols-outlined text-[15px]">block</span>
                                     </button>
                                 </div>
                                 <div class="absolute inset-0 rounded-[10px] pointer-events-none z-10 transition-opacity duration-150"
@@ -583,7 +680,8 @@ session_write_close();
     </div>
 
     <!-- Movie Selection Modal -->
-    <div x-show="showMovieModal" class="fixed inset-0 z-[100] flex flex-col justify-end pointer-events-auto" style="display: none;">
+    <template x-teleport="body">
+    <div x-show="showMovieModal" data-nexus-modal x-effect="window.nexusLockModalScroll(showMovieModal, 'wp-movie')" class="fixed inset-0 z-[200] flex flex-col justify-end pointer-events-auto overscroll-contain" style="display: none;">
         <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" x-show="showMovieModal" x-transition.opacity @click="showMovieModal = false"></div>
         
         <div class="relative w-full h-[70vh] bg-[#050508] border-t border-white/10 rounded-t-3xl flex flex-col shadow-2xl z-10 overflow-hidden" 
@@ -700,9 +798,12 @@ session_write_close();
             </div>
         </div>
     </div>
+    </template>
 
+    <template x-teleport="body">
     <div x-show="showInviteSentModal"
-         class="fixed inset-0 z-[200] flex items-center justify-center p-4"
+         data-nexus-modal x-effect="window.nexusLockModalScroll(showInviteSentModal, 'wp-invite-sent')"
+         class="fixed inset-0 z-[200] flex items-center justify-center p-4 overscroll-contain"
          style="display: none;">
         <div class="absolute inset-0 bg-black/75 backdrop-blur-sm"
              @click="showInviteSentModal = false"
@@ -731,12 +832,15 @@ session_write_close();
             </div>
         </div>
     </div>
+    </template>
 
     <?php include __DIR__ . '/report_room_modal.php'; ?>
 
+    <template x-teleport="body">
     <div x-show="confirmDialog.open"
+         data-nexus-modal x-effect="window.nexusLockModalScroll(confirmDialog.open, 'wp-confirm')"
          x-cloak
-         class="fixed inset-0 z-[220] flex items-center justify-center p-4"
+         class="fixed inset-0 z-[220] flex items-center justify-center p-4 overscroll-contain"
          style="display: none;"
          x-transition.opacity>
         <div class="absolute inset-0 bg-black/80 backdrop-blur-md" @click="resolveConfirm(false)"></div>
@@ -768,6 +872,7 @@ session_write_close();
             </div>
         </div>
     </div>
+    </template>
 </div>
 
     <?php include __DIR__ . '/../frontend/components/barba_scripts.php'; ?>

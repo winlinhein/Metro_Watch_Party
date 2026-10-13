@@ -88,6 +88,47 @@ require_once __DIR__ . '/components/otp_boot.php';
                     </template>
                 </div>
 
+                <!-- New Password -->
+                <div class="gs-stagger text-left">
+                    <label for="new_password" class="block text-[11px] uppercase tracking-widest text-white/40 mb-2">New Password</label>
+                    <div class="relative">
+                        <input
+                            :type="showPassword ? 'text' : 'password'"
+                            name="new_password"
+                            id="new_password"
+                            required
+                            minlength="8"
+                            autocomplete="new-password"
+                            placeholder="At least 8 characters"
+                            class="w-full bg-white/5 border border-white/10 rounded-xl pl-4 pr-12 py-3.5 text-white outline-none focus:border-yellow-500 focus:bg-white/10 transition-all duration-200"
+                        >
+                        <button
+                            type="button"
+                            @click="showPassword = !showPassword"
+                            class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white transition-colors p-1"
+                        >
+                            <span x-show="!showPassword" class="material-symbols-outlined text-[20px]">visibility</span>
+                            <span x-show="showPassword" x-cloak class="material-symbols-outlined text-[20px]">visibility_off</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Confirm New Password -->
+                <div class="gs-stagger text-left">
+                    <label for="confirm_password" class="block text-[11px] uppercase tracking-widest text-white/40 mb-2">Confirm New Password</label>
+                    <input
+                        :type="showPassword ? 'text' : 'password'"
+                        name="confirm_password"
+                        id="confirm_password"
+                        required
+                        minlength="8"
+                        autocomplete="new-password"
+                        placeholder="Repeat your new password"
+                        class="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3.5 text-white outline-none focus:border-yellow-500 focus:bg-white/10 transition-all duration-200"
+                    >
+                    <p class="text-[11px] text-white/35 mt-2">Must be 8+ characters with upper case, lower case, a number and a symbol.</p>
+                </div>
+
                 <!-- Submit Button -->
                 <button 
                     type="submit" 

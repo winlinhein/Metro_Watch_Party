@@ -1,5 +1,6 @@
 <?php
 session_start();
+require_once __DIR__ . '/../error_response_helper.php';
 header('Content-Type: application/json');
 
 if (empty($_SESSION['user_id'])) {
@@ -18,6 +19,7 @@ session_write_close();
 
 try {
     ensureUserLastSeenColumn($conn);
+    $lastLoginSql = nexusLastLoginUnixSql('u.user_id');
     if ($query === '') {
         $stmt = $conn->prepare("
             SELECT 
@@ -26,6 +28,7 @@ try {
                 u.email, 
                 u.is_premium,
                 u.last_seen,
+                {$lastLoginSql},
                 f.status AS friend_status,
                 f.user_id_1 AS requester_id
             FROM users u
@@ -48,6 +51,7 @@ try {
                 u.email, 
                 u.is_premium,
                 u.last_seen,
+                {$lastLoginSql},
                 f.status AS friend_status,
                 f.user_id_1 AS requester_id
             FROM users u
@@ -78,5 +82,6 @@ try {
 
 } catch (PDOException $e) {
     http_response_code(500);
-    echo json_encode(['error' => 'Database query failed: ' . $e->getMessage()]);
+    nexusSafeError($e);
+    echo json_encode(['error' => 'Database error.']);
 }

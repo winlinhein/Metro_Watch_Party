@@ -71,6 +71,7 @@ try {
             pt.amount,
             pt.status,
             pt.created_at,
+            UNIX_TIMESTAMP(pt.created_at) AS created_unix,
             COALESCE(u.user_name, pt.deleted_user_name, 'Deleted user') AS user_name,
             COALESCE(u.email, pt.deleted_user_email, '') AS email,
             g.name AS gateway_name,
@@ -111,6 +112,7 @@ try {
             'amount' => formatTxnAmount($amount, $status),
             'status' => $status,
             'date' => $date,
+            'created_unix' => isset($row['created_unix']) ? (int)$row['created_unix'] : null,
         ];
     }, $rows);
 

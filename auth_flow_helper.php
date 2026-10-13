@@ -53,6 +53,12 @@ function nexusKeepSessionCookie(): void
     if (session_status() !== PHP_SESSION_ACTIVE) {
         return;
     }
+    // Only extend the PHP session cookie when the user actually asked to be
+    // remembered. Otherwise the cookie stays a browser-session cookie, so
+    // closing the browser signs the user out as the login form promises.
+    if (empty($_SESSION['nexus_remember'])) {
+        return;
+    }
     $params = session_get_cookie_params();
     $lifetime = NEXUS_REMEMBER_DAYS * 86400;
     setcookie(session_name(), session_id(), [
@@ -113,6 +119,74 @@ function nexusDashboardPath(string $role): string
     return '/user/dashboard.php';
 }
 
+function nexusDisconnectBannedUser(PDO $conn, int $userId, string $message): void
+{
+    if ($userId <= 0) {
+        return;
+    }
+    try {
+        ensureAppSchema($conn);
+        $conn->prepare("DELETE FROM persistent_session WHERE user_id = ?")->execute([$userId]);
+    } catch (Throwable $ignore) {
+    }
+    try {
+        require_once __DIR__ . '/presence_helper.php';
+        clearUserPresence($conn, $userId);
+    } catch (Throwable $ignore) {
+    }
+    if (!function_exists('triggerPusherEvent')) {
+        require_once __DIR__ . '/pusher_helper.php';
+    }
+    triggerPusherEvent("user-{$userId}", 'force_logout', [
+        'message' => $message,
+    ]);
+}
+
+function nexusGuardAuthenticatedSession(PDO $conn): ?string
+{
+    if (session_status() !== PHP_SESSION_ACTIVE) {
+        return null;
+    }
+    if (empty($_SESSION['authenticated']) || empty($_SESSION['user_id'])) {
+        return null;
+    }
+    if (strtolower((string)($_SESSION['user_role'] ?? '')) === 'guest') {
+        return null;
+    }
+
+    try {
+        $stmt = $conn->prepare("SELECT * FROM users WHERE user_id = ? LIMIT 1");
+        $stmt->execute([(int)$_SESSION['user_id']]);
+        $user = $stmt->fetch(PDO::FETCH_ASSOC);
+    } catch (Throwable $e) {
+        return null;
+    }
+    if (!$user) {
+        return null;
+    }
+
+    $role = (string)($_SESSION['user_role'] ?? '');
+    if ($role === '') {
+        $role = nexusRoleName($conn, (int)($user['role_id'] ?? 0));
+    }
+    $blocked = nexusHoldIfBlocked($conn, $user, $role);
+    if (!$blocked) {
+        return null;
+    }
+
+    unset($_SESSION['authenticated']);
+    try {
+        require_once __DIR__ . '/presence_helper.php';
+        clearUserPresence($conn, (int)$user['user_id']);
+    } catch (Throwable $ignore) {
+    }
+    try {
+        nexusClearPersistentSession($conn, (int)$user['user_id']);
+    } catch (Throwable $ignore) {
+    }
+    return $blocked;
+}
+
 function nexusHoldIfBlocked(PDO $conn, array $user, string $role): ?string
 {
     ensureAppSchema($conn);
@@ -122,20 +196,23 @@ function nexusHoldIfBlocked(PDO $conn, array $user, string $role): ?string
     $deletionAt = $user['deletion_requested_at'] ?? null;
 
     if (!empty($deletionAt)) {
-        if (function_exists('nexusDeletionExpired') && nexusDeletionExpired($deletionAt)) {
+        $deletionState = nexusDeletionState($conn, $userId);
+        if ($deletionState && $deletionState['expired']) {
             if (function_exists('nexusPurgeUserAccount')) {
                 nexusPurgeUserAccount($conn, $userId);
             }
             return '/frontend/login.php?error=' . urlencode('This account was permanently deleted after the 24-hour waiting period.');
         }
-        $_SESSION['account_hold'] = [
-            'user_id' => $userId,
-            'email' => $email,
-            'role' => $role,
-            'mode' => 'deletion',
-            'deletion_requested_at' => $deletionAt,
-        ];
-        return '/frontend/account_hold.php';
+        if ($deletionState) {
+            $_SESSION['account_hold'] = [
+                'user_id' => $userId,
+                'email' => $email,
+                'role' => $role,
+                'mode' => 'deletion',
+                'deletion_requested_at' => $deletionState['deletion_requested_at'],
+            ];
+            return '/frontend/account_hold.php';
+        }
     }
 
     if ($status === 'banned') {
@@ -156,18 +233,26 @@ function nexusHoldIfBlocked(PDO $conn, array $user, string $role): ?string
     return null;
 }
 
-function nexusEstablishSession(array $user, string $role): void
+function nexusEstablishSession(array $user, string $role, bool $remember = false): void
 {
     if (session_status() !== PHP_SESSION_ACTIVE) {
         session_start();
+    }
+    // Prevent session fixation: the pre-authentication id must never become
+    // the authenticated id. Done once, here, for every login path.
+    if (empty($_SESSION['authenticated'])) {
+        session_regenerate_id(true);
     }
     $_SESSION['authenticated'] = true;
     $_SESSION['user_id'] = (int)($user['user_id'] ?? 0);
     $_SESSION['user_name'] = (string)($user['user_name'] ?? 'User');
     $_SESSION['user_email'] = (string)($user['email'] ?? '');
     $_SESSION['user_role'] = $role;
+    $_SESSION['nexus_remember'] = $remember;
     unset($_SESSION['account_hold'], $_SESSION['verify_email'], $_SESSION['otp_type']);
-    nexusKeepSessionCookie();
+    if ($remember) {
+        nexusKeepSessionCookie();
+    }
 }
 
 function nexusCreatePersistentSession(PDO $conn, int $userId): void
@@ -272,7 +357,7 @@ function nexusResumePersistentLogin(PDO $conn): ?string
             return $blocked;
         }
 
-        nexusEstablishSession($row, $role);
+        nexusEstablishSession($row, $role, true);
         if ($role === 'user') {
             require_once __DIR__ . '/user_backend/mission_progress.php';
             nexusAwardDailyLogin((int)$row['user_id']);
@@ -295,7 +380,7 @@ function nexusFinishLogin(PDO $conn, array $user, bool $remember = true): string
         return $blocked;
     }
 
-    nexusEstablishSession($user, $role);
+    nexusEstablishSession($user, $role, $remember);
     if ($role === 'user') {
         require_once __DIR__ . '/user_backend/mission_progress.php';
         nexusAwardDailyLogin((int)($user['user_id'] ?? 0));

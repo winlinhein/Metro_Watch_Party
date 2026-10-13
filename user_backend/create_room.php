@@ -1,5 +1,6 @@
 <?php
 session_start();
+require_once __DIR__ . '/../error_response_helper.php';
 require_once __DIR__ . '/../conn.php';
 require_once __DIR__ . '/../admin_rooms_helper.php';
 require_once __DIR__ . '/../premium_benefits_helper.php';
@@ -38,7 +39,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             $stmt = $conn->prepare("INSERT INTO rooms (room_code, host_id, movie_id, status, created_at) VALUES (?, ?, ?, 'active', NOW())");
             $stmt->execute([$room_code, $host_id, $movie_id]);
         }
-        $room_id = $conn->lastInsertId();
+        $room_id = (int)$conn->lastInsertId();
+
+        require_once __DIR__ . '/../room_schema_helper.php';
+        ensureRoomParticipantSchema($conn);
+        $hostPeer = 'host-' . $host_id . '-' . $room_id;
+        $conn->prepare("
+            INSERT INTO room_participants (room_id, user_id, peer_id, last_seen)
+            VALUES (?, ?, ?, NOW())
+            ON DUPLICATE KEY UPDATE
+                room_id = VALUES(room_id),
+                user_id = VALUES(user_id),
+                last_seen = NOW()
+        ")->execute([$room_id, $host_id, $hostPeer]);
+
         broadcastAdminRoomsChanged('create', [
             'room_id' => (int)$room_id,
             'host_id' => (int)$host_id,
@@ -59,7 +73,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             'max_members' => (int)$maxMembers,
         ]);
     } catch (PDOException $e) {
-        echo json_encode(['success' => false, 'error' => 'Database error: ' . $e->getMessage()]);
+        nexusSafeError($e);
+        echo json_encode(['error' => 'Database error.']);
     }
     exit;
 }

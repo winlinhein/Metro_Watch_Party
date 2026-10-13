@@ -1,5 +1,6 @@
-﻿<?php
+<?php
 session_start();
+require_once __DIR__ . '/../error_response_helper.php';
 header("Content-Type: application/json");
 
 if (empty($_SESSION["user_id"])) {
@@ -11,6 +12,8 @@ session_write_close();
 
 try {
     require_once __DIR__ . "/../conn.php";
+    require_once __DIR__ . "/../admin_rooms_helper.php";
+    sweepAbandonedRooms($conn);
 
     $stmt = $conn->prepare("
         SELECT r.room_id AS id,
@@ -43,5 +46,6 @@ try {
 
 } catch (Exception $e) {
     http_response_code(500);
-    echo json_encode(["success" => false, "message" => "Database error: " . $e->getMessage()]);
+    nexusSafeError($e);
+    echo json_encode(['success' => false, 'message' => 'Database error.']);
 }

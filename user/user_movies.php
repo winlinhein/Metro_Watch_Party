@@ -1,5 +1,5 @@
 <!-- User Movies View Container -->
-<div x-show="currentTab === 'movies'" style="display: none;" class="absolute inset-0 w-full h-full p-4 sm:p-8 lg:p-12 pb-24 overflow-y-auto custom-scrollbar">
+<div x-show="currentTab === 'movies'" data-tab-pane="movies" style="display: none;" class="absolute inset-0 w-full h-full p-4 sm:p-8 lg:p-12 pb-24 overflow-y-auto custom-scrollbar">
     
     <!-- Section Header -->
     <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-10 stagger-item">
@@ -30,7 +30,7 @@
 
     <!-- Dynamic Movie Cards Grid -->
     <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6 lg:gap-8 pb-12 items-stretch">
-        <template x-for="(movie, index) in filteredMovies" :key="movie.id || movie.movie_id">
+        <template x-for="(movie, index) in pagedMovies" :key="movie.id || movie.movie_id">
             <div class="movie-card-container stagger-item nexus-card-enter h-full" :style="`animation-delay: ${index * 60}ms`">
                 <div @click="openMovieOrPremium(movie)"
                      @mousemove="trackCardTilt($event)"
@@ -107,7 +107,7 @@
                                       class="px-2 py-0.5 rounded text-[10px] font-bold tracking-wider uppercase border border-white/10 text-white/50 bg-white/5 shrink-0"
                                       x-text="'+' + ((movie.genres || []).length - 2)"></span>
                             </div>
-                            <span class="text-[11px] text-white/40 font-bold mono shrink-0" x-text="formatMovieDuration(movie.duration) || (movie.created_at ? new Date(movie.created_at).getFullYear() : '')"></span>
+                            <span class="text-[11px] text-white/40 font-bold mono shrink-0" x-text="formatMovieDuration(movie.duration) || ((movie.created_at && window.nexusFormatClock(movie.created_at)) ? window.nexusFormatClock(movie.created_at).getFullYear() : '')"></span>
                         </div>
                     </div>
                 </div>
@@ -123,11 +123,28 @@
         </div>
     </div>
 
-   
+    <div class="flex items-center justify-center gap-1.5 pb-8" x-show="!moviesLoading && moviePageCount > 1" x-cloak>
+        <button type="button" @click="setMoviePage(moviePageSafe - 1)" :disabled="moviePageSafe <= 1"
+                class="w-9 h-9 rounded-xl border border-white/10 bg-white/5 text-white/70 hover:bg-white/10 hover:text-white disabled:opacity-30 disabled:pointer-events-none flex items-center justify-center transition-colors">
+            <span class="material-symbols-outlined text-[18px]">chevron_left</span>
+        </button>
+        <template x-for="page in moviePageNumbers" :key="'movie-page-'+page">
+            <button type="button" @click="setMoviePage(page)"
+                    class="min-w-9 h-9 px-2 rounded-xl text-[11px] font-bold transition-colors"
+                    :class="page === moviePageSafe ? 'bg-indigo-500 text-white shadow-[0_0_12px_rgba(99,102,241,0.45)]' : 'bg-white/5 border border-white/10 text-white/60 hover:text-white hover:bg-white/10'">
+                <span x-text="page"></span>
+            </button>
+        </template>
+        <button type="button" @click="setMoviePage(moviePageSafe + 1)" :disabled="moviePageSafe >= moviePageCount"
+                class="w-9 h-9 rounded-xl border border-white/10 bg-white/5 text-white/70 hover:bg-white/10 hover:text-white disabled:opacity-30 disabled:pointer-events-none flex items-center justify-center transition-colors">
+            <span class="material-symbols-outlined text-[18px]">chevron_right</span>
+        </button>
+    </div>
 </div>
 
  <!-- Movie Detail & Playback Modal -->
-    <div x-show="showMovieDetailModal" class="fixed inset-0 z-[120] flex items-center justify-center p-4" style="display: none;">
+    <template x-teleport="body">
+    <div x-show="showMovieDetailModal" data-nexus-modal x-effect="window.nexusLockModalScroll(showMovieDetailModal, 'user-movie')" class="fixed inset-0 z-[200] flex items-center justify-center p-4 overscroll-contain" style="display: none;">
         <div class="absolute inset-0 bg-black/80 backdrop-blur-xl" @click="closeMovieDetail()"></div>
         
         <div class="relative w-full max-w-4xl bg-[#08080d] border border-white/10 rounded-3xl overflow-hidden shadow-2xl z-10 flex flex-col max-h-[90vh]" x-show="showMovieDetailModal" x-transition:enter="transition ease-out duration-300" x-transition:enter-start="opacity-0 scale-95" x-transition:enter-end="opacity-100 scale-100">
@@ -342,7 +359,7 @@
                                                     </div>
                                                 </div>
                                                 <div class="flex items-center gap-2">
-                                                    <span class="text-[10px] text-white/40" x-text="comment.created_at || ''"></span>
+                                                    <span class="text-[10px] text-white/40" x-text="window.nexusFormatWhen(comment.created_unix || comment.created_at, 'datetime')"></span>
                                                     <button x-show="isOwnComment(comment)" @click="deleteOwnComment(comment.id || comment.comment_id)" class="opacity-0 group-hover:opacity-100 text-white/30 hover:text-red-400 transition-all focus:opacity-100" title="Delete Comment">
                                                         <span class="material-symbols-outlined text-[16px]">delete</span>
                                                     </button>
@@ -422,7 +439,7 @@
                                                                 <span class="text-[11px] font-bold text-white/90" x-text="reply.user_name || 'User'"></span>
                                                             </div>
                                                             <div class="flex items-center gap-2">
-                                                                <span class="text-[9px] text-white/30" x-text="reply.created_at || ''"></span>
+                                                                <span class="text-[9px] text-white/30" x-text="window.nexusFormatWhen(reply.created_unix || reply.created_at, 'datetime')"></span>
                                                                 <button x-show="isOwnComment(reply)" @click="deleteOwnComment(reply.id || reply.comment_id)" class="opacity-0 group-hover:opacity-100 text-white/30 hover:text-red-400 transition-all focus:opacity-100" title="Delete Reply">
                                                                     <span class="material-symbols-outlined text-[14px]">delete</span>
                                                                 </button>
@@ -454,3 +471,4 @@
             </template>
         </div>
     </div>
+    </template>

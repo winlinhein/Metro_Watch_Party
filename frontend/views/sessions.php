@@ -93,8 +93,9 @@
     <?php $pagerKey = 'rooms'; include __DIR__ . '/../components/admin_pagination.php'; ?>
 
     <!-- Room Details Modal -->
-    <div x-show="roomModalOpen" class="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm" style="display: none;" x-transition:enter="transition ease-out duration-300" x-transition:enter-start="opacity-0 backdrop-blur-none" x-transition:enter-end="opacity-100 backdrop-blur-sm" x-transition:leave="transition ease-in duration-700" x-transition:leave-start="opacity-100 backdrop-blur-sm" x-transition:leave-end="opacity-0 backdrop-blur-none">
-        <div class="glass-card rounded-2xl p-8 max-w-4xl w-full relative max-h-[85vh] overflow-hidden flex flex-col border border-white/10 shadow-2xl" @click.away="roomModalOpen = false"
+    <template x-teleport="body">
+    <div x-show="roomModalOpen" data-nexus-modal x-effect="window.nexusLockModalScroll(roomModalOpen, 'admin-room')" class="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm overscroll-contain" style="display: none;" @click.self="roomModalOpen = false" x-transition:enter="transition ease-out duration-300" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100" x-transition:leave="transition ease-in duration-200" x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0">
+        <div class="glass-card rounded-2xl p-8 max-w-4xl w-full relative max-h-[85vh] overflow-hidden flex flex-col border border-white/10 shadow-2xl" @click.stop
              x-transition:enter="transition ease-out duration-300" x-transition:enter-start="opacity-0 translate-y-8 scale-95" x-transition:enter-end="opacity-100 translate-y-0 scale-100" x-transition:leave="transition ease-in duration-700" x-transition:leave-start="opacity-100 translate-y-0 scale-100" x-transition:leave-end="opacity-0 translate-y-8 scale-95">
             
             <button @click="roomModalOpen = false" class="absolute top-6 right-6 w-8 h-8 rounded-full bg-white/5 hover:bg-white/10 flex items-center justify-center text-white/40 hover:text-white transition-colors z-10 border border-white/10">
@@ -166,4 +167,5 @@
             </div>
         </div>
     </div>
+    </template>
 </div>

@@ -95,7 +95,7 @@
                                     x-text="txn.status"
                                 ></span>
                             </td>
-                            <td class="p-5 text-white/50 text-sm mono" x-text="txn.date"></td>
+                            <td class="p-5 text-white/50 text-sm mono" x-text="window.nexusFormatWhen(txn.created_unix || txn.date, 'datetime')"></td>
                         </tr>
                     </template>
 

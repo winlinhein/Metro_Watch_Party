@@ -87,22 +87,34 @@ session_write_close();
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script>
+        (function () {
+            var allowed = { crimson: 1, arctic: 1, amethyst: 1, verdant: 1 };
+            var theme = 'crimson';
+            try {
+                var saved = localStorage.getItem('nexus_theme');
+                if (saved && allowed[saved]) theme = saved;
+            } catch (e) {}
+            document.documentElement.setAttribute('data-theme', theme);
+        })();
+    </script>
     <?php include __DIR__ . '/../frontend/components/head_boot.php'; ?>
     <title>Nexus - User Dashboard</title>
     
     <!-- Tailwind CSS -->
+    <script src="../js/user_theme_colors.js?v=4"></script>
     <script src="https://cdn.tailwindcss.com/3.4.17"></script>
     <script>
         tailwind.config = {
             theme: {
                 extend: {
-                    colors: {
+                    colors: Object.assign({
                         nexus: {
                             dark: '#030305',
                             red: '#ef4444',
                             indigo: '#4f46e5'
                         }
-                    },
+                    }, window.nexusThemeColors || {}),
                     fontFamily: {
                         sans: ['Space Grotesk', 'sans-serif'],
                         mono: ['JetBrains Mono', 'monospace']
@@ -115,6 +127,7 @@ session_write_close();
     <!-- Google Fonts -->
     <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined" rel="stylesheet" />
+    <link rel="stylesheet" href="../frontend/assets/user-themes.css?v=5">
     <?php if ($avatarUrl !== ''): ?>
     <link rel="preload" as="image" href="<?php echo htmlspecialchars($avatarUrl, ENT_QUOTES, 'UTF-8'); ?>">
     <?php endif; ?>
@@ -127,24 +140,36 @@ session_write_close();
     <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js" crossorigin="anonymous" onerror="if(window.gsap)window.gsap.ScrollTrigger=window.gsap.ScrollTrigger||{create:()=>{},refresh:()=>{},kill:()=>{}}"></script>
     <script>if(window.gsap) gsap.config({nullTargetWarn: false});</script>
     <script defer src="https://cdn.jsdelivr.net/npm/@alpinejs/collapse@3.14.1/dist/cdn.min.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/@alpinejs/teleport@3.14.1/dist/cdn.min.js"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.1/dist/cdn.min.js" crossorigin="anonymous"></script>
     
     <style>
         html, body { color-scheme: dark; }
         body { 
             font-family: 'Space Grotesk', sans-serif; 
-            background-color: #030305; 
+            background-color: var(--nx-bg, #030305);
+            background-image: var(--nx-grad-page);
+            background-attachment: fixed; 
             color: #ffffff; 
             overflow: hidden;
         }
+        html.nexus-modal-open,
+        html.nexus-modal-open body {
+            overflow: hidden !important;
+        }
+        html.nexus-modal-open [data-tab-panel],
+        html.nexus-modal-open [data-tab-pane],
+        html.nexus-modal-open .tab-content {
+            overflow: hidden !important;
+        }
         select {
             color-scheme: dark;
-            background-color: #0a0a0f;
+            background-color: var(--nx-card, #0a0a0f);
             color: #f5f5f5;
         }
         select option,
         select optgroup {
-            background-color: #0a0a0f;
+            background-color: var(--nx-card, #0a0a0f);
             color: #f5f5f5;
         }
 
@@ -181,15 +206,15 @@ session_write_close();
         ::-webkit-scrollbar { width: 4px; }
         ::-webkit-scrollbar-track { background: transparent; }
         ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 10px; }
-        ::-webkit-scrollbar-thumb:hover { background: rgba(239,68,68,0.5); }
+        ::-webkit-scrollbar-thumb:hover { background: rgb(var(--nx-glow, 239 68 68) / 0.5); }
 
         .hover-glow {
             transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
         }
         .hover-glow:hover {
             transform: translateY(-5px);
-            box-shadow: 0 10px 40px -10px rgba(239, 68, 68, 0.2);
-            border-color: rgba(239, 68, 68, 0.4);
+            box-shadow: 0 10px 40px -10px rgb(var(--nx-glow, 239 68 68) / 0.2);
+            border-color: rgb(var(--nx-glow, 239 68 68) / 0.4);
         }
         
         .icon-bounce {
@@ -202,9 +227,7 @@ session_write_close();
         .bg-mesh {
             position: fixed;
             top: -20%; left: -20%; right: -20%; bottom: -20%;
-            background: 
-                radial-gradient(at 20% 20%, rgba(239, 68, 68, 0.08) 0px, transparent 40%),
-                radial-gradient(at 80% 80%, rgba(79, 70, 229, 0.08) 0px, transparent 40%);
+            background: var(--nx-grad-mesh);
             z-index: -2;
             will-change: transform;
         }
@@ -228,7 +251,7 @@ session_write_close();
             inset: 0;
             border-radius: inherit;
             padding: 1px;
-            background: linear-gradient(45deg, transparent, rgba(239, 68, 68, 0.6), transparent);
+            background: linear-gradient(45deg, transparent, rgb(var(--nx-glow, 239 68 68) / 0.55), transparent);
             -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
             -webkit-mask-composite: xor;
             mask-composite: exclude;
@@ -243,7 +266,7 @@ session_write_close();
         }
         
         :root {
-            --plyr-color-main: #ef4444; /* Nexus Red */
+            --plyr-color-main: rgb(var(--nx-glow, 239 68 68));
         }
 
         @keyframes nexus-stat-spin {
@@ -294,7 +317,7 @@ session_write_close();
             left: 0; top: 50%;
             width: 3px; height: 0;
             border-radius: 999px;
-            background: linear-gradient(180deg, #ef4444, #6366f1);
+            background: var(--nx-grad-accent, linear-gradient(180deg, #ef4444, #6366f1));
             transform: translateY(-50%);
             transition: height 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
         }
@@ -329,7 +352,7 @@ session_write_close();
             position: absolute;
             inset: -5px;
             border-radius: 16px;
-            border: 1px solid rgba(239,68,68,0.35);
+            border: 1px solid rgb(var(--nx-glow, 239 68 68) / 0.45);
             opacity: 0;
             animation: headerRing 2.4s ease-out infinite;
         }
@@ -364,7 +387,7 @@ session_write_close();
         }
         .nexus-media-card:hover {
             transform: perspective(980px) rotateX(var(--rx)) rotateY(var(--ry)) translateY(-12px);
-            box-shadow: 0 28px 50px -18px rgba(99,102,241,0.35);
+            box-shadow: 0 28px 50px -18px rgb(var(--nx-glow-2, 99 102 241) / 0.35);
         }
         .nexus-shop-card {
             transform: perspective(900px) rotateX(var(--rx)) rotateY(var(--ry)) translateY(0);
@@ -372,14 +395,14 @@ session_write_close();
         }
         .nexus-shop-card:hover {
             transform: perspective(900px) rotateX(var(--rx)) rotateY(var(--ry)) translateY(-10px) scale(1.02);
-            box-shadow: 0 24px 40px -16px rgba(139,92,246,0.35);
+            box-shadow: 0 24px 40px -16px rgb(var(--nx-glow, 217 70 239) / 0.35);
         }
         .nexus-watch-card {
             transition: transform 0.65s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.65s ease, border-color 0.45s ease;
         }
         .group:hover .nexus-watch-card {
             transform: translateY(-18px) rotateX(10deg) scale(1.02);
-            box-shadow: 0 40px 80px rgba(239,68,68,0.22);
+            box-shadow: 0 40px 80px rgb(var(--nx-glow, 239 68 68) / 0.22);
         }
         .nexus-card-shine {
             position: absolute;
@@ -405,7 +428,7 @@ session_write_close();
             position: absolute;
             inset: -8px;
             border-radius: 999px;
-            border: 1px solid rgba(239,68,68,0.35);
+            border: 1px solid rgb(var(--nx-glow, 239 68 68) / 0.45);
             animation: fabOrbit 2.8s linear infinite;
             pointer-events: none;
         }
@@ -436,16 +459,13 @@ session_write_close();
 
     <link rel="stylesheet" href="https://cdn.plyr.io/3.7.8/plyr.css" />
     <script src="https://cdn.plyr.io/3.7.8/plyr.polyfilled.js"></script>
-    <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+    <script src="https://cdn.socket.io/4.7.5/socket.io.min.js" defer></script>
     <script>
         window.NEXUS_SIGNALING_URL = window.NEXUS_SIGNALING_URL || (
             (location.port && location.port !== '3000')
                 ? (location.protocol + '//' + location.hostname + ':3000')
                 : ''
         );
-        if (typeof io !== 'function') {
-            document.write('<script src="' + (window.NEXUS_SIGNALING_URL || (location.protocol + '//' + location.hostname + ':3000')) + '/socket.io/socket.io.js"><\/script>');
-        }
     </script>
     <script src="../js/chat_emojis.js?v=1"></script>
     <script src="../js/ice_servers.js?v=<?php echo time(); ?>"></script>
@@ -696,6 +716,9 @@ session_write_close();
                                     </div>
                                     <div class="min-w-0 flex-1 cursor-pointer" @click.stop="toggleDropdown(friend, $event)">
                                         <h4 class="text-xs font-semibold text-white/90 truncate" x-text="friend.user_name"></h4>
+                                        <p class="text-[9px] truncate"
+                                           :class="isUserOnline(friend) ? 'text-emerald-400' : 'text-white/35'"
+                                           x-text="isUserOnline(friend) ? 'Online' : formatLastLogin(friend.last_login_unix)"></p>
                                     </div>
                                 </div>
                                 
@@ -748,6 +771,9 @@ session_write_close();
                                     <div class="min-w-0 flex-1 cursor-pointer" @click.stop="toggleDropdown(req, $event)">
                                         <h4 class="text-xs font-semibold text-white truncate" x-text="req.user_name"></h4>
                                         <p class="text-[9px] text-yellow-400 uppercase font-mono tracking-wider">Added you</p>
+                                        <p class="text-[9px] truncate"
+                                           :class="isUserOnline(req) ? 'text-emerald-400' : 'text-white/35'"
+                                           x-text="isUserOnline(req) ? 'Online' : formatLastLogin(req.last_login_unix)"></p>
                                     </div>
                                 </div>
                             </div>
@@ -793,7 +819,8 @@ session_write_close();
         </template>
     </div>
     <!-- Live User Search Modal (above friends/quests drawers) -->
-    <div x-show="showInviteModal" class="fixed inset-0 z-[220] flex items-center justify-center" style="display: none;">
+    <template x-teleport="body">
+    <div x-show="showInviteModal" data-nexus-modal x-effect="window.nexusLockModalScroll(showInviteModal, 'user-invite')" class="fixed inset-0 z-[220] flex items-center justify-center p-4 overscroll-contain" style="display: none;">
         <div class="absolute inset-0 bg-black/70 backdrop-blur-md" x-show="showInviteModal" x-transition.opacity @click="showInviteModal = false"></div>
         <div class="relative w-[90%] max-w-[480px] bg-[#050508]/95 backdrop-blur-3xl border border-white/10 rounded-3xl shadow-2xl flex flex-col max-h-[85vh] overflow-hidden z-10"
              x-show="showInviteModal"
@@ -851,6 +878,9 @@ session_write_close();
                             <div class="min-w-0 flex-1 cursor-pointer" @click.stop="toggleDropdown(user, $event)">
                                 <h4 class="text-xs font-bold text-white truncate" x-text="user.user_name"></h4>
                                 <p class="text-[10px] text-white/40 truncate" x-text="user.email"></p>
+                                <p class="text-[9px] truncate"
+                                   :class="isUserOnline(user) ? 'text-emerald-400' : 'text-white/35'"
+                                   x-text="isUserOnline(user) ? 'Online' : formatLastLogin(user.last_login_unix)"></p>
                             </div>
                         </div>
 
@@ -904,6 +934,7 @@ session_write_close();
             </div>
         </div>
     </div>
+    </template>
 
     <!-- Main Content -->
     <main class="flex-1 flex flex-col h-full overflow-hidden relative z-10 w-full">
@@ -991,7 +1022,7 @@ session_write_close();
                     </div>
                     
                     <div class="absolute right-0 top-full mt-2 w-48 bg-[#050508] border border-white/10 rounded-xl shadow-2xl p-2 z-50" x-show="showProfileMenu" style="display: none;">
-                        <button @click="currentTab = 'account'; showProfileMenu = false" class="w-full text-left p-2 hover:bg-white/10 rounded-lg text-xs font-semibold text-white/70 hover:text-white flex items-center gap-2">
+                        <button @click="switchTab('account'); showProfileMenu = false" class="w-full text-left p-2 hover:bg-white/10 rounded-lg text-xs font-semibold text-white/70 hover:text-white flex items-center gap-2">
                             <span class="material-symbols-outlined text-[16px]">manage_accounts</span> Account
                         </button>
                         <button @click="showPremiumModal = true; showProfileMenu = false" class="w-full text-left p-2 hover:bg-white/10 rounded-lg text-xs font-semibold text-white/70 hover:text-white flex items-center justify-between gap-2 mt-1">
@@ -1025,7 +1056,7 @@ session_write_close();
         <!-- Tabs Container (Relative wrapper for Absolute children) -->
         <div class="relative flex-1 overflow-hidden h-full">
             <!-- Content -->
-            <div class="absolute inset-0 w-full h-full overflow-y-auto p-4 sm:p-6 md:p-10 pb-28 scroll-smooth custom-scrollbar" x-show="currentTab === 'dashboard'">
+            <div class="absolute inset-0 w-full h-full overflow-y-auto p-4 sm:p-6 md:p-10 pb-28 scroll-smooth custom-scrollbar tab-content" data-tab-pane="dashboard" x-show="currentTab === 'dashboard'">
                 <div class="max-w-[1400px] mx-auto space-y-8">
 
                 <?php include __DIR__ . '/../frontend/components/trending_movies.php'; ?>

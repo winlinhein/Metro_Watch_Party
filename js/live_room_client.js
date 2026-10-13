@@ -12,6 +12,10 @@ function createNexusLiveRoom(options) {
     let audioCtx = null;
     let lastBroadcastSpeaking = null;
     let stopped = false;
+    let mediaReady = Promise.resolve();
+    // Bound once here so start()/stop() cannot accumulate listeners. Declaring
+    // this inside start() leaked one handler per start() call.
+    const unlockAudio = () => resumeAudio();
     const iceServers = (typeof window.nexusIceServers === 'function')
         ? window.nexusIceServers()
         : [
@@ -231,7 +235,12 @@ function createNexusLiveRoom(options) {
                 return existing;
             }
         }
-        const pc = new RTCPeerConnection({ iceServers, iceCandidatePoolSize: 8 });
+        const pc = new RTCPeerConnection({
+            iceServers,
+            iceCandidatePoolSize: 0,
+            bundlePolicy: 'max-bundle',
+            rtcpMuxPolicy: 'require'
+        });
         peerConnections[key] = pc;
         if (localStream) {
             localStream.getTracks().forEach((track) => pc.addTrack(track, localStream));
@@ -273,7 +282,64 @@ function createNexusLiveRoom(options) {
         return pc;
     }
 
+    function waitForStable(pc) {
+        if (!pc || pc.signalingState === 'closed' || pc.connectionState === 'closed') return Promise.resolve(false);
+        if (pc.signalingState === 'stable') return Promise.resolve(true);
+        return new Promise((resolve) => {
+            const finish = (ok) => {
+                clearTimeout(timer);
+                pc.removeEventListener('signalingstatechange', onState);
+                resolve(ok);
+            };
+            const onState = () => {
+                if (pc.signalingState === 'stable') finish(true);
+                else if (pc.signalingState === 'closed') finish(false);
+            };
+            const timer = setTimeout(() => finish(pc.signalingState === 'stable'), 2500);
+            pc.addEventListener('signalingstatechange', onState);
+        });
+    }
+
+    async function publishLocalTracks() {
+        if (!localStream) return;
+        const tracks = localStream.getTracks().filter((track) => track.readyState === 'live');
+        if (!tracks.length) return;
+        const jobs = Object.keys(peerConnections).map(async (key) => {
+            const pc = peerConnections[key];
+            if (!pc || pc.connectionState === 'closed' || pc.signalingState === 'closed') return;
+            const stable = await waitForStable(pc);
+            if (!stable) return;
+            let added = false;
+            tracks.forEach((track) => {
+                if (pc.getSenders().some((sender) => sender.track === track)) return;
+                try {
+                    pc.addTrack(track, localStream);
+                    added = true;
+                } catch (e) {}
+            });
+            if (!added) return;
+            try {
+                const offer = await pc.createOffer();
+                await pc.setLocalDescription(offer);
+                signal('offer', {
+                    targetPeerId: key,
+                    targetSocketId: key,
+                    sdp: pc.localDescription,
+                    fromPeerId: self.peerId,
+                    fromSocketId: socket && socket.id,
+                    userId: self.userId,
+                    userName: self.userName,
+                    avatar_url: self.avatar,
+                    border_preview: self.border
+                });
+            } catch (e) {}
+        });
+        await Promise.all(jobs);
+    }
+
     async function callPeer(peer) {
+        try { await mediaReady; } catch (e) {}
+        if (stopped) return;
         const normalized = normalizePeer(peer);
         const key = peerKey(normalized);
         if (!key || key === self.peerId || (socket && key === socket.id)) return;
@@ -306,6 +372,13 @@ function createNexusLiveRoom(options) {
         const pc = createPeerConnection(fromKey, from);
         if (!pc) return;
         try {
+            if (localStream) {
+                localStream.getTracks().forEach((track) => {
+                    if (track.readyState !== 'live') return;
+                    if (pc.getSenders().some((sender) => sender.track === track)) return;
+                    try { pc.addTrack(track, localStream); } catch (e) {}
+                });
+            }
             if (pc.signalingState === 'have-local-offer') {
                 try { await pc.setLocalDescription({ type: 'rollback' }); } catch (e) {}
             }
@@ -450,12 +523,25 @@ function createNexusLiveRoom(options) {
     async function connectSocket() {
         if (typeof io !== 'function') return;
         const url = signalingUrl();
-        socket = url
-            ? io(url, { transports: ['websocket', 'polling'] })
-            : io({ transports: ['websocket', 'polling'] });
+        const socketOpts = {
+            // Reconnection must stay on: room-ended / force-leave are delivered
+            // over this socket, so a permanent drop silently strands the user.
+            transports: ['websocket', 'polling'],
+            timeout: 8000,
+            reconnection: true,
+            reconnectionAttempts: Infinity,
+            reconnectionDelay: 1000,
+            reconnectionDelayMax: 5000
+        };
+        socket = url ? io(url, socketOpts) : io(socketOpts);
+        // Runs on the first connect and on every reconnect, so the room is
+        // re-joined automatically after a dropped connection.
         socket.on('connect', () => {
             if (self.userId) socket.emit('register-user', self.userId);
             if (self.roomId) socket.emit('join-room', String(self.roomId), self.userId, self.userName, self.peerId);
+        });
+        socket.on('connect_error', (err) => {
+            console.warn('Watch party signaling unavailable:', err && err.message ? err.message : err);
         });
         [
             'existing-users', 'user-connected', 'user-disconnected', 'peer-leave',
@@ -525,49 +611,57 @@ function createNexusLiveRoom(options) {
                     });
                 })
                 .catch(() => {});
-        }, 8000);
+        }, 3000);
     }
 
     async function startLocalMedia() {
-        localStream = await navigator.mediaDevices.getUserMedia({
-            video: true,
-            audio: {
-                echoCancellation: true,
-                noiseSuppression: true,
-                autoGainControl: true
-            }
-        });
+        const audio = { echoCancellation: true, noiseSuppression: true, autoGainControl: true };
+        localStream = await navigator.mediaDevices.getUserMedia({ audio, video: false });
         watchSpeaking('local', localStream, {
             isSelf: true,
             userId: self.userId,
             peerId: self.peerId,
             name: self.userName
         });
+        navigator.mediaDevices.getUserMedia({
+            audio: false,
+            video: { width: { ideal: 320 }, height: { ideal: 240 }, frameRate: { ideal: 15 } }
+        }).then((cam) => {
+            if (stopped || !localStream) {
+                cam.getTracks().forEach((track) => track.stop());
+                return;
+            }
+            cam.getVideoTracks().forEach((track) => localStream.addTrack(track));
+            publishLocalTracks();
+        }).catch(() => {});
     }
 
     return {
         async start() {
             stopped = false;
-            const unlock = () => resumeAudio();
-            document.addEventListener('click', unlock, { once: true });
-            try {
-                const servers = (typeof window.nexusLoadIceServers === 'function')
-                    ? await window.nexusLoadIceServers()
-                    : iceServers;
-                if (Array.isArray(servers) && servers.length) {
-                    iceServers.splice(0, iceServers.length, ...servers);
-                }
-            } catch (e) {}
+            document.addEventListener('pointerdown', unlockAudio);
             bindPusher();
-            await connectSocket();
-            try { await startLocalMedia(); } catch (e) {
-                console.warn('Dashboard live camera/mic unavailable', e);
-            }
-            await announce();
+            mediaReady = startLocalMedia().catch((e) => {
+                console.warn('Dashboard live mic unavailable', e);
+            });
+            connectSocket();
+            const announced = announce();
             startSync();
+            await mediaReady;
+            (opts.peers || []).forEach((peer) => callPeer({
+                peerId: peer.peerId || peer.peer_id,
+                userId: peer.userId || peer.user_id,
+                userName: peer.name || peer.userName || peer.user_name,
+                avatar_url: peer.avatar || peer.avatar_url,
+                border_preview: peer.border || peer.border_preview
+            }));
+            await announced;
+            await publishLocalTracks();
+            resumeAudio();
         },
         stop() {
             stopped = true;
+            document.removeEventListener('pointerdown', unlockAudio);
             if (syncTimer) {
                 clearInterval(syncTimer);
                 syncTimer = null;

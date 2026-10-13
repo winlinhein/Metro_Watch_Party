@@ -64,6 +64,7 @@ io.on("connection", (socket) => {
 
       const payload = {
           socketId: socket.id,
+          peerId: socket.id,
           userId,
           userName: userName || 'Guest'
       };
@@ -84,12 +85,86 @@ io.on("connection", (socket) => {
 
       await socket.join(room);
       (socket as any)._roomId = room;
+      (socket as any)._peerId = payload.peerId;
       (socket as any)._userId = userId;
       (socket as any)._userName = payload.userName;
       console.log(`User ${userId} (${socket.id}) joined room ${room}`);
 
       socket.emit('existing-users', existing);
       socket.to(room).emit('user-connected', payload);
+  });
+
+  // --- Playback / movie sync, host controls and moderation ---
+  socket.on('movie-changed', (data) => {
+      const roomId = (socket as any)._roomId;
+      if (!roomId) return;
+      socket.to(roomId).emit('movie-changed', {
+          ...(data || {}),
+          fromSocketId: socket.id,
+          userId: (socket as any)._userId
+      });
+  });
+
+  socket.on('playback-sync', (data) => {
+      const roomId = (socket as any)._roomId;
+      if (!roomId) return;
+      socket.to(roomId).emit('playback-sync', {
+          ...(data || {}),
+          fromSocketId: socket.id,
+          userId: (socket as any)._userId
+      });
+  });
+
+  socket.on('room-ended', (data) => {
+      const roomId = (socket as any)._roomId;
+      if (!roomId) return;
+      socket.to(roomId).emit('room-ended', {
+          ...(data || {}),
+          fromSocketId: socket.id,
+          fromUserId: (socket as any)._userId,
+          is_ended: true,
+          message: (data && (data as any).message) || 'The host ended this watch party.'
+      });
+  });
+
+  socket.on('force-leave', (data) => {
+      const roomId = (socket as any)._roomId;
+      if (!roomId) return;
+      socket.to(roomId).emit('force-leave', {
+          ...(data || {}),
+          fromSocketId: socket.id,
+          fromUserId: (socket as any)._userId
+      });
+  });
+
+  socket.on('force-mute', (data) => {
+      const roomId = (socket as any)._roomId;
+      if (!roomId) return;
+      socket.to(roomId).emit('force-mute', {
+          ...(data || {}),
+          fromSocketId: socket.id,
+          fromUserId: (socket as any)._userId
+      });
+  });
+
+  socket.on('force-video', (data) => {
+      const roomId = (socket as any)._roomId;
+      if (!roomId) return;
+      socket.to(roomId).emit('force-video', {
+          ...(data || {}),
+          fromSocketId: socket.id,
+          fromUserId: (socket as any)._userId
+      });
+  });
+
+  socket.on('force-chat-ban', (data) => {
+      const roomId = (socket as any)._roomId;
+      if (!roomId) return;
+      socket.to(roomId).emit('force-chat-ban', {
+          ...(data || {}),
+          fromSocketId: socket.id,
+          fromUserId: (socket as any)._userId
+      });
   });
 
   socket.on('offer', (data) => {
@@ -517,21 +592,6 @@ app.post("/backend/users_api.php", (req, res) => {
 });
 app.get("/backend/movies_api.php", (req, res) => {
   res.json([]);
-});
-
-app.get("/user_backend/movies_api.php", (req, res) => {
-  res.json([]);
-});
-
-app.get("/user_backend/get_reasons.php", (req, res) => {
-  res.json({
-    success: true,
-    reasons: [
-      { reason_id: 1, reason_title: "Spam", reason_description: "Unsolicited content" },
-      { reason_id: 2, reason_title: "Harassment", reason_description: "Abusive behavior" },
-      { reason_id: 3, reason_title: "Inappropriate Content", reason_description: "Violates community guidelines" }
-    ]
-  });
 });
 
 

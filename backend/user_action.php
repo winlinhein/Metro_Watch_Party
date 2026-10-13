@@ -126,9 +126,8 @@ if ($action === 'ban') {
 
     $stmt = $conn->prepare("UPDATE users SET status = 'banned', ban_reason = ? WHERE user_id = ?");
     if ($stmt->execute([$banReason, $userId])) {
-        triggerPusherEvent("user-{$userId}", 'force_logout', [
-            'message' => 'Your account has been banned. Reason: ' . htmlspecialchars((string)$reason),
-        ]);
+        require_once __DIR__ . '/../auth_flow_helper.php';
+        nexusDisconnectBannedUser($conn, $userId, 'Your account has been banned. Reason: ' . $banReason);
         echo json_encode(['success' => true, 'message' => 'User banned and disconnected.']);
     } else {
         echo json_encode(['success' => false, 'error' => 'Failed to ban user in the database.']);

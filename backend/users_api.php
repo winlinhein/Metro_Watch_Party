@@ -1,5 +1,6 @@
 <?php
 session_start();
+require_once __DIR__ . '/../error_response_helper.php';
 
 $role = strtolower((string)($_SESSION['user_role'] ?? ''));
 
@@ -33,6 +34,7 @@ if ($method === 'GET') {
     try {
         ensureAppSchema($conn);
         ensureUserLastSeenColumn($conn);
+        $lastLoginSql = nexusLastLoginUnixSql('u.user_id');
         $sql = "
             SELECT 
                 u.user_id AS id,
@@ -45,6 +47,7 @@ if ($method === 'GET') {
                 u.role_id,
                 u.avatar_url,
                 u.last_seen,
+                {$lastLoginSql},
                 r.role AS role_name
             FROM users u
             LEFT JOIN roles r ON u.role_id = r.role_id
@@ -75,6 +78,7 @@ if ($method === 'GET') {
                 'border_preview' => $u['border_preview'] ?? '',
                 'border_id'      => (int)($u['border_id'] ?? 0),
                 'is_online'      => onlineFlagFromLastSeen($u['last_seen'] ?? null),
+                'last_login_unix'=> isset($u['last_login_unix']) ? (int)$u['last_login_unix'] : null,
             ];
         }, $rawUsers);
 
@@ -82,7 +86,8 @@ if ($method === 'GET') {
         exit();
     } catch (Exception $e) {
         http_response_code(500);
-        echo json_encode(['error' => 'Database query failed: ' . $e->getMessage()]);
+        nexusSafeError($e);
+        echo json_encode(['error' => 'Database error.']);
         exit();
     }
 }
@@ -126,6 +131,8 @@ if ($method === 'POST') {
             ensureAppSchema($conn);
             $stmt = $conn->prepare("UPDATE users SET status = 'banned' WHERE user_id = ?");
             $stmt->execute([$userId]);
+            require_once __DIR__ . '/../auth_flow_helper.php';
+            nexusDisconnectBannedUser($conn, (int)$userId, 'Your account has been banned.');
 
             echo json_encode([
                 'success' => true,
@@ -135,7 +142,8 @@ if ($method === 'POST') {
             exit();
         } catch (Exception $e) {
             http_response_code(500);
-            echo json_encode(['error' => 'Failed to suspend user: ' . $e->getMessage()]);
+            nexusSafeError($e);
+            echo json_encode(['error' => 'Database error.']);
             exit();
         }
     }
@@ -153,7 +161,8 @@ if ($method === 'POST') {
             exit();
         } catch (Exception $e) {
             http_response_code(500);
-            echo json_encode(['error' => 'Failed to restore user: ' . $e->getMessage()]);
+            nexusSafeError($e);
+            echo json_encode(['error' => 'Database error.']);
             exit();
         }
     }

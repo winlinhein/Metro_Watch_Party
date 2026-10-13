@@ -4,7 +4,7 @@
         <div class="relative z-10 flex flex-wrap justify-between items-center gap-4 mb-8">
             <div>
                 <h3 class="text-lg font-bold tracking-wide" x-text="chartMode === 'logins' ? 'Login Activity' : 'Revenue'"></h3>
-                <p class="text-[11px] text-white/40 uppercase tracking-widest mono mt-1" x-text="chartMode === 'logins' ? 'Sessions signed in' : 'Successful payments'"></p>
+                <p class="text-[11px] text-white/40 uppercase tracking-widest mono mt-1" x-text="chartMode === 'logins' ? 'Daily sign-ins' : 'Successful payments'"></p>
             </div>
             <div class="flex items-center gap-3">
                 <div class="relative flex items-center bg-black/40 p-1 rounded-xl border border-white/10 overflow-hidden" data-chart-toggle>

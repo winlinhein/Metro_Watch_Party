@@ -1,5 +1,6 @@
 <?php
 session_start();
+require_once __DIR__ . '/../error_response_helper.php';
 header('Content-Type: application/json');
 
 if (empty($_SESSION['user_id'])) {
@@ -64,6 +65,7 @@ try {
     if ($e->getCode() == 23000) {
         echo json_encode(['success' => false, 'message' => 'That email address is already in use.']);
     } else {
-        echo json_encode(['success' => false, 'message' => 'Database error: ' . $e->getMessage()]);
+        nexusSafeError($e);
+        echo json_encode(['success' => false, 'message' => 'Database error.']);
     }
 }

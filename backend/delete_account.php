@@ -44,13 +44,14 @@ try {
     }
 
     nexusScheduleAccountDeletion($conn, $userId);
-    nexusClearAccountSession();
+    nexusClearAccountSession($conn, $userId);
 
     echo json_encode([
         'success' => true,
         'pending' => true,
         'message' => 'Account deletion scheduled. Sign in within 24 hours to cancel.'
     ]);
-} catch (PDOException $e) {
-    echo json_encode(['success' => false, 'message' => 'Database error: ' . $e->getMessage()]);
+} catch (Throwable $e) {
+    error_log('delete account: ' . $e->getMessage());
+    echo json_encode(['success' => false, 'message' => 'Could not schedule deletion. Please try again.']);
 }

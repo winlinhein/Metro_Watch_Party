@@ -1,3 +1,47 @@
+(function () {
+    try {
+        var mins = -new Date().getTimezoneOffset();
+        document.cookie = 'nexus_tz_offset=' + mins + ';path=/;max-age=31536000;SameSite=Lax';
+    } catch (e) {}
+})();
+
+if (!window.nexusFormatClock) {
+    window.nexusFormatClock = function (input) {
+        if (input === null || input === undefined || input === '') return null;
+        if (input instanceof Date) return isNaN(input.getTime()) ? null : input;
+        if (typeof input === 'number' || (typeof input === 'string' && /^\d+$/.test(String(input).trim()))) {
+            const n = Number(input);
+            const date = new Date(n < 1e12 ? n * 1000 : n);
+            return isNaN(date.getTime()) ? null : date;
+        }
+        if (typeof input === 'string' && input.includes(' ') && !input.includes('T')) {
+            const date = new Date(input.trim().replace(' ', 'T') + 'Z');
+            return isNaN(date.getTime()) ? null : date;
+        }
+        const date = new Date(input);
+        return isNaN(date.getTime()) ? null : date;
+    };
+}
+
+if (!window.nexusFormatWhen) {
+    window.nexusFormatWhen = function (input, style) {
+        const date = window.nexusFormatClock(input);
+        if (!date) return '';
+        if (style === 'time') return date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+        if (style === 'date') return date.toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' });
+        return date.toLocaleString([], { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' });
+    };
+}
+
+function nexusRoomMessageTime(data) {
+    const stamp = data && (data.created_unix || data.sent_at || data.created_at);
+    if (stamp) {
+        const formatted = window.nexusFormatWhen(stamp, 'time');
+        if (formatted) return formatted;
+    }
+    return (data && data.time) || new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+}
+
 const NEXUS_ACTIVE_ROOM_KEY = 'nexus_active_room';
 
 function writeNexusActiveRoom(data) {
@@ -53,7 +97,9 @@ function watchParty() {
         showChat: typeof window === 'undefined' || window.innerWidth >= 768,
         showParticipants: true,
         showControls: false,
+        useTouchPad: false,
         controlsTimeout: null,
+        _seeking: false,
         isLoading: false,
         isConnecting: true,
         isLeaving: false,
@@ -139,6 +185,8 @@ function watchParty() {
         roomSyncTimer: null,
 
         async init() {
+            this.useTouchPad = window.matchMedia('(pointer: coarse)').matches || window.innerWidth < 1024;
+            if (this.useTouchPad) this.showControls = true;
             document.addEventListener('click', () => {
                 this.resumeAudioContext();
                 document.querySelectorAll('video').forEach((el) => {
@@ -146,31 +194,70 @@ function watchParty() {
                 });
             }, { once: true });
 
+            try { sessionStorage.removeItem('nexus_room_returning'); } catch (e) {}
+            this.bindRoomUnload();
+            this.applyRoomBoot();
+            this.signal('peer-resume', {
+                peerId: this.peerId,
+                userId: Number(window.CURRENT_USER_ID) || null,
+                userName: window.USER_NAME || 'You',
+                avatar_url: window.USER_AVATAR || '',
+                border_preview: window.USER_BORDER || ''
+            });
             this.hydratePendingMovie();
             this.seedLocalParticipant();
+            this.markConnected();
             this.persistActiveRoom();
             this.fetchFriends();
             this.startPresenceHeartbeat();
             this.fetchMovies();
             this.fetchReasons();
 
-            setTimeout(() => this.markConnected(), 5000);
-
-            await this.loadIceServers();
             const cameraReady = this.startLocalMedia();
             const roomReady = this.fetchRoomDetails();
-            const liveReady = (async () => {
-                await this.connectSignaling();
-                await this.announcePresence();
-            })();
+            const rosterReady = this.announcePresence();
+            this.connectSignaling();
 
-            await Promise.allSettled([roomReady, liveReady]);
+            await Promise.allSettled([roomReady, rosterReady]);
             this.startRoomSync();
             this.fetchJoinRequests();
             this.markConnected();
 
             await cameraReady;
             this.markConnected();
+        },
+
+        bindRoomUnload() {
+            if (this._roomUnloadBound) return;
+            this._roomUnloadBound = true;
+            window.addEventListener('pagehide', () => {
+                if (this._parking || this._exiting || !this.roomId || !this.peerId) return;
+                const query = new URLSearchParams({
+                    room_id: String(this.roomId),
+                    peer_id: String(this.peerId),
+                    unload: '1'
+                });
+                try {
+                    navigator.sendBeacon(`../user_backend/leave_room.php?${query.toString()}`);
+                } catch (e) {}
+            });
+        },
+
+        applyRoomBoot() {
+            const boot = window.NEXUS_ROOM_BOOT;
+            if (!boot || !boot.room) return;
+            const room = boot.room;
+            this.hostUserId = parseInt(room.host_id, 10) || null;
+            this.isHost = this.hostUserId === parseInt(window.CURRENT_USER_ID, 10);
+            if (room.room_code) this.roomName = `Room #${room.room_code}`;
+            if (room.room_id) this.roomId = String(room.room_id);
+            if (Number(room.max_members) > 0) this.maxMembers = Number(room.max_members);
+            if (boot.movie) this.applyMovie(boot.movie);
+            if (Array.isArray(boot.peers) && boot.peers.length) {
+                this.syncPresence(boot.peers);
+                boot.peers.forEach((peer) => this.callPeer(this.mapRoomPeer(peer)));
+            }
+            this.liveStatus = 'Live';
         },
 
         hydratePendingMovie() {
@@ -338,7 +425,7 @@ function watchParty() {
                 roomName: this.roomName || '',
                 peerId: this.peerId || '',
                 isHost: !!this.isHost,
-                parked: false,
+                parked: !!this._parking,
                 max_members: Number(this.maxMembers) || 5,
                 participants: (this.participants || []).map((p) => ({
                     name: p.name || 'User',
@@ -352,8 +439,28 @@ function watchParty() {
 
         goToDashboard() {
             if (this._exiting) return;
+            this._parking = true;
             this.persistActiveRoom();
-            if (typeof window.showPageLoader === 'function') window.showPageLoader();
+            try {
+                if (this.roomId && this.peerId && navigator.sendBeacon) {
+                    const stay = new FormData();
+                    stay.append('room_id', String(this.roomId));
+                    stay.append('peer_id', String(this.peerId));
+                    stay.append('heartbeat', '1');
+                    navigator.sendBeacon('../user_backend/join_room.php', stay);
+                    const park = new FormData();
+                    park.append('room_id', String(this.roomId));
+                    park.append('event', 'peer-park');
+                    park.append('payload', JSON.stringify({
+                        peerId: this.peerId,
+                        userId: Number(window.CURRENT_USER_ID) || null,
+                        userName: window.USER_NAME || 'User',
+                        avatar_url: window.USER_AVATAR || '',
+                        border_preview: window.USER_BORDER || ''
+                    }));
+                    navigator.sendBeacon('../user_backend/room_signal.php', park);
+                }
+            } catch (e) {}
             window.location.href = 'dashboard.php';
         },
 
@@ -397,30 +504,31 @@ function watchParty() {
             form.append('target_user_id', String(targetUserId));
             form.append('target_peer_id', user.peerId || user.socketId || '');
             Object.keys(extra).forEach((key) => form.append(key, extra[key]));
+            const eventMap = {
+                kick: 'force-leave',
+                ban: 'force-leave',
+                mute: 'force-mute',
+                video: 'force-video',
+                chatban: 'force-chat-ban'
+            };
+            const payload = {
+                targetUserId,
+                targetPeerId: user.peerId || user.socketId || '',
+                userId: targetUserId,
+                peerId: user.peerId || user.socketId || '',
+                muted: extra.muted === '1' || extra.muted === true,
+                isMuted: extra.muted === '1' || extra.muted === true,
+                videoOn: extra.video_on === '1' || extra.video_on === true,
+                isVideoOn: extra.video_on === '1' || extra.video_on === true,
+                chatBanned: extra.banned === '1' || extra.banned === true,
+                banned: action === 'ban' || extra.banned === '1' || extra.banned === true,
+                message: action === 'ban'
+                    ? 'The host banned you from the room.'
+                    : (action === 'kick' ? 'The host removed you from the room.' : undefined)
+            };
+            if (eventMap[action]) this.signal(eventMap[action], payload);
             const res = await fetch('../user_backend/host_action.php', { method: 'POST', body: form });
             const data = await res.json();
-            if (data && data.success && this.socket && this.socket.connected) {
-                const eventMap = {
-                    kick: 'force-leave',
-                    mute: 'force-mute',
-                    video: 'force-video',
-                    chatban: 'force-chat-ban'
-                };
-                const payload = {
-                    targetUserId,
-                    targetPeerId: user.peerId || user.socketId || '',
-                    userId: targetUserId,
-                    peerId: user.peerId || user.socketId || '',
-                    muted: extra.muted === '1' || extra.muted === true,
-                    isMuted: extra.muted === '1' || extra.muted === true,
-                    videoOn: extra.video_on === '1' || extra.video_on === true,
-                    isVideoOn: extra.video_on === '1' || extra.video_on === true,
-                    chatBanned: extra.banned === '1' || extra.banned === true,
-                    banned: extra.banned === '1' || extra.banned === true,
-                    message: action === 'kick' ? 'The host removed you from the room.' : undefined
-                };
-                this.socket.emit(eventMap[action] || action, payload);
-            }
             return data;
         },
 
@@ -437,24 +545,47 @@ function watchParty() {
             if (!this.isHost || user.isSelf) return;
             const name = user.name || 'this member';
             const confirmed = await this.askConfirm({
-                title: 'Remove member?',
-                message: `Remove ${name} from the room?`,
-                confirmLabel: 'Remove',
+                title: 'Kick member?',
+                message: `Kick ${name} from the room? They can join again.`,
+                confirmLabel: 'Kick',
                 cancelLabel: 'Cancel',
                 danger: true,
                 icon: 'person_remove'
             });
             if (!confirmed) return;
+            this.removePeer(user);
             try {
                 const data = await this.hostAction('kick', user);
                 if (!data || !data.success) {
-                    if (window.showToast) window.showToast((data && data.message) || 'Could not remove member.', 'error');
-                    return;
+                    if (window.showToast) window.showToast((data && data.message) || 'Could not kick member.', 'error');
                 }
-                this.removePeer(user);
             } catch (e) {
                 console.error(e);
-                if (window.showToast) window.showToast('Could not remove member.', 'error');
+                if (window.showToast) window.showToast('Could not kick member.', 'error');
+            }
+        },
+
+        async banMember(user) {
+            if (!this.isHost || user.isSelf) return;
+            const name = user.name || 'this member';
+            const confirmed = await this.askConfirm({
+                title: 'Ban member?',
+                message: `Ban ${name} from this room? They will be removed and cannot rejoin.`,
+                confirmLabel: 'Ban',
+                cancelLabel: 'Cancel',
+                danger: true,
+                icon: 'block'
+            });
+            if (!confirmed) return;
+            this.removePeer(user);
+            try {
+                const data = await this.hostAction('ban', user);
+                if (!data || !data.success) {
+                    if (window.showToast) window.showToast((data && data.message) || 'Could not ban member.', 'error');
+                }
+            } catch (e) {
+                console.error(e);
+                if (window.showToast) window.showToast('Could not ban member.', 'error');
             }
         },
 
@@ -479,7 +610,9 @@ function watchParty() {
         },
 
         applyHostMute(muted, { silent = false } = {}) {
-            this.forcedMuted = !!muted;
+            const nextMuted = !!muted;
+            if (nextMuted === !!this.forcedMuted && nextMuted === !!this.isMuted) return;
+            this.forcedMuted = nextMuted;
             this.isMuted = !!muted;
             if (this.localStream) {
                 const audioTracks = this.localStream.getAudioTracks();
@@ -499,7 +632,9 @@ function watchParty() {
         },
 
         applyHostVideo(videoOn, { silent = false } = {}) {
-            this.forcedVideoOff = !videoOn;
+            const nextOn = !!videoOn;
+            if (nextOn === !!this.isVideoOn && (!nextOn) === !!this.forcedVideoOff) return;
+            this.forcedVideoOff = !nextOn;
             this.isVideoOn = !!videoOn;
             if (this.localStream) {
                 const videoTracks = this.localStream.getVideoTracks();
@@ -517,7 +652,9 @@ function watchParty() {
         },
 
         applyHostChatBan(banned, { silent = false } = {}) {
-            this.chatBanned = !!banned;
+            const nextBanned = !!banned;
+            if (nextBanned === !!this.chatBanned) return;
+            this.chatBanned = nextBanned;
             const localParticipant = this.participants.find(p => p.isSelf || p.id === 'local');
             if (localParticipant) {
                 localParticipant.chatBanned = this.chatBanned;
@@ -654,7 +791,7 @@ function watchParty() {
                 type: 'join_request',
                 name: data.sender_name || data.name || 'A friend',
                 text: data.message || data.text || 'wants to join the watch party.',
-                time: data.time || new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                time: nexusRoomMessageTime(data),
                 avatar: data.avatar_url || data.avatar || '',
                 border: data.border_preview || data.border || '',
                 senderId,
@@ -848,7 +985,11 @@ function watchParty() {
 
         async touchPresence() {
             try {
-                await fetch('/user_backend/heartbeat.php', { method: 'POST', credentials: 'same-origin' });
+                const res = await fetch('/user_backend/heartbeat.php', { method: 'POST', credentials: 'same-origin' });
+                const data = await res.json().catch(() => null);
+                if (data && data.banned) {
+                    window.location.replace(data.redirect || '/frontend/account_hold.php');
+                }
             } catch (e) {}
         },
 
@@ -1068,6 +1209,8 @@ function watchParty() {
             if (nextUrl && nextUrl === this.videoUrl) return;
             this.videoUrl = nextUrl;
             this.showMovieModal = false;
+            this.isLoading = false;
+            if (this.videoUrl) this.isConnecting = false;
             this.isPlaying = !!(this.videoUrl && !this.isYouTubeUrl(this.videoUrl));
             if (this.videoUrl && !this.isYouTubeUrl(this.videoUrl)) {
                 this.$nextTick(() => {
@@ -1292,7 +1435,7 @@ function watchParty() {
                 const still = (this.participants || []).find((p) =>
                     !p.isSelf && socketId && String(p.socketId) === String(socketId)
                 );
-                if (still) this.removePeer({ socketId: still.socketId, peerId: still.peerId, userId: still.userId });
+                if (still && !still.parked) this.removePeer({ socketId: still.socketId, peerId: still.peerId, userId: still.userId });
             }, 4000);
         },
 
@@ -1450,6 +1593,7 @@ function watchParty() {
                     isHost: this.isHost
                 });
                 this.watchSpeaking('local', this.localStream, { muted: this.isMuted, isSelf: true });
+                await this.publishLocalTracks();
 
             } catch (e) {
                 console.error("Camera/Mic access denied or unavailable.", e);
@@ -1537,7 +1681,9 @@ function watchParty() {
 
             const pc = new RTCPeerConnection({
                 iceServers: this.iceServers,
-                iceCandidatePoolSize: 8
+                iceCandidatePoolSize: 0,
+                bundlePolicy: 'max-bundle',
+                rtcpMuxPolicy: 'require'
             });
             peerConnections[peerKey] = pc;
 
@@ -1560,6 +1706,9 @@ function watchParty() {
 
             pc.ontrack = (event) => {
                 const stream = event.streams[0] || new MediaStream([event.track]);
+                const hasVideo = stream.getVideoTracks().some((track) => track.readyState === 'live');
+                const existing = this.participants.find((p) => p.peerId === peerKey || p.socketId === peerKey);
+                const parked = !!(existing && existing.parked);
                 this.upsertParticipant({
                     id: peerMeta.userId || peerKey,
                     peerId: peerKey,
@@ -1569,45 +1718,71 @@ function watchParty() {
                     avatar_url: peerMeta.avatar_url,
                     border_preview: peerMeta.border_preview,
                     stream,
+                    videoOn: parked ? false : hasVideo,
+                    parked,
                     isSelf: false
                 });
-                const dropIfGone = () => {
-                    const tracks = stream.getTracks();
-                    if (!tracks.length || tracks.every((t) => t.readyState === 'ended')) {
-                        const current = this.participants.find((p) => p.peerId === peerKey || p.socketId === peerKey);
-                        if (current && current.stream && current.stream !== stream) return;
-                        this.removePeer({ peerId: peerKey, socketId: peerKey }, { matchUser: false });
-                    }
-                };
-                stream.getTracks().forEach((track) => {
-                    track.addEventListener('ended', dropIfGone);
-                });
             };
-
-            const dropOnDeadPc = () => {
-                const state = pc.connectionState;
-                if (state === 'failed' || state === 'closed') {
-                    if (peerConnections[peerKey] !== pc) return;
-                    this.removePeer({ peerId: peerKey, socketId: peerKey }, { matchUser: false });
-                    return;
-                }
-                if (state === 'disconnected') {
-                    setTimeout(() => {
-                        if (peerConnections[peerKey] === pc && pc.connectionState === 'disconnected') {
-                            this.removePeer({ peerId: peerKey, socketId: peerKey }, { matchUser: false });
-                        }
-                    }, 4000);
-                }
-            };
-            pc.onconnectionstatechange = dropOnDeadPc;
 
             return pc;
+        },
+
+        async publishLocalTracks() {
+            if (!this.localStream) return;
+            const tracks = this.localStream.getTracks();
+            if (!tracks.length) return;
+            const sendOffer = async (key, pc) => {
+                if (!pc || pc.signalingState !== 'stable' || pc.connectionState === 'closed') return;
+                try {
+                    const offer = await pc.createOffer();
+                    await pc.setLocalDescription(offer);
+                    this.signal('offer', {
+                        targetPeerId: key,
+                        targetSocketId: key,
+                        sdp: pc.localDescription,
+                        fromPeerId: this.peerId,
+                        fromSocketId: this.socket?.id,
+                        userId: Number(window.CURRENT_USER_ID) || null,
+                        userName: window.USER_NAME || 'You',
+                        avatar_url: window.USER_AVATAR || '',
+                        border_preview: window.USER_BORDER || ''
+                    });
+                } catch (e) {}
+            };
+            const sends = Object.keys(peerConnections).map(async (key) => {
+                const pc = peerConnections[key];
+                if (!pc || pc.connectionState === 'closed' || pc.signalingState === 'closed') return;
+                let added = false;
+                tracks.forEach((track) => {
+                    const already = pc.getSenders().some((sender) => sender.track === track);
+                    if (already) return;
+                    try {
+                        pc.addTrack(track, this.localStream);
+                        added = true;
+                    } catch (e) {}
+                });
+                if (!added) return;
+                if (pc.signalingState !== 'stable') {
+                    const onStable = () => {
+                        if (pc.signalingState !== 'stable') return;
+                        pc.removeEventListener('signalingstatechange', onStable);
+                        sendOffer(key, pc);
+                    };
+                    pc.addEventListener('signalingstatechange', onStable);
+                    return;
+                }
+                await sendOffer(key, pc);
+            });
+            await Promise.all(sends);
         },
 
         async callPeer(peer) {
             const normalized = this.normalizePeer(peer);
             const key = this.peerKey(normalized);
             if (!key || key === this.peerId || key === this.socket?.id) return;
+            this._callingPeers = this._callingPeers || {};
+            if (this._callingPeers[key]) return;
+            this._callingPeers[key] = true;
 
             this.upsertParticipant({
                 id: normalized.userId || key,
@@ -1622,7 +1797,10 @@ function watchParty() {
             });
 
             const pc = this.createPeerConnection(key, normalized);
-            if (!pc || pc.localDescription) return;
+            if (!pc || pc.localDescription) {
+                delete this._callingPeers[key];
+                return;
+            }
 
             try {
                 const offer = await pc.createOffer();
@@ -1640,6 +1818,8 @@ function watchParty() {
                 });
             } catch (e) {
                 console.error('Failed to create offer for', key, e);
+            } finally {
+                delete this._callingPeers[key];
             }
         },
 
@@ -1739,6 +1919,21 @@ function watchParty() {
             }
         },
 
+        parkPeer(payload) {
+            const peer = this.normalizePeer(payload) || {};
+            const key = this.peerKey(peer);
+            let changed = false;
+            this.participants = this.participants.map((p) => {
+                if (!p || p.isSelf) return p;
+                const match = (key && (p.peerId === key || p.socketId === key || p.id === key))
+                    || (payload?.socketId && (p.socketId === payload.socketId || p.peerId === payload.socketId));
+                if (!match) return p;
+                changed = true;
+                return { ...p, videoOn: false, parked: true };
+            });
+            if (changed) this.participants = [...this.participants];
+        },
+
         removePeer(payload, { matchUser = true } = {}) {
             const peer = this.normalizePeer(payload) || {};
             const key = this.peerKey(peer);
@@ -1771,6 +1966,34 @@ function watchParty() {
             const livePeerIds = new Set();
             const liveUserIds = new Set();
             (peers || []).forEach((p) => {
+                const mapped = this.mapRoomPeer(p);
+                const key = mapped.peerId;
+                if (key) livePeerIds.add(String(key));
+                const uid = Number(mapped.userId || 0);
+                if (uid) liveUserIds.add(uid);
+                if (!key || String(key) === String(this.peerId)) return;
+                const existing = (this.participants || []).find((row) =>
+                    !row.isSelf && (
+                        String(row.peerId || '') === String(key) ||
+                        (uid && Number(row.userId) === uid)
+                    )
+                );
+                this.upsertParticipant({
+                    id: uid || key,
+                    peerId: key,
+                    socketId: key,
+                    userId: uid || null,
+                    name: mapped.userName || 'Guest',
+                    avatar: existing && existing.avatar && !mapped.avatar_url ? existing.avatar : '',
+                    avatar_url: mapped.avatar_url || '',
+                    border_preview: mapped.border_preview || (existing && existing.border) || '',
+                    muted: !!mapped.muted,
+                    chatBanned: !!mapped.chatBanned,
+                    isSelf: false,
+                    ...(mapped.videoOn === false ? { videoOn: false } : {})
+                });
+            });
+            (peers || []).forEach((p) => {
                 const pid = p.peer_id || p.peerId;
                 if (pid) livePeerIds.add(String(pid));
                 const uid = Number(p.user_id || p.userId);
@@ -1795,7 +2018,7 @@ function watchParty() {
         },
 
         signal(event, data) {
-            if (this.socket && this.socket.connected && (event === 'offer' || event === 'answer' || event === 'ice-candidate' || event === 'send_message' || event === 'toggle-mic' || event === 'toggle-video' || event === 'movie-changed' || event === 'playback-sync' || event === 'peer-leave' || event === 'peer-speaking')) {
+            if (this.socket && this.socket.connected && (event === 'offer' || event === 'answer' || event === 'ice-candidate' || event === 'send_message' || event === 'toggle-mic' || event === 'toggle-video' || event === 'movie-changed' || event === 'playback-sync' || event === 'peer-leave' || event === 'peer-speaking' || event === 'force-leave' || event === 'force-mute' || event === 'force-video' || event === 'force-chat-ban')) {
                 this.socket.emit(event, data);
             }
             if (event !== 'peer-speaking') this.sendPusherSignal(event, data);
@@ -1809,10 +2032,17 @@ function watchParty() {
                 answer: true,
                 'ice-candidate': true,
                 'peer-leave': true,
+                'peer-park': true,
+                'peer-resume': true,
                 new_message: true,
                 'playback-sync': true,
                 'toggle-mic': true,
-                'toggle-video': true
+                'toggle-video': true,
+                'movie-changed': true,
+                'force-leave': true,
+                'force-mute': true,
+                'force-video': true,
+                'force-chat-ban': true
             };
             if (!allowed[mapped]) return;
             const form = new FormData();
@@ -1832,6 +2062,39 @@ function watchParty() {
             }
             if (event === 'join-request-resolved') {
                 this.resolveJoinRequestMessage(data);
+                return;
+            }
+            if (event === 'peer-park') {
+                const peerId = data && (data.peerId || data.fromPeerId);
+                if (!peerId || String(peerId) === String(this.peerId)) return;
+                this.upsertParticipant({
+                    peerId,
+                    socketId: data.socketId || peerId,
+                    userId: data.userId || data.fromUserId,
+                    name: data.userName || data.name || 'User',
+                    avatar_url: data.avatar_url || '',
+                    border_preview: data.border_preview || '',
+                    videoOn: false,
+                    parked: true,
+                    speaking: false,
+                    isSelf: false
+                });
+                this.parkPeer({ peerId, socketId: data.socketId || peerId });
+                return;
+            }
+            if (event === 'peer-resume') {
+                const peerId = data && (data.peerId || data.fromPeerId);
+                const uid = Number((data && (data.userId || data.fromUserId)) || 0);
+                if (peerId && String(peerId) === String(this.peerId)) return;
+                this.participants = (this.participants || []).map((p) => {
+                    if (!p || p.isSelf) return p;
+                    const match = (peerId && (p.peerId === peerId || p.socketId === peerId))
+                        || (uid && Number(p.userId) === uid);
+                    if (!match) return p;
+                    const hasVideo = p.stream && p.stream.getVideoTracks && p.stream.getVideoTracks().some((track) => track.readyState === 'live');
+                    return { ...p, parked: false, videoOn: !!hasVideo };
+                });
+                this.participants = [...this.participants];
                 return;
             }
             if (event === 'peer-leave') {
@@ -1986,6 +2249,15 @@ function watchParty() {
             }
         },
 
+        bindBanLogout() {
+            if (!this.pusherClient || this._banChannelBound || !window.CURRENT_USER_ID) return;
+            this._banChannelBound = true;
+            const channel = this.pusherClient.subscribe(`user-${window.CURRENT_USER_ID}`);
+            channel.bind('force_logout', () => {
+                window.location.reload();
+            });
+        },
+
         bindPusherRoom() {
             if (typeof Pusher === 'undefined' || !this.roomId) return false;
             if (!this.pusherClient) {
@@ -1996,8 +2268,9 @@ function watchParty() {
             }
             const channelName = `watch-party-${this.roomId}`;
             this.roomChannel = this.pusherClient.subscribe(channelName);
+            this.bindBanLogout();
             [
-                'peer-join', 'peer-leave', 'offer', 'answer', 'ice-candidate',
+                'peer-join', 'peer-leave', 'peer-park', 'peer-resume', 'offer', 'answer', 'ice-candidate',
                 'new_message', 'movie-changed', 'playback-sync', 'toggle-mic', 'toggle-video',
                 'room-ended', 'force-leave', 'force-mute', 'force-video', 'force-chat-ban',
                 'join-request', 'join-request-resolved'
@@ -2024,9 +2297,12 @@ function watchParty() {
                 this.applyPresenceFlags(data.you);
                 if (data.success && Array.isArray(data.peers)) {
                     this.syncPresence(data.peers);
+                    this.markConnected();
                     data.peers.forEach(peer => this.callPeer(this.mapRoomPeer(peer)));
+                    if (this.localStream) this.publishLocalTracks();
+                } else {
+                    this.markConnected();
                 }
-                this.markConnected();
             } catch (e) {
                 console.error('Failed to announce presence', e);
             }
@@ -2064,19 +2340,13 @@ function watchParty() {
                         });
                     })
                     .catch(() => {});
-            }, 8000);
+            }, 3000);
         },
 
         ensureSocketIo() {
             if (typeof io === 'function') return Promise.resolve(io);
 
-            const signalingBase = window.NEXUS_SIGNALING_URL
-                || ((location.port && location.port !== '3000')
-                    ? `${location.protocol}//${location.hostname}:3000`
-                    : `${location.protocol}//${location.host}`);
-
             const urls = [
-                `${signalingBase}/socket.io/socket.io.js`,
                 'https://cdn.jsdelivr.net/npm/socket.io-client@4.7.5/dist/socket.io.min.js',
                 'https://cdn.socket.io/4.7.5/socket.io.min.js'
             ];
@@ -2088,8 +2358,16 @@ function watchParty() {
                     const script = document.createElement('script');
                     script.src = urls[index];
                     script.async = true;
-                    script.onload = () => resolve(typeof io === 'function' ? io : null);
-                    script.onerror = () => tryLoad(index + 1);
+                    let settled = false;
+                    const finish = (ok) => {
+                        if (settled) return;
+                        settled = true;
+                        if (ok && typeof io === 'function') resolve(io);
+                        else tryLoad(index + 1);
+                    };
+                    script.onload = () => finish(true);
+                    script.onerror = () => finish(false);
+                    setTimeout(() => finish(false), 4000);
                     document.head.appendChild(script);
                 };
                 tryLoad(0);
@@ -2197,6 +2475,29 @@ function watchParty() {
             this.emitPlaybackSync();
         },
 
+        revealControls(e) {
+            const pointerType = e && e.pointerType;
+            this.showControls = true;
+            clearTimeout(this.controlsTimeout);
+            if (pointerType === 'touch' || this.useTouchPad) return;
+            this.controlsTimeout = setTimeout(() => {
+                if (this.isPlaying && !this._seeking) this.showControls = false;
+            }, 2500);
+        },
+
+        hideControls(e) {
+            if (this.useTouchPad || (e && e.pointerType === 'touch')) return;
+            if (this.isPlaying) this.showControls = false;
+        },
+
+        onVideoSurface() {
+            if (this.useTouchPad) {
+                this.showControls = true;
+                return;
+            }
+            this.togglePlay();
+        },
+
         updateProgress() {
             if (!this.$refs.videoPlayer) return;
             this.currentTime = this.$refs.videoPlayer.currentTime;
@@ -2207,11 +2508,40 @@ function watchParty() {
             }
         },
 
-        seek(e) {
-            if (!this.$refs.videoPlayer || !this.$refs.progressBar) return;
+        seekFromEvent(e) {
+            if (!this.$refs.videoPlayer || !this.$refs.progressBar || !this.duration) return;
             const rect = this.$refs.progressBar.getBoundingClientRect();
-            const pos = (e.clientX - rect.left) / rect.width;
+            const clientX = e.clientX != null ? e.clientX : (e.touches && e.touches[0] ? e.touches[0].clientX : 0);
+            const pos = Math.min(1, Math.max(0, (clientX - rect.left) / Math.max(rect.width, 1)));
             this.$refs.videoPlayer.currentTime = pos * this.duration;
+            this.currentTime = this.$refs.videoPlayer.currentTime;
+            this.progressPercent = pos * 100;
+        },
+
+        startSeek(e) {
+            if (!this.$refs.videoPlayer) return;
+            this._seeking = true;
+            this.showControls = true;
+            if (e.currentTarget && e.currentTarget.setPointerCapture && e.pointerId != null) {
+                try { e.currentTarget.setPointerCapture(e.pointerId); } catch (err) {}
+            }
+            this.seekFromEvent(e);
+        },
+
+        moveSeek(e) {
+            if (!this._seeking) return;
+            this.seekFromEvent(e);
+        },
+
+        endSeek(e) {
+            if (!this._seeking) return;
+            this.seekFromEvent(e);
+            this._seeking = false;
+            this.emitPlaybackSync();
+        },
+
+        seek(e) {
+            this.seekFromEvent(e);
             this.emitPlaybackSync();
         },
 
@@ -2265,7 +2595,7 @@ function watchParty() {
                 border = border || this.selfBorder();
             }
             if (!avatar) avatar = this.resolveAvatarUrl('', name);
-            return { ...data, name, avatar, border };
+            return { ...data, name, avatar, border, time: nexusRoomMessageTime(data) };
         },
 
         hydrateRoomChat(rows) {
@@ -2332,7 +2662,7 @@ function watchParty() {
                 text,
                 type: file ? 'image' : 'text',
                 image_url: localPreview || null,
-                time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                time: new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }),
                 avatar: this.selfAvatar(),
                 border: this.selfBorder(),
                 isSelf: true,
@@ -2344,6 +2674,14 @@ function watchParty() {
             this.showEmojiPicker = false;
             this.clearRoomImage();
             this.scrollRoomChat();
+
+            if (!file && this.roomId) {
+                this.signal('send_message', {
+                    room: this.roomId,
+                    ...msg,
+                    isSelf: false
+                });
+            }
 
             let livePayload = { ...msg };
             try {
@@ -2357,10 +2695,18 @@ function watchParty() {
                     msg.id = data.data.id || msg.id;
                     msg.image_url = data.data.image_url || msg.image_url;
                     msg.type = data.data.type || msg.type;
-                    livePayload = { ...msg, ...data.data, isSelf: true };
+                    if (data.data.created_unix) {
+                        msg.created_unix = data.data.created_unix;
+                        msg.time = window.nexusFormatWhen(data.data.created_unix, 'time') || msg.time;
+                    }
+                    livePayload = { ...msg, ...data.data, isSelf: false };
                 } else if (file) {
                     this.messages = this.messages.filter((m) => m !== msg);
                     if (window.showToast) window.showToast((data && data.message) || 'Could not send photo.', 'error');
+                    return;
+                } else if (!data || !data.success) {
+                    this.messages = this.messages.filter((m) => m !== msg);
+                    if (window.showToast) window.showToast((data && data.message) || 'Could not send message.', 'error');
                     return;
                 }
             } catch (e) {
@@ -2371,12 +2717,8 @@ function watchParty() {
                 }
             }
 
-            if (this.roomId) {
-                this.signal('send_message', {
-                    room: this.roomId,
-                    ...livePayload,
-                    isSelf: false
-                });
+            if (file && this.roomId) {
+                this.signal('send_message', livePayload);
             }
         },
 

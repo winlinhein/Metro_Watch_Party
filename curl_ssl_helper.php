@@ -1,5 +1,19 @@
 <?php
 
+// Load local .env values (DB_*, STRIPE_*, TURN_* ...) as early as possible.
+// This file is included by conn.php, so secrets resolve before the DB connects.
+// On Render these values come from the real environment instead, and .env is
+// excluded from the Docker image.
+if (!function_exists('loadMailDotEnv')) {
+    $nexusMailHelper = __DIR__ . DIRECTORY_SEPARATOR . 'mail_helper.php';
+    if (is_file($nexusMailHelper)) {
+        require_once $nexusMailHelper;
+    }
+}
+if (function_exists('loadMailDotEnv')) {
+    loadMailDotEnv();
+}
+
 function nexusAppEnv(string $key, string $default = ''): string
 {
     foreach ([getenv($key), $_ENV[$key] ?? null, $_SERVER[$key] ?? null, $_SERVER['REDIRECT_' . $key] ?? null] as $value) {

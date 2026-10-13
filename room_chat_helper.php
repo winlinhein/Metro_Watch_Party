@@ -48,8 +48,7 @@ function formatRoomChatRow(array $row): array
     } else {
         $decoded = decodeRoomChatText($row['message_text'] ?? '');
     }
-    $sentAt = $row['sent_at'] ?? '';
-    $time = $sentAt !== '' ? date('g:i A', strtotime((string)$sentAt)) : date('g:i A');
+    $createdUnix = isset($row['created_unix']) ? (int)$row['created_unix'] : 0;
 
     return [
         'id' => isset($row['message_id']) ? (int)$row['message_id'] : null,
@@ -58,7 +57,8 @@ function formatRoomChatRow(array $row): array
         'text' => $decoded['text'],
         'type' => $decoded['type'],
         'image_url' => $decoded['image_url'],
-        'time' => $time,
+        'created_unix' => $createdUnix,
+        'time' => '',
         'avatar' => (string)($row['avatar_url'] ?? ''),
         'border' => (string)($row['border_preview'] ?? ''),
     ];
@@ -76,6 +76,7 @@ function fetchRoomChatMessages(PDO $conn, int $roomId, int $limit = 80): array
             rm.message_type,
             rm.image_url,
             rm.sent_at,
+            UNIX_TIMESTAMP(rm.sent_at) AS created_unix,
             COALESCE(u.user_name, 'User') AS user_name
         FROM room_messages rm
         LEFT JOIN users u ON u.user_id = rm.user_id

@@ -22,6 +22,87 @@
     }
 })();
 
+window.nexusLockModalScroll = (function () {
+    const open = new Set();
+    const capture = { capture: true, passive: false };
+    function blockBackgroundScroll(event) {
+        const node = event.target;
+        if (node && node.closest && node.closest('[data-nexus-modal]')) return;
+        event.preventDefault();
+    }
+    return function (isOpen, key) {
+        const id = key || 'modal';
+        if (isOpen) open.add(id);
+        else open.delete(id);
+        const locked = open.size > 0;
+        document.documentElement.classList.toggle('nexus-modal-open', locked);
+        document.removeEventListener('wheel', blockBackgroundScroll, true);
+        document.removeEventListener('touchmove', blockBackgroundScroll, true);
+        if (locked) {
+            document.addEventListener('wheel', blockBackgroundScroll, capture);
+            document.addEventListener('touchmove', blockBackgroundScroll, capture);
+        }
+    };
+})();
+
+window.nexusFormatClock = function (input) {
+    if (input === null || input === undefined || input === '') return null;
+    if (input instanceof Date) return isNaN(input.getTime()) ? null : input;
+    if (typeof input === 'number' || (typeof input === 'string' && /^\d+$/.test(input.trim()))) {
+        const n = Number(input);
+        const date = new Date(n < 1e12 ? n * 1000 : n);
+        return isNaN(date.getTime()) ? null : date;
+    }
+    if (typeof input === 'string' && input.includes(' ') && !input.includes('T')) {
+        const date = new Date(input.trim().replace(' ', 'T') + 'Z');
+        return isNaN(date.getTime()) ? null : date;
+    }
+    const date = new Date(input);
+    return isNaN(date.getTime()) ? null : date;
+};
+
+(function () {
+    try {
+        var mins = -new Date().getTimezoneOffset();
+        document.cookie = 'nexus_tz_offset=' + mins + ';path=/;max-age=31536000;SameSite=Lax';
+    } catch (e) {}
+})();
+
+window.nexusFormatWhen = function (input, style) {
+    const date = window.nexusFormatClock(input);
+    if (!date) return '';
+    if (style === 'time') {
+        return date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+    }
+    if (style === 'date') {
+        return date.toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' });
+    }
+    return date.toLocaleString([], {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+        hour: 'numeric',
+        minute: '2-digit'
+    });
+};
+
+window.nexusFormatLastLogin = function (unix, withLabel) {
+    const date = window.nexusFormatClock(unix);
+    const label = withLabel === false ? '' : 'Last login · ';
+    if (!date) return withLabel === false ? 'Never' : 'No login yet';
+    const now = new Date();
+    const sameDay = date.toDateString() === now.toDateString();
+    const yesterday = new Date(now);
+    yesterday.setDate(now.getDate() - 1);
+    const time = date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+    if (sameDay) return label + time;
+    if (date.toDateString() === yesterday.toDateString()) return label + 'Yesterday ' + time;
+    const day = date.toLocaleDateString([], { month: 'short', day: 'numeric' });
+    return label + day + ', ' + time;
+};
+
+var NEXUS_ACTIVE_ROOM_KEY = 'nexus_active_room';
+
 function pickTrendingMovies(movies, limit) {
     const cap = limit || 10;
     const list = Array.isArray(movies) ? movies.slice() : [];
@@ -55,9 +136,7 @@ function pickTrendingMovies(movies, limit) {
 }
 
 function parsePremiumEndDate(raw) {
-    if (!raw) return null;
-    const date = new Date(String(raw).replace(' ', 'T'));
-    return Number.isNaN(date.getTime()) ? null : date;
+    return window.nexusFormatClock(raw);
 }
 
 function formatPremiumCountdown(end) {
@@ -234,6 +313,7 @@ function userDashboard() {
         reportDescription: '',
 
        // Account State
+        themeId: (typeof document !== 'undefined' && document.documentElement.getAttribute('data-theme')) || 'crimson',
         accountForm: {
             username: bootName,
             email: bootUser.email || ''
@@ -248,9 +328,24 @@ function userDashboard() {
                 : [])
         ],
         borderPage: 1,
+        moviePage: 1,
+        watchlistPage: 1,
+        shopPage: 1,
         viewportWidth: typeof window !== 'undefined' ? window.innerWidth : 1024,
         hasCustomAvatar: !!bootAvatarRaw,
-        selectedAvatar: bootAvatar,   
+        selectedAvatar: bootAvatar,
+
+        get themeChoices() {
+            return window.NEXUS_THEMES || [];
+        },
+
+        setTheme(id) {
+            const choices = this.themeChoices;
+            const next = choices.some((theme) => theme.id === id) ? id : 'crimson';
+            this.themeId = next;
+            document.documentElement.setAttribute('data-theme', next);
+            try { localStorage.setItem('nexus_theme', next); } catch (e) {}
+        },
 
         resolveShopImage(image) {
             if (!image) return '';
@@ -438,12 +533,143 @@ function userDashboard() {
         },
 
         get borderPageNumbers() {
-            return Array.from({ length: this.borderPageCount }, (_, i) => i + 1);
+            return this.visiblePageNumbers(this.borderPageCount, this.borderPage);
+        },
+
+        clampPage(page, count) {
+            const total = Math.max(1, Number(count) || 1);
+            return Math.min(Math.max(1, Number(page) || 1), total);
+        },
+
+        slicePage(list, page, size) {
+            const items = Array.isArray(list) ? list : [];
+            const pageSize = Math.max(1, Number(size) || 1);
+            const pages = Math.max(1, Math.ceil(items.length / pageSize));
+            const current = this.clampPage(page, pages);
+            const start = (current - 1) * pageSize;
+            return items.slice(start, start + pageSize);
+        },
+
+        visiblePageNumbers(count, current) {
+            const total = Math.max(1, Number(count) || 1);
+            const cur = this.clampPage(current, total);
+            const windowSize = 5;
+            let start = Math.max(1, cur - 2);
+            let end = Math.min(total, start + windowSize - 1);
+            start = Math.max(1, end - windowSize + 1);
+            const pages = [];
+            for (let i = start; i <= end; i++) pages.push(i);
+            return pages;
+        },
+
+        scrollTabPane(name) {
+            this.$nextTick(() => {
+                const pane = this.$root && this.$root.querySelector(`[data-tab-pane="${name}"]`);
+                if (pane) pane.scrollTo({ top: 0, behavior: 'smooth' });
+            });
         },
 
         setBorderPage(page) {
             const next = Math.min(Math.max(1, Number(page) || 1), this.borderPageCount);
             this.borderPage = next;
+        },
+
+        get movieCols() {
+            const w = this.viewportWidth;
+            if (w >= 1280) return 5;
+            if (w >= 1024) return 4;
+            if (w >= 768) return 3;
+            return 2;
+        },
+
+        get moviePageSize() {
+            return this.movieCols * 4;
+        },
+
+        get moviePageCount() {
+            return Math.max(1, Math.ceil((this.filteredMovies || []).length / this.moviePageSize));
+        },
+
+        get moviePageSafe() {
+            return this.clampPage(this.moviePage, this.moviePageCount);
+        },
+
+        get pagedMovies() {
+            return this.slicePage(this.filteredMovies, this.moviePage, this.moviePageSize);
+        },
+
+        get moviePageNumbers() {
+            return this.visiblePageNumbers(this.moviePageCount, this.moviePageSafe);
+        },
+
+        setMoviePage(page) {
+            this.moviePage = this.clampPage(page, this.moviePageCount);
+            this.scrollTabPane('movies');
+        },
+
+        get watchlistCols() {
+            const w = this.viewportWidth;
+            if (w >= 1280) return 4;
+            if (w >= 1024) return 3;
+            if (w >= 768) return 2;
+            return 1;
+        },
+
+        get watchlistPageSize() {
+            return this.watchlistCols * 4;
+        },
+
+        get watchlistPageCount() {
+            return Math.max(1, Math.ceil((this.filteredWatchlist || []).length / this.watchlistPageSize));
+        },
+
+        get watchlistPageSafe() {
+            return this.clampPage(this.watchlistPage, this.watchlistPageCount);
+        },
+
+        get pagedWatchlist() {
+            return this.slicePage(this.filteredWatchlist, this.watchlistPage, this.watchlistPageSize);
+        },
+
+        get watchlistPageNumbers() {
+            return this.visiblePageNumbers(this.watchlistPageCount, this.watchlistPageSafe);
+        },
+
+        setWatchlistPage(page) {
+            this.watchlistPage = this.clampPage(page, this.watchlistPageCount);
+            this.scrollTabPane('watchlist');
+        },
+
+        get shopCols() {
+            const w = this.viewportWidth;
+            if (w >= 1024) return 4;
+            if (w >= 768) return 3;
+            return 2;
+        },
+
+        get shopPageSize() {
+            return this.shopCols * 4;
+        },
+
+        get shopPageCount() {
+            return Math.max(1, Math.ceil((this.filteredShopItems || []).length / this.shopPageSize));
+        },
+
+        get shopPageSafe() {
+            return this.clampPage(this.shopPage, this.shopPageCount);
+        },
+
+        get pagedShopItems() {
+            return this.slicePage(this.filteredShopItems, this.shopPage, this.shopPageSize);
+        },
+
+        get shopPageNumbers() {
+            return this.visiblePageNumbers(this.shopPageCount, this.shopPageSafe);
+        },
+
+        setShopPage(page) {
+            this.shopPage = this.clampPage(page, this.shopPageCount);
+            this.scrollTabPane('shop');
         },
 
         buildAvailableBorders() {
@@ -880,7 +1106,8 @@ function userDashboard() {
             let genres = m.genres;
             if (typeof genres === 'string') genres = genres.split(',').map(s => s.trim()).filter(Boolean);
             if (!Array.isArray(genres)) genres = [];
-            const year = m.year || (m.created_at ? new Date(m.created_at).getFullYear() : 2024);
+            const uploaded = m.created_at ? window.nexusFormatClock(m.created_at) : null;
+            const year = m.year || (uploaded ? uploaded.getFullYear() : 2024);
             return {
                 ...m,
                 genres,
@@ -891,9 +1118,29 @@ function userDashboard() {
         },
 
         // API Fetching
+        cacheKey(name) {
+            const id = Number(window.CURRENT_USER_ID) || 0;
+            return id ? `nexus_${name}_u${id}` : `nexus_${name}_guest`;
+        },
+
+        beginFetch(key) {
+            if (!this._inflight) this._inflight = Object.create(null);
+            if (this._inflight[key]) return this._inflight[key];
+            let finish = () => {};
+            const job = new Promise((resolve) => { finish = resolve; });
+            job.finish = finish;
+            this._inflight[key] = job;
+            return null;
+        },
+        endFetch(key) {
+            const job = this._inflight && this._inflight[key];
+            if (this._inflight) delete this._inflight[key];
+            if (job && typeof job.finish === 'function') job.finish();
+        },
+
         hydrateLocalCaches() {
             try {
-                const movies = JSON.parse(sessionStorage.getItem('nexus_movies_cache') || 'null');
+                const movies = JSON.parse(sessionStorage.getItem(this.cacheKey('movies')) || 'null');
                 if (Array.isArray(movies) && movies.length && !(this.movies || []).length) {
                     this.movies = movies.map(m => this._normalizeMovie(m));
                     this.moviesLoading = false;
@@ -901,8 +1148,12 @@ function userDashboard() {
                 }
             } catch (e) {}
             try {
-                const friends = JSON.parse(sessionStorage.getItem('nexus_friends_cache') || 'null');
-                if (friends && Array.isArray(friends.friends) && !(this.friends || []).length) {
+                const friends = JSON.parse(
+                    sessionStorage.getItem(this.cacheKey('friends'))
+                    || sessionStorage.getItem('nexus_friends_cache')
+                    || 'null'
+                );
+                if (friends && Array.isArray(friends.friends) && friends.friends.length && !(this.friends || []).length) {
                     this.friends = friends.friends;
                     this.pendingRequests = friends.pending_requests || [];
                     this.friendsLoading = false;
@@ -910,7 +1161,7 @@ function userDashboard() {
                 }
             } catch (e) {}
             try {
-                const rooms = JSON.parse(sessionStorage.getItem('nexus_friend_rooms_cache') || 'null');
+                const rooms = JSON.parse(sessionStorage.getItem(this.cacheKey('friend_rooms')) || 'null');
                 if (Array.isArray(rooms) && rooms.length && !(this.friendRooms || []).length) {
                     this.friendRooms = rooms;
                     this.friendRoomsLoading = false;
@@ -919,10 +1170,12 @@ function userDashboard() {
         },
 
         persistMoviesCache() {
-            try { sessionStorage.setItem('nexus_movies_cache', JSON.stringify(this.movies || [])); } catch (e) {}
+            try { sessionStorage.setItem(this.cacheKey('movies'), JSON.stringify(this.movies || [])); } catch (e) {}
         },
 
         async fetchMovies() {
+            const pending = this.beginFetch('movies');
+            if (pending) return pending;
             if (!(this.movies || []).length) this.moviesLoading = true;
             try {
                 const response = await fetch('/user_backend/movies_api.php');
@@ -960,6 +1213,7 @@ function userDashboard() {
                 this.movies = [];
             } finally {
                 this.moviesLoading = false;
+                this.endFetch('movies');
             }
         },
 
@@ -1109,11 +1363,7 @@ function userDashboard() {
                 const data = await res.json();
 
                 if (data.success) {
-                    if (window.showToast) window.showToast(data.message || 'Account deletion scheduled for 24 hours.', 'success');
-                    // Redirect to login page after short delay
-                    setTimeout(() => {
-                        window.nexusNavigate('/frontend/login.php');
-                    }, 1500);
+                    window.location.replace('/frontend/login.php');
                 } else {
                     this.deleteAccountError = data.message || 'Failed to delete account.';
                 }
@@ -1180,7 +1430,9 @@ function userDashboard() {
                 if (!this.watchlist.find(w => (w.id || w.movie_id) === movieId)) {
                     this.watchlist = [{
                         ...movie,
-                        year: movie.created_at ? new Date(movie.created_at).getFullYear() : "2024",
+                        year: (movie.created_at && window.nexusFormatClock(movie.created_at))
+                            ? window.nexusFormatClock(movie.created_at).getFullYear()
+                            : "2024",
                         genre: movie.genres && movie.genres.length > 0 ? movie.genres[0] : (movie.genre || "Movie"),
                         rating: movie.rating ? movie.rating + " / 5" : "N/A",
                         status: "Next Up",
@@ -1350,6 +1602,8 @@ function userDashboard() {
         },
 
         async fetchPointPacks() {
+            const pending = this.beginFetch('pointPacks');
+            if (pending) return pending;
             if (!(this.pointPacks || []).length) this.packsLoading = true;
             try {
                 const res = await fetch('/user_backend/get_point_packages.php');
@@ -1372,6 +1626,7 @@ function userDashboard() {
                 console.error('Failed to load point packs', e);
             } finally {
                 this.packsLoading = false;
+                this.endFetch('pointPacks');
             }
             return this.pointPacks;
         },
@@ -1486,28 +1741,36 @@ function userDashboard() {
 
         loadMediaCaches() {
             try {
-                this.avatarCache = JSON.parse(sessionStorage.getItem('nexus_avatar_cache') || '{}');
+                this.avatarCache = JSON.parse(sessionStorage.getItem(this.cacheKey('avatars')) || '{}');
             } catch (e) {
                 this.avatarCache = {};
             }
             try {
-                this.chatHistoryCache = JSON.parse(sessionStorage.getItem('nexus_chat_cache') || '{}');
+                this.chatHistoryCache = JSON.parse(sessionStorage.getItem(this.cacheKey('chat')) || '{}');
             } catch (e) {
                 this.chatHistoryCache = {};
             }
         },
 
         persistAvatarCache() {
-            try { sessionStorage.setItem('nexus_avatar_cache', JSON.stringify(this.avatarCache)); } catch (e) {}
+            try { sessionStorage.setItem(this.cacheKey('avatars'), JSON.stringify(this.avatarCache)); } catch (e) {}
         },
 
         persistChatCache() {
-            try { sessionStorage.setItem('nexus_chat_cache', JSON.stringify(this.chatHistoryCache)); } catch (e) {}
+            try {
+                const persisted = {};
+                Object.entries(this.chatHistoryCache || {}).forEach(([id, list]) => {
+                    persisted[id] = (Array.isArray(list) ? list : [])
+                        .filter((msg) => !String(msg.image_url || '').startsWith('data:'))
+                        .slice(-80);
+                });
+                sessionStorage.setItem(this.cacheKey('chat'), JSON.stringify(persisted));
+            } catch (e) {}
         },
 
         applyCachedMedia(row, userIdKey = 'user_id') {
             if (!row || typeof row !== 'object') return row;
-            const id = Number(row[userIdKey] || row.user_id || row.sender_id || 0);
+            const id = Number(row[userIdKey] || 0);
             if (!id) return row;
             const cached = this.avatarCache[id] || {};
             const incomingAvatar = row.avatar_url || '';
@@ -1561,6 +1824,8 @@ function userDashboard() {
 
         // Fetch Friends & Incoming Pending Requests
         async fetchFriends(retries = 1) {
+            const pending = this.beginFetch('friends');
+            if (pending) return pending;
             if (!(this.friends || []).length) this.friendsLoading = true;
             let keepLoading = false;
             try {
@@ -1586,7 +1851,7 @@ function userDashboard() {
                     this.updateFriendsCount();
                     this.initAllChatSubscriptions();
                     try {
-                        sessionStorage.setItem('nexus_friends_cache', JSON.stringify({
+                        sessionStorage.setItem(this.cacheKey('friends'), JSON.stringify({
                             friends: this.friends,
                             pending_requests: this.pendingRequests
                         }));
@@ -1603,12 +1868,17 @@ function userDashboard() {
                 }
             } finally {
                 if (!keepLoading) this.friendsLoading = false;
+                this.endFetch('friends');
             }
         },
 
         isUserOnline(user) {
             if (!user) return false;
             return Number(user.is_online) === 1 || user.is_online === true;
+        },
+
+        formatLastLogin(unix, withLabel) {
+            return window.nexusFormatLastLogin(unix, withLabel);
         },
 
         get onlineFriendsCount() {
@@ -1733,6 +2003,7 @@ function userDashboard() {
                 avatar: this.resolveAvatarUrl((window.NEXUS_USER && window.NEXUS_USER.avatar_url) || window.USER_AVATAR || '', window.NEXUS_USER && window.NEXUS_USER.username),
                 border: (window.NEXUS_USER && window.NEXUS_USER.border_preview) || window.USER_BORDER || '',
                 pusherClient: this.pusherClient,
+                peers: room.participants || [],
                 onParticipants: (peers) => this.mergeLiveRoomParticipants(peers),
                 onSpeaking: (info) => this.setLiveRoomSpeaking(info),
                 onPeerLeave: (peer) => this.dropLiveRoomParticipant(peer),
@@ -1831,6 +2102,7 @@ function userDashboard() {
 
         returnToRoom() {
             if (!this.hasActiveRoom) return;
+            try { sessionStorage.setItem('nexus_room_returning', '1'); } catch (e) {}
             this.stopDashboardLiveRoom();
             if (typeof window.showPageLoader === 'function') window.showPageLoader();
             window.location.href = '/user/watch_party.php?room_id=' + encodeURIComponent(this.activeRoom.roomId);
@@ -1845,6 +2117,17 @@ function userDashboard() {
             if (Array.isArray(this.friends)) this.friends = this.friends.map(mark);
             if (Array.isArray(this.pendingRequests)) this.pendingRequests = this.pendingRequests.map(mark);
             if (Array.isArray(this.searchResults)) this.searchResults = this.searchResults.map(mark);
+            this.syncActiveChatPresence(set);
+        },
+
+        syncActiveChatPresence(onlineSet) {
+            const friend = this.activeChatFriend;
+            if (!friend) return;
+            const id = Number(friend.user_id || friend.friend_id || friend.id || 0);
+            if (!id) return;
+            const flag = onlineSet.has(id) ? 1 : 0;
+            if (Number(friend.is_online) === flag) return;
+            this.activeChatFriend = { ...friend, is_online: flag };
         },
 
         applyPresenceUpdate(userId, isOnline) {
@@ -1857,6 +2140,10 @@ function userDashboard() {
             this.friends = patch(this.friends);
             this.pendingRequests = patch(this.pendingRequests);
             this.searchResults = patch(this.searchResults);
+            const chatId = Number(this.activeChatFriend?.user_id || this.activeChatFriend?.friend_id || this.activeChatFriend?.id || 0);
+            if (chatId === id) {
+                this.activeChatFriend = { ...this.activeChatFriend, is_online: flag };
+            }
         },
 
         bindPresenceChannel() {
@@ -1880,6 +2167,19 @@ function userDashboard() {
                 } catch (e) {}
             };
             window.addEventListener('pagehide', goOffline);
+            window.addEventListener('pagehide', () => {
+                try {
+                    if (sessionStorage.getItem('nexus_room_returning') === '1') return;
+                    const room = readNexusActiveRoom();
+                    if (!room || !room.roomId || !room.peerId) return;
+                    const query = new URLSearchParams({
+                        room_id: String(room.roomId),
+                        peer_id: String(room.peerId),
+                        unload: '1'
+                    });
+                    navigator.sendBeacon('/user_backend/leave_room.php?' + query.toString());
+                } catch (e) {}
+            });
             window.addEventListener('pageshow', () => {
                 this.touchPresence();
             });
@@ -1888,7 +2188,11 @@ function userDashboard() {
         async touchPresence() {
             if (this.isGuest) return;
             try {
-                await fetch('/user_backend/heartbeat.php', { method: 'POST', credentials: 'same-origin' });
+                const res = await fetch('/user_backend/heartbeat.php', { method: 'POST', credentials: 'same-origin' });
+                const data = await res.json().catch(() => null);
+                if (data && data.banned) {
+                    window.location.replace(data.redirect || '/frontend/account_hold.php');
+                }
             } catch (e) {}
         },
 
@@ -1931,6 +2235,8 @@ function userDashboard() {
         },
 
         async fetchNotifications() {
+            const pending = this.beginFetch('notifications');
+            if (pending) return pending;
             if (!(this.notifications || []).length) this.notificationsLoading = true;
             try {
                 const response = await fetch('/user_backend/get_notifications.php', { credentials: 'same-origin' });
@@ -1938,6 +2244,7 @@ function userDashboard() {
 
                 const data = await response.json();
                 if (data.success && Array.isArray(data.notifications)) {
+                    if (data.viewer_id && Number(data.viewer_id) !== Number(window.CURRENT_USER_ID)) return;
                     this.setNotificationList(data.notifications.map(n => this.applyCachedMedia(n, 'sender_id')));
                     this.persistAvatarCache();
                 }
@@ -1945,6 +2252,7 @@ function userDashboard() {
                 console.error('Notification error:', err);
             } finally {
                 this.notificationsLoading = false;
+                this.endFetch('notifications');
             }
         },
 
@@ -2078,7 +2386,7 @@ function userDashboard() {
 
             const panelOpen = !!this.showNotifications;
             this.notifications = [
-                {
+                this.applyCachedMedia({
                     id: incomingId || Date.now(),
                     type: data.type,
                     sender_id: data.sender_id,
@@ -2091,7 +2399,7 @@ function userDashboard() {
                     avatar_url: data.avatar_url || '',
                     border_preview: data.border_preview || '',
                     is_read: panelOpen ? 1 : 0
-                },
+                }, 'sender_id'),
                 ...this.notifications
             ];
 
@@ -2168,18 +2476,21 @@ function userDashboard() {
                 this.friendRoomsLoading = false;
                 return;
             }
+            const pending = this.beginFetch('friendRooms');
+            if (pending) return pending;
             if (!quiet && !(this.friendRooms || []).length) this.friendRoomsLoading = true;
             try {
                 const res = await fetch('/user_backend/get_friend_rooms.php');
                 const data = await res.json();
                 if (data.success) {
                     this.friendRooms = data.rooms || [];
-                    try { sessionStorage.setItem('nexus_friend_rooms_cache', JSON.stringify(this.friendRooms)); } catch (e) {}
+                    try { sessionStorage.setItem(this.cacheKey('friend_rooms'), JSON.stringify(this.friendRooms)); } catch (e) {}
                 }
             } catch (e) {
                 console.error('fetchFriendRooms', e);
             } finally {
                 this.friendRoomsLoading = false;
+                this.endFetch('friendRooms');
             }
         },
 
@@ -2478,6 +2789,30 @@ function userDashboard() {
                 (f.user_name || '').toLowerCase().includes(this.friendSearchQuery.toLowerCase())
             );
         },
+
+        ensureUserTabData(tabId) {
+            if (this.isGuest && ['watchlist', 'account', 'shop'].includes(tabId)) return;
+            if (tabId === 'movies' || tabId === 'dashboard') {
+                if (!(this.movies || []).length) {
+                    this.moviesLoading = true;
+                    this.fetchMovies();
+                }
+            }
+            if (!this.isGuest && (tabId === 'watchlist' || tabId === 'movies' || tabId === 'dashboard')) {
+                if (tabId === 'watchlist' && !(this.watchlist || []).length) this.watchlistLoading = true;
+                if (!(this.watchlist || []).length || tabId === 'watchlist') this.fetchWatchlist();
+            }
+            if (!this.isGuest && (tabId === 'shop' || tabId === 'account')) {
+                if (!(this.shopItems || []).length) {
+                    this.shopLoading = true;
+                    this.fetchShopItems().then(() => this.buildAvailableBorders());
+                } else {
+                    this.buildAvailableBorders();
+                }
+                if (!(this.pointPacks || []).length) this.fetchPointPacks();
+            }
+        },
+
         // Tab Navigation
         switchTab(tabId) {
             if (this.isGuest && ['watchlist', 'account'].includes(tabId)) {
@@ -2485,26 +2820,13 @@ function userDashboard() {
                 return;
             }
 
-            if (this.currentTab === tabId) return;
+            if (this.currentTab === tabId) {
+                this.ensureUserTabData(tabId);
+                return;
+            }
             const oldTab = this.currentTab;
             this.currentTab = tabId;
-            if (tabId === 'movies') {
-                if (!this.movies.length) {
-                    this.moviesLoading = true;
-                    this.fetchMovies();
-                }
-                if (!this.isGuest) this.fetchWatchlist();
-            }
-            if (tabId === 'watchlist') {
-                if (!(this.watchlist || []).length) this.watchlistLoading = true;
-                this.fetchWatchlist();
-            }
-            if (tabId === 'shop' || tabId === 'account') {
-                if (!this.shopItems.length) {
-                    this.shopLoading = true;
-                    this.fetchShopItems().then(() => this.buildAvailableBorders());
-                }
-            }
+            this.ensureUserTabData(tabId);
             const oldPanel = document.querySelector(`[data-tab-panel="${oldTab}"]`);
             const newPanel = document.querySelector(`[data-tab-panel="${tabId}"]`);
             if (oldPanel && newPanel && typeof window.gsap !== 'undefined') {
@@ -2610,21 +2932,9 @@ function userDashboard() {
         
         // 1. Time Formatting Helper (Uniform Time Display)
         formatTime(timeInput) {
-            if (!timeInput) return '';
-            
-            if (typeof timeInput === 'string' && /^([0-1]?[0-9]|2[0-3]):[0-5][0-9]\s?(AM|PM)?$/i.test(timeInput.trim())) {
-                return timeInput.trim();
-            }
-
-            let parsableTime = timeInput;
-            if (typeof timeInput === 'string' && timeInput.includes(' ') && !timeInput.includes('T')) {
-                parsableTime = timeInput.replace(' ', 'T') + 'Z'; 
-            }
-
-            const date = new Date(parsableTime);
-            if (isNaN(date.getTime())) return timeInput;
-
-            return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            const date = window.nexusFormatClock(timeInput);
+            if (!date) return '';
+            return date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
         },
 
         // Add activeSubscriptions to your state object at the top:
@@ -2650,6 +2960,63 @@ function userDashboard() {
                 return f;
             });
             return friendName;
+        },
+
+        activeChatPeerId() {
+            return Number(this.activeChatFriend?.user_id || this.activeChatFriend?.friend_id || this.activeChatFriend?.id) || 0;
+        },
+
+        mapChatMessage(msg, peerId) {
+            const me = Number(window.CURRENT_USER_ID) || 0;
+            const senderId = Number(msg.sender_id || (msg.sender === 'me' ? me : 0)) || 0;
+            const receiverId = Number(msg.receiver_id || 0) || 0;
+            const peer = Number(peerId) || (senderId && senderId !== me ? senderId : receiverId);
+            return {
+                id: msg.message_id || msg.id || ('live-' + Date.now()),
+                peer_id: peer,
+                sender_id: senderId,
+                receiver_id: receiverId,
+                sender: senderId === me ? 'me' : 'them',
+                text: msg.message_text || msg.text || '',
+                message_type: msg.message_type || 'text',
+                image_url: msg.image_url ? this.resolveMediaUrl(msg.image_url) : null,
+                time: this.formatTime(msg.created_unix || msg.created_at || new Date()),
+                is_read: msg.is_read
+            };
+        },
+
+        threadFor(peerId) {
+            const id = Number(peerId) || 0;
+            const list = this.chatHistoryCache[id];
+            return Array.isArray(list) ? list.filter((msg) => Number(msg.peer_id) === id) : [];
+        },
+
+        rememberChatThread(peerId, messages) {
+            const id = Number(peerId) || 0;
+            if (!id) return;
+            const clean = (messages || []).filter((msg) => Number(msg.peer_id) === id).slice(-80);
+            this.chatHistoryCache = { ...this.chatHistoryCache, [id]: clean };
+            this.persistChatCache();
+        },
+
+        appendChatMessage(peerId, message) {
+            const id = Number(peerId) || 0;
+            if (!id || !message) return;
+            const tagged = { ...message, peer_id: id };
+            const thread = this.threadFor(id);
+            if (thread.some((msg) => String(msg.id) === String(tagged.id))) return;
+            const next = [...thread, tagged];
+            this.rememberChatThread(id, next);
+            if (this.showChatPanel && this.activeChatPeerId() === id) {
+                this.chatMessages = next.slice();
+                this.scrollToBottom();
+            }
+        },
+
+        showChatThread(peerId) {
+            const id = Number(peerId) || 0;
+            if (this.activeChatPeerId() !== id) return;
+            this.chatMessages = this.threadFor(id).slice();
         },
 
         // Reusable Channel Subscription Helper
@@ -2681,24 +3048,16 @@ function userDashboard() {
 
             channel.bind('new_message', (data) => {
                 const senderId = Number(data.sender_id);
-                if (senderId === Number(window.CURRENT_USER_ID)) return;
+                const receiverId = Number(data.receiver_id);
+                const me = Number(window.CURRENT_USER_ID);
+                if (!senderId || senderId === me) return;
+                if (receiverId && receiverId !== me) return;
+                if (senderId !== targetFriendId) return;
 
-                const activeFriendId = Number(this.activeChatFriend?.user_id || this.activeChatFriend?.friend_id || this.activeChatFriend?.id);
-                const isCurrentActiveChat = this.showChatPanel && activeFriendId === senderId;
+                const isCurrentActiveChat = this.showChatPanel && this.activeChatPeerId() === senderId;
+                this.appendChatMessage(senderId, this.mapChatMessage(data, senderId));
 
                 if (isCurrentActiveChat) {
-                    this.chatMessages = [...this.chatMessages, {
-                        id: data.message_id || data.id || 'live-' + Date.now(),
-                        sender: 'them',
-                        text: data.message_text || '',
-                        message_type: data.message_type || 'text',
-                        image_url: this.resolveMediaUrl(data.image_url || null),
-                        time: this.formatTime(data.time)
-                    }];
-                    this.chatHistoryCache[senderId] = this.chatMessages.filter(m => !String(m.image_url || '').startsWith('data:')).slice(-80);
-                    this.persistChatCache();
-                    this.scrollToBottom();
-
                     fetch('/user_backend/mark_as_read.php', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
@@ -2706,8 +3065,16 @@ function userDashboard() {
                     });
                 } else {
                     const friendName = this.incrementFriendUnread(senderId);
-                    if (friendName && typeof window.showToast === 'function') {
-                        window.showToast(`New message from ${friendName}`, 'info');
+                    if (friendName && typeof window.showMessageToast === 'function') {
+                        const preview = (data.image_url || data.message_type === 'image')
+                            ? 'Sent a photo'
+                            : String(data.message_text || data.text || 'New message');
+                        const friend = (this.friends || []).find((row) => Number(row.user_id || row.friend_id || row.id) === senderId);
+                        window.showMessageToast({
+                            name: friendName,
+                            text: preview,
+                            onClick: friend ? () => this.openChat(friend) : null
+                        });
                     }
                 }
             });
@@ -2717,17 +3084,18 @@ function userDashboard() {
                 const senderId = Number(data.sender_id);
                 const currentUserId = Number(window.CURRENT_USER_ID);
 
-                // Receiver opened chat on another tab — sync unread badge here
                 if (readerId === currentUserId && senderId) {
                     this.clearFriendUnread(senderId);
                 }
 
-                // Sender sees read receipts in the active chat
-                const activeFriendId = Number(this.activeChatFriend?.user_id || this.activeChatFriend?.friend_id || this.activeChatFriend?.id);
-                if (readerId === activeFriendId) {
-                    this.chatMessages = this.chatMessages.map(msg =>
+                if (readerId === targetFriendId) {
+                    const next = this.threadFor(targetFriendId).map((msg) =>
                         msg.sender === 'me' ? { ...msg, is_read: 1 } : msg
                     );
+                    this.rememberChatThread(targetFriendId, next);
+                    if (this.activeChatPeerId() === targetFriendId) {
+                        this.chatMessages = next.slice();
+                    }
                 }
             });
         },
@@ -2743,13 +3111,14 @@ function userDashboard() {
             const friendId = Number(friend.user_id || friend.friend_id || friend.id);
             if (!friendId) return;
 
-            this.activeChatFriend = this.applyCachedMedia({ ...friend, user_id: friendId, unread_count: 0 });
-            const cachedMessages = this.chatHistoryCache[friendId];
-            this.chatMessages = Array.isArray(cachedMessages) ? cachedMessages : [];
+            this._chatFetchToken = (this._chatFetchToken || 0) + 1;
+            const token = this._chatFetchToken;
+            const live = (this.friends || []).find((row) => Number(row.user_id || row.friend_id || row.id) === friendId) || friend;
+            this.activeChatFriend = this.applyCachedMedia({ ...live, user_id: friendId, unread_count: 0 });
+            this.chatMessages = this.threadFor(friendId).slice();
             this.showChatPanel = true;
             this.clearFriendUnread(friendId);
 
-            // Ensure live subscription is active for this friend immediately
             this.subscribeToChatChannel(friendId);
 
             this.$nextTick(() => {
@@ -2761,7 +3130,7 @@ function userDashboard() {
                 }
             });
 
-            const historyPromise = this.fetchChatHistory(friendId);
+            const historyPromise = this.fetchChatHistory(friendId, token);
             fetch('/user_backend/mark_as_read.php', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -3053,11 +3422,13 @@ function userDashboard() {
         },
 
         // 5. Updated fetchChatHistory Method
-        async fetchChatHistory(friendId) {
-            if (!friendId) return;
+        async fetchChatHistory(friendId, token = null) {
+            const peerId = Number(friendId) || 0;
+            if (!peerId) return;
+            const requestToken = token == null ? (this._chatFetchToken || 0) : token;
 
             try {
-                const res = await fetch(`/user_backend/get_chat_history.php?friend_id=${friendId}`);
+                const res = await fetch(`/user_backend/get_chat_history.php?friend_id=${peerId}`);
                 const rawText = await res.text();
 
                 let data;
@@ -3068,21 +3439,18 @@ function userDashboard() {
                     return;
                 }
 
-                if (data.success) {
-                   this.chatMessages = data.messages.map(msg => ({
-                        id: msg.message_id,
-                        sender: Number(msg.sender_id) === Number(window.CURRENT_USER_ID) ? 'me' : 'them',
-                        text: msg.message_text,
-                        message_type: msg.message_type || 'text',
-                        image_url: this.resolveMediaUrl(msg.image_url || null),
-                        time: this.formatTime(msg.time || msg.created_at),
-                        is_read: msg.is_read
-                    }));
-                    this.chatHistoryCache[friendId] = this.chatMessages.filter(m => !String(m.image_url || '').startsWith('data:')).slice(-80);
-                    this.persistChatCache();
-                    this.scrollToBottom();
-                } else {
+                if (!data.success || !Array.isArray(data.messages)) {
                     console.error("Backend error loading chats:", data.message);
+                    return;
+                }
+                if (Number(data.friend_id || peerId) !== peerId) return;
+                if (data.viewer_id && Number(data.viewer_id) !== Number(window.CURRENT_USER_ID)) return;
+
+                const mapped = data.messages.map((msg) => this.mapChatMessage(msg, peerId));
+                this.rememberChatThread(peerId, mapped);
+                if (requestToken === this._chatFetchToken && this.activeChatPeerId() === peerId) {
+                    this.chatMessages = this.threadFor(peerId).slice();
+                    this.scrollToBottom();
                 }
             } catch (e) {
                 console.error("Network error loading chat history:", e);
@@ -3094,34 +3462,42 @@ function userDashboard() {
             if ((!this.chatInput.trim() && !this.selectedImageFile) || !this.activeChatFriend) return;
             
             const receiverId = Number(this.activeChatFriend.user_id || this.activeChatFriend.friend_id || this.activeChatFriend.id);
+            const text = this.chatInput.trim();
+            const preview = this.selectedImagePreview;
             const formData = new FormData();
             formData.append('receiver_id', receiverId);
-            formData.append('message', this.chatInput.trim());
+            formData.append('message', text);
             if (this.selectedImageFile) {
                 formData.append('image', this.selectedImageFile);
             }
-            
-            // Optimistic UI for text
-            if (this.chatInput.trim()) {
-                this.chatMessages.push({
+
+            if (text) {
+                this.appendChatMessage(receiverId, {
                     id: 'local-' + Date.now(),
+                    sender_id: Number(window.CURRENT_USER_ID),
+                    receiver_id: receiverId,
                     sender: 'me',
-                    text: this.chatInput.trim(),
+                    text,
                     time: this.formatTime(new Date()),
                     is_read: 0,
                     message_type: 'text',
-                    image_url: null
+                    image_url: null,
+                    peer_id: receiverId
                 });
             }
-            // Optimistic UI for image (using local preview)
-            if (this.selectedImagePreview) {
-                this.chatMessages.push({
-                    id: 'temp-img-' + Date.now(),
+            let tempImageId = '';
+            if (preview) {
+                tempImageId = 'temp-img-' + Date.now();
+                this.appendChatMessage(receiverId, {
+                    id: tempImageId,
+                    sender_id: Number(window.CURRENT_USER_ID),
+                    receiver_id: receiverId,
                     sender: 'me',
                     message_type: 'image',
-                    image_url: this.selectedImagePreview,
+                    image_url: preview,
                     time: this.formatTime(new Date()),
-                    is_temp: true
+                    is_temp: true,
+                    peer_id: receiverId
                 });
             }
             
@@ -3136,16 +3512,22 @@ function userDashboard() {
                 });
                 
                 const data = await res.json();
-                if (data.success && data.data.message_type === 'image') {
-                    // Replace temp image message with real URL
-                    const tempMsg = this.chatMessages.find(m => m.id.startsWith('temp-img-'));
-                    if (tempMsg) {
-                        tempMsg.image_url = this.resolveMediaUrl(data.data.image_url);
-                        tempMsg.is_temp = false;
+                if (data.success && data.data && data.data.message_type === 'image' && tempImageId) {
+                    const thread = this.threadFor(receiverId).map((msg) => {
+                        if (String(msg.id) !== tempImageId) return msg;
+                        return {
+                            ...msg,
+                            image_url: this.resolveMediaUrl(data.data.image_url),
+                            is_temp: false,
+                            peer_id: receiverId
+                        };
+                    });
+                    this.chatHistoryCache = { ...this.chatHistoryCache, [receiverId]: thread };
+                    if (this.activeChatPeerId() === receiverId) {
+                        this.chatMessages = thread.slice();
                     }
                 } else if (!data.success) {
                     console.error('Send failed:', data.message);
-                    // Optionally remove the optimistic message or show error
                 }
             } catch (e) {
                 console.error('Network error:', e);
@@ -3546,6 +3928,8 @@ function userDashboard() {
         },
 
         async fetchShopItems() {
+            const pending = this.beginFetch('shop');
+            if (pending) return pending;
             if (!(this.shopItems || []).length) this.shopLoading = true;
             try {
                 const res = await fetch('/user_backend/get_shop_items.php');
@@ -3564,6 +3948,7 @@ function userDashboard() {
                 console.error('Failed to fetch shop items:', e);
             } finally {
                 this.shopLoading = false;
+                this.endFetch('shop');
             }
         },
 
@@ -3608,6 +3993,8 @@ function userDashboard() {
         },
 
         async fetchWatchlist() {
+            const pending = this.beginFetch('watchlist');
+            if (pending) return pending;
             if (!(this.watchlist || []).length) this.watchlistLoading = true;
             try {
                 const response = await fetch("/user_backend/get_watchlist.php");
@@ -3624,6 +4011,7 @@ function userDashboard() {
                 console.error("Failed to fetch watchlist:", e);
             } finally {
                 this.watchlistLoading = false;
+                this.endFetch('watchlist');
             }
         },
 
@@ -3962,6 +4350,10 @@ function userDashboard() {
 
             const channel = this.pusherClient.subscribe(`user-${window.CURRENT_USER_ID}`);
 
+            channel.bind('force_logout', () => {
+                window.location.reload();
+            });
+
             channel.bind('notifications_read', () => {
                 this.unreadNotifCount = 0;
                 this.setNotificationList(this.notifications.map(n => ({ ...n, is_read: 1 })));
@@ -4229,17 +4621,16 @@ function userDashboard() {
             // 2. Update savedProfile / avatar / border instantly from boot payload
             this.applyBootProfile(window.NEXUS_USER);
 
+            this.hydrateActiveRoom();
+            if (this._activeRoomTimer) clearInterval(this._activeRoomTimer);
+            this._activeRoomTimer = setInterval(() => this.refreshActiveRoom(), 15000);
+            this.initPusher();
+            this.startDashboardLiveRoom();
+
             // Source of truth is the DB via fetchUserProfile — drop stale local border cache
             localStorage.removeItem('activeBorder');
 
             if (typeof gsap !== 'undefined') gsap.config({ nullTargetWarn: false });
-
-            this.hydrateActiveRoom();
-            if (this._activeRoomTimer) clearInterval(this._activeRoomTimer);
-            this._activeRoomTimer = setInterval(() => this.refreshActiveRoom(), 15000);
-
-            this.initPusher();
-            this.startDashboardLiveRoom();
             this.loadMediaCaches();
             this.cacheOwnMedia();
             this.hydrateLocalCaches();
@@ -4247,8 +4638,14 @@ function userDashboard() {
             if (this._premiumTimer) clearInterval(this._premiumTimer);
             this._premiumTimer = setInterval(() => this.tickPremiumCountdown(), 1000);
             const bootMovies = this.fetchMovies();
+            const bootJobs = [bootMovies];
             if (!this.isGuest) {
-                Promise.allSettled([bootMovies, this.fetchWatchlist()]).finally(() => this.applyDeepLink());
+                bootJobs.push(
+                    this.fetchWatchlist(),
+                    this.fetchShopItems().then(() => this.buildAvailableBorders()),
+                    this.fetchPointPacks()
+                );
+                Promise.allSettled(bootJobs).finally(() => this.applyDeepLink());
             } else {
                 bootMovies.finally(() => this.applyDeepLink());
             }
@@ -4258,6 +4655,9 @@ function userDashboard() {
             this._onBorderResize = () => {
                 this.viewportWidth = window.innerWidth;
                 if (this.borderPage > this.borderPageCount) this.borderPage = this.borderPageCount;
+                if (this.moviePage > this.moviePageCount) this.moviePage = this.moviePageCount;
+                if (this.watchlistPage > this.watchlistPageCount) this.watchlistPage = this.watchlistPageCount;
+                if (this.shopPage > this.shopPageCount) this.shopPage = this.shopPageCount;
             };
             window.addEventListener('resize', this._onBorderResize);
             
@@ -4318,6 +4718,15 @@ function userDashboard() {
 
             // Search watcher – allow searching even for guests (backend returns public data)
             // but no actions will be possible.
+            this.$watch('movieSearchQuery', () => { this.moviePage = 1; });
+            this.$watch('movieFilter', () => { this.moviePage = 1; });
+            this.$watch('watchlistSearchQuery', () => { this.watchlistPage = 1; });
+            this.$watch('watchlistFilter', () => { this.watchlistPage = 1; });
+            this.$watch('shopSearchQuery', () => { this.shopPage = 1; });
+            this.$watch('shopRarityFilter', () => { this.shopPage = 1; });
+            this.$watch('borderSearchQuery', () => { this.borderPage = 1; });
+            this.$watch('borderRarityFilter', () => { this.borderPage = 1; });
+
             this.$watch('searchQuery', (query) => {
                 clearTimeout(this.searchTimeout);
                 const trimmed = (query || '').trim();
@@ -5400,6 +5809,7 @@ window.moveToNext = function(current, event) {
 window.otpForm = function() {
     return {
         otpCode: '',
+        showPassword: false,
         inputs: [],
         timeLeft: 0,
         otpDuration: 180,
@@ -5594,6 +6004,18 @@ function adminDashboard(userData = {}) {
             return m + 'm';
         },
 
+        adminMovieGenres(movie) {
+            if (!movie) return [];
+            let genres = movie.genres;
+            if (typeof genres === 'string') {
+                genres = genres.split(',').map((s) => s.trim()).filter(Boolean);
+            }
+            if (!Array.isArray(genres) || !genres.length) {
+                genres = String(movie.genre || '').split(',').map((s) => s.trim()).filter(Boolean);
+            }
+            return genres.length ? genres : ['Movie'];
+        },
+
         avatarCache: {},
         mediaFileKey(url) {
             if (!url) return '';
@@ -5604,19 +6026,37 @@ function adminDashboard(userData = {}) {
             }
             return raw.split('?')[0];
         },
+        cacheKey(name) {
+            const id = Number(window.CURRENT_USER_ID || this.staffUserId) || 0;
+            return id ? `nexus_${name}_u${id}` : `nexus_${name}_guest`;
+        },
+        beginFetch(key) {
+            if (!this._inflight) this._inflight = Object.create(null);
+            if (this._inflight[key]) return this._inflight[key];
+            let finish = () => {};
+            const job = new Promise((resolve) => { finish = resolve; });
+            job.finish = finish;
+            this._inflight[key] = job;
+            return null;
+        },
+        endFetch(key) {
+            const job = this._inflight && this._inflight[key];
+            if (this._inflight) delete this._inflight[key];
+            if (job && typeof job.finish === 'function') job.finish();
+        },
         loadMediaCaches() {
             try {
-                this.avatarCache = JSON.parse(sessionStorage.getItem('nexus_avatar_cache') || '{}');
+                this.avatarCache = JSON.parse(sessionStorage.getItem(this.cacheKey('avatars')) || '{}');
             } catch (e) {
                 this.avatarCache = {};
             }
         },
         persistAvatarCache() {
-            try { sessionStorage.setItem('nexus_avatar_cache', JSON.stringify(this.avatarCache)); } catch (e) {}
+            try { sessionStorage.setItem(this.cacheKey('avatars'), JSON.stringify(this.avatarCache)); } catch (e) {}
         },
         applyCachedMedia(row, userIdKey = 'user_id') {
             if (!row || typeof row !== 'object') return row;
-            const id = Number(row[userIdKey] || row.user_id || row.sender_id || row.id || 0);
+            const id = Number(row[userIdKey] || 0);
             if (!id) return row;
             const cached = this.avatarCache[id] || {};
             const incomingAvatar = row.avatar_url || '';
@@ -5793,9 +6233,25 @@ function adminDashboard(userData = {}) {
                 });
                 const data = await res.json();
                 if (data.success) {
-                    // Remove from both arrays (modal + global list)
-                    this.movieComments = this.movieComments.filter(c => c.id !== commentId && c.parent_id !== commentId);
-                    this.comments = this.comments.filter(c => c.id !== commentId && c.parent_id !== commentId);
+                    const removeThread = (list, rootId) => {
+                        const drop = new Set([Number(rootId)]);
+                        let changed = true;
+                        const rows = list || [];
+                        while (changed) {
+                            changed = false;
+                            rows.forEach((row) => {
+                                const id = Number(row.id);
+                                const parent = Number(row.parent_id);
+                                if (!drop.has(id) && drop.has(parent)) {
+                                    drop.add(id);
+                                    changed = true;
+                                }
+                            });
+                        }
+                        return rows.filter((row) => !drop.has(Number(row.id)));
+                    };
+                    this.movieComments = removeThread(this.movieComments, commentId);
+                    this.comments = removeThread(this.comments, commentId);
                     this.showToast('Comment deleted', 'success');
                 } else {
                     this.showToast(data.error || 'Delete failed', 'error');
@@ -6027,6 +6483,8 @@ function adminDashboard(userData = {}) {
             return decorated;
         },
         async fetchNotifications() {
+            const pending = this.beginFetch('notifications');
+            if (pending) return pending;
             if (!(this.notifications || []).length) this.notificationsLoading = true;
             try {
                 const response = await fetch('/backend/get_admin_notifications.php', { credentials: 'same-origin' });
@@ -6036,6 +6494,7 @@ function adminDashboard(userData = {}) {
                     if (!fallback.ok) return;
                     const data = await fallback.json();
                     if (data.success && Array.isArray(data.notifications)) {
+                        if (data.viewer_id && Number(data.viewer_id) !== Number(window.CURRENT_USER_ID)) return;
                         this.setNotificationList(data.notifications.map(n => this.decorateAdminNotification(this.applyCachedMedia(n, 'sender_id'))));
                         this.persistAvatarCache();
                     }
@@ -6044,6 +6503,7 @@ function adminDashboard(userData = {}) {
 
                 const data = await response.json();
                 if (data.success && Array.isArray(data.notifications)) {
+                    if (data.viewer_id && Number(data.viewer_id) !== Number(window.CURRENT_USER_ID)) return;
                     this.setNotificationList(data.notifications.map(n => this.decorateAdminNotification(this.applyCachedMedia(n, 'sender_id'))));
                     this.persistAvatarCache();
                 }
@@ -6051,6 +6511,7 @@ function adminDashboard(userData = {}) {
                 console.error('Notification network error:', err);
             } finally {
                 this.notificationsLoading = false;
+                this.endFetch('notifications');
             }
         },
         async toggleNotificationPanel() {
@@ -6162,7 +6623,7 @@ function adminDashboard(userData = {}) {
                 return;
             }
             const panelOpen = !!this.notificationsOpen;
-            const incoming = this.decorateAdminNotification({
+            const incoming = this.decorateAdminNotification(this.applyCachedMedia({
                 id: incomingId || Date.now(),
                 type: data.type,
                 sender_id: data.sender_id,
@@ -6174,7 +6635,7 @@ function adminDashboard(userData = {}) {
                 border_preview: data.border_preview || '',
                 is_read: panelOpen ? 1 : 0,
                 icon: data.icon
-            });
+            }, 'sender_id'));
             this.notifications = [incoming, ...this.notifications];
             if (panelOpen) {
                 this.markNotificationsAsRead();
@@ -6367,9 +6828,12 @@ function adminDashboard(userData = {}) {
         },
 
         async fetchStats() {
+            const pending = this.beginFetch('stats');
+            if (pending) return pending;
             this.statsLoading = true;
             try {
-                const response = await fetch('/backend/dashboard_stats_api.php');
+                const tzOffset = -new Date().getTimezoneOffset();
+                const response = await fetch('/backend/dashboard_stats_api.php?tz_offset=' + encodeURIComponent(tzOffset));
                 const text = await response.text();
 
                 try {
@@ -6394,11 +6858,14 @@ function adminDashboard(userData = {}) {
                 console.error('Network error fetching dashboard stats:', err);
             } finally {
                 this.statsLoading = false;
+                this.endFetch('stats');
             }
         },
 
         // ADDED: Fetch users from the PHP backend API
         async fetchUsers() {
+            const pending = this.beginFetch('users');
+            if (pending) return pending;
             if (!(this.users || []).length) this.usersLoading = true;
             this.errorMessage = '';
             try {
@@ -6423,12 +6890,17 @@ function adminDashboard(userData = {}) {
                 console.error(err);
             } finally {
                 this.usersLoading = false;
+                this.endFetch('users');
             }
         },
 
         isUserOnline(user) {
             if (!user) return false;
             return Number(user.is_online) === 1 || user.is_online === true;
+        },
+
+        formatLastLogin(unix, withLabel) {
+            return window.nexusFormatLastLogin(unix, withLabel);
         },
 
         applyOnlineIds(ids) {
@@ -6478,7 +6950,11 @@ function adminDashboard(userData = {}) {
 
         async touchPresence() {
             try {
-                await fetch('/user_backend/heartbeat.php', { method: 'POST', credentials: 'same-origin' });
+                const res = await fetch('/user_backend/heartbeat.php', { method: 'POST', credentials: 'same-origin' });
+                const data = await res.json().catch(() => null);
+                if (data && data.banned) {
+                    window.location.replace(data.redirect || '/frontend/account_hold.php');
+                }
             } catch (e) {}
         },
 
@@ -6520,6 +6996,7 @@ function adminDashboard(userData = {}) {
         },
 
         init() {
+            if (bootStaffUserId) window.CURRENT_USER_ID = bootStaffUserId;
             localStorage.removeItem('activeBorder');
             this.loadMediaCaches();
             this.cacheOwnAdminMedia();
@@ -6573,6 +7050,8 @@ function adminDashboard(userData = {}) {
 
         // --- Fetch API Methods ---
        async fetchMovies() {
+            const pending = this.beginFetch('movies');
+            if (pending) return pending;
             if (!(this.movies || []).length) this.moviesLoading = true;
             try {
                 const response = await fetch('/backend/movies_api.php');
@@ -6585,6 +7064,7 @@ function adminDashboard(userData = {}) {
                 console.error('Network error fetching movies:', err);
             } finally {
                 this.moviesLoading = false;
+                this.endFetch('movies');
             }
         },
 
@@ -6636,6 +7116,8 @@ function adminDashboard(userData = {}) {
         },
 
         async fetchGenres() {
+            const pending = this.beginFetch('genres');
+            if (pending) return pending;
             try {
                 const response = await fetch('/backend/genres_api.php');
                 const text = await response.text();
@@ -6652,6 +7134,8 @@ function adminDashboard(userData = {}) {
                 }
             } catch (err) {
                 console.error("Network error fetching genres:", err);
+            } finally {
+                this.endFetch('genres');
             }
         },
 
@@ -6797,6 +7281,8 @@ function adminDashboard(userData = {}) {
         roomPollTimer: null,
 
         async fetchRooms() {
+            const pending = this.beginFetch('rooms');
+            if (pending) return pending;
             if (!(this.rooms || []).length) this.roomsLoading = true;
             try {
                 const res = await fetch('/backend/get_active_rooms.php');
@@ -6835,6 +7321,7 @@ function adminDashboard(userData = {}) {
                 console.error('fetchRooms error:', e);
             } finally {
                 this.roomsLoading = false;
+                this.endFetch('rooms');
             }
         },
 
@@ -6977,6 +7464,8 @@ function adminDashboard(userData = {}) {
         },
 
         async fetchReports() {
+            const pending = this.beginFetch('reports');
+            if (pending) return pending;
             if (!(this.reportsList || []).length) this.reportsLoading = true;
             try {
                 const response = await fetch('/backend/get_reports.php');
@@ -6991,10 +7480,13 @@ function adminDashboard(userData = {}) {
                 console.error("Error fetching reports:", error);
             } finally {
                 this.reportsLoading = false;
+                this.endFetch('reports');
             }
         },
 
         async fetchTransactions() {
+            const pending = this.beginFetch('transactions');
+            if (pending) return pending;
             if (!(this.transactions || []).length) this.transactionsLoading = true;
             try {
                 const response = await fetch('/backend/get_transactions.php');
@@ -7010,6 +7502,7 @@ function adminDashboard(userData = {}) {
                 console.error('Error fetching transactions:', error);
             } finally {
                 this.transactionsLoading = false;
+                this.endFetch('transactions');
             }
         },
 
@@ -7076,23 +7569,18 @@ function adminDashboard(userData = {}) {
             this.openEditMovieModal(movie);
             this.movieTab = 'comments';
             await this.fetchMovieCommentsForAdmin(movieId);
-            
             this.highlightCommentId = commentId;
-            
-            // Expand replies if the highlighted comment is a reply
-            for (let c of this.nestedMovieComments) {
-                if (c.replies && c.replies.some(r => r.id == commentId)) {
-                    c.show_replies = true;
-                }
-            }
 
-            // Scroll to the comment
-            setTimeout(() => {
+            const revealComment = () => {
                 const el = document.getElementById('admin-comment-' + commentId);
-                if (el) {
-                    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                }
-            }, 400);
+                if (!el) return false;
+                el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                return true;
+            };
+            this.$nextTick(() => {
+                if (revealComment()) return;
+                setTimeout(revealComment, 300);
+            });
         },
 
         // Shop       
@@ -7104,6 +7592,8 @@ function adminDashboard(userData = {}) {
         shopImageFile: null,   // holds File object for shop item image
 
         async fetchPointPackages() {
+            const pending = this.beginFetch('pointPacks');
+            if (pending) return pending;
             if (!(this.pointPackages || []).length) this.packsLoading = true;
             try {
                 const res = await fetch('/backend/point_packages_api.php?action=list');
@@ -7126,6 +7616,7 @@ function adminDashboard(userData = {}) {
                 if (this.showToast) this.showToast('Network error loading point packs', 'error');
             } finally {
                 this.packsLoading = false;
+                this.endFetch('pointPacks');
             }
         },
 
@@ -7205,6 +7696,8 @@ function adminDashboard(userData = {}) {
         },
 
         async fetchShopItems() {
+            const pending = this.beginFetch('shop');
+            if (pending) return pending;
             if (!(this.shopItems || []).length) this.shopLoading = true;
             try {
                 const res = await fetch('/backend/shop_items_api.php?action=list');
@@ -7233,6 +7726,7 @@ function adminDashboard(userData = {}) {
                 this.showToast('Network error loading shop items', 'error');
             } finally {
                 this.shopLoading = false;
+                this.endFetch('shop');
             }
         },
 
@@ -7540,7 +8034,7 @@ function adminDashboard(userData = {}) {
                 const data = await response.json();
 
                 if (data.success) {
-                    window.nexusNavigate('../frontend/login.php?deletion_scheduled=1');
+                    window.location.replace('/frontend/login.php');
                 } else {
                     // 2. Server-side check: Incorrect password / session error
                     const errorMsg = data.message || data.error || 'Failed to delete account.';
@@ -8137,6 +8631,7 @@ function adminDashboard(userData = {}) {
         },
 
          async initDashboard() {
+            if (bootStaffUserId) window.CURRENT_USER_ID = bootStaffUserId;
             if (window.innerWidth < 1024 && this.sidebarOpen) {
                 this.sidebarOpen = false;
             }
@@ -8171,18 +8666,32 @@ function adminDashboard(userData = {}) {
                 this.statsLoading = false;
                 this.moviesLoading = false;
                 this.roomsLoading = false;
+                this.usersLoading = false;
+                this.shopLoading = false;
+                this.packsLoading = false;
+                this.reportsLoading = false;
+                this.transactionsLoading = false;
                 this.notificationsLoading = false;
                 this.isLoading = false;
                 this.commentsLoading = false;
             }, 8000);
 
+            const visibleNow = Promise.allSettled([
+                this.fetchStats(),
+                this.fetchNotifications(),
+                this.fetchRooms(),
+                this.fetchMovies()
+            ]);
+            const fillRelated = Promise.allSettled([
+                this.fetchGenres(),
+                this.fetchUsers(),
+                this.fetchShopItems().then(() => this.fetchAdminProfile()),
+                this.fetchPointPackages(),
+                this.fetchReports(),
+                this.fetchTransactions()
+            ]);
             try {
-                await Promise.allSettled([
-                    this.fetchStats(),
-                    this.fetchNotifications(),
-                    this.fetchRooms(),
-                    this.fetchMovies()
-                ]);
+                await visibleNow;
             } finally {
                 clearTimeout(loadingSafety);
                 this.statsLoading = false;
@@ -8192,6 +8701,13 @@ function adminDashboard(userData = {}) {
                 this.isLoading = false;
                 this.commentsLoading = false;
             }
+            fillRelated.finally(() => {
+                this.usersLoading = false;
+                this.shopLoading = false;
+                this.packsLoading = false;
+                this.reportsLoading = false;
+                this.transactionsLoading = false;
+            });
 
             this.startPresenceHeartbeat();
 

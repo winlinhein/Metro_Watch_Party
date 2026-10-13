@@ -1,5 +1,6 @@
 <!-- Shop Tab -->
 <div class="absolute inset-0 w-full h-full overflow-y-auto p-4 sm:p-5 md:p-6 pb-28 tab-content scroll-smooth custom-scrollbar" 
+     data-tab-pane="shop"
      x-show="currentTab === 'shop'"
      x-transition:enter="transition-all duration-500 delay-300 cubic-bezier(0.34, 1.56, 0.64, 1)"
      x-transition:enter-start="opacity-0 translate-y-8"
@@ -54,7 +55,7 @@
              x-transition:enter="transition-all duration-500"
              x-transition:enter-start="opacity-0 scale-95"
              x-transition:enter-end="opacity-100 scale-100">
-            <template x-for="(item, index) in filteredShopItems" :key="item.id">
+            <template x-for="(item, index) in pagedShopItems" :key="item.id">
                 <div class="nexus-shop-card nexus-card-enter group relative bg-[#050508] rounded-2xl border border-white/[0.05] p-3.5 hover:border-violet-400/40 shadow-xl overflow-hidden cursor-pointer"
                      :style="`animation-delay: ${index * 55}ms`"
                      @mousemove="trackCardTilt($event)"
@@ -125,6 +126,24 @@
             </template>
         </div>
 
+        <div class="flex items-center justify-center gap-1.5 pt-2 relative z-10" x-show="!shopLoading && shopPageCount > 1" x-cloak>
+            <button type="button" @click="setShopPage(shopPageSafe - 1)" :disabled="shopPageSafe <= 1"
+                    class="w-9 h-9 rounded-xl border border-white/10 bg-white/5 text-white/70 hover:bg-white/10 hover:text-white disabled:opacity-30 disabled:pointer-events-none flex items-center justify-center transition-colors">
+                <span class="material-symbols-outlined text-[18px]">chevron_left</span>
+            </button>
+            <template x-for="page in shopPageNumbers" :key="'shop-page-'+page">
+                <button type="button" @click="setShopPage(page)"
+                        class="min-w-9 h-9 px-2 rounded-xl text-[11px] font-bold transition-colors"
+                        :class="page === shopPageSafe ? 'bg-violet-500 text-white shadow-[0_0_12px_rgba(139,92,246,0.45)]' : 'bg-white/5 border border-white/10 text-white/60 hover:text-white hover:bg-white/10'">
+                    <span x-text="page"></span>
+                </button>
+            </template>
+            <button type="button" @click="setShopPage(shopPageSafe + 1)" :disabled="shopPageSafe >= shopPageCount"
+                    class="w-9 h-9 rounded-xl border border-white/10 bg-white/5 text-white/70 hover:bg-white/10 hover:text-white disabled:opacity-30 disabled:pointer-events-none flex items-center justify-center transition-colors">
+                <span class="material-symbols-outlined text-[18px]">chevron_right</span>
+            </button>
+        </div>
+
         <!-- Empty State -->
         <div x-show="shopLoading">
             <?php $fetchLoaderShow = 'true'; $fetchLoaderLabel = 'Loading shop'; $fetchLoaderClass = 'py-20'; include __DIR__ . '/../frontend/components/fetch_loader.php'; ?>
@@ -138,8 +157,10 @@
     </div>
 
     <!-- Confirm Purchase Modal -->
-    <div x-show="showConfirmModal" 
-         class="fixed inset-0 z-[100] flex items-center justify-center p-4"
+    <template x-teleport="body">
+    <div x-show="showConfirmModal"
+         data-nexus-modal x-effect="window.nexusLockModalScroll(showConfirmModal, 'user-shop-confirm')"
+         class="fixed inset-0 z-[200] flex items-center justify-center p-4 overscroll-contain"
          style="display: none;">
         <!-- Backdrop -->
         <div x-show="showConfirmModal"
@@ -202,6 +223,7 @@
             </template>
         </div>
     </div>
+    </template>
 
     <!-- Background Ambient Glow -->
     <div class="fixed inset-0 pointer-events-none z-0 overflow-hidden" x-show="currentTab === 'shop'">

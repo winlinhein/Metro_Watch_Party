@@ -1,10 +1,5 @@
 <?php
 session_start();
-require_once __DIR__ . '/../conn.php';
-require_once __DIR__ . '/../poster_helper.php';
-require_once __DIR__ . '/../profile_media_helper.php';
-require_once __DIR__ . '/../premium_benefits_helper.php';
-
 header('Content-Type: application/json');
 
 $role = strtolower((string)($_SESSION['user_role'] ?? ''));
@@ -19,7 +14,14 @@ if (
 }
 
 session_write_close();
+
+require_once __DIR__ . '/../conn.php';
+require_once __DIR__ . '/../poster_helper.php';
+require_once __DIR__ . '/../profile_media_helper.php';
+require_once __DIR__ . '/../premium_benefits_helper.php';
 ensureAppSchema($conn);
+require_once __DIR__ . '/../admin_rooms_helper.php';
+sweepAbandonedRooms($conn);
 
 try {
     $stmt = $conn->query("

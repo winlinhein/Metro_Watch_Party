@@ -1,4 +1,4 @@
-function initLocalAnimations() {
+function initLoginPageAnimations() {
    // Generate Posters with real movie data from backend
 const posterWall = document.getElementById('poster-wall-container');
 if (posterWall) {
@@ -387,4 +387,8 @@ if (posterWall) {
     }
     }
 }
-initLocalAnimations();
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initLoginPageAnimations);
+} else {
+    initLoginPageAnimations();
+}

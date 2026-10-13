@@ -83,9 +83,16 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                         $conn->prepare("DELETE FROM users WHERE user_id = :id")->execute([':id' => $existing_user['user_id']]);
                     } else {
                         $_SESSION['verify_email'] = $email;
+                        $_SESSION['otp_type'] = 'register';
                         header("Location: ../frontend/otp-register.php");
                         exit();
                     }
+                } else {
+                    // Banned / suspended / any other status: never fall through to
+                    // the INSERT, which would create a duplicate account row and
+                    // let a banned user get a fresh, active account.
+                    header("Location: ../frontend/register.php?error=" . urlencode("This email address cannot be registered."));
+                    exit();
                 }
             }
 
@@ -97,8 +104,8 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
             $conn->beginTransaction();
 
             $insert_user = $conn->prepare("
-                INSERT INTO users (user_name, email, hashed_password) 
-                VALUES (:user_name, :email, :hashed_password)
+                INSERT INTO users (user_name, email, hashed_password, status) 
+                VALUES (:user_name, :email, :hashed_password, 'pending')
             ");
             $insert_user->execute([
                 ':user_name'       => $name,

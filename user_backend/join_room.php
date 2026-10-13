@@ -56,20 +56,9 @@ try {
     $kickStmt->execute(['room_id' => $roomId, 'user_id' => $userId]);
     if ($kickStmt->fetchColumn()) {
         http_response_code(403);
-        echo json_encode(['success' => false, 'message' => 'The host removed you from the room.', 'is_kicked' => true]);
+        echo json_encode(['success' => false, 'message' => 'The host banned you from this room.', 'is_kicked' => true]);
         exit;
     }
-
-    $conn->prepare("
-        DELETE FROM room_participants
-        WHERE room_id = :room_id
-          AND (last_seen < DATE_SUB(NOW(), INTERVAL 45 SECOND)
-               OR (user_id = :user_id AND peer_id <> :peer_id))
-    ")->execute([
-        'room_id' => $roomId,
-        'user_id' => $userId,
-        'peer_id' => $peerId,
-    ]);
 
     $existsStmt = $conn->prepare("SELECT 1 FROM room_participants WHERE peer_id = :peer_id LIMIT 1");
     $existsStmt->execute(['peer_id' => $peerId]);
@@ -82,6 +71,20 @@ try {
             room_id = VALUES(room_id),
             user_id = VALUES(user_id),
             last_seen = NOW()
+    ")->execute([
+        'room_id' => $roomId,
+        'user_id' => $userId,
+        'peer_id' => $peerId,
+    ]);
+
+    $conn->prepare("
+        DELETE FROM room_participants
+        WHERE room_id = :room_id
+          AND peer_id <> :peer_id
+          AND (
+                last_seen < DATE_SUB(NOW(), INTERVAL 45 SECOND)
+                OR user_id = :user_id
+          )
     ")->execute([
         'room_id' => $roomId,
         'user_id' => $userId,
@@ -107,16 +110,11 @@ try {
     $peerStmt->execute(['room_id' => $roomId, 'peer_id' => $peerId]);
     $peers = $peerStmt->fetchAll(PDO::FETCH_ASSOC);
 
+    require_once __DIR__ . '/../profile_media_helper.php';
+    $peers = attachProfileMedia($conn, $peers);
     $selfMedia = ['avatar_url' => '', 'border_preview' => ''];
     if (!$heartbeat) {
-        require_once __DIR__ . '/../profile_media_helper.php';
-        $peers = attachProfileMedia($conn, $peers);
         $selfMedia = getUserProfileMedia($conn, $userId);
-        require_once __DIR__ . '/../notifications_helper.php';
-        deleteMatchingNotifications($conn, $userId, [
-            'types' => ['party_invite', 'join_request_accepted'],
-            'room_id' => $roomId,
-        ]);
         touchUserPresence($conn, $userId);
     } else {
         $conn->prepare("UPDATE users SET last_seen = NOW() WHERE user_id = ?")->execute([$userId]);
@@ -134,16 +132,48 @@ try {
         'chat_banned' => $chatBanned,
     ];
 
+    $response = json_encode([
+        'success' => true,
+        'peers' => $peers,
+        'you' => $payload,
+    ]);
+    while (ob_get_level() > 0) {
+        ob_end_clean();
+    }
+    header('Content-Length: ' . strlen($response));
+    echo $response;
+    if (function_exists('fastcgi_finish_request')) {
+        fastcgi_finish_request();
+    } else {
+        @flush();
+    }
+
+    try {
+        sweepAbandonedRooms($conn);
+    } catch (Throwable $ignore) {
+    }
+
     if (!$heartbeat || !$alreadyThere) {
-        require_once __DIR__ . '/../pusher_helper.php';
-        triggerPusherEvent("watch-party-{$roomId}", 'peer-join', $payload);
-        broadcastAdminRoomsChanged('join', [
-            'room_id' => $roomId,
-            'user_id' => $userId,
-        ]);
+        try {
+            require_once __DIR__ . '/../pusher_helper.php';
+            triggerPusherEvent("watch-party-{$roomId}", 'peer-join', $payload);
+            broadcastAdminRoomsChanged('join', [
+                'room_id' => $roomId,
+                'user_id' => $userId,
+            ]);
+        } catch (Throwable $ignore) {
+        }
     }
 
     if (!$heartbeat) {
+        try {
+            require_once __DIR__ . '/../notifications_helper.php';
+            deleteMatchingNotifications($conn, $userId, [
+                'types' => ['party_invite', 'join_request_accepted'],
+                'room_id' => $roomId,
+            ]);
+        } catch (Throwable $ignore) {
+        }
         try {
             require_once __DIR__ . '/mission_progress.php';
             updateMissionProgress($userId, 'join_room', 1);
@@ -151,12 +181,7 @@ try {
             error_log('join_room mission update: ' . $e->getMessage());
         }
     }
-
-    echo json_encode([
-        'success' => true,
-        'peers' => $peers,
-        'you' => $payload,
-    ]);
+    exit;
 } catch (Throwable $e) {
     http_response_code(500);
     echo json_encode(['success' => false, 'message' => 'Failed to join room']);

@@ -1,16 +1,14 @@
 <?php
 // /admin_backend/get_reports.php
+require_once __DIR__ . '/../error_response_helper.php';
 session_start();
-require_once __DIR__ . '/../conn.php';
-require_once __DIR__ . '/../profile_media_helper.php';
-require_once __DIR__ . '/../poster_helper.php';
-require_once __DIR__ . '/../account_lifecycle_helper.php';
-ensureAppSchema($conn);
-nexusPrepareKeptRecords($conn);
-
 header('Content-Type: application/json');
 
-// Ensure user is an admin or moderator
+// Ensure the session completed the OTP step, and that the user is an admin or moderator
+if (empty($_SESSION['authenticated'])) {
+    echo json_encode(['error' => 'Unauthorized access.']);
+    exit;
+}
 $role = strtolower((string)($_SESSION['user_role'] ?? ''));
 if (empty($_SESSION['user_role']) || !in_array($role, ['admin', 'moderator'], true)) {
     echo json_encode(['error' => 'Unauthorized access.']);
@@ -18,6 +16,13 @@ if (empty($_SESSION['user_role']) || !in_array($role, ['admin', 'moderator'], tr
 }
 
 session_write_close();
+
+require_once __DIR__ . '/../conn.php';
+require_once __DIR__ . '/../profile_media_helper.php';
+require_once __DIR__ . '/../poster_helper.php';
+require_once __DIR__ . '/../account_lifecycle_helper.php';
+ensureAppSchema($conn);
+nexusPrepareKeptRecords($conn);
 
 try {
     // Incorporating your corrected query with the many-to-many relationship
@@ -28,6 +33,7 @@ try {
             IFNULL(r.status, 'pending') AS status,
             r.description,
             r.created_at,
+            UNIX_TIMESTAMP(r.created_at) AS created_unix,
             r.reported_room_id,
             r.reported_user_id,
             r.comment_id,
@@ -116,6 +122,8 @@ try {
             'raw_id'        => $rep['report_id'], 
             'id'            => 'REP-' . str_pad($rep['report_id'], 4, '0', STR_PAD_LEFT), 
             'date'          => date('M d, Y', strtotime($rep['created_at'] ?? 'now')),
+            'created_at'    => $rep['created_at'] ?? null,
+            'created_unix'  => isset($rep['created_unix']) ? (int)$rep['created_unix'] : null,
             'user'          => $rep['reporter_name'] ?? 'Unknown User',
             'reported_user' => $reported_entity, 
             'reported_movie_id' => $rep['reported_movie_id'] ?? null,
@@ -144,6 +152,7 @@ try {
     echo json_encode(['success' => true, 'reports' => $formatted_reports]);
 
 } catch (Exception $e) {
-    echo json_encode(['success' => false, 'error' => 'Database error: ' . $e->getMessage()]);
+    nexusSafeError($e);
+    echo json_encode(['error' => 'Database error.']);
 }
 ?>

@@ -1,6 +1,8 @@
 <!-- Report User Modal -->
-<div x-show="showReportModal" 
-     class="fixed inset-0 z-[1010] flex items-center justify-center p-4"
+<template x-teleport="body">
+<div x-show="showReportModal"
+     data-nexus-modal x-effect="window.nexusLockModalScroll(showReportModal, 'user-report-user')"
+     class="fixed inset-0 z-[200] flex items-center justify-center p-4 overscroll-contain"
      style="display: none;">
      
     <!-- Backdrop -->
@@ -80,3 +82,4 @@
          </div>
     </div>
 </div>
+</template>

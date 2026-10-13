@@ -1,7 +1,7 @@
 <div class="absolute inset-0 w-full h-full overflow-y-auto p-4 sm:p-6 md:p-10 pb-32 tab-content scroll-smooth custom-scrollbar" 
      x-show="currentTab === 'account'" style="display: none;">
     <!-- Account Settings Logic -->
-    <div class="max-w-[1400px] mx-auto space-y-8 pb-24">
+    <div class="max-w-[1400px] mx-auto space-y-8">
         
         <!-- Header -->
         <div class="flex items-center gap-4 mb-8">
@@ -11,6 +11,36 @@
             <div>
                 <h1 class="text-2xl sm:text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-white to-white/50 uppercase tracking-wide sm:tracking-widest">Account Details</h1>
                 <p class="text-white/50 text-sm mt-1">Manage your identity, security, and appearance</p>
+            </div>
+        </div>
+
+        <div class="bg-[#0a0a0f] border border-white/10 rounded-2xl p-6">
+            <div class="flex flex-col sm:flex-row sm:items-end justify-between gap-3 mb-5">
+                <div>
+                    <h2 class="text-xl font-bold text-white flex items-center gap-2">
+                        <span class="material-symbols-outlined text-red-500">format_paint</span>
+                        Color Theme
+                    </h2>
+                    <p class="text-xs text-white/45 mt-1">Each theme keeps a dark room and paints the accents as a gradient.</p>
+                </div>
+            </div>
+            <div class="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                <template x-for="theme in themeChoices" :key="theme.id">
+                    <button type="button" @click="setTheme(theme.id)"
+                            class="text-left rounded-2xl border p-3 transition-all duration-300 hover:-translate-y-0.5"
+                            :class="themeId === theme.id ? 'border-red-500 bg-red-500/10 shadow-[0_0_18px_rgba(239,68,68,0.15)]' : 'border-white/10 bg-black/30 hover:border-white/25'">
+                        <span class="block h-14 rounded-xl border border-white/10 mb-3" :style="'background:' + theme.gradient"></span>
+                        <span class="flex items-center justify-between gap-2">
+                            <span>
+                                <span class="block text-sm font-bold text-white" x-text="theme.name"></span>
+                                <span class="block text-[10px] uppercase tracking-widest text-white/40 mt-0.5" x-text="theme.blurb"></span>
+                            </span>
+                            <span x-show="themeId === theme.id" class="w-6 h-6 rounded-full bg-red-500 text-black flex items-center justify-center shrink-0">
+                                <span class="material-symbols-outlined text-[14px] font-bold">check</span>
+                            </span>
+                        </span>
+                    </button>
+                </template>
             </div>
         </div>
 
@@ -103,14 +133,19 @@
 
                 <!-- Border Selection Grid: 2 rows + pagination, owned first -->
                 <div class="flex-1 min-w-0 flex flex-col">
-                    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3">
-                        <p class="text-[10px] font-bold uppercase tracking-widest text-white/40">Select a border</p>
-                        <div class="flex items-center gap-2 w-full sm:w-auto">
-                            <div class="relative flex-1 sm:w-44">
-                                <span class="material-symbols-outlined absolute left-2.5 top-1/2 -translate-y-1/2 text-white/30 text-[16px]">search</span>
+                    <div class="relative z-20 mb-4 space-y-3">
+                        <div class="flex items-center justify-between gap-3">
+                            <p class="text-[10px] font-bold uppercase tracking-widest text-white/40">Select a border</p>
+                            <p class="text-[10px] font-mono text-white/30 shrink-0" x-show="borderPageCount > 1" x-cloak>
+                                <span x-text="borderPage"></span> / <span x-text="borderPageCount"></span>
+                            </p>
+                        </div>
+                        <div class="flex flex-col sm:flex-row gap-2 sm:items-center">
+                            <div class="relative w-full sm:w-52 shrink-0">
+                                <span class="material-symbols-outlined absolute left-2.5 top-1/2 -translate-y-1/2 text-white/30 text-[16px] pointer-events-none">search</span>
                                 <input type="text" x-model="borderSearchQuery" placeholder="Search borders..." class="w-full bg-black/50 border border-white/10 rounded-lg py-2 pl-8 pr-2 text-xs text-white placeholder-white/30 outline-none focus:border-emerald-500/40">
                             </div>
-                            <select x-model="borderRarityFilter" class="bg-[#0a0a0f] border border-white/10 rounded-lg py-2 px-2 text-xs text-white outline-none">
+                            <select x-model="borderRarityFilter" class="w-full sm:w-36 shrink-0 bg-[#0a0a0f] border border-white/10 rounded-lg py-2 px-2 text-xs text-white outline-none">
                                 <option value="all">All types</option>
                                 <option value="Common">Common</option>
                                 <option value="Rare">Rare</option>
@@ -118,11 +153,8 @@
                                 <option value="Premium">Premium</option>
                             </select>
                         </div>
-                        <p class="text-[10px] font-mono text-white/30" x-show="borderPageCount > 1" x-cloak>
-                            <span x-text="borderPage"></span> / <span x-text="borderPageCount"></span>
-                        </p>
                     </div>
-                    <div class="grid grid-cols-2 md:grid-cols-3 grid-rows-2 gap-3 overflow-hidden auto-rows-fr">
+                    <div class="relative z-0 grid grid-cols-2 md:grid-cols-3 grid-rows-2 gap-3 pt-3 overflow-visible auto-rows-fr">
                         <template x-for="border in pagedBorders" :key="border.id">
                             <button type="button" @click="border.owned ? setActiveBorder(border.id) : null"
                                     class="relative p-4 rounded-xl border flex flex-col items-center justify-center gap-3 transition-all duration-300 transform h-full"
@@ -182,7 +214,7 @@
         </div>
     </div>
     <!-- Danger Zone -->
-    <div class="mt-12 pt-8 border-t border-white/10">
+    <div class="mt-4 pt-4 border-t border-white/10">
         <h4 class="text-xs font-extrabold text-red-400 uppercase tracking-widest mb-3">Danger Zone</h4>
         
         <div class="p-6 rounded-2xl bg-red-500/[0.04] border border-red-500/20 backdrop-blur-md flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -200,14 +232,17 @@
     </div>
 </div>
 
-<!-- Account Deletion Confirmation Modal (unchanged) -->
-<div x-show="deleteAccountModalOpen" 
-     class="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/85 backdrop-blur-md" 
-     style="display: none;" 
-     x-transition.opacity>
+<!-- Account Deletion Confirmation Modal -->
+<template x-teleport="body">
+<div x-show="deleteAccountModalOpen"
+     data-nexus-modal x-effect="window.nexusLockModalScroll(deleteAccountModalOpen, 'user-delete-account')"
+     class="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/85 backdrop-blur-md overscroll-contain"
+     style="display: none;"
+     x-transition.opacity
+     @click.self="closeDeleteAccountModal()">
     
     <div class="w-full max-w-md bg-[#0c0c12] border border-red-500/30 rounded-3xl shadow-2xl overflow-hidden p-6 space-y-5 relative"
-         @click.away="closeDeleteAccountModal()">
+         @click.stop>
         
         <!-- Modal Header -->
         <div class="flex items-center gap-3.5">
@@ -255,3 +290,4 @@
         </div>
     </div>
 </div>
+</template>

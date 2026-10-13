@@ -1,15 +1,18 @@
+<template x-teleport="body">
 <div x-show="showPremiumModal"
+     data-nexus-modal x-effect="window.nexusLockModalScroll(showPremiumModal, 'user-premium')"
      x-transition:enter="transition ease-out duration-300"
      x-transition:enter-start="opacity-0"
      x-transition:enter-end="opacity-100"
      x-transition:leave="transition ease-in duration-200"
      x-transition:leave-start="opacity-100"
      x-transition:leave-end="opacity-0"
-     class="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md overflow-y-auto"
-     style="display: none;">
+     class="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md overflow-y-auto overscroll-contain"
+     style="display: none;"
+     @click.self="if(!isActivating) showPremiumModal = false">
 
     <div class="relative w-full max-w-4xl mx-auto my-8"
-         @click.outside="if(!isActivating) showPremiumModal = false">
+         @click.stop>
 
         <button type="button" @click="showPremiumModal = false"
                 class="absolute -top-2 right-0 z-[60] w-10 h-10 bg-white/10 hover:bg-white/20 border border-white/20 rounded-full flex items-center justify-center text-white/70 hover:text-white transition-all backdrop-blur-md">
@@ -89,3 +92,4 @@
         </div>
     </div>
 </div>
+</template>

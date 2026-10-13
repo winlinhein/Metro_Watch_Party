@@ -19,6 +19,7 @@ if ($commentId <= 0) {
 }
 
 require_once __DIR__ . '/../conn.php';
+require_once __DIR__ . '/../comment_delete_helper.php';
 
 try {
     $ownerStmt = $conn->prepare("SELECT user_id FROM movie_comments WHERE comment_id = ? LIMIT 1");
@@ -35,19 +36,7 @@ try {
     }
 
     $conn->beginTransaction();
-    $idsStmt = $conn->prepare("SELECT comment_id FROM movie_comments WHERE comment_id = ? OR parent_comment_id = ?");
-    $idsStmt->execute([$commentId, $commentId]);
-    $ids = array_values(array_unique(array_map('intval', $idsStmt->fetchAll(PDO::FETCH_COLUMN))));
-    if ($ids) {
-        $placeholders = implode(',', array_fill(0, count($ids), '?'));
-        $conn->prepare("DELETE FROM comment_likes WHERE comment_id IN ($placeholders)")->execute($ids);
-        try {
-            $conn->prepare("DELETE FROM reports WHERE comment_id IN ($placeholders)")->execute($ids);
-        } catch (Throwable $ignore) {
-        }
-    }
-    $conn->prepare("DELETE FROM movie_comments WHERE parent_comment_id = ?")->execute([$commentId]);
-    $conn->prepare("DELETE FROM movie_comments WHERE comment_id = ?")->execute([$commentId]);
+    nexusDeleteCommentThread($conn, $commentId);
     $conn->commit();
 
     echo json_encode(['success' => true]);

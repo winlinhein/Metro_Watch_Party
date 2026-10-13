@@ -4,6 +4,7 @@ header('Content-Type: application/json');
 
 require_once __DIR__ . '/../conn.php';
 require_once __DIR__ . '/../profile_media_helper.php';
+require_once __DIR__ . '/../comment_delete_helper.php';
 
 // Admin / moderator authentication
 $role = strtolower((string)($_SESSION['user_role'] ?? ''));
@@ -79,36 +80,26 @@ if ($method === 'POST') {
 
     try {
         if ($action === 'delete') {
-            $conn->beginTransaction();
-
-            $idsStmt = $conn->prepare("SELECT comment_id FROM movie_comments WHERE comment_id = ? OR parent_comment_id = ?");
-            $idsStmt->execute([$commentId, $commentId]);
-            $ids = array_values(array_unique(array_map('intval', $idsStmt->fetchAll(PDO::FETCH_COLUMN))));
-            if (!$ids) {
-                $conn->rollBack();
+            $exists = $conn->prepare('SELECT comment_id FROM movie_comments WHERE comment_id = ?');
+            $exists->execute([$commentId]);
+            if (!$exists->fetchColumn()) {
                 echo json_encode(['success' => false, 'error' => 'Comment not found']);
                 exit;
             }
 
-            $placeholders = implode(',', array_fill(0, count($ids), '?'));
-            $conn->prepare("DELETE FROM comment_likes WHERE comment_id IN ($placeholders)")->execute($ids);
-            try {
-                $conn->prepare("DELETE FROM reports WHERE comment_id IN ($placeholders)")->execute($ids);
-            } catch (Throwable $ignore) {
-            }
-
-            $conn->prepare("DELETE FROM movie_comments WHERE parent_comment_id = ?")->execute([$commentId]);
-            $conn->prepare("DELETE FROM movie_comments WHERE comment_id = ?")->execute([$commentId]);
-
+            $conn->beginTransaction();
+            nexusDeleteCommentThread($conn, $commentId);
             $conn->commit();
             echo json_encode(['success' => true]);
         } else {
             echo json_encode(['success' => false, 'error' => 'Unsupported action']);
         }
-    } catch (Exception $e) {
-        $conn->rollBack();
+    } catch (Throwable $e) {
+        if ($conn->inTransaction()) {
+            $conn->rollBack();
+        }
         http_response_code(500);
-        echo json_encode(['error' => 'Action failed: ' . $e->getMessage()]);
+        echo json_encode(['success' => false, 'error' => 'Delete failed.']);
     }
     exit;
 }

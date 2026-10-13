@@ -35,17 +35,55 @@ function nexusDeletionDeadline(?string $requestedAt): ?int
     return $start + NEXUS_DELETION_WAIT_SECONDS;
 }
 
+function nexusDeletionState(PDO $conn, int $userId): ?array
+{
+    if ($userId <= 0) {
+        return null;
+    }
+    $stmt = $conn->prepare("
+        SELECT deletion_requested_at,
+               UNIX_TIMESTAMP(DATE_ADD(deletion_requested_at, INTERVAL 1 DAY)) AS deadline_unix,
+               UNIX_TIMESTAMP(NOW()) AS db_now
+        FROM users
+        WHERE user_id = ?
+        LIMIT 1
+    ");
+    $stmt->execute([$userId]);
+    $row = $stmt->fetch(PDO::FETCH_ASSOC);
+    if (!$row || empty($row['deletion_requested_at']) || $row['deadline_unix'] === null) {
+        return null;
+    }
+    $remaining = (int)$row['deadline_unix'] - (int)$row['db_now'];
+    return [
+        'deletion_requested_at' => (string)$row['deletion_requested_at'],
+        'deadline_unix' => (int)$row['deadline_unix'],
+        'remaining_seconds' => $remaining,
+        'expired' => $remaining <= 0,
+    ];
+}
+
 function nexusDeletionExpired(?string $requestedAt): bool
 {
     $deadline = nexusDeletionDeadline($requestedAt);
     return $deadline !== null && $deadline <= time();
 }
 
-function nexusClearAccountSession(): void
+function nexusClearAccountSession(?PDO $conn = null, ?int $userId = null): void
 {
+    if ($conn instanceof PDO && $userId) {
+        try {
+            $conn->prepare("DELETE FROM persistent_session WHERE user_id = ?")->execute([$userId]);
+        } catch (Throwable $ignore) {
+        }
+        try {
+            require_once __DIR__ . '/presence_helper.php';
+            clearUserPresence($conn, $userId);
+        } catch (Throwable $ignore) {
+        }
+    }
     try {
         require_once __DIR__ . '/auth_flow_helper.php';
-        nexusClearPersistentSession();
+        nexusClearPersistentSession($conn, $userId);
     } catch (Throwable $ignore) {
     }
     $_SESSION = [];
@@ -219,6 +257,87 @@ function nexusDetachKeptRecords(PDO $conn, int $userId, string $userName, string
     nexusSafeExec($conn, "UPDATE payment_transactions SET user_id = NULL WHERE user_id = ?", [$userId]);
 }
 
+function nexusRemoveUserReferences(PDO $conn, int $userId, string $userName, string $email): void
+{
+    require_once __DIR__ . '/comment_delete_helper.php';
+
+    $commentStmt = $conn->prepare('SELECT comment_id FROM movie_comments WHERE user_id = ?');
+    $commentStmt->execute([$userId]);
+    foreach ($commentStmt->fetchAll(PDO::FETCH_COLUMN) as $commentId) {
+        $commentId = (int)$commentId;
+        if ($commentId <= 0) {
+            continue;
+        }
+        $still = $conn->prepare('SELECT comment_id FROM movie_comments WHERE comment_id = ?');
+        $still->execute([$commentId]);
+        if ($still->fetchColumn()) {
+            nexusDeleteCommentThread($conn, $commentId);
+        }
+    }
+
+    nexusDetachKeptRecords($conn, $userId, $userName, $email);
+
+    $refs = $conn->query("
+        SELECT TABLE_NAME, COLUMN_NAME
+        FROM information_schema.KEY_COLUMN_USAGE
+        WHERE TABLE_SCHEMA = DATABASE()
+          AND REFERENCED_TABLE_NAME = 'users'
+          AND REFERENCED_COLUMN_NAME = 'user_id'
+    ");
+    foreach ($refs->fetchAll(PDO::FETCH_ASSOC) as $ref) {
+        $table = preg_replace('/[^a-zA-Z0-9_]/', '', (string)$ref['TABLE_NAME']);
+        $column = preg_replace('/[^a-zA-Z0-9_]/', '', (string)$ref['COLUMN_NAME']);
+        if ($table === '' || $column === '' || in_array($table, ['users', 'reports', 'payment_transactions'], true)) {
+            continue;
+        }
+        $conn->prepare("DELETE FROM `{$table}` WHERE `{$column}` = ?")->execute([$userId]);
+    }
+
+    foreach ([
+        'DELETE FROM friends_message WHERE sender_id = ? OR receiver_id = ?' => [$userId, $userId],
+        'DELETE FROM room_messages WHERE user_id = ?' => [$userId],
+        'DELETE FROM room_participants WHERE user_id = ?' => [$userId],
+        'DELETE FROM room_kicks WHERE user_id = ?' => [$userId],
+        'DELETE FROM room_join_requests WHERE requester_id = ?' => [$userId],
+        'DELETE FROM media_files WHERE user_id = ?' => [$userId],
+        'DELETE FROM otp_verification WHERE email = ?' => [$email],
+    ] as $sql => $params) {
+        try {
+            $conn->prepare($sql)->execute($params);
+        } catch (Throwable $ignore) {
+        }
+    }
+
+    try {
+        $conn->prepare('DELETE FROM movie_comments WHERE user_id = ?')->execute([$userId]);
+    } catch (Throwable $ignore) {
+    }
+
+    $rooms = $conn->prepare('SELECT room_id FROM rooms WHERE host_id = ?');
+    $rooms->execute([$userId]);
+    foreach ($rooms->fetchAll(PDO::FETCH_COLUMN) as $roomId) {
+        $roomId = (int)$roomId;
+        if ($roomId <= 0) {
+            continue;
+        }
+        foreach ([
+            'DELETE FROM room_messages WHERE room_id = ?',
+            'DELETE FROM room_participants WHERE room_id = ?',
+            'DELETE FROM room_join_requests WHERE room_id = ?',
+            'DELETE FROM room_kicks WHERE room_id = ?',
+        ] as $sql) {
+            try {
+                $conn->prepare($sql)->execute([$roomId]);
+            } catch (Throwable $ignore) {
+            }
+        }
+        try {
+            $conn->prepare('DELETE FROM rooms WHERE room_id = ?')->execute([$roomId]);
+        } catch (Throwable $ignore) {
+        }
+    }
+}
+
 function nexusPurgeUserAccount(PDO $conn, int $userId): void
 {
     if ($userId <= 0) {
@@ -238,134 +357,28 @@ function nexusPurgeUserAccount(PDO $conn, int $userId): void
     $userName = trim((string)($user['user_name'] ?? ''));
     $email = trim((string)($user['email'] ?? ''));
 
-    nexusDetachKeptRecords($conn, $userId, $userName, $email);
-
-    $chatImages = $conn->prepare("
-        SELECT image_url FROM friends_message
-        WHERE (sender_id = ? OR receiver_id = ?) AND image_url IS NOT NULL AND image_url <> ''
-    ");
-    $chatImages->execute([$userId, $userId]);
-    foreach ($chatImages->fetchAll(PDO::FETCH_COLUMN) as $imageUrl) {
+    $chatImages = [];
+    try {
+        $chatImagesStmt = $conn->prepare("
+            SELECT image_url FROM friends_message
+            WHERE (sender_id = ? OR receiver_id = ?) AND image_url IS NOT NULL AND image_url <> ''
+        ");
+        $chatImagesStmt->execute([$userId, $userId]);
+        $chatImages = $chatImagesStmt->fetchAll(PDO::FETCH_COLUMN);
+    } catch (Throwable $ignore) {
+    }
+    foreach ($chatImages as $imageUrl) {
         deleteStoredMedia($conn, (string)$imageUrl);
     }
-
     deleteStoredMedia($conn, (string)($user['avatar_url'] ?? ''));
     deletePreviousUserAvatars($conn, $userId);
 
-    $commentIds = [];
+    nexusRemoveUserReferences($conn, $userId, $userName, $email);
+
     try {
-        $stmt = $conn->prepare("SELECT comment_id FROM movie_comments WHERE user_id = ? OR parent_comment_id IN (SELECT comment_id FROM movie_comments WHERE user_id = ?)");
-        $stmt->execute([$userId, $userId]);
-        $commentIds = array_values(array_unique(array_map('intval', $stmt->fetchAll(PDO::FETCH_COLUMN))));
-    } catch (Throwable $ignore) {
-        try {
-            $stmt = $conn->prepare("SELECT comment_id FROM movie_comments WHERE user_id = ?");
-            $stmt->execute([$userId]);
-            $commentIds = array_map('intval', $stmt->fetchAll(PDO::FETCH_COLUMN));
-        } catch (Throwable $ignore2) {
-        }
-    }
-    if ($commentIds) {
-        $placeholders = implode(',', array_fill(0, count($commentIds), '?'));
-        nexusSafeExec($conn, "DELETE FROM comment_likes WHERE comment_id IN ({$placeholders})", $commentIds);
-        nexusSafeExec($conn, "DELETE FROM movie_comments WHERE parent_comment_id IN ({$placeholders})", $commentIds);
-        nexusSafeExec($conn, "DELETE FROM movie_comments WHERE comment_id IN ({$placeholders})", $commentIds);
-    }
-
-    $hostedRooms = [];
-    try {
-        $stmt = $conn->prepare("SELECT room_id FROM rooms WHERE host_id = ?");
-        $stmt->execute([$userId]);
-        $hostedRooms = array_map('intval', $stmt->fetchAll(PDO::FETCH_COLUMN));
-    } catch (Throwable $ignore) {
-    }
-
-    $deletes = [
-        ['DELETE FROM comment_likes WHERE user_id = ?', [$userId]],
-        ['DELETE FROM movie_comments WHERE user_id = ?', [$userId]],
-        ['DELETE FROM movie_rating WHERE user_id = ?', [$userId]],
-        ['DELETE FROM friends_message WHERE sender_id = ? OR receiver_id = ?', [$userId, $userId]],
-        ['DELETE FROM user_friends WHERE user_id_1 = ? OR user_id_2 = ?', [$userId, $userId]],
-        ['DELETE FROM notifications WHERE user_id = ? OR sender_id = ?', [$userId, $userId]],
-        ['DELETE FROM login_history WHERE user_id = ?', [$userId]],
-        ['DELETE FROM persistent_session WHERE user_id = ?', [$userId]],
-        ['DELETE FROM user_customizations WHERE user_id = ?', [$userId]],
-        ['DELETE FROM user_inventory WHERE user_id = ?', [$userId]],
-        ['DELETE FROM user_missions WHERE user_id = ?', [$userId]],
-        ['DELETE FROM watch_history WHERE user_id = ?', [$userId]],
-        ['DELETE FROM watchlists WHERE user_id = ?', [$userId]],
-        ['DELETE FROM room_join_requests WHERE requester_id = ?', [$userId]],
-        ['DELETE FROM room_kicks WHERE user_id = ?', [$userId]],
-        ['DELETE FROM room_messages WHERE user_id = ?', [$userId]],
-        ['DELETE FROM room_participants WHERE user_id = ?', [$userId]],
-        ['DELETE FROM media_files WHERE user_id = ?', [$userId]],
-        ['DELETE FROM otp_verification WHERE email = ?', [$email]],
-    ];
-
-    foreach ($deletes as [$sql, $params]) {
-        nexusSafeExec($conn, $sql, $params);
-    }
-
-    foreach ($hostedRooms as $rid) {
-        if ($rid <= 0) {
-            continue;
-        }
-        foreach ([
-            'DELETE FROM room_messages WHERE room_id = ?',
-            'DELETE FROM room_participants WHERE room_id = ?',
-            'DELETE FROM room_join_requests WHERE room_id = ?',
-            'DELETE FROM room_kicks WHERE room_id = ?',
-            'DELETE FROM room_watch_history WHERE room_id = ?',
-        ] as $sql) {
-            nexusSafeExec($conn, $sql, [$rid]);
-        }
-        nexusSafeExec($conn, 'DELETE FROM rooms WHERE room_id = ?', [$rid]);
-    }
-
-    $inTransaction = false;
-    try {
-        if (!$conn->inTransaction()) {
-            $conn->beginTransaction();
-            $inTransaction = true;
-        }
         $conn->prepare("DELETE FROM users WHERE user_id = ?")->execute([$userId]);
-        if ($inTransaction) {
-            $conn->commit();
-        }
     } catch (Throwable $e) {
-        if ($inTransaction && $conn->inTransaction()) {
-            $conn->rollBack();
-        }
-        // Last pass: drop any leftover FKs pointing at users, then delete again.
-        foreach ([
-            ['reports', 'reporter_id'],
-            ['reports', 'reported_user_id'],
-            ['payment_transactions', 'user_id'],
-            ['rooms', 'host_id'],
-            ['movie_comments', 'user_id'],
-            ['notifications', 'user_id'],
-            ['notifications', 'sender_id'],
-            ['friends_message', 'sender_id'],
-            ['friends_message', 'receiver_id'],
-            ['user_friends', 'user_id_1'],
-            ['user_friends', 'user_id_2'],
-            ['login_history', 'user_id'],
-            ['watchlists', 'user_id'],
-            ['watch_history', 'user_id'],
-            ['user_inventory', 'user_id'],
-            ['user_missions', 'user_id'],
-            ['user_customizations', 'user_id'],
-            ['room_messages', 'user_id'],
-            ['room_participants', 'user_id'],
-            ['room_kicks', 'user_id'],
-            ['room_join_requests', 'requester_id'],
-            ['comment_likes', 'user_id'],
-            ['movie_rating', 'user_id'],
-            ['persistent_session', 'user_id'],
-            ['media_files', 'user_id'],
-        ] as [$table, $column]) {
-            nexusDropColumnForeignKeys($conn, $table, $column);
-        }
+        nexusRemoveUserReferences($conn, $userId, $userName, $email);
         $conn->prepare("DELETE FROM users WHERE user_id = ?")->execute([$userId]);
     }
 }

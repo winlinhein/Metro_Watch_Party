@@ -1,5 +1,6 @@
 <?php
 session_start();
+require_once __DIR__ . '/../error_response_helper.php';
 header('Content-Type: application/json');
 
 if (empty($_SESSION['user_id'])) {
@@ -23,7 +24,7 @@ try {
     $stmt = $conn->prepare("
         SELECT message_id, sender_id, receiver_id, message_text, is_read,
                message_type, image_url,
-               DATE_FORMAT(created_at, '%h:%i %p') AS time 
+               UNIX_TIMESTAMP(created_at) AS created_unix 
         FROM friends_message 
         WHERE (sender_id = :user_id_1 AND receiver_id = :friend_id_1)
            OR (sender_id = :friend_id_2 AND receiver_id = :user_id_2)
@@ -48,8 +49,14 @@ try {
     }
     unset($msg);
 
-    echo json_encode(['success' => true, 'messages' => $messages ?: []]);
+    echo json_encode([
+        'success' => true,
+        'friend_id' => $friendId,
+        'viewer_id' => $userId,
+        'messages' => $messages ?: []
+    ]);
 } catch (PDOException $e) {
-    echo json_encode(['success' => false, 'message' => 'Database error: ' . $e->getMessage()]);
+    nexusSafeError($e);
+    echo json_encode(['success' => false, 'message' => 'Database error.']);
 }
 exit();
