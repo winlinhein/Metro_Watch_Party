@@ -3,6 +3,9 @@
 require_once __DIR__ . '/../error_response_helper.php';
 session_start();
 header('Content-Type: application/json');
+// Private cache: browser must validate with ETag — if data unchanged, server returns
+// 304 No Body, skipping the full JSON transfer.
+header('Cache-Control: private, no-cache, must-revalidate');
 
 if (empty($_SESSION['user_id'])) {
     http_response_code(401);
@@ -73,10 +76,17 @@ try {
     }
     unset($req);
 
-    echo json_encode([
+    $payload = json_encode([
         'friends' => $friends,
         'pending_requests' => $pendingRequests
     ]);
+    $etag = '"' . md5($payload) . '"';
+    header('ETag: ' . $etag);
+    if (isset($_SERVER['HTTP_IF_NONE_MATCH']) && $_SERVER['HTTP_IF_NONE_MATCH'] === $etag) {
+        http_response_code(304);
+        exit;
+    }
+    echo $payload;
 } catch (PDOException $e) {
     http_response_code(500);
     nexusSafeError($e);

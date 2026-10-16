@@ -2,6 +2,7 @@
 session_start();
 require_once __DIR__ . '/../error_response_helper.php';
 header('Content-Type: application/json');
+header('Cache-Control: private, no-cache, must-revalidate');
 
 if (!isset($_SESSION['user_id'])) {
     echo json_encode(['success' => false, 'message' => 'User not logged in.']);
@@ -60,7 +61,7 @@ try {
     $count = count($watchlist);
     $cap = nexusWatchlistCap($conn, $user_id);
 
-    echo json_encode([
+    $payload = json_encode([
         'success' => true,
         'watchlist' => $watchlist,
         'count' => $count,
@@ -68,6 +69,13 @@ try {
         'unlimited' => $cap === null,
         'occupancy' => $cap === null ? ($count . '/Unlimited') : ($count . '/' . $cap),
     ], JSON_UNESCAPED_SLASHES);
+    $etag = '"' . md5($payload) . '"';
+    header('ETag: ' . $etag);
+    if (isset($_SERVER['HTTP_IF_NONE_MATCH']) && $_SERVER['HTTP_IF_NONE_MATCH'] === $etag) {
+        http_response_code(304);
+        exit;
+    }
+    echo $payload;
 } catch (PDOException $e) {
     http_response_code(500);
     nexusSafeError($e);

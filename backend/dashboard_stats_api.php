@@ -15,6 +15,7 @@ if (
 }
 
 header('Content-Type: application/json');
+header('Cache-Control: private, max-age=20, stale-while-revalidate=60');
 session_write_close();
 require_once __DIR__ . '/../conn.php';
 require_once __DIR__ . '/../presence_helper.php';

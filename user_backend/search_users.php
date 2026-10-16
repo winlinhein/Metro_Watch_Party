@@ -2,6 +2,7 @@
 session_start();
 require_once __DIR__ . '/../error_response_helper.php';
 header('Content-Type: application/json');
+header('Cache-Control: private, max-age=10');
 
 if (empty($_SESSION['user_id'])) {
     http_response_code(401);

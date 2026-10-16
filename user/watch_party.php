@@ -153,6 +153,13 @@ session_write_close();
     
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0" />
+    <link rel="preconnect" href="https://cdn.socket.io" crossorigin="anonymous">
+    <link rel="dns-prefetch" href="https://cdn.socket.io">
+    <link rel="preconnect" href="https://global.relay.metered.ca" crossorigin="anonymous">
+    <link rel="dns-prefetch" href="https://global.relay.metered.ca">
+    <link rel="dns-prefetch" href="https://openrelay.metered.ca">
+    <!-- Prefetch ICE/TURN credentials so they are cached when JS requests them -->
+    <link rel="prefetch" href="../user_backend/get_ice_servers.php" as="fetch" crossorigin="use-credentials">
     <style>
         html, body { color-scheme: dark; }
         body {
