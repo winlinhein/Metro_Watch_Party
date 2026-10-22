@@ -4,6 +4,7 @@ session_write_close();
 require_once __DIR__ . '/../conn.php';
 require_once __DIR__ . '/../shop_image_helper.php';
 header('Content-Type: application/json');
+header('Cache-Control: private, max-age=60, stale-while-revalidate=300');
 
 $stmt = $conn->query("SELECT item_id, item_name, category, point_cost, rarity, image_url FROM shop_items ORDER BY item_id DESC");
 $items = $stmt->fetchAll(PDO::FETCH_ASSOC);

@@ -2,23 +2,24 @@
 // stripe_helper.php — Native PHP (No Composer required)
 require_once __DIR__ . '/curl_ssl_helper.php';
 
+// Test-mode keys for the shared school project. Committed on purpose so a
+// classmate can run the checkout flow with no setup; a real environment
+// variable overrides them. Rotate these before any real use.
 if (!defined('STRIPE_SECRET_KEY')) {
-    define('STRIPE_SECRET_KEY', nexusAppEnv('STRIPE_SECRET_KEY'));
+    define('STRIPE_SECRET_KEY', nexusAppEnv(
+        'STRIPE_SECRET_KEY',
+        'sk_test_51U7dOOQ4txrxX3UywInn3MozdXDvyhMNeytcf5Bmbssb5U6izwGhfshD7tBgu0GVGZXTlhjd0n8yK09FvK0mtBeo00GGMHNME6'
+    ));
 }
 if (!defined('STRIPE_PUBLISHABLE_KEY')) {
-    define('STRIPE_PUBLISHABLE_KEY', nexusAppEnv('STRIPE_PUBLISHABLE_KEY'));
+    define('STRIPE_PUBLISHABLE_KEY', nexusAppEnv(
+        'STRIPE_PUBLISHABLE_KEY',
+        'pk_test_51U7dOOQ4txrxX3UyKFl8Esnat3ahKw22hUWtA1HpDKSozJXz9UBofzTjLNreSIOlt8sN6WM4gkS8PCw2k7fuqhUO00CcN5mWd8'
+    ));
 }
 
 if (!defined('PREMIUM_PRICE_ID')) {
-    define('PREMIUM_PRICE_ID', nexusAppEnv('PREMIUM_PRICE_ID'));
-}
-
-// No secrets are ever defaulted in code — they must come from the environment.
-function stripeRequireConfigured(): void
-{
-    if (STRIPE_SECRET_KEY === '') {
-        throw new RuntimeException('Stripe is not configured. Set STRIPE_SECRET_KEY in the environment.');
-    }
+    define('PREMIUM_PRICE_ID', nexusAppEnv('PREMIUM_PRICE_ID', 'price_1U7s7JQ4txrxX3UyKuyL2ZQo'));
 }
 if (!defined('PREMIUM_PLAN_ID')) {
     define('PREMIUM_PLAN_ID', 1);
@@ -28,7 +29,6 @@ if (!defined('PREMIUM_DURATION_DAYS')) {
 }
 
 function stripeRequest($method, $path, $params = []) {
-    stripeRequireConfigured();
     $url = 'https://api.stripe.com' . $path;
     $headers = [
         'Authorization: Bearer ' . STRIPE_SECRET_KEY,

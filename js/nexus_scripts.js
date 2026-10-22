@@ -1123,6 +1123,10 @@ function userDashboard() {
             return id ? `nexus_${name}_u${id}` : `nexus_${name}_guest`;
         },
 
+        // ETag store: keyed by URL, holds the last ETag value seen from the server.
+        // Passed as If-None-Match header on subsequent fetches.
+        _etags: Object.create(null),
+
         beginFetch(key) {
             if (!this._inflight) this._inflight = Object.create(null);
             if (this._inflight[key]) return this._inflight[key];
@@ -1165,6 +1169,13 @@ function userDashboard() {
                 if (Array.isArray(rooms) && rooms.length && !(this.friendRooms || []).length) {
                     this.friendRooms = rooms;
                     this.friendRoomsLoading = false;
+                }
+            } catch (e) {}
+            // Restore notifications so the bell panel shows instantly while refetching.
+            try {
+                const notifs = JSON.parse(sessionStorage.getItem(this.cacheKey('notifications')) || 'null');
+                if (Array.isArray(notifs) && notifs.length && !(this.notifications || []).length) {
+                    this.setNotificationList(notifs);
                 }
             } catch (e) {}
         },
@@ -1829,9 +1840,12 @@ function userDashboard() {
             if (!(this.friends || []).length) this.friendsLoading = true;
             let keepLoading = false;
             try {
-                const response = await fetch('/user_backend/get_friends.php', {
-                    signal: AbortSignal.timeout ? AbortSignal.timeout(8000) : undefined
-                });
+                const url = '/user_backend/get_friends.php';
+                const fetchOpts = { signal: AbortSignal.timeout ? AbortSignal.timeout(8000) : undefined };
+                const etag = (this._etags || {})[url];
+                if (etag) fetchOpts.headers = { 'If-None-Match': etag };
+
+                const response = await fetch(url, fetchOpts);
                 if (response.status === 401) {
                     if (this.isGuest) {
                         if (window.showToast) window.showToast('Unable to load movies. Please try again.', 'error');
@@ -1840,7 +1854,12 @@ function userDashboard() {
                     window.nexusNavigate('/frontend/login.php');
                     return;
                 }
+                // 304 Not Modified — cached friend list still valid
+                if (response.status === 304) return;
                 if (!response.ok) throw new Error('Failed to fetch friends');
+
+                const etag_new = response.headers.get('ETag');
+                if (etag_new) { if (!this._etags) this._etags = Object.create(null); this._etags[url] = etag_new; }
                 
                 const data = await response.json();
                 
@@ -2239,14 +2258,25 @@ function userDashboard() {
             if (pending) return pending;
             if (!(this.notifications || []).length) this.notificationsLoading = true;
             try {
-                const response = await fetch('/user_backend/get_notifications.php', { credentials: 'same-origin' });
+                const url = '/user_backend/get_notifications.php';
+                const headers = { credentials: 'same-origin' };
+                const etag = (this._etags || {})[url];
+                if (etag) headers.headers = { 'If-None-Match': etag };
+                const response = await fetch(url, headers);
+                // 304 Not Modified — cached data still valid, nothing to update
+                if (response.status === 304) return;
                 if (!response.ok) return;
+
+                const etag_new = response.headers.get('ETag');
+                if (etag_new) { if (!this._etags) this._etags = Object.create(null); this._etags[url] = etag_new; }
 
                 const data = await response.json();
                 if (data.success && Array.isArray(data.notifications)) {
                     if (data.viewer_id && Number(data.viewer_id) !== Number(window.CURRENT_USER_ID)) return;
                     this.setNotificationList(data.notifications.map(n => this.applyCachedMedia(n, 'sender_id')));
                     this.persistAvatarCache();
+                    // Persist for instant restore on next page load
+                    try { sessionStorage.setItem(this.cacheKey('notifications'), JSON.stringify(this.notifications)); } catch (e) {}
                 }
             } catch (err) {
                 console.error('Notification error:', err);
@@ -2260,7 +2290,9 @@ function userDashboard() {
             this.showNotifications = !this.showNotifications;
             if (!this.showNotifications) return;
             this.unreadNotifCount = 0;
-            await this.fetchNotifications();
+            // Show cached notifications immediately (already loaded via hydrateLocalCaches).
+            // Fetch runs in background to merge any new ones.
+            this.fetchNotifications();
             await this.markNotificationsAsRead();
         },
 
@@ -3130,13 +3162,14 @@ function userDashboard() {
                 }
             });
 
-            const historyPromise = this.fetchChatHistory(friendId, token);
+            // Fire history fetch in background — cached messages already shown above.
+            // When fetch returns, rememberChatThread + chatMessages update reactively.
+            this.fetchChatHistory(friendId, token);
             fetch('/user_backend/mark_as_read.php', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ sender_id: friendId })
             }).catch(() => {});
-            await historyPromise;
         },
 
         
@@ -3428,7 +3461,19 @@ function userDashboard() {
             const requestToken = token == null ? (this._chatFetchToken || 0) : token;
 
             try {
-                const res = await fetch(`/user_backend/get_chat_history.php?friend_id=${peerId}`);
+                const url = `/user_backend/get_chat_history.php?friend_id=${peerId}`;
+                const fetchOpts = {};
+                const etag = (this._etags || {})[url];
+                if (etag) fetchOpts.headers = { 'If-None-Match': etag };
+
+                const res = await fetch(url, fetchOpts);
+
+                // 304 Not Modified — thread hasn't changed, keep current display
+                if (res.status === 304) return;
+
+                const etag_new = res.headers.get('ETag');
+                if (etag_new) { if (!this._etags) this._etags = Object.create(null); this._etags[url] = etag_new; }
+
                 const rawText = await res.text();
 
                 let data;
@@ -3621,7 +3666,15 @@ function userDashboard() {
 
         // Fetch existing comments
         async fetchMovieComments(movieId) {
-            this.movieCommentsLoading = true;
+            // Show cached comments instantly if available
+            if (!this._commentsCache) this._commentsCache = Object.create(null);
+            const cached = this._commentsCache[movieId];
+            if (cached && this.selectedMovie) {
+                this.selectedMovie.comments = cached.slice();
+                this.movieCommentsLoading = false;
+            } else {
+                this.movieCommentsLoading = true;
+            }
             try {
                 const res = await fetch(`/user_backend/get_comments.php?movie_id=${movieId}`);
                 const data = await res.json();
@@ -3637,7 +3690,11 @@ function userDashboard() {
                         });
                     };
                     applyLikes(data.comments);
-                    this.selectedMovie.comments = data.comments.map(c => this.applyCachedMedia(c));
+                    const mapped = data.comments.map(c => this.applyCachedMedia(c));
+                    this._commentsCache[movieId] = mapped;
+                    if (this.selectedMovie) {
+                        this.selectedMovie.comments = mapped;
+                    }
                     this.persistAvatarCache();
                 }
             } catch (e) { 

@@ -1,6 +1,7 @@
 <?php
 session_start();
 header('Content-Type: application/json');
+header('Cache-Control: private, max-age=10, stale-while-revalidate=60');
 
 $role = strtolower((string)($_SESSION['user_role'] ?? ''));
 if (

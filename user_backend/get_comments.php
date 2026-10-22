@@ -1,6 +1,7 @@
 <?php
 session_start();
 header('Content-Type: application/json');
+header('Cache-Control: private, max-age=30, stale-while-revalidate=120');
 
 require_once __DIR__ . '/../conn.php';
 require_once __DIR__ . '/../profile_media_helper.php';

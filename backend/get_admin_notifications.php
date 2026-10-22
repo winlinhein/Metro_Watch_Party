@@ -2,6 +2,7 @@
 session_start();
 require_once __DIR__ . '/../error_response_helper.php';
 header('Content-Type: application/json');
+header('Cache-Control: private, no-cache, must-revalidate');
 
 $role = $_SESSION['user_role'] ?? ($_SESSION['role'] ?? '');
 if (empty($_SESSION['authenticated']) || empty($_SESSION['user_id']) || !in_array(strtolower((string)$role), ['admin', 'moderator'], true)) {
@@ -71,7 +72,14 @@ try {
     }
     unset($n);
 
-    echo json_encode(['success' => true, 'viewer_id' => $admin_id, 'notifications' => $notifications]);
+    $payload = json_encode(['success' => true, 'viewer_id' => $admin_id, 'notifications' => $notifications]);
+    $etag = '"' . md5($payload) . '"';
+    header('ETag: ' . $etag);
+    if (isset($_SERVER['HTTP_IF_NONE_MATCH']) && $_SERVER['HTTP_IF_NONE_MATCH'] === $etag) {
+        http_response_code(304);
+        exit;
+    }
+    echo $payload;
 } catch (Throwable $e) {
     nexusSafeError($e);
     echo json_encode(['error' => 'Database error.']);

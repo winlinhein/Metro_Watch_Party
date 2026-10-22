@@ -1,7 +1,9 @@
 <?php
 session_start();
 header('Content-Type: application/json');
-header('Cache-Control: no-store');
+// Private 30 s cache: fresh enough for TURN credential rotation, fast enough for
+// the prefetch link in watch_party.php to prime the cache before JS loads it.
+header('Cache-Control: private, max-age=30');
 
 if (empty($_SESSION['authenticated'])) {
     echo json_encode(['success' => false, 'message' => 'Not authenticated.', 'iceServers' => []]);

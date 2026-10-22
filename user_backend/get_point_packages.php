@@ -1,6 +1,7 @@
 <?php
 session_start();
 header('Content-Type: application/json');
+header('Cache-Control: private, max-age=60, stale-while-revalidate=300');
 
 if (empty($_SESSION['user_id'])) {
     http_response_code(401);

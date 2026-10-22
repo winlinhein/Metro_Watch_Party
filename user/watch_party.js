@@ -213,6 +213,11 @@ function watchParty() {
             this.fetchMovies();
             this.fetchReasons();
 
+            // Pre-fetch TURN/ICE credentials BEFORE any RTCPeerConnection is made.
+            // This ensures peers behind symmetric NAT get TURN right away instead of
+            // falling back to slow ICE restarts.
+            await this.loadIceServers();
+
             const cameraReady = this.startLocalMedia();
             const roomReady = this.fetchRoomDetails();
             const rosterReady = this.announcePresence();
@@ -1566,17 +1571,55 @@ function watchParty() {
             }
         },
 
+        // --- Internal helpers for two-phase media startup ---
+
+        // Called once audio stream is ready to publish tracks to existing peer connections.
+        async _publishPhase1() {
+            if (!this.localStream) return;
+            // Add audio tracks to any peer connections that were created before media was ready.
+            const audioTracks = this.localStream.getAudioTracks();
+            if (!audioTracks.length) return;
+            Object.keys(peerConnections).forEach((key) => {
+                const pc = peerConnections[key];
+                if (!pc || pc.connectionState === 'closed' || pc.signalingState === 'closed') return;
+                audioTracks.forEach((track) => {
+                    if (pc.getSenders().some((s) => s.track === track)) return;
+                    try { pc.addTrack(track, this.localStream); } catch (e) {}
+                });
+            });
+        },
+
+        // Called when video track is ready; adds it to existing connections and renegotiates.
+        async _publishVideoTrack() {
+            if (!this.localStream) return;
+            const videoTracks = this.localStream.getVideoTracks();
+            if (!videoTracks.length) return;
+
+            // Update the local participant tile to show live video.
+            const localP = this.participants.find((p) => p.isSelf);
+            if (localP) {
+                localP.stream = this.localPreviewStream();
+                localP.videoOn = this.isVideoOn;
+                this.participants = [...this.participants];
+                this.attachParticipantSpeaking(localP);
+            }
+
+            await this.publishLocalTracks();
+        },
+
         async startLocalMedia() {
+            // ── Phase 1: Audio first (< 100 ms on most devices) ──────────────────────
+            // This matches Zoom/Discord behaviour: voice connects almost immediately
+            // while the camera warms up in the background.
             try {
-                this.localStream = await navigator.mediaDevices.getUserMedia({
-                    video: true,
-                    audio: {
-                        echoCancellation: true,
-                        noiseSuppression: true,
-                        autoGainControl: true
-                    }
+                const audioStream = await navigator.mediaDevices.getUserMedia({
+                    audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+                    video: false
                 });
 
+                this.localStream = audioStream;
+
+                // Show local tile immediately with audio-only state.
                 this.upsertParticipant({
                     id: 'local',
                     socketId: 'local',
@@ -1585,35 +1628,29 @@ function watchParty() {
                     name: window.USER_NAME || 'You',
                     avatar: this.selfAvatar(),
                     border: this.selfBorder(),
-                    stream: this.localPreviewStream(),
+                    stream: null,        // no video yet — tile shows avatar
                     muted: this.isMuted,
-                    videoOn: this.isVideoOn,
+                    videoOn: false,      // camera not acquired yet
                     speaking: false,
                     isSelf: true,
                     isHost: this.isHost
                 });
+
                 this.watchSpeaking('local', this.localStream, { muted: this.isMuted, isSelf: true });
-                await this.publishLocalTracks();
+                await this._publishPhase1();
 
-            } catch (e) {
-                console.error("Camera/Mic access denied or unavailable.", e);
+            } catch (audioErr) {
+                console.warn('Microphone unavailable:', audioErr);
+                // Continue without audio — camera may still work.
+                this.localStream = null;
 
-                let msg = "Camera/mic unavailable.";
-                if (e.name === 'NotAllowedError' || e.name === 'PermissionDeniedError') {
-                    msg = "Camera/mic permission denied. Please allow access in your browser settings.";
-                } else if (e.name === 'NotFoundError' || e.name === 'DevicesNotFoundError') {
-                    msg = "No camera or microphone found on this device.";
-                } else if (e.name === 'NotReadableError' || e.name === 'TrackStartError') {
-                    msg = "Camera/mic is in use by another application.";
-                } else if (e.name === 'OverconstrainedError') {
-                    msg = "Camera/mic constraints could not be satisfied.";
+                let msg = 'Microphone unavailable.';
+                if (audioErr.name === 'NotAllowedError' || audioErr.name === 'PermissionDeniedError') {
+                    msg = 'Mic permission denied. Please allow access in your browser settings.';
+                } else if (audioErr.name === 'NotFoundError' || audioErr.name === 'DevicesNotFoundError') {
+                    msg = 'No microphone found on this device.';
                 }
-
-                if (window.showToast) {
-                    window.showToast(msg, 'error');
-                } else {
-                    console.warn(msg);
-                }
+                if (window.showToast) window.showToast(msg, 'error');
 
                 this.upsertParticipant({
                     id: 'local',
@@ -1629,7 +1666,31 @@ function watchParty() {
                     isSelf: true
                 });
             }
+
+            // ── Phase 2: Camera in background (non-blocking) ──────────────────────────
+            // Video arrives 0.5–2 s after audio. When it does, we add it to the
+            // existing MediaStream and renegotiate with all peers.
+            navigator.mediaDevices.getUserMedia({
+                video: { width: { ideal: 640 }, height: { ideal: 480 }, frameRate: { ideal: 24 } },
+                audio: false
+            }).then((camStream) => {
+                if (this._exiting) {
+                    camStream.getTracks().forEach((t) => t.stop());
+                    return;
+                }
+                if (!this.localStream) {
+                    this.localStream = new MediaStream();
+                }
+                camStream.getVideoTracks().forEach((track) => {
+                    this.localStream.addTrack(track);
+                });
+                this.isVideoOn = true;
+                this._publishVideoTrack();
+            }).catch(() => {
+                // Camera unavailable — audio-only mode, no action needed.
+            });
         },
+
 
         normalizePeer(data) {
             if (data && typeof data === 'object') {
@@ -1681,7 +1742,7 @@ function watchParty() {
 
             const pc = new RTCPeerConnection({
                 iceServers: this.iceServers,
-                iceCandidatePoolSize: 0,
+                iceCandidatePoolSize: 6,
                 bundlePolicy: 'max-bundle',
                 rtcpMuxPolicy: 'require'
             });
@@ -2311,7 +2372,13 @@ function watchParty() {
         startRoomSync() {
             if (this.roomSyncTimer) clearInterval(this.roomSyncTimer);
             let tick = 0;
-            this.roomSyncTimer = setInterval(() => {
+            // Fast-sync: poll every 1.5 s for the first ~10 s (first 7 ticks) to catch any
+            // peers missed in the initial announcePresence() — then settle to 3 s.
+            const FAST_INTERVAL = 1500;
+            const SLOW_INTERVAL = 3000;
+            const FAST_TICKS    = 7;
+
+            const doSync = () => {
                 if (this._exiting) return;
                 tick += 1;
                 if (tick % 3 === 0) this.fetchRoomDetails({ quiet: true });
@@ -2340,7 +2407,15 @@ function watchParty() {
                         });
                     })
                     .catch(() => {});
-            }, 3000);
+
+                // After the fast phase, reschedule at the slower interval.
+                if (tick === FAST_TICKS) {
+                    clearInterval(this.roomSyncTimer);
+                    this.roomSyncTimer = setInterval(doSync, SLOW_INTERVAL);
+                }
+            };
+
+            this.roomSyncTimer = setInterval(doSync, FAST_INTERVAL);
         },
 
         ensureSocketIo() {

@@ -110,7 +110,7 @@ session_write_close();
     </script>
     
     <script src="../js/user_theme_colors.js?v=4"></script>
-    <script src="https://cdn.tailwindcss.com/3.4.17"></script>
+    <script src="https://cdn.jsdelivr.net/npm/tailwindcss-cdn@3.4.10/tailwindcss.js"></script>
     <script>
         tailwind.config = {
             theme: {
@@ -153,6 +153,13 @@ session_write_close();
     
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0" />
+    <link rel="preconnect" href="https://cdn.socket.io" crossorigin="anonymous">
+    <link rel="dns-prefetch" href="https://cdn.socket.io">
+    <link rel="preconnect" href="https://global.relay.metered.ca" crossorigin="anonymous">
+    <link rel="dns-prefetch" href="https://global.relay.metered.ca">
+    <link rel="dns-prefetch" href="https://openrelay.metered.ca">
+    <!-- Prefetch ICE/TURN credentials so they are cached when JS requests them -->
+    <link rel="prefetch" href="../user_backend/get_ice_servers.php" as="fetch" crossorigin="use-credentials">
     <style>
         html, body { color-scheme: dark; }
         body {
@@ -244,7 +251,7 @@ session_write_close();
         document.write('<script src="https://cdn.jsdelivr.net/npm/socket.io-client@4.7.5/dist/socket.io.min.js"><\/script>');
     }
 </script>
-<script src="https://unpkg.com/htmx.org@1.9.10/dist/htmx.min.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/htmx.org@1.9.10/dist/htmx.min.js" crossorigin="anonymous"></script>
 
 <!-- 2. Your Custom Scripts Last -->
 <script src="../js/chat_emojis.js?v=1"></script>

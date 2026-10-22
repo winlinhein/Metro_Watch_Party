@@ -237,7 +237,7 @@ function createNexusLiveRoom(options) {
         }
         const pc = new RTCPeerConnection({
             iceServers,
-            iceCandidatePoolSize: 0,
+            iceCandidatePoolSize: 6,
             bundlePolicy: 'max-bundle',
             rtcpMuxPolicy: 'require'
         });
@@ -615,17 +615,37 @@ function createNexusLiveRoom(options) {
     }
 
     async function startLocalMedia() {
-        const audio = { echoCancellation: true, noiseSuppression: true, autoGainControl: true };
-        localStream = await navigator.mediaDevices.getUserMedia({ audio, video: false });
-        watchSpeaking('local', localStream, {
-            isSelf: true,
-            userId: self.userId,
-            peerId: self.peerId,
-            name: self.userName
-        });
+        // ── Phase 1: Audio first (fast path) ──────────────────────────────────────
+        try {
+            const audioStream = await navigator.mediaDevices.getUserMedia({
+                audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+                video: false
+            });
+            localStream = audioStream;
+            watchSpeaking('local', localStream, {
+                isSelf: true,
+                userId: self.userId,
+                peerId: self.peerId,
+                name: self.userName
+            });
+            // Push audio tracks to any peer connections already created.
+            const audioTracks = localStream.getAudioTracks();
+            Object.keys(peerConnections).forEach((key) => {
+                const pc = peerConnections[key];
+                if (!pc || pc.connectionState === 'closed' || pc.signalingState === 'closed') return;
+                audioTracks.forEach((track) => {
+                    if (pc.getSenders().some((s) => s.track === track)) return;
+                    try { pc.addTrack(track, localStream); } catch (e) {}
+                });
+            });
+        } catch (e) {
+            console.warn('Dashboard live mic unavailable', e);
+        }
+
+        // ── Phase 2: Camera in background (non-blocking) ──────────────────────────
         navigator.mediaDevices.getUserMedia({
             audio: false,
-            video: { width: { ideal: 320 }, height: { ideal: 240 }, frameRate: { ideal: 15 } }
+            video: { width: { ideal: 640 }, height: { ideal: 480 }, frameRate: { ideal: 24 } }
         }).then((cam) => {
             if (stopped || !localStream) {
                 cam.getTracks().forEach((track) => track.stop());

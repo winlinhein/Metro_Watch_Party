@@ -3,6 +3,7 @@
 require_once __DIR__ . '/../error_response_helper.php';
 session_start();
 header('Content-Type: application/json');
+header('Cache-Control: private, no-cache, must-revalidate');
 
 if (empty($_SESSION['user_id'])) {
     http_response_code(401);
@@ -79,7 +80,14 @@ try {
     }
     unset($n);
 
-    echo json_encode(['success' => true, 'viewer_id' => $currentUserId, 'notifications' => $notifications]);
+    $payload = json_encode(['success' => true, 'viewer_id' => $currentUserId, 'notifications' => $notifications]);
+    $etag = '"' . md5($payload) . '"';
+    header('ETag: ' . $etag);
+    if (isset($_SERVER['HTTP_IF_NONE_MATCH']) && $_SERVER['HTTP_IF_NONE_MATCH'] === $etag) {
+        http_response_code(304);
+        exit;
+    }
+    echo $payload;
 } catch (PDOException $e) {
     http_response_code(500);
     nexusSafeError($e);

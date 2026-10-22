@@ -103,7 +103,7 @@ session_write_close();
     
     <!-- Tailwind CSS -->
     <script src="../js/user_theme_colors.js?v=4"></script>
-    <script src="https://cdn.tailwindcss.com/3.4.17"></script>
+    <script src="https://cdn.jsdelivr.net/npm/tailwindcss-cdn@3.4.10/tailwindcss.js"></script>
     <script>
         tailwind.config = {
             theme: {
@@ -1331,7 +1331,7 @@ session_write_close();
 
     <?php include __DIR__ . '/../frontend/components/host_party_fab.php'; ?>
 
-    <div x-show="!showMovieDetailModal && !showChatPanel && !showFriendsPanel && !showQuestsPanel && !showInviteModal && !showRechargeModal" x-transition>
+    <div x-show="!showMovieDetailModal && !showChatPanel && !showFriendsPanel && !showQuestsPanel && !showInviteModal && !showRechargeModal && currentTab !== 'account'" x-transition>
         <?php include __DIR__ . '/../frontend/components/support_chatbot.php'; ?>
     </div>
 

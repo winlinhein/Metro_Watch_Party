@@ -3,6 +3,7 @@
 require_once __DIR__ . '/../error_response_helper.php';
 session_start();
 header('Content-Type: application/json');
+header('Cache-Control: private, no-cache, must-revalidate');
 
 // Ensure the session completed the OTP step, and that the user is an admin or moderator
 if (empty($_SESSION['authenticated'])) {
@@ -149,7 +150,14 @@ try {
         ];
     }, $reports);
 
-    echo json_encode(['success' => true, 'reports' => $formatted_reports]);
+    $payload = json_encode(['success' => true, 'reports' => $formatted_reports]);
+    $etag = '"' . md5($payload) . '"';
+    header('ETag: ' . $etag);
+    if (isset($_SERVER['HTTP_IF_NONE_MATCH']) && $_SERVER['HTTP_IF_NONE_MATCH'] === $etag) {
+        http_response_code(304);
+        exit;
+    }
+    echo $payload;
 
 } catch (Exception $e) {
     nexusSafeError($e);
