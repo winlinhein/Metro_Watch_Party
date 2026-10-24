@@ -3,13 +3,13 @@
 require_once __DIR__ . '/curl_ssl_helper.php';
 
 if (!defined('PUSHER_APP_ID')) {
-    define('PUSHER_APP_ID', nexusAppEnv('PUSHER_APP_ID', '2183447'));
+    define('PUSHER_APP_ID', nexusAppEnv('PUSHER_APP_ID', '2204653'));
 }
 if (!defined('PUSHER_KEY')) {
-    define('PUSHER_KEY', nexusAppEnv('PUSHER_KEY', 'f4b5637ef4b8952b6eb8'));
+    define('PUSHER_KEY', nexusAppEnv('PUSHER_KEY', '30110959c92045514bbb'));
 }
 if (!defined('PUSHER_SECRET')) {
-    define('PUSHER_SECRET', nexusAppEnv('PUSHER_SECRET', 'fb4c2d3d373ef2e1afc7'));
+    define('PUSHER_SECRET', nexusAppEnv('PUSHER_SECRET', 'de149a0336db284366cd'));
 }
 if (!defined('PUSHER_CLUSTER')) {
     define('PUSHER_CLUSTER', nexusAppEnv('PUSHER_CLUSTER', 'ap1'));

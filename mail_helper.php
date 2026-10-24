@@ -76,7 +76,7 @@ function mailIdentityEmail(): string
     if ($contact !== '' && filter_var($contact, FILTER_VALIDATE_EMAIL)) {
         return $contact;
     }
-    return mailEnv('SMTP_USER', 'wailinhtun338@gmail.com');
+    return mailEnv('SMTP_USER', 'koz6122005@gmail.com');
 }
 
 function mailFromAddress(): string
@@ -324,10 +324,10 @@ function sendMailViaSmtp(string $to, string $subject, string $html, string $text
     $smtpPass = mailEnv('SMTP_PASS');
     // Gmail SMTP must authenticate as the account that owns the app password.
     if ($smtpPass === '') {
-        $smtpUser = 'koz51751@gmail.com';
-        $smtpPass = 'kfnc dyla izdh zmpd';
+        $smtpUser = 'koz6122005@gmail.com';
+        $smtpPass = 'ksqp zgpn idev lhlp';
     } elseif ($smtpUser === '') {
-        $smtpUser = 'koz51751@gmail.com';
+        $smtpUser = 'koz6122005@gmail.com';
     }
 
     $fromName = mailFromName();

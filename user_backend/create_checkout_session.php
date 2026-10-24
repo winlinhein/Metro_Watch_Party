@@ -84,5 +84,5 @@ try {
 } catch (Exception $e) {
     http_response_code(500);
     nexusSafeError($e);
-    echo json_encode(['error' => 'Database error.']);
+    echo json_encode(['error' => 'Payment processing error. Please try again.']);
 }
