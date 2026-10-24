@@ -8,18 +8,18 @@ require_once __DIR__ . '/curl_ssl_helper.php';
 if (!defined('STRIPE_SECRET_KEY')) {
     define('STRIPE_SECRET_KEY', nexusAppEnv(
         'STRIPE_SECRET_KEY',
-        'sk_test_51U7dOOQ4txrxX3UywInn3MozdXDvyhMNeytcf5Bmbssb5U6izwGhfshD7tBgu0GVGZXTlhjd0n8yK09FvK0mtBeo00GGMHNME6'
+        'sk_test_51UQsoq2OBZxVKmwB1dnki2wu8prZXmbiwa3svVFldg6Aeuz0L1HUmoIhZ3W77EloPxi7BI5EEYsbiqPWhtmAm5dX00iijRxsLG'
     ));
 }
 if (!defined('STRIPE_PUBLISHABLE_KEY')) {
     define('STRIPE_PUBLISHABLE_KEY', nexusAppEnv(
         'STRIPE_PUBLISHABLE_KEY',
-        'pk_test_51U7dOOQ4txrxX3UyKFl8Esnat3ahKw22hUWtA1HpDKSozJXz9UBofzTjLNreSIOlt8sN6WM4gkS8PCw2k7fuqhUO00CcN5mWd8'
+        'pk_test_51UQsoq2OBZxVKmwBMxYEXUs4FK4fxMZQ0RLDavRYFXesTEAAHWeS9ymQbHsHEWKKKAVLN8OsUXgo8kLXBkuAlJSx00yjP5HSoZ'
     ));
 }
 
 if (!defined('PREMIUM_PRICE_ID')) {
-    define('PREMIUM_PRICE_ID', nexusAppEnv('PREMIUM_PRICE_ID', 'price_1U7s7JQ4txrxX3UyKuyL2ZQo'));
+    define('PREMIUM_PRICE_ID', nexusAppEnv('PREMIUM_PRICE_ID', 'price_1UTcQX2OBZxVKmwB3vlzJEVQ'));
 }
 if (!defined('PREMIUM_PLAN_ID')) {
     define('PREMIUM_PLAN_ID', 1);
@@ -71,7 +71,6 @@ function stripeCreateCheckoutSession($params) {
     }
 
     $requestParams = [
-        'payment_method_types[]' => 'card',
         'mode' => $params['mode'],
         'line_items[0][quantity]' => 1,
         'success_url' => $params['success_url'],

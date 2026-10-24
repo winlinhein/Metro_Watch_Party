@@ -2322,7 +2322,7 @@ function watchParty() {
         bindPusherRoom() {
             if (typeof Pusher === 'undefined' || !this.roomId) return false;
             if (!this.pusherClient) {
-                this.pusherClient = new Pusher(window.PUSHER_KEY || 'f4b5637ef4b8952b6eb8', {
+                this.pusherClient = new Pusher(window.PUSHER_KEY || '30110959c92045514bbb', {
                     cluster: window.PUSHER_CLUSTER || 'ap1',
                     encrypted: true
                 });

@@ -972,7 +972,7 @@ function userDashboard() {
                 const data = await res.json();
                 if (!data.id) throw new Error(data.error || 'Failed to create session');
 
-                const stripe = Stripe(window.STRIPE_PUBLISHABLE_KEY || 'pk_test_51U7dOOQ4txrxX3UyKFl8Esnat3ahKw22hUWtA1HpDKSozJXz9UBofzTjLNreSIOlt8sN6WM4gkS8PCw2k7fuqhUO00CcN5mWd8');
+                const stripe = Stripe(window.STRIPE_PUBLISHABLE_KEY || 'pk_test_51UQsoq2OBZxVKmwBMxYEXUs4FK4fxMZQ0RLDavRYFXesTEAAHWeS9ymQbHsHEWKKKAVLN8OsUXgo8kLXBkuAlJSx00yjP5HSoZ');
                 const { error } = await stripe.redirectToCheckout({ sessionId: data.id });
                 if (error) throw error;
             } catch (err) {
@@ -1662,7 +1662,7 @@ function userDashboard() {
                 const data = await res.json();
                 if (!data.id) throw new Error(data.error || 'Failed to create session');
 
-                const stripe = Stripe(window.STRIPE_PUBLISHABLE_KEY || 'pk_test_51U7dOOQ4txrxX3UyKFl8Esnat3ahKw22hUWtA1HpDKSozJXz9UBofzTjLNreSIOlt8sN6WM4gkS8PCw2k7fuqhUO00CcN5mWd8');
+                const stripe = Stripe(window.STRIPE_PUBLISHABLE_KEY || 'pk_test_51UQsoq2OBZxVKmwBMxYEXUs4FK4fxMZQ0RLDavRYFXesTEAAHWeS9ymQbHsHEWKKKAVLN8OsUXgo8kLXBkuAlJSx00yjP5HSoZ');
                 const { error } = await stripe.redirectToCheckout({ sessionId: data.id });
                 if (error) throw error;
             } catch (err) {
@@ -2412,28 +2412,43 @@ function userDashboard() {
             if (!data || data.type === 'friend_rejected') return;
 
             const incomingId = data.id;
+
+            // Deduplicate by explicit ID first
             if (incomingId && this.notifications.some(n => String(n.id) === String(incomingId))) {
                 return;
             }
 
+            // Deduplicate by content fingerprint to guard against Pusher double-delivery
+            // (Pusher can fire the same event twice within milliseconds, producing two
+            //  distinct Date.now() IDs that would cause Alpine x-for duplicate-key crashes)
+            const fp = `${data.type}|${data.sender_id || 0}|${data.room_id || 0}|${data.request_id || 0}`;
+            if (this.notifications.some(n => n._fp === fp)) {
+                return;
+            }
+
+            // When no server-assigned ID exists, build a stable ID from the fingerprint
+            // so re-renders are consistent rather than using an ever-changing Date.now().
+            const stableId = incomingId || `local-${fp}-${Date.now()}`;
+
             const panelOpen = !!this.showNotifications;
-            this.notifications = [
-                this.applyCachedMedia({
-                    id: incomingId || Date.now(),
-                    type: data.type,
-                    sender_id: data.sender_id,
-                    sender_name: data.sender_name,
-                    message: data.message,
-                    room_id: data.room_id || null,
-                    request_id: data.request_id || null,
-                    report_id: data.report_id || null,
-                    created_at: data.created_at,
-                    avatar_url: data.avatar_url || '',
-                    border_preview: data.border_preview || '',
-                    is_read: panelOpen ? 1 : 0
-                }, 'sender_id'),
-                ...this.notifications
-            ];
+            const newNotif = this.applyCachedMedia({
+                id: stableId,
+                _fp: fp,
+                type: data.type,
+                sender_id: data.sender_id,
+                sender_name: data.sender_name,
+                message: data.message,
+                room_id: data.room_id || null,
+                request_id: data.request_id || null,
+                report_id: data.report_id || null,
+                created_at: data.created_at,
+                avatar_url: data.avatar_url || '',
+                border_preview: data.border_preview || '',
+                is_read: panelOpen ? 1 : 0
+            }, 'sender_id');
+
+            // Use setNotificationList so Alpine processes the update atomically
+            this.setNotificationList([newNotif, ...this.notifications]);
 
             if (data.type === 'report_cancelled' && window.showToast) {
                 window.showToast('A moderator cancelled your report.', 'info');
@@ -2441,8 +2456,6 @@ function userDashboard() {
 
             if (panelOpen) {
                 this.markNotificationsAsRead();
-            } else {
-                this.syncUnreadFromList();
             }
         },
 
@@ -3061,7 +3074,7 @@ function userDashboard() {
             }
 
             if (!this.pusherClient) {
-                this.pusherClient = new Pusher(window.PUSHER_KEY || 'f4b5637ef4b8952b6eb8', {
+                this.pusherClient = new Pusher(window.PUSHER_KEY || '30110959c92045514bbb', {
                     cluster: window.PUSHER_CLUSTER || 'ap1',
                     encrypted: true
                 });
@@ -4154,7 +4167,7 @@ function userDashboard() {
 
             // Initialize Pusher client once if not active
             if (!this.pusherClient) {
-                this.pusherClient = new Pusher(window.PUSHER_KEY || 'f4b5637ef4b8952b6eb8', {
+                this.pusherClient = new Pusher(window.PUSHER_KEY || '30110959c92045514bbb', {
                     cluster: window.PUSHER_CLUSTER || 'ap1',
                     encrypted: true
                 });
@@ -4359,7 +4372,7 @@ function userDashboard() {
             if (typeof Pusher === 'undefined') return;
 
             if (!this.pusherClient) {
-                this.pusherClient = new Pusher(window.PUSHER_KEY || 'f4b5637ef4b8952b6eb8', {
+                this.pusherClient = new Pusher(window.PUSHER_KEY || '30110959c92045514bbb', {
                     cluster: window.PUSHER_CLUSTER || 'ap1',
                     encrypted: true
                 });
@@ -8869,7 +8882,7 @@ function adminDashboard(userData = {}) {
             if (this._adminPusherBound) return;
 
             if (!this.pusherClient) {
-                this.pusherClient = new Pusher(window.PUSHER_KEY || 'f4b5637ef4b8952b6eb8', {
+                this.pusherClient = new Pusher(window.PUSHER_KEY || '30110959c92045514bbb', {
                     cluster: window.PUSHER_CLUSTER || 'ap1',
                     encrypted: true
                 });
