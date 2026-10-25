@@ -1,19 +1,23 @@
+# node_modules built inside Docker (npm install runs in Dockerfile)
+node_modules
+
+# Local-only credential files — set these in Render Dashboard instead
 .env
 .env.*
-node_modules
-package.json
-package-lock.json
-bun.lock
-server.ts
-.gitignore
-metadata.json
 
-# Scratch, backup and credential artefacts must never ship in the image.
+# Git internals
+.git
+.gitignore
+
+# Local-only PHP override (not needed in production)
+google_oauth.local.php
+
+# Scratch, backup and credential artefacts — must never ship in the image
+metadata.json
 *.bak
 *.old
 *.orig
 *.log
 *.sql
 *.ini
-google_oauth.local.php
-.git
+bun.lock

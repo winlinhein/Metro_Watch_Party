@@ -50,12 +50,24 @@ function loadMailDotEnv(): void
 function mailEnv(string $key, string $default = ''): string
 {
     loadMailDotEnv();
+    // Hardcoded fallbacks for keys that have no other default, so the app
+    // works on Render without manual dashboard setup (same pattern as Pusher/Stripe).
+    static $fallbacks = [
+        'RESEND_API_KEY' => 're_MPSY3h8y_6ctHaqEJSw6Ny98rHM6GsAiL',
+        'MAIL_FROM'      => 'Nexus <noreply@nexuswatchparty.site>',
+        'MAIL_FROM_NAME' => 'Nexus',
+        'CONTACT_TO'     => 'koz6122005@gmail.com',
+        'SMTP_USER'      => 'koz6122005@gmail.com',
+        'SMTP_PASS'      => 'ksqp zgpn idev lhlp',
+        'SMTP_HOST'      => 'smtp.gmail.com',
+        'SMTP_PORT'      => '587',
+    ];
     foreach ([getenv($key), $_ENV[$key] ?? null, $_SERVER[$key] ?? null, $_SERVER['REDIRECT_' . $key] ?? null] as $value) {
         if (is_string($value) && $value !== '') {
             return $value;
         }
     }
-    return $default;
+    return $fallbacks[$key] ?? $default;
 }
 
 function isRenderHost(): bool

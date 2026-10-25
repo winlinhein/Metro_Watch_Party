@@ -98,7 +98,11 @@ session_write_close();
         window.PUSHER_KEY = <?php echo json_encode(PUSHER_KEY); ?>;
         window.PUSHER_CLUSTER = <?php echo json_encode(PUSHER_CLUSTER); ?>;
         window.NEXUS_SIGNALING_URL = window.NEXUS_SIGNALING_URL || (
-            (location.port && location.port !== '3000')
+            // Locally (PHP dev server on a non-3000 port like 8000):
+            //   connect directly to the Node.js server on localhost:3000
+            // On Render (standard HTTPS, no port in URL / port is 443):
+            //   connect to same origin — Apache proxies /socket.io/ → localhost:3000
+            (location.port && location.port !== '443' && location.port !== '80' && location.port !== '3000')
                 ? (location.protocol + '//' + location.hostname + ':3000')
                 : ''
         );

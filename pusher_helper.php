@@ -46,12 +46,12 @@ function triggerPusherEvent($channel, $event, $data) {
         CURLOPT_TIMEOUT => 2,
     ]);
 
-    // 🔥 FIX: Log errors to the same folder as this script, not /tmp/
+    // Log Pusher errors to /tmp (always writable on Render and locally).
     if ($httpCode !== 200) {
         error_log(
-            date('[Y-m-d H:i:s] ') . "Pusher error: HTTP $httpCode, response: $response\n", 
-            3, 
-            __DIR__ . '/pusher_errors.log'
+            date('[Y-m-d H:i:s] ') . "Pusher error: HTTP $httpCode, response: $response\n",
+            3,
+            sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'pusher_errors.log'
         );
     }
     
