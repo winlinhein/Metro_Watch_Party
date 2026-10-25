@@ -1,24 +1,12 @@
-# Security hardening for Apache deployments (local XAMPP / the php:8.2-apache image).
-# This file itself is already protected by Apache's default `<Files ".ht*">` rule.
-
-# --- 1. Never serve dotfiles (.env, .env.*, .gitignore, ...) -------------------
+# --- 1. Never serve dotfiles (.env, .env.*, .gitignore, ...) ---
 <FilesMatch "^\.">
     Require all denied
 </FilesMatch>
 
-# --- 2. Backup / scratch / log artefacts must not be downloadable -------------
-<FilesMatch "\.(bak|old|orig|save|swp|log|sql|ini|sh|lock|md|txt)$">
+# --- 2. Backup / scratch / log artefacts must not be downloadable ---
+<FilesMatch "\.(bak|old|orig|save|swp|log|sql|ini|sh|lock|md)$">
     Require all denied
 </FilesMatch>
 
-# --- 3. Never execute uploaded content ---------------------------------------
-# Defence in depth: uploads are MIME-validated in PHP, but a misconfiguration
-# must not be able to turn /uploads into executable PHP.
-<IfModule mod_php.c>
-    php_flag engine off
-</IfModule>
-RemoveHandler .php .phtml .php3 .php4 .php5 .php7 .phps
-RemoveType .php .phtml .php3 .php4 .php5 .php7 .phps
-
-# --- 4. Do not list directories ----------------------------------------------
+# --- 3. Do not list directories ---
 Options -Indexes
