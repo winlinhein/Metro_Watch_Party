@@ -30,16 +30,6 @@ if ($targetUserId === $hostId) {
     exit;
 }
 
-function ensureRoomParticipantFlags(PDO $conn): void
-{
-    foreach (['forced_muted', 'forced_video_off', 'chat_banned'] as $col) {
-        try {
-            $conn->exec("ALTER TABLE room_participants ADD COLUMN {$col} TINYINT(1) NOT NULL DEFAULT 0");
-        } catch (Throwable $ignore) {
-        }
-    }
-}
-
 try {
     require_once __DIR__ . '/../conn.php';
     require_once __DIR__ . '/../pusher_helper.php';
@@ -63,6 +53,14 @@ try {
         exit;
     }
 
+    $targetStmt = $conn->prepare("SELECT 1 FROM room_participants WHERE room_id = :room_id AND user_id = :user_id AND last_seen > DATE_SUB(NOW(), INTERVAL 90 SECOND) LIMIT 1");
+    $targetStmt->execute(['room_id' => $roomId, 'user_id' => $targetUserId]);
+    if (!$targetStmt->fetchColumn()) {
+        http_response_code(404);
+        echo json_encode(['success' => false, 'message' => 'That participant is no longer in this room.']);
+        exit;
+    }
+
     $baseEvent = [
         'targetUserId' => $targetUserId,
         'targetPeerId' => $targetPeerId,
@@ -73,25 +71,15 @@ try {
 
     if ($action === 'kick' || $action === 'ban') {
         if ($action === 'ban') {
-            try {
-                $conn->exec("CREATE TABLE IF NOT EXISTS room_kicks (
-                    room_id INT NOT NULL,
-                    user_id INT NOT NULL,
-                    kicked_at DATETIME NOT NULL,
-                    PRIMARY KEY (room_id, user_id)
-                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
-                $conn->prepare("
-                    INSERT INTO room_kicks (room_id, user_id, kicked_at)
-                    VALUES (:room_id, :user_id, NOW())
-                    ON DUPLICATE KEY UPDATE kicked_at = NOW()
-                ")->execute(['room_id' => $roomId, 'user_id' => $targetUserId]);
-            } catch (Throwable $ignore) {}
+            $conn->prepare("
+                INSERT INTO room_kicks (room_id, user_id, kicked_at)
+                VALUES (:room_id, :user_id, NOW())
+                ON DUPLICATE KEY UPDATE kicked_at = NOW()
+            ")->execute(['room_id' => $roomId, 'user_id' => $targetUserId]);
         }
 
-        try {
-            $conn->prepare("DELETE FROM room_participants WHERE room_id = :room_id AND user_id = :user_id")
-                ->execute(['room_id' => $roomId, 'user_id' => $targetUserId]);
-        } catch (Throwable $ignore) {}
+        $conn->prepare("DELETE FROM room_participants WHERE room_id = :room_id AND user_id = :user_id")
+            ->execute(['room_id' => $roomId, 'user_id' => $targetUserId]);
 
         $message = $action === 'ban'
             ? 'The host banned you from the room.'
@@ -117,17 +105,15 @@ try {
     }
 
     if ($action === 'mute') {
-        try {
-            $conn->prepare("
-                UPDATE room_participants
-                SET forced_muted = :muted
-                WHERE room_id = :room_id AND user_id = :user_id
-            ")->execute([
-                'muted' => $muted ? 1 : 0,
-                'room_id' => $roomId,
-                'user_id' => $targetUserId,
-            ]);
-        } catch (Throwable $ignore) {}
+        $conn->prepare("
+            UPDATE room_participants
+            SET forced_muted = :muted
+            WHERE room_id = :room_id AND user_id = :user_id
+        ")->execute([
+            'muted' => $muted ? 1 : 0,
+            'room_id' => $roomId,
+            'user_id' => $targetUserId,
+        ]);
 
         $json = json_encode(['success' => true, 'action' => 'mute', 'muted' => $muted]);
         header('Content-Length: ' . strlen($json));
@@ -145,17 +131,15 @@ try {
     }
 
     if ($action === 'video') {
-        try {
-            $conn->prepare("
-                UPDATE room_participants
-                SET forced_video_off = :off
-                WHERE room_id = :room_id AND user_id = :user_id
-            ")->execute([
-                'off' => $videoOn ? 0 : 1,
-                'room_id' => $roomId,
-                'user_id' => $targetUserId,
-            ]);
-        } catch (Throwable $ignore) {}
+        $conn->prepare("
+            UPDATE room_participants
+            SET forced_video_off = :off
+            WHERE room_id = :room_id AND user_id = :user_id
+        ")->execute([
+            'off' => $videoOn ? 0 : 1,
+            'room_id' => $roomId,
+            'user_id' => $targetUserId,
+        ]);
 
         $json = json_encode(['success' => true, 'action' => 'video', 'videoOn' => $videoOn]);
         header('Content-Length: ' . strlen($json));
@@ -172,17 +156,15 @@ try {
         exit;
     }
 
-    try {
-        $conn->prepare("
-            UPDATE room_participants
-            SET chat_banned = :banned
-            WHERE room_id = :room_id AND user_id = :user_id
-        ")->execute([
-            'banned' => $chatBanned ? 1 : 0,
-            'room_id' => $roomId,
-            'user_id' => $targetUserId,
-        ]);
-    } catch (Throwable $ignore) {}
+    $conn->prepare("
+        UPDATE room_participants
+        SET chat_banned = :banned
+        WHERE room_id = :room_id AND user_id = :user_id
+    ")->execute([
+        'banned' => $chatBanned ? 1 : 0,
+        'room_id' => $roomId,
+        'user_id' => $targetUserId,
+    ]);
 
     $json = json_encode(['success' => true, 'action' => 'chatban', 'chatBanned' => $chatBanned]);
     header('Content-Length: ' . strlen($json));

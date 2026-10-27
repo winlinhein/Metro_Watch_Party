@@ -9,3 +9,4 @@ cache/posters/*.mime
 .env*
 !.env.example
 google_oauth.local.php
+llm_config.php

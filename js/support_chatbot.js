@@ -36,6 +36,7 @@ function nexusSupportChat() {
             const text = String(preset || this.input || '').trim();
             if (!text || this.typing) return;
 
+            const history = this.messages.slice(-8).map((m) => ({ from: m.from, text: m.text }));
             this.messages.push({ id: Date.now(), from: 'user', text, movies: [] });
             this.input = '';
             this.typing = true;
@@ -52,7 +53,8 @@ function nexusSupportChat() {
                     credentials: 'same-origin',
                     body: JSON.stringify({
                         message: text,
-                        context: this.context
+                        context: this.context,
+                        history
                     })
                 });
                 const data = await res.json();

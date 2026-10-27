@@ -40,16 +40,6 @@ try {
         exit;
     }
 
-    if (nexusRoomIsFull($conn, $room, $userId) && (int)$room['host_id'] !== $userId) {
-        http_response_code(403);
-        echo json_encode([
-            'success' => false,
-            'message' => 'This room is full (' . nexusRoomMaxMembers($conn, $room) . ' people).',
-            'is_full' => true,
-        ]);
-        exit;
-    }
-
     ensureRoomParticipantSchema($conn);
 
     $kickStmt = $conn->prepare("SELECT 1 FROM room_kicks WHERE room_id = :room_id AND user_id = :user_id LIMIT 1");
@@ -60,9 +50,39 @@ try {
         exit;
     }
 
-    $existsStmt = $conn->prepare("SELECT 1 FROM room_participants WHERE peer_id = :peer_id LIMIT 1");
+    // Serialize joins per room so simultaneous requests cannot both pass the
+    // capacity check and push occupancy above the configured limit.
+    $conn->beginTransaction();
+    $lockedRoomStmt = $conn->prepare("SELECT room_id, host_id, status, max_members FROM rooms WHERE room_id = :id LIMIT 1 FOR UPDATE");
+    $lockedRoomStmt->execute(['id' => $roomId]);
+    $lockedRoom = $lockedRoomStmt->fetch(PDO::FETCH_ASSOC);
+    if (!$lockedRoom || isRoomClosed($lockedRoom['status'] ?? '')) {
+        $conn->rollBack();
+        http_response_code(404);
+        echo json_encode(['success' => false, 'message' => 'This watch party has ended.', 'is_ended' => true]);
+        exit;
+    }
+    if (nexusRoomIsFull($conn, $lockedRoom, $userId) && (int)$lockedRoom['host_id'] !== $userId) {
+        $conn->rollBack();
+        http_response_code(403);
+        echo json_encode([
+            'success' => false,
+            'message' => 'This room is full (' . nexusRoomMaxMembers($conn, $lockedRoom) . ' people).',
+            'is_full' => true,
+        ]);
+        exit;
+    }
+
+    $existsStmt = $conn->prepare("SELECT room_id, user_id FROM room_participants WHERE peer_id = :peer_id LIMIT 1");
     $existsStmt->execute(['peer_id' => $peerId]);
-    $alreadyThere = (bool)$existsStmt->fetchColumn();
+    $existingPeer = $existsStmt->fetch(PDO::FETCH_ASSOC);
+    if ($existingPeer && ((int)$existingPeer['room_id'] !== $roomId || (int)$existingPeer['user_id'] !== $userId)) {
+        $conn->rollBack();
+        http_response_code(409);
+        echo json_encode(['success' => false, 'message' => 'This room connection has expired. Please rejoin.']);
+        exit;
+    }
+    $alreadyThere = (bool)$existingPeer;
 
     $conn->prepare("
         INSERT INTO room_participants (room_id, user_id, peer_id, last_seen)
@@ -76,6 +96,8 @@ try {
         'user_id' => $userId,
         'peer_id' => $peerId,
     ]);
+
+    $conn->commit();
 
     $conn->prepare("
         DELETE FROM room_participants
@@ -183,6 +205,9 @@ try {
     }
     exit;
 } catch (Throwable $e) {
+    if (isset($conn) && $conn instanceof PDO && $conn->inTransaction()) {
+        $conn->rollBack();
+    }
     http_response_code(500);
     echo json_encode(['success' => false, 'message' => 'Failed to join room']);
 }

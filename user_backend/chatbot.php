@@ -23,6 +23,7 @@ if (!is_array($payload)) {
 
 $message = trim((string)($payload['message'] ?? $_POST['message'] ?? ''));
 $context = is_array($payload['context'] ?? null) ? $payload['context'] : [];
+$context['history'] = is_array($payload['history'] ?? null) ? $payload['history'] : [];
 
 if ($message === '') {
     echo json_encode([
@@ -48,7 +49,197 @@ $result = handleChatIntent($conn, $q, $message, $context, [
 
 echo json_encode($result);
 
+/**
+ * Router: rules first (fast, exact, live data), then the LLM rewrites the
+ * "chatty" answers so the bot can actually talk. If the LLM is unavailable
+ * or rate-limited, the original rule-based reply is returned unchanged.
+ */
 function handleChatIntent(PDO $conn, string $q, string $original, array $context, array $user): array
+{
+    $result = handleChatIntentRules($conn, $q, $original, $context, $user);
+
+    // App-info intents (host, premium, missions, shop...) stay rule-based on purpose.
+    $llmIntents = ['thanks', 'greet', 'identity', 'smalltalk', 'comfort', 'movie_recommend', 'fallback'];
+    if (!in_array($result['intent'] ?? '', $llmIntents, true)) {
+        return $result;
+    }
+
+    $reply = llmReply(
+        $original,
+        (array)($context['history'] ?? []),
+        (array)($result['movies'] ?? []),
+        $user
+    );
+    if ($reply !== null) {
+        $result['reply'] = $reply;
+    }
+    return $result;
+}
+
+function llmConfig(): array
+{
+    $env = static function (string $key, string $default = ''): string {
+        if (function_exists('nexusAppEnv')) {
+            return nexusAppEnv($key, $default);
+        }
+        $value = getenv($key);
+        return is_string($value) && trim($value) !== '' ? trim($value) : $default;
+    };
+
+    return [
+        'key'    => $env('GEMINI_API_KEY'),
+        'url'    => 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions',
+        'model'  => $env('GEMINI_MODEL', 'gemini-3.5-flash-lite'),
+        'limit'  => 25,
+        'guest_limit' => 10,
+    ];
+}
+
+/** Simple per-user/IP limiter (N LLM calls per 10 minutes) so free quota is not burned. */
+function llmRateLimitOk(array $user, array $cfg): bool
+{
+    $id = ($user['user_id'] ?? 0) > 0 ? 'u' . $user['user_id'] : 'ip' . ($_SERVER['REMOTE_ADDR'] ?? '0');
+    $file = sys_get_temp_dir() . '/nexus_llm_' . md5($id) . '.json';
+    $now = time();
+    $window = 600;
+    $max = !empty($user['is_guest']) ? $cfg['guest_limit'] : $cfg['limit'];
+
+    $fp = @fopen($file, 'c+');
+    if (!$fp) {
+        return true;
+    }
+    flock($fp, LOCK_EX);
+    $raw = stream_get_contents($fp);
+    $hits = array_values(array_filter(
+        (array)json_decode($raw ?: '[]', true),
+        static function ($t) use ($now, $window) { return is_int($t) && $t > $now - $window; }
+    ));
+    $ok = count($hits) < $max;
+    if ($ok) {
+        $hits[] = $now;
+    }
+    ftruncate($fp, 0);
+    rewind($fp);
+    fwrite($fp, json_encode($hits));
+    fflush($fp);
+    flock($fp, LOCK_UN);
+    fclose($fp);
+    return $ok;
+}
+
+/** Returns the LLM's reply text, or null on any failure (caller falls back to rules). */
+function llmReply(string $message, array $history, array $movies, array $user): ?string
+{
+    $cfg = llmConfig();
+    if ($cfg['key'] === '' || !function_exists('curl_init')) {
+        return null;
+    }
+    if (!llmRateLimitOk($user, $cfg)) {
+        return null;
+    }
+
+    $cut = static function (string $t, int $n): string {
+        return function_exists('mb_substr') ? mb_substr($t, 0, $n) : substr($t, 0, $n);
+    };
+
+    $movieLines = [];
+    foreach ($movies as $m) {
+        $line = '- ' . ($m['title'] ?? '?');
+        if (!empty($m['genres'])) {
+            $line .= ' (' . implode(', ', (array)$m['genres']) . ')';
+        }
+        if ((float)($m['rating'] ?? 0) > 0) {
+            $line .= ' rating ' . $m['rating'];
+        }
+        if (!empty($m['description'])) {
+            $line .= ': ' . $cut((string)$m['description'], 140);
+        }
+        $movieLines[] = $line;
+    }
+    $movieBlock = $movieLines ? implode("\n", $movieLines) : '(no movies were selected for this message)';
+    $name = (string)($user['first_name'] ?? 'there');
+    $guest = !empty($user['is_guest']) ? 'yes' : 'no';
+
+    $system = <<<SYS
+You are Nex, the friendly guide inside Nexus, a movie watch-party web app.
+Personality: warm, casual, a little witty, like a good friend texting. Never robotic.
+Style: 1-3 short sentences. Plain text only, no markdown, no emoji spam (one at most).
+
+Movie rules:
+- The UI already shows movie cards for the movies listed below, so DO NOT list every detail.
+  Mention one or two of them by exact title and say why they fit the user's mood/request.
+- ONLY mention movie titles that appear in the list below. Never invent or guess titles.
+- If the list is empty and the user wants a movie, say you could not find a match and suggest a genre.
+
+Emotional rules:
+- If the user is hurting (rejection, breakup, lonely), respond with real empathy first, then gently offer the picks.
+- If they seem to be in serious distress or mention self-harm, be kind and encourage them to talk to someone they trust or a local helpline. Do not recommend movies in that case.
+
+App facts (only use these, do not invent features):
+- Nexus: pick a movie, open a private room, everyone stays on the same playhead with chat and optional video.
+- Host Party button is bottom-right. Rooms use an invite link or 6-character code. Guests can join but need an account to host.
+- Premium is \$4.99/month: cosmetics, unlimited hosting, Premium badge.
+- Missions (daily/weekly/monthly) give points to spend in the Shop on borders and themes.
+If asked something about the app you do not know, say so honestly.
+If the user asks something off-topic, answer briefly and steer back to movies or Nexus.
+
+User's first name: {$name}. Guest: {$guest}.
+Movies selected for this message:
+{$movieBlock}
+SYS;
+
+    $messages = [['role' => 'system', 'content' => $system]];
+    foreach (array_slice($history, -8) as $h) {
+        if (!is_array($h)) {
+            continue;
+        }
+        $text = trim($cut((string)($h['text'] ?? ''), 500));
+        if ($text === '') {
+            continue;
+        }
+        $messages[] = [
+            'role' => (($h['from'] ?? '') === 'user') ? 'user' : 'assistant',
+            'content' => $text,
+        ];
+    }
+    $messages[] = ['role' => 'user', 'content' => $cut($message, 400)];
+
+    $ch = curl_init($cfg['url']);
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_CONNECTTIMEOUT => 4,
+        CURLOPT_TIMEOUT => 9,
+        CURLOPT_POST => true,
+        CURLOPT_HTTPHEADER => [
+            'Content-Type: application/json',
+            'Authorization: Bearer ' . $cfg['key'],
+        ],
+        CURLOPT_POSTFIELDS => json_encode([
+            'model' => $cfg['model'],
+            'messages' => $messages,
+            'max_tokens' => 400,
+            'temperature' => 0.8,
+        ]),
+    ]);
+    $res = curl_exec($ch);
+    $code = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $err = curl_error($ch);
+    curl_close($ch);
+
+    if ($res === false || $code < 200 || $code >= 300) {
+        error_log('chatbot llm failed: http=' . $code . ' curl=' . $err . ' body=' . substr((string)$res, 0, 300));
+        return null;
+    }
+
+    $data = json_decode((string)$res, true);
+    $text = trim((string)($data['choices'][0]['message']['content'] ?? ''));
+    if ($text === '') {
+        return null;
+    }
+    return $cut($text, 700);
+}
+
+function handleChatIntentRules(PDO $conn, string $q, string $original, array $context, array $user): array
 {
     if (preg_match('/\b(thanks|thank you|thx|ty)\b/', $q)) {
         return packReply("You got it, {$user['first_name']}. Want another pick or a walkthrough?", [], [
