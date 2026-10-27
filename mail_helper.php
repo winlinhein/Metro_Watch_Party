@@ -9,7 +9,7 @@
  * Env:
  *   RESEND_API_KEY   required on Render
  *   MAIL_FROM        e.g. Nexus <noreply@nexuswatchparty.site>  (must be a verified Resend domain)
- *   RESEND_FROM      optional override if MAIL_FROM is a Gmail/Yahoo/etc address
+ *   RESEND_FROM      optional sender override on a Resend-verified domain
  *   MAIL_FROM_NAME   optional, used with SMTP fallback
  *   SMTP_USER        Gmail address for local SMTP
  *   SMTP_PASS        Gmail app password for local SMTP
@@ -24,7 +24,7 @@ function loadMailDotEnv(): void
     }
     $loaded = true;
     $path = __DIR__ . DIRECTORY_SEPARATOR . '.env';
-    if (!is_file($path) || !is_readable($path)) {
+    if (!is_file($path)) {
         return;
     }
     foreach (file($path, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES) ?: [] as $line) {
@@ -50,24 +50,12 @@ function loadMailDotEnv(): void
 function mailEnv(string $key, string $default = ''): string
 {
     loadMailDotEnv();
-    // Hardcoded fallbacks for keys that have no other default, so the app
-    // works on Render without manual dashboard setup (same pattern as Pusher/Stripe).
-    static $fallbacks = [
-        'RESEND_API_KEY' => 're_MPSY3h8y_6ctHaqEJSw6Ny98rHM6GsAiL',
-        'MAIL_FROM'      => 'Nexus <noreply@nexuswatchparty.site>',
-        'MAIL_FROM_NAME' => 'Nexus',
-        'CONTACT_TO'     => 'koz6122005@gmail.com',
-        'SMTP_USER'      => 'koz6122005@gmail.com',
-        'SMTP_PASS'      => 'ksqp zgpn idev lhlp',
-        'SMTP_HOST'      => 'smtp.gmail.com',
-        'SMTP_PORT'      => '587',
-    ];
     foreach ([getenv($key), $_ENV[$key] ?? null, $_SERVER[$key] ?? null, $_SERVER['REDIRECT_' . $key] ?? null] as $value) {
         if (is_string($value) && $value !== '') {
             return $value;
         }
     }
-    return $fallbacks[$key] ?? $default;
+    return $default;
 }
 
 function isRenderHost(): bool
@@ -88,7 +76,7 @@ function mailIdentityEmail(): string
     if ($contact !== '' && filter_var($contact, FILTER_VALIDATE_EMAIL)) {
         return $contact;
     }
-    return mailEnv('SMTP_USER', 'koz6122005@gmail.com');
+    return mailEnv('SMTP_USER');
 }
 
 function mailFromAddress(): string
@@ -143,7 +131,7 @@ function resendFromAddress(): string
     if (isResendSendableFrom(mailIdentityEmail())) {
         return $from;
     }
-    return 'Nexus <noreply@nexuswatchparty.site>';
+    throw new RuntimeException('Set MAIL_FROM to an address on a domain verified with Resend.');
 }
 
 function otpEmailHtml(string $code, string $purpose): string
@@ -198,7 +186,7 @@ function mailUserError(Throwable $e): string
         return 'Email is not configured on the server. Add RESEND_API_KEY in Render Environment, then redeploy.';
     }
     if (preg_match('/only send testing emails|verify a domain|from address is not verified|domain is not verified/i', $msg)) {
-        return 'Could not send a verification code. Set MAIL_FROM to an address on your verified Resend domain (nexuswatchparty.site), then redeploy.';
+        return 'Could not send a verification code. Set MAIL_FROM to an address on a domain verified with Resend.';
     }
     if ($msg !== '') {
         return 'Could not send a verification code. ' . $msg;
@@ -334,12 +322,8 @@ function sendMailViaSmtp(string $to, string $subject, string $html, string $text
 
     $smtpUser = mailEnv('SMTP_USER');
     $smtpPass = mailEnv('SMTP_PASS');
-    // Gmail SMTP must authenticate as the account that owns the app password.
-    if ($smtpPass === '') {
-        $smtpUser = 'koz6122005@gmail.com';
-        $smtpPass = 'ksqp zgpn idev lhlp';
-    } elseif ($smtpUser === '') {
-        $smtpUser = 'koz6122005@gmail.com';
+    if ($smtpUser === '' || $smtpPass === '') {
+        throw new RuntimeException('Set SMTP_USER and SMTP_PASS for local SMTP, or configure RESEND_API_KEY.');
     }
 
     $fromName = mailFromName();

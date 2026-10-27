@@ -179,6 +179,8 @@ function watchParty() {
         socket: null,
         pusherClient: null,
         roomChannel: null,
+        _roomSubscriptionReady: false,
+        _pendingPeerCalls: {},
         applyingRemotePlayback: false,
         liveStatus: 'Connecting…',
         peerId: restoreOrCreatePeerId(urlRoomId),
@@ -197,13 +199,6 @@ function watchParty() {
             try { sessionStorage.removeItem('nexus_room_returning'); } catch (e) {}
             this.bindRoomUnload();
             this.applyRoomBoot();
-            this.signal('peer-resume', {
-                peerId: this.peerId,
-                userId: Number(window.CURRENT_USER_ID) || null,
-                userName: window.USER_NAME || 'You',
-                avatar_url: window.USER_AVATAR || '',
-                border_preview: window.USER_BORDER || ''
-            });
             this.hydratePendingMovie();
             this.seedLocalParticipant();
             this.markConnected();
@@ -260,7 +255,6 @@ function watchParty() {
             if (boot.movie) this.applyMovie(boot.movie);
             if (Array.isArray(boot.peers) && boot.peers.length) {
                 this.syncPresence(boot.peers);
-                boot.peers.forEach((peer) => this.callPeer(this.mapRoomPeer(peer)));
             }
             this.liveStatus = 'Live';
         },
@@ -1579,14 +1573,21 @@ function watchParty() {
             // Add audio tracks to any peer connections that were created before media was ready.
             const audioTracks = this.localStream.getAudioTracks();
             if (!audioTracks.length) return;
+            let addedTrack = false;
             Object.keys(peerConnections).forEach((key) => {
                 const pc = peerConnections[key];
                 if (!pc || pc.connectionState === 'closed' || pc.signalingState === 'closed') return;
                 audioTracks.forEach((track) => {
                     if (pc.getSenders().some((s) => s.track === track)) return;
-                    try { pc.addTrack(track, this.localStream); } catch (e) {}
+                    try {
+                        pc.addTrack(track, this.localStream);
+                        addedTrack = true;
+                    } catch (e) {}
                 });
             });
+            // addTrack alone doesn't update the remote peer's negotiated media
+            // sections. Renegotiate immediately so audio-only callers work too.
+            if (addedTrack) await this.publishLocalTracks();
         },
 
         // Called when video track is ready; adds it to existing connections and renegotiates.
@@ -1841,6 +1842,14 @@ function watchParty() {
             const normalized = this.normalizePeer(peer);
             const key = this.peerKey(normalized);
             if (!key || key === this.peerId || key === this.socket?.id) return;
+            // Do not create an offer until this client can receive the answer.
+            // Otherwise a fast room boot can send an offer before Pusher has
+            // finished subscribing, leaving a peer connection stuck in
+            // have-local-offer with no answer ever delivered.
+            if (!this._roomSubscriptionReady) {
+                this._pendingPeerCalls[key] = normalized;
+                return;
+            }
             this._callingPeers = this._callingPeers || {};
             if (this._callingPeers[key]) return;
             this._callingPeers[key] = true;
@@ -2079,7 +2088,11 @@ function watchParty() {
         },
 
         signal(event, data) {
-            if (this.socket && this.socket.connected && (event === 'offer' || event === 'answer' || event === 'ice-candidate' || event === 'send_message' || event === 'toggle-mic' || event === 'toggle-video' || event === 'movie-changed' || event === 'playback-sync' || event === 'peer-leave' || event === 'peer-speaking' || event === 'force-leave' || event === 'force-mute' || event === 'force-video' || event === 'force-chat-ban')) {
+            // Socket.IO and Pusher used to receive the same event, which could
+            // duplicate SDP offers/answers and race the WebRTC state machine.
+            // Pusher is the authenticated room signal path; Socket.IO remains
+            // only for the lightweight speaking indicator and lobby presence.
+            if (event === 'peer-speaking' && this.socket && this.socket.connected) {
                 this.socket.emit(event, data);
             }
             if (event !== 'peer-speaking') this.sendPusherSignal(event, data);
@@ -2113,7 +2126,27 @@ function watchParty() {
                 ...data,
                 fromPeerId: this.peerId
             }));
-            fetch('../user_backend/room_signal.php', { method: 'POST', body: form }).catch(() => {});
+            fetch('../user_backend/room_signal.php', { method: 'POST', body: form })
+                .then(async (response) => {
+                    if (response.ok) return;
+                    const result = await response.json().catch(() => ({}));
+                    console.warn(`Room signal ${mapped} failed:`, result.message || response.statusText);
+                    if (!this._signalFailureNotified) {
+                        this._signalFailureNotified = true;
+                        if (window.showToast) {
+                            window.showToast('Room signaling failed. Check the realtime configuration and reconnect.', 'error');
+                        }
+                    }
+                })
+                .catch((error) => {
+                    console.warn(`Room signal ${mapped} could not reach the server:`, error);
+                    if (!this._signalFailureNotified) {
+                        this._signalFailureNotified = true;
+                        if (window.showToast) {
+                            window.showToast('Room signaling is unavailable. Check your connection and reconnect.', 'error');
+                        }
+                    }
+                });
         },
 
         onRoomEvent(event, data) {
@@ -2329,6 +2362,19 @@ function watchParty() {
             }
             const channelName = `watch-party-${this.roomId}`;
             this.roomChannel = this.pusherClient.subscribe(channelName);
+            this._roomSubscriptionReady = false;
+            this.roomChannel.bind('pusher:subscription_succeeded', () => {
+                this._roomSubscriptionReady = true;
+                const pending = Object.values(this._pendingPeerCalls || {});
+                this._pendingPeerCalls = {};
+                pending.forEach((peer) => this.callPeer(peer));
+            });
+            this.roomChannel.bind('pusher:subscription_error', (error) => {
+                console.error('Watch party realtime subscription failed:', error);
+                if (window.showToast) {
+                    window.showToast('Live room signaling could not connect. Reload the room and try again.', 'error');
+                }
+            });
             this.bindBanLogout();
             [
                 'peer-join', 'peer-leave', 'peer-park', 'peer-resume', 'offer', 'answer', 'ice-candidate',
@@ -2357,6 +2403,13 @@ function watchParty() {
                 }
                 this.applyPresenceFlags(data.you);
                 if (data.success && Array.isArray(data.peers)) {
+                    this.signal('peer-resume', {
+                        peerId: this.peerId,
+                        userId: Number(window.CURRENT_USER_ID) || null,
+                        userName: window.USER_NAME || 'You',
+                        avatar_url: window.USER_AVATAR || '',
+                        border_preview: window.USER_BORDER || ''
+                    });
                     this.syncPresence(data.peers);
                     this.markConnected();
                     data.peers.forEach(peer => this.callPeer(this.mapRoomPeer(peer)));
@@ -2489,24 +2542,11 @@ function watchParty() {
                 window.dispatchEvent(new CustomEvent('incoming-party-invite', { detail: data }));
             });
 
-            this.socket.on('existing-users', (users) => this.onRoomEvent('existing-users', users));
-            this.socket.on('user-connected', (data) => this.onRoomEvent('user-connected', data));
-            this.socket.on('user-disconnected', (data) => this.onRoomEvent('user-disconnected', data));
-            this.socket.on('peer-leave', (data) => this.onRoomEvent('peer-leave', data));
-            this.socket.on('offer', (data) => this.onRoomEvent('offer', data));
-            this.socket.on('answer', (data) => this.onRoomEvent('answer', data));
-            this.socket.on('ice-candidate', (data) => this.onRoomEvent('ice-candidate', data));
-            this.socket.on('peer-mic-changed', (data) => this.onRoomEvent('peer-mic-changed', data));
-            this.socket.on('peer-video-changed', (data) => this.onRoomEvent('peer-video-changed', data));
+            // Room presence, peer IDs and WebRTC negotiation now use the
+            // database/Pusher path consistently. Socket.IO's room IDs are
+            // socket IDs, while the app's participant IDs are persistent peer
+            // IDs; mixing both paths created duplicate peer connections.
             this.socket.on('peer-speaking', (data) => this.onRoomEvent('peer-speaking', data));
-            this.socket.on('new_message', (data) => this.onRoomEvent('new_message', data));
-            this.socket.on('movie-changed', (data) => this.onRoomEvent('movie-changed', data));
-            this.socket.on('playback-sync', (data) => this.onRoomEvent('playback-sync', data));
-            this.socket.on('room-ended', (data) => this.onRoomEvent('room-ended', data));
-            this.socket.on('force-leave', (data) => this.onRoomEvent('force-leave', data));
-            this.socket.on('force-mute', (data) => this.onRoomEvent('force-mute', data));
-            this.socket.on('force-video', (data) => this.onRoomEvent('force-video', data));
-            this.socket.on('force-chat-ban', (data) => this.onRoomEvent('force-chat-ban', data));
         },
 
         applyRemotePlayback(data) {

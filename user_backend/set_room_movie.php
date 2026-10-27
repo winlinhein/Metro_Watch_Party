@@ -24,8 +24,10 @@ try {
     require_once __DIR__ . '/../poster_helper.php';
     require_once __DIR__ . '/../pusher_helper.php';
     require_once __DIR__ . '/../admin_rooms_helper.php';
+    require_once __DIR__ . '/../room_schema_helper.php';
     require_once __DIR__ . '/../schema_upgrade_helper.php';
     ensureAppSchema($conn);
+    ensureRoomParticipantSchema($conn);
 
     $roomStmt = $conn->prepare("SELECT room_id, host_id, status FROM rooms WHERE room_id = :id LIMIT 1");
     $roomStmt->execute(['id' => $roomId]);
@@ -40,6 +42,14 @@ try {
     if (isRoomClosed($room['status'] ?? '')) {
         http_response_code(409);
         echo json_encode(['success' => false, 'message' => 'This watch party has ended']);
+        exit;
+    }
+
+    $memberStmt = $conn->prepare("SELECT 1 FROM room_participants WHERE room_id = :room_id AND user_id = :user_id AND last_seen > DATE_SUB(NOW(), INTERVAL 90 SECOND) LIMIT 1");
+    $memberStmt->execute(['room_id' => $roomId, 'user_id' => $userId]);
+    if (!$memberStmt->fetchColumn()) {
+        http_response_code(403);
+        echo json_encode(['success' => false, 'message' => 'You are not an active member of this watch party.']);
         exit;
     }
 

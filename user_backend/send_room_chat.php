@@ -44,7 +44,13 @@ try {
     ");
     $banStmt->execute(['room_id' => $roomId, 'user_id' => $senderId]);
     $banned = $banStmt->fetchColumn();
-    if ($banned !== false && (int)$banned === 1) {
+    if ($banned === false) {
+        http_response_code(403);
+        echo json_encode(['success' => false, 'message' => 'Join this watch party before sending chat.']);
+        exit;
+    }
+    if ((int)$banned === 1) {
+        http_response_code(403);
         echo json_encode(['success' => false, 'message' => 'The host banned you from room chat.']);
         exit;
     }

@@ -22,6 +22,7 @@ $allowed = [
     'peer-park' => true,
     'peer-resume' => true,
     'new_message' => true,
+    'room-ended' => true,
     'playback-sync' => true,
     'toggle-mic' => true,
     'toggle-video' => true,
@@ -47,6 +48,7 @@ $payload['fromUserId'] = $userId;
 $payload['roomId'] = $roomId;
 
 $hostOnly = [
+    'room-ended' => true,
     'force-leave' => true,
     'force-mute' => true,
     'force-video' => true,
@@ -54,33 +56,49 @@ $hostOnly = [
 ];
 
 try {
-    if (!empty($hostOnly[$event]) || $event === 'new_message') {
-        require_once __DIR__ . '/../conn.php';
+    require_once __DIR__ . '/../conn.php';
+    require_once __DIR__ . '/../admin_rooms_helper.php';
+    require_once __DIR__ . '/../room_schema_helper.php';
+    ensureRoomParticipantSchema($conn);
+
+    $roomStmt = $conn->prepare('SELECT room_id, host_id, status FROM rooms WHERE room_id = :id LIMIT 1');
+    $roomStmt->execute(['id' => $roomId]);
+    $room = $roomStmt->fetch(PDO::FETCH_ASSOC);
+    if (!$room) {
+        http_response_code(404);
+        echo json_encode(['success' => false, 'message' => 'Room not found']);
+        exit;
     }
+    if (isRoomClosed($room['status'] ?? '')) {
+        http_response_code(409);
+        echo json_encode(['success' => false, 'message' => 'This watch party has ended']);
+        exit;
+    }
+
+    $memberStmt = $conn->prepare("SELECT chat_banned FROM room_participants WHERE room_id = :room_id AND user_id = :user_id AND last_seen > DATE_SUB(NOW(), INTERVAL 90 SECOND) ORDER BY last_seen DESC LIMIT 1");
+    $memberStmt->execute(['room_id' => $roomId, 'user_id' => $userId]);
+    $membership = $memberStmt->fetch(PDO::FETCH_ASSOC);
+    if (!$membership) {
+        http_response_code(403);
+        echo json_encode(['success' => false, 'message' => 'Join this watch party before sending signals.']);
+        exit;
+    }
+
     if (!empty($hostOnly[$event])) {
-        $hostStmt = $conn->prepare('SELECT host_id, status FROM rooms WHERE room_id = :id LIMIT 1');
-        $hostStmt->execute(['id' => $roomId]);
-        $room = $hostStmt->fetch(PDO::FETCH_ASSOC);
-        if (!$room || (int)$room['host_id'] !== $userId) {
+        if ((int)$room['host_id'] !== $userId) {
             http_response_code(403);
             echo json_encode(['success' => false, 'message' => 'Only the host can do that']);
             exit;
         }
     }
-    if ($event === 'new_message') {
-        try {
-            $banStmt = $conn->prepare("SELECT chat_banned FROM room_participants WHERE room_id = :room_id AND user_id = :user_id LIMIT 1");
-            $banStmt->execute(['room_id' => $roomId, 'user_id' => $userId]);
-            if ((int)$banStmt->fetchColumn() === 1) {
-                http_response_code(403);
-                echo json_encode(['success' => false, 'message' => 'The host banned you from room chat.', 'chat_banned' => true]);
-                exit;
-            }
-        } catch (Throwable $ignore) {}
+    if ($event === 'new_message' && (int)$membership['chat_banned'] === 1) {
+        http_response_code(403);
+        echo json_encode(['success' => false, 'message' => 'The host banned you from room chat.', 'chat_banned' => true]);
+        exit;
     }
 
     require_once __DIR__ . '/../pusher_helper.php';
-    triggerPusherEvent("watch-party-{$roomId}", $event, $payload);
+    triggerPusherEvent("watch-party-{$roomId}", $event, $payload, true);
     echo json_encode(['success' => true]);
 } catch (Throwable $e) {
     http_response_code(500);

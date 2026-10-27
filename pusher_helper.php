@@ -3,19 +3,19 @@
 require_once __DIR__ . '/curl_ssl_helper.php';
 
 if (!defined('PUSHER_APP_ID')) {
-    define('PUSHER_APP_ID', nexusAppEnv('PUSHER_APP_ID', '2204653'));
+    define('PUSHER_APP_ID', nexusAppEnv('PUSHER_APP_ID'));
 }
 if (!defined('PUSHER_KEY')) {
-    define('PUSHER_KEY', nexusAppEnv('PUSHER_KEY', '30110959c92045514bbb'));
+    define('PUSHER_KEY', nexusAppEnv('PUSHER_KEY'));
 }
 if (!defined('PUSHER_SECRET')) {
-    define('PUSHER_SECRET', nexusAppEnv('PUSHER_SECRET', 'de149a0336db284366cd'));
+    define('PUSHER_SECRET', nexusAppEnv('PUSHER_SECRET'));
 }
 if (!defined('PUSHER_CLUSTER')) {
     define('PUSHER_CLUSTER', nexusAppEnv('PUSHER_CLUSTER', 'ap1'));
 }
 
-function triggerPusherEvent($channel, $event, $data) {
+function triggerPusherEvent($channel, $event, $data, bool $throwOnError = false) {
     $payload = json_encode([
         'name' => $event,
         'channels' => [$channel],
@@ -53,6 +53,9 @@ function triggerPusherEvent($channel, $event, $data) {
             3,
             sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'pusher_errors.log'
         );
+        if ($throwOnError) {
+            throw new RuntimeException("Realtime event delivery failed with HTTP {$httpCode}.");
+        }
     }
     
     return $response;

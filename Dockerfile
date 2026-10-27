@@ -1,10 +1,4 @@
-# ---- Stage 1: Install Composer vendor libs ----
-FROM composer:2 AS vendor
-WORKDIR /app
-COPY composer.json composer.lock ./
-RUN composer install --no-dev --no-interaction --no-progress --optimize-autoloader --prefer-dist
-
-# ---- Stage 2: Runtime ----
+# ---- Runtime ----
 FROM php:8.2-apache AS runtime
 
 # ------------------------------------------------------------------
@@ -12,6 +6,7 @@ FROM php:8.2-apache AS runtime
 # ------------------------------------------------------------------
 RUN apt-get update && apt-get install -y --no-install-recommends \
         curl \
+        libcurl4-openssl-dev \
         ca-certificates \
     && curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
     && apt-get install -y --no-install-recommends nodejs \
@@ -20,7 +15,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # ------------------------------------------------------------------
 # 2. PHP extensions
 # ------------------------------------------------------------------
-RUN docker-php-ext-install pdo pdo_mysql
+RUN docker-php-ext-install curl pdo pdo_mysql
 
 # ------------------------------------------------------------------
 # 3. Apache modules
@@ -45,6 +40,7 @@ RUN printf '%s\n' \
     'PassEnv PORT' \
     'PassEnv RESEND_API_KEY' \
     'PassEnv MAIL_FROM' \
+    'PassEnv RESEND_FROM' \
     'PassEnv MAIL_FROM_NAME' \
     'PassEnv CONTACT_TO' \
     'PassEnv SMTP_USER' \
@@ -63,6 +59,8 @@ RUN printf '%s\n' \
     'PassEnv STRIPE_SECRET_KEY' \
     'PassEnv STRIPE_PUBLISHABLE_KEY' \
     'PassEnv PREMIUM_PRICE_ID' \
+    'PassEnv GEMINI_API_KEY' \
+    'PassEnv GEMINI_MODEL' \
     'PassEnv PUSHER_APP_ID' \
     'PassEnv PUSHER_KEY' \
     'PassEnv PUSHER_SECRET' \
@@ -90,11 +88,8 @@ RUN a2enconf socketio-proxy
 WORKDIR /var/www/html
 COPY . /var/www/html/
 
-# Restore Composer vendor (from stage 1)
-COPY --from=vendor /app/vendor ./vendor
-
 # ------------------------------------------------------------------
-# 8. Install Node.js dependencies (for server.ts / Socket.io)
+# 8. Install Node.js production dependencies (for server.ts / Socket.io)
 # ------------------------------------------------------------------
 RUN npm install --omit=dev
 
