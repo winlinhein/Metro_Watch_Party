@@ -2836,7 +2836,7 @@ function userDashboard() {
         },
 
         ensureUserTabData(tabId) {
-            if (this.isGuest && ['watchlist', 'account', 'shop'].includes(tabId)) return;
+            if (this.isGuest && ['watchlist', 'account'].includes(tabId)) return;
             if (tabId === 'movies' || tabId === 'dashboard') {
                 if (!(this.movies || []).length) {
                     this.moviesLoading = true;
@@ -2847,14 +2847,16 @@ function userDashboard() {
                 if (tabId === 'watchlist' && !(this.watchlist || []).length) this.watchlistLoading = true;
                 if (!(this.watchlist || []).length || tabId === 'watchlist') this.fetchWatchlist();
             }
-            if (!this.isGuest && (tabId === 'shop' || tabId === 'account')) {
+            if (tabId === 'shop' || (!this.isGuest && tabId === 'account')) {
                 if (!(this.shopItems || []).length) {
                     this.shopLoading = true;
-                    this.fetchShopItems().then(() => this.buildAvailableBorders());
-                } else {
+                    this.fetchShopItems().then(() => {
+                        if (!this.isGuest) this.buildAvailableBorders();
+                    });
+                } else if (!this.isGuest) {
                     this.buildAvailableBorders();
                 }
-                if (!(this.pointPacks || []).length) this.fetchPointPacks();
+                if (!this.isGuest && !(this.pointPacks || []).length) this.fetchPointPacks();
             }
         },
 
@@ -2872,8 +2874,8 @@ function userDashboard() {
             const oldTab = this.currentTab;
             this.currentTab = tabId;
             this.ensureUserTabData(tabId);
-            const oldPanel = document.querySelector(`[data-tab-panel="${oldTab}"]`);
-            const newPanel = document.querySelector(`[data-tab-panel="${tabId}"]`);
+            const oldPanel = document.querySelector(`[data-tab-pane="${oldTab}"]`);
+            const newPanel = document.querySelector(`[data-tab-pane="${tabId}"]`);
             if (oldPanel && newPanel && typeof window.gsap !== 'undefined') {
                 window.gsap.to(oldPanel, { opacity: 0, scale: 0.95, duration: 0.2, onComplete: () => {
                     oldPanel.style.display = 'none';
@@ -5153,7 +5155,8 @@ function __legacyWatchPartyStub() {
                 || (location.port && location.port !== '3000'
                     ? `${location.protocol}//${location.hostname}:3000`
                     : undefined);
-            this.socket = signalingUrl ? io(signalingUrl) : io();
+            const socketOptions = { auth: { token: window.NEXUS_SOCKET_TOKEN || '' } };
+            this.socket = signalingUrl ? io(signalingUrl, socketOptions) : io(socketOptions);
 
             this.socket.on('connect', () => {
                 console.log("Connected to signaling server with ID:", this.socket.id);
@@ -6714,6 +6717,7 @@ function adminDashboard(userData = {}) {
             }
         },
         statsLoading: true,
+        statsError: false,
         moviesLoading: true,
         roomsLoading: true,
         usersLoading: true,
@@ -6731,36 +6735,13 @@ function adminDashboard(userData = {}) {
         chartMode: 'revenue',
         chartRange: '7',
         chartData: { '7': { revenue: [], logins: [] }, '30': { revenue: [], logins: [] } },
-        fallbackChartData() {
-            const make = (days, seed, isMoney) => {
-                const out = [];
-                let value = seed;
-                for (let i = days - 1; i >= 0; i--) {
-                    const date = new Date();
-                    date.setDate(date.getDate() - i);
-                    value = Math.max(3, value + Math.round(Math.sin(i / 1.65) * 16 + ((i % 4) - 1.5) * 5));
-                    const raw = isMoney ? value * 14.5 : value;
-                    out.push({
-                        label: days <= 7
-                            ? date.toLocaleDateString('en-US', { weekday: 'short' })
-                            : date.toLocaleDateString('en-US', { day: 'numeric', month: 'short' }),
-                        value: raw,
-                        display: isMoney ? ('$' + Math.round(raw).toLocaleString()) : String(Math.round(raw))
-                    });
-                }
-                const max = Math.max(...out.map((row) => Number(row.value) || 0), 1);
-                return out.map((row) => ({
-                    ...row,
-                    height: Math.max(8, Math.round((Number(row.value) / max) * 100))
-                }));
-            };
+        emptyChartData() {
             return {
-                '7': { revenue: make(7, 24, true), logins: make(7, 19, false) },
-                '30': { revenue: make(30, 21, true), logins: make(30, 17, false) }
+                '7': { revenue: [], logins: [] },
+                '30': { revenue: [], logins: [] }
             };
         },
         normalizeChartData(incoming) {
-            const fallback = this.fallbackChartData();
             const source = incoming && typeof incoming === 'object' ? incoming : {};
             const decorate = (rows, isMoney) => (rows || []).map((row) => {
                 const raw = Number(row && row.value != null ? row.value : 0);
@@ -6772,7 +6753,7 @@ function adminDashboard(userData = {}) {
             const pick = (range, mode) => {
                 const rows = source[range] && Array.isArray(source[range][mode]) ? source[range][mode] : [];
                 const isMoney = mode === 'revenue';
-                return decorate(rows.length ? rows : fallback[range][mode], isMoney);
+                return decorate(rows, isMoney);
             };
             return {
                 '7': { revenue: pick('7', 'revenue'), logins: pick('7', 'logins') },
@@ -6901,6 +6882,7 @@ function adminDashboard(userData = {}) {
             const pending = this.beginFetch('stats');
             if (pending) return pending;
             this.statsLoading = true;
+            this.statsError = false;
             try {
                 const tzOffset = -new Date().getTimezoneOffset();
                 const response = await fetch('/backend/dashboard_stats_api.php?tz_offset=' + encodeURIComponent(tzOffset));
@@ -6910,21 +6892,26 @@ function adminDashboard(userData = {}) {
                     const data = JSON.parse(text);
                     if (response.ok && Array.isArray(data)) {
                         this.stats = data;
-                        this.chartData = this.fallbackChartData();
+                        this.chartData = this.emptyChartData();
+                        this.statsError = true;
                     } else if (response.ok && data && Array.isArray(data.stats)) {
                         this.stats = data.stats;
                         this.chartData = this.normalizeChartData(data.charts);
+                        this.statsError = !data.charts;
                     } else {
-                        this.chartData = this.fallbackChartData();
+                        this.chartData = this.emptyChartData();
+                        this.statsError = true;
                         console.error('Stats API Error:', (data && data.error) || 'Failed to load dashboard stats.');
                     }
                     this.playAdminCharts();
                 } catch (e) {
-                    this.chartData = this.fallbackChartData();
+                    this.chartData = this.emptyChartData();
+                    this.statsError = true;
                     console.error('Invalid JSON response from stats API:', text);
                 }
             } catch (err) {
-                this.chartData = this.fallbackChartData();
+                this.chartData = this.emptyChartData();
+                this.statsError = true;
                 console.error('Network error fetching dashboard stats:', err);
             } finally {
                 this.statsLoading = false;
@@ -8345,7 +8332,7 @@ function adminDashboard(userData = {}) {
         },
 
         async confirmBan() {
-            const reason = String(this.banNotes || this.banReason || '').trim();
+            const reason = String(this.banReason || this.banNotes || '').trim();
             if (!this.userToBan || !reason) return;
 
             try {
@@ -8712,7 +8699,7 @@ function adminDashboard(userData = {}) {
             };
             window.addEventListener('resize', this._onAdminResize);
             if (!this.currentChartSeries.length) {
-                this.chartData = this.fallbackChartData();
+                this.chartData = this.emptyChartData();
             }
             this.$nextTick(() => {
                 if (window.NexusAdminMotion && typeof window.NexusAdminMotion.init === 'function') {

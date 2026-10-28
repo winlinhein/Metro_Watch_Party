@@ -354,7 +354,11 @@ function watchParty() {
                     this.applyMovie(movie);
                 }
 
-                if (!quiet && Array.isArray(result.data.messages) && !this._roomChatLoaded) {
+                if (
+                    Array.isArray(result.data.messages) &&
+                    !this._roomChatLoaded &&
+                    (result.data.chat_visible || result.data.messages.length > 0)
+                ) {
                     this.hydrateRoomChat(result.data.messages);
                     this._roomChatLoaded = true;
                 }
@@ -1111,6 +1115,11 @@ function watchParty() {
 
         async selectMovie(movie) {
             if (!movie) return;
+            if (!this.isHost) {
+                if (window.showToast) window.showToast('Only the host can change the room movie.', 'error');
+                this.showMovieModal = false;
+                return;
+            }
             if (Number(movie.is_premium) === 1 && !window.IS_PREMIUM) {
                 await this.showAlert({
                     title: 'Premium required',
@@ -1555,7 +1564,7 @@ function watchParty() {
             }
 
             if (this.roomChannel && this.pusherClient) {
-                try { this.pusherClient.unsubscribe(`watch-party-${this.roomId}`); } catch (e) { /* ignore */ }
+                try { this.pusherClient.unsubscribe(`private-watch-party-${this.roomId}`); } catch (e) { /* ignore */ }
                 this.roomChannel = null;
             }
 
@@ -2357,10 +2366,12 @@ function watchParty() {
             if (!this.pusherClient) {
                 this.pusherClient = new Pusher(window.PUSHER_KEY || '30110959c92045514bbb', {
                     cluster: window.PUSHER_CLUSTER || 'ap1',
-                    encrypted: true
+                    encrypted: true,
+                    channelAuthorization: { endpoint: '../user_backend/pusher_auth.php', transport: 'ajax' }
                 });
             }
-            const channelName = `watch-party-${this.roomId}`;
+            if (this.roomChannel) return true;
+            const channelName = `private-watch-party-${this.roomId}`;
             this.roomChannel = this.pusherClient.subscribe(channelName);
             this._roomSubscriptionReady = false;
             this.roomChannel.bind('pusher:subscription_succeeded', () => {
@@ -2403,6 +2414,11 @@ function watchParty() {
                 }
                 this.applyPresenceFlags(data.you);
                 if (data.success && Array.isArray(data.peers)) {
+                    this._presenceReady = true;
+                    this.bindPusherRoom();
+                    if (this.socket && this.socket.connected) {
+                        this.socket.emit('join-room', String(this.roomId), Number(window.CURRENT_USER_ID));
+                    }
                     this.signal('peer-resume', {
                         peerId: this.peerId,
                         userId: Number(window.CURRENT_USER_ID) || null,
@@ -2412,6 +2428,7 @@ function watchParty() {
                     });
                     this.syncPresence(data.peers);
                     this.markConnected();
+                    this.fetchRoomDetails({ quiet: true });
                     data.peers.forEach(peer => this.callPeer(this.mapRoomPeer(peer)));
                     if (this.localStream) this.publishLocalTracks();
                 } else {
@@ -2503,7 +2520,7 @@ function watchParty() {
         },
 
         async connectSignaling() {
-            const pusherOk = this.bindPusherRoom();
+            const pusherOk = this._presenceReady ? this.bindPusherRoom() : true;
             if (!pusherOk && window.showToast) {
                 window.showToast('Live sync is limited. Check your connection.', 'error');
             }
@@ -2521,15 +2538,16 @@ function watchParty() {
                     ? `${location.protocol}//${location.hostname}:3000`
                     : undefined);
             this.socket = signalingUrl
-                ? ioClient(signalingUrl, { transports: ['websocket', 'polling'] })
-                : ioClient({ transports: ['websocket', 'polling'] });
+                ? ioClient(signalingUrl, { transports: ['websocket', 'polling'], auth: { token: window.NEXUS_SOCKET_TOKEN || '' } })
+                : ioClient({ transports: ['websocket', 'polling'], auth: { token: window.NEXUS_SOCKET_TOKEN || '' } });
 
             this.socket.on('connect', () => {
                 console.log('Connected to signaling server with ID:', this.socket.id);
                 const myUserId = Number(window.CURRENT_USER_ID);
-                const myName = window.USER_NAME || 'You';
                 if (myUserId) this.socket.emit('register-user', myUserId);
-                if (this.roomId) this.socket.emit('join-room', String(this.roomId), myUserId, myName, this.peerId);
+                if (this._presenceReady && this.roomId) {
+                    this.socket.emit('join-room', String(this.roomId), myUserId);
+                }
                 if (this.liveStatus !== 'Live') this.liveStatus = 'Live';
             });
 

@@ -2,11 +2,13 @@
 session_start();
 header('Content-Type: application/json');
 
-if (!isset($_SESSION['user_id'])) {
+if (empty($_SESSION['authenticated']) || empty($_SESSION['user_id'])) {
+    http_response_code(401);
     echo json_encode(['success' => false, 'message' => 'Unauthorized access']);
     exit;
 }
 
+$userId = (int)$_SESSION['user_id'];
 $roomId = $_GET['room_id'] ?? null;
 session_write_close();
 
@@ -16,13 +18,13 @@ if (!$roomId) {
 }
 
 try {
-    require_once '../conn.php';
-    require_once '../poster_helper.php';
-    require_once '../admin_rooms_helper.php';
-    require_once '../profile_media_helper.php';
-    require_once '../room_chat_helper.php';
-    require_once '../schema_upgrade_helper.php';
-    require_once '../premium_benefits_helper.php';
+    require_once __DIR__ . '/../conn.php';
+    require_once __DIR__ . '/../poster_helper.php';
+    require_once __DIR__ . '/../admin_rooms_helper.php';
+    require_once __DIR__ . '/../profile_media_helper.php';
+    require_once __DIR__ . '/../room_chat_helper.php';
+    require_once __DIR__ . '/../schema_upgrade_helper.php';
+    require_once __DIR__ . '/../premium_benefits_helper.php';
     ensureAppSchema($conn);
     $pdo = $conn;
     // 1. Fetch room using room_id or room_code
@@ -39,6 +41,13 @@ try {
     if (isRoomClosed($room['status'] ?? '')) {
         echo json_encode(['success' => false, 'message' => 'This watch party has ended by the host.', 'is_ended' => true]);
         exit;
+    }
+
+    $isRoomMember = (int)$room['host_id'] === $userId;
+    if (!$isRoomMember) {
+        $memberStmt = $pdo->prepare("SELECT 1 FROM room_participants WHERE room_id = :room_id AND user_id = :user_id AND last_seen > DATE_SUB(NOW(), INTERVAL 90 SECOND) LIMIT 1");
+        $memberStmt->execute(['room_id' => (int)$room['room_id'], 'user_id' => $userId]);
+        $isRoomMember = (bool)$memberStmt->fetchColumn();
     }
 
     // 3. Optional: Fetch movie metadata if movie_id is set
@@ -63,10 +72,12 @@ try {
     }
 
     $messages = [];
-    try {
-        $messages = fetchRoomChatMessages($pdo, (int)$room['room_id']);
-    } catch (Throwable $ignore) {
-        $messages = [];
+    if ($isRoomMember) {
+        try {
+            $messages = fetchRoomChatMessages($pdo, (int)$room['room_id']);
+        } catch (Throwable $ignore) {
+            $messages = [];
+        }
     }
 
     $occ = nexusRoomOccupancy($pdo, $room);
@@ -79,16 +90,15 @@ try {
         'data' => [
             'room' => $room,
             'movie' => $movie,
-            'messages' => $messages
+            'messages' => $messages,
+            'chat_visible' => $isRoomMember,
         ]
     ]);
 
 } catch (Throwable $e) { // Use Throwable to catch all PHP errors, not just Exceptions
     http_response_code(500);
     echo json_encode([
-        'success' => false, 
-        'message' => 'Backend error: ' . $e->getMessage(),
-        'file' => $e->getFile(),
-        'line' => $e->getLine()
+        'success' => false,
+        'message' => 'Could not load watch party details.'
     ]);
 }

@@ -96,7 +96,7 @@ try {
         } else {
             @flush();
         }
-        triggerPusherEvent("watch-party-{$roomId}", 'force-leave', $pusherPayload);
+        triggerPusherEvent("private-watch-party-{$roomId}", 'force-leave', $pusherPayload);
         broadcastAdminRoomsChanged($action, [
             'room_id' => $roomId,
             'user_id' => $targetUserId,
@@ -123,7 +123,7 @@ try {
         } else {
             @flush();
         }
-        triggerPusherEvent("watch-party-{$roomId}", 'force-mute', $baseEvent + [
+        triggerPusherEvent("private-watch-party-{$roomId}", 'force-mute', $baseEvent + [
             'muted' => $muted,
             'isMuted' => $muted,
         ]);
@@ -149,7 +149,7 @@ try {
         } else {
             @flush();
         }
-        triggerPusherEvent("watch-party-{$roomId}", 'force-video', $baseEvent + [
+        triggerPusherEvent("private-watch-party-{$roomId}", 'force-video', $baseEvent + [
             'videoOn' => $videoOn,
             'isVideoOn' => $videoOn,
         ]);
@@ -174,7 +174,7 @@ try {
     } else {
         @flush();
     }
-    triggerPusherEvent("watch-party-{$roomId}", 'force-chat-ban', $baseEvent + [
+    triggerPusherEvent("private-watch-party-{$roomId}", 'force-chat-ban', $baseEvent + [
         'chatBanned' => $chatBanned,
         'banned' => $chatBanned,
         'message' => $chatBanned ? 'The host banned you from room chat.' : 'The host allowed you to chat again.',

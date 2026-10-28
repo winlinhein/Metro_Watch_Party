@@ -45,6 +45,12 @@ try {
         exit;
     }
 
+    if ((int)$room['host_id'] !== $userId) {
+        http_response_code(403);
+        echo json_encode(['success' => false, 'message' => 'Only the host can change the room movie.']);
+        exit;
+    }
+
     $memberStmt = $conn->prepare("SELECT 1 FROM room_participants WHERE room_id = :room_id AND user_id = :user_id AND last_seen > DATE_SUB(NOW(), INTERVAL 90 SECOND) LIMIT 1");
     $memberStmt->execute(['room_id' => $roomId, 'user_id' => $userId]);
     if (!$memberStmt->fetchColumn()) {
@@ -92,7 +98,7 @@ try {
     $movie['stream_url'] = $movie['actual_video_url'] ?: $movie['video_url'];
     $movie['id'] = (int)$movie['movie_id'];
 
-    triggerPusherEvent("watch-party-{$roomId}", 'movie-changed', [
+    triggerPusherEvent("private-watch-party-{$roomId}", 'movie-changed', [
         'movie' => $movie,
         'movieId' => $movieId,
         'videoUrl' => $movie['stream_url'],

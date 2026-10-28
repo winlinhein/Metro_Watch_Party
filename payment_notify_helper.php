@@ -23,14 +23,24 @@ function nexusStripeGatewayId(PDO $conn): ?int
     }
 }
 
-function nexusPaymentAlreadyRecorded(PDO $conn, string $gwTxn): bool
+function nexusFindPaymentTransaction(PDO $conn, string $gwTxn, bool $forUpdate = false): ?array
 {
     if ($gwTxn === '') {
-        return false;
+        return null;
     }
-    $dup = $conn->prepare("SELECT transaction_id FROM payment_transactions WHERE gateway_transaction_id = ? LIMIT 1");
+    $sql = "SELECT transaction_id, amount, status FROM payment_transactions WHERE gateway_transaction_id = ? LIMIT 1";
+    if ($forUpdate) {
+        $sql .= ' FOR UPDATE';
+    }
+    $dup = $conn->prepare($sql);
     $dup->execute([$gwTxn]);
-    return (bool)$dup->fetchColumn();
+    return $dup->fetch(PDO::FETCH_ASSOC) ?: null;
+}
+
+function nexusPaymentAlreadyRecorded(PDO $conn, string $gwTxn): bool
+{
+    $existing = nexusFindPaymentTransaction($conn, $gwTxn);
+    return $existing !== null && in_array(strtolower((string)$existing['status']), ['success', 'paid'], true);
 }
 
 function nexusRecordPaymentTransaction(
@@ -43,29 +53,45 @@ function nexusRecordPaymentTransaction(
     ?int $packageId,
     float $fallbackAmount
 ): ?array {
-    ensureAppSchema($conn);
     $gatewayId = nexusStripeGatewayId($conn);
-    if (!$gatewayId) {
-        return null;
-    }
 
     $gwTxn = (string)($session['payment_intent'] ?? $session['subscription'] ?? $session['id'] ?? '');
     if ($gwTxn === '') {
         $gwTxn = 'sess_' . time() . '_' . $userId;
     }
-    if (nexusPaymentAlreadyRecorded($conn, $gwTxn)) {
-        $stmt = $conn->prepare("
-            SELECT transaction_id, amount, status, created_at
-            FROM payment_transactions
-            WHERE gateway_transaction_id = ?
-            LIMIT 1
-        ");
-        $stmt->execute([$gwTxn]);
-        $existing = $stmt->fetch(PDO::FETCH_ASSOC) ?: [];
+    $existing = nexusFindPaymentTransaction($conn, $gwTxn);
+    if ($existing) {
+        $existingStatus = strtolower((string)($existing['status'] ?? ''));
+        if ($status === 'success' && !in_array($existingStatus, ['success', 'paid'], true)) {
+            $amountCents = (int)($session['amount_total'] ?? 0);
+            $amount = $amountCents > 0 ? round($amountCents / 100, 2) : $fallbackAmount;
+            $update = $conn->prepare("UPDATE payment_transactions SET user_id = ?, plan_id = ?, package_id = ?, type = ?, gateway_id = ?, amount = ?, status = 'success' WHERE transaction_id = ?");
+            $update->execute([
+                $userId > 0 ? $userId : null,
+                $planId && $planId > 0 ? $planId : null,
+                $packageId && $packageId > 0 ? $packageId : null,
+                $type === 'points' ? 'points' : 'premium',
+                $gatewayId,
+                $amount,
+                (int)$existing['transaction_id'],
+            ]);
+            return [
+                'id' => 'TXN-' . (int)$existing['transaction_id'],
+                'raw_id' => (int)$existing['transaction_id'],
+                'gateway_txn_id' => $gwTxn,
+                'amount' => $amount,
+                'status' => 'success',
+                'type' => $type === 'points' ? 'points' : 'premium',
+                'duplicate' => false,
+            ];
+        }
         return [
-            'id' => 'TXN-' . (int)($existing['transaction_id'] ?? 0),
-            'raw_id' => (int)($existing['transaction_id'] ?? 0),
+            'id' => 'TXN-' . (int)$existing['transaction_id'],
+            'raw_id' => (int)$existing['transaction_id'],
             'gateway_txn_id' => $gwTxn,
+            'amount' => (float)($existing['amount'] ?? 0),
+            'status' => $existingStatus,
+            'type' => $type === 'points' ? 'points' : 'premium',
             'duplicate' => true,
         ];
     }

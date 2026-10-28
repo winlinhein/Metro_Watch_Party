@@ -55,8 +55,19 @@ try {
     $kickStmt = $conn->prepare("SELECT 1 FROM room_kicks WHERE room_id = :room_id AND user_id = :user_id LIMIT 1");
     $kickStmt->execute(['room_id' => $room['room_id'], 'user_id' => $userId]);
     if ($kickStmt->fetchColumn()) {
+        http_response_code(403);
         echo json_encode(['success' => false, 'message' => 'The host banned you from this room.', 'is_kicked' => true]);
         exit;
+    }
+
+    if ((int)$room['host_id'] !== $userId) {
+        $memberStmt = $conn->prepare("SELECT 1 FROM room_participants WHERE room_id = :room_id AND user_id = :user_id AND last_seen > DATE_SUB(NOW(), INTERVAL 90 SECOND) LIMIT 1");
+        $memberStmt->execute(['room_id' => $room['room_id'], 'user_id' => $userId]);
+        if (!$memberStmt->fetchColumn()) {
+            http_response_code(403);
+            echo json_encode(['success' => false, 'message' => 'Join this watch party to view its participants.']);
+            exit;
+        }
     }
 
     $peerStmt = $conn->prepare("

@@ -166,7 +166,7 @@ function closeWatchPartyRoom(PDO $conn, int $roomId, array $opts = []): bool
     $updated = $conn->prepare("UPDATE rooms SET status = 'deleted' WHERE room_id = :room_id AND status = 'active'");
     $updated->execute(['room_id' => $roomId]);
 
-    $channel = 'watch-party-' . $roomId;
+    $channel = 'private-watch-party-' . $roomId;
     try {
         triggerPusherEvent($channel, 'room-ended', [
             'fromUserId' => $fromUserId,

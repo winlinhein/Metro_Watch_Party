@@ -50,9 +50,8 @@ function scalarSum(PDO $conn, string $sql, array $params = []): float
 
 function paymentAmountToDollars(float $amount): float
 {
-    if ($amount >= 50 && abs($amount - round($amount)) < 0.001) {
-        return $amount / 100;
-    }
+    // payment_transactions.amount is stored in currency units by the payment
+    // writer (Stripe's cent value is divided by 100 before it is saved).
     return $amount;
 }
 

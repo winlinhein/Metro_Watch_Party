@@ -1,8 +1,11 @@
+import "dotenv/config";
 import express from "express";
 import fs from "fs";
 import path from "path";
 import { createServer } from "http";
 import { Server } from "socket.io";
+import { createHmac, timingSafeEqual } from "crypto";
+import mysql from "mysql2/promise";
 
 const app = express();
 const PORT = 3000;
@@ -11,62 +14,145 @@ const io = new Server(httpServer, {
   cors: { origin: "*" }
 });
 
+const dbPool = mysql.createPool({
+  host: process.env.DB_HOST,
+  port: Number(process.env.DB_PORT || 3306),
+  user: process.env.DB_USER,
+  password: process.env.DB_PASSWORD,
+  database: process.env.DB_NAME,
+  waitForConnections: true,
+  connectionLimit: 8,
+  queueLimit: 0
+});
+
+function verifySocketToken(token: unknown): { userId: number; expiresAt: number } | null {
+  if (typeof token !== "string" || !process.env.PUSHER_SECRET) return null;
+  const separator = token.lastIndexOf(".");
+  if (separator <= 0) return null;
+  const payload = token.slice(0, separator);
+  const supplied = token.slice(separator + 1);
+  const expected = createHmac("sha256", process.env.PUSHER_SECRET).update(payload).digest("hex");
+  const suppliedBuffer = Buffer.from(supplied, "hex");
+  const expectedBuffer = Buffer.from(expected, "hex");
+  if (suppliedBuffer.length !== expectedBuffer.length || !timingSafeEqual(suppliedBuffer, expectedBuffer)) return null;
+  try {
+    const normalized = payload.replace(/-/g, "+").replace(/_/g, "/");
+    const parsed = JSON.parse(Buffer.from(normalized, "base64").toString("utf8"));
+    const userId = Number(parsed?.user_id);
+    const expiresAt = Number(parsed?.expires_at);
+    if (!Number.isSafeInteger(userId) || userId <= 0 || !Number.isSafeInteger(expiresAt) || expiresAt <= Math.floor(Date.now() / 1000)) return null;
+    return { userId, expiresAt };
+  } catch {
+    return null;
+  }
+}
+
+io.use((socket, next) => {
+  const identity = verifySocketToken(socket.handshake.auth?.token);
+  if (!identity) return next(new Error("Authentication required"));
+  socket.data.userId = identity.userId;
+  socket.data.tokenExpiresAt = identity.expiresAt;
+  next();
+});
+
+async function getRoomAccess(roomId: string, userId: number): Promise<{ allowed: boolean; host: boolean }> {
+  if (!/^\d+$/.test(roomId) || userId <= 0) return { allowed: false, host: false };
+  const [rows] = await dbPool.execute<any[]>(
+    `SELECT r.host_id,
+            (r.host_id = ?) AS is_host,
+            (SELECT COUNT(*) FROM room_participants rp
+             WHERE rp.room_id = r.room_id AND rp.user_id = ?
+               AND rp.last_seen > DATE_SUB(NOW(), INTERVAL 90 SECOND)) AS is_member,
+            (SELECT COUNT(*) FROM room_kicks rk
+             WHERE rk.room_id = r.room_id AND rk.user_id = ?) AS is_kicked
+       FROM rooms r WHERE r.room_id = ? AND LOWER(COALESCE(r.status, '')) NOT IN ('ended', 'deleted', 'closed') LIMIT 1`,
+    [userId, userId, userId, Number(roomId)]
+  );
+  const room = rows[0];
+  const host = !!room && Number(room.host_id) === userId;
+  return { allowed: !!room && Number(room.is_kicked) === 0 && (host || Number(room.is_member) > 0), host };
+}
+
+async function hasRoomAccess(socket: any, hostOnly = false): Promise<boolean> {
+  if (!socket._roomId || !socket.data.userId || Number(socket._userId) !== Number(socket.data.userId)) return false;
+  try {
+    const access = await getRoomAccess(String(socket._roomId), Number(socket.data.userId));
+    return access.allowed && (!hostOnly || access.host);
+  } catch (error) {
+    console.error("Socket room access check failed:", error);
+    return false;
+  }
+}
+
 io.on("connection", (socket) => {
   console.log(`New connection: ${socket.id}`);
 
   // --- General Chat Events ---
-  socket.on("join_chat", (room) => {
-    socket.join(room);
-  });
+  // Chat messages are handled by the authenticated PHP endpoints/Pusher.
+  // Do not let clients join arbitrary Socket.IO rooms or spoof chat identities.
+  socket.on("join_chat", () => {});
   
   socket.on("leave_chat", (room) => {
     socket.leave(room);
   });
   
-  socket.on("send_message", (data) => {
-    const room = String(data?.room ?? (socket as any)._roomId ?? "");
-    if (!room) return;
-    socket.to(room).emit("new_message", {
-      ...data,
-      isSelf: false,
-      senderId: (socket as any)._userId ?? data?.senderId,
-      fromSocketId: socket.id
-    });
-  });
+  socket.on("send_message", () => {});
 
   // --- Lobby & Invite Events ---
-  socket.on('register-user', (userId) => {
-      const id = Number(userId);
-      if (!id) return;
+  socket.on('register-user', () => {
+      const id = Number(socket.data.userId);
       socket.join(`user_channel_${id}`); 
       console.log(`User ${id} is online and ready for invites.`);
   });
 
-  socket.on('send-lobby-invite', (data) => {
-      const targetUserId = Number(data.targetUserId);
-      console.log(`Invite sent to User ${targetUserId} for Room ${data.roomId || data.room_id}`);
-      if (!targetUserId) return;
-      socket.to(`user_channel_${targetUserId}`).emit('receive-invite', {
-          hostName: data.hostName || data.sender_name,
-          hostId: data.hostId || data.sender_id || null,
-          sender_name: data.hostName || data.sender_name,
-          sender_id: data.hostId || data.sender_id || null,
-          roomId: data.roomId || data.room_id,
-          room_id: data.roomId || data.room_id,
-          message: data.message || 'invited you to a watch party.'
-      });
+  socket.on('send-lobby-invite', async (data) => {
+      const targetUserId = Number(data?.targetUserId);
+      const roomId = String(data?.roomId || data?.room_id || '');
+      const senderId = Number(socket.data.userId);
+      if (!Number.isSafeInteger(targetUserId) || targetUserId <= 0 || targetUserId === senderId || !/^\d+$/.test(roomId)) return;
+      try {
+          const access = await getRoomAccess(roomId, senderId);
+          if (!access.allowed) return;
+          const [friends] = await dbPool.execute<any[]>(
+              `SELECT 1 FROM user_friends WHERE status = 'accepted' AND
+               ((user_id_1 = ? AND user_id_2 = ?) OR (user_id_1 = ? AND user_id_2 = ?)) LIMIT 1`,
+              [senderId, targetUserId, targetUserId, senderId]
+          );
+          if (!friends.length) return;
+          const [users] = await dbPool.execute<any[]>("SELECT user_name FROM users WHERE user_id = ? LIMIT 1", [senderId]);
+          const hostName = String(users[0]?.user_name || 'Someone');
+          socket.to(`user_channel_${targetUserId}`).emit('receive-invite', {
+              hostName, hostId: senderId, sender_name: hostName, sender_id: senderId,
+              roomId, room_id: roomId, message: 'invited you to a watch party.'
+          });
+      } catch (error) {
+          console.error('Could not validate lobby invite:', error);
+      }
   });
 
   // --- Watch Party Room & WebRTC Signaling Events ---
   socket.on('join-room', async (roomId, userId, userName) => {
       const room = String(roomId ?? '');
-      if (!room) return;
+      const authenticatedUserId = Number(socket.data.userId);
+      if (!/^\d+$/.test(room) || Number(userId) !== authenticatedUserId) return;
+
+      let access: { allowed: boolean; host: boolean };
+      let actualName = 'User';
+      try {
+          access = await getRoomAccess(room, authenticatedUserId);
+          if (!access.allowed) return;
+          const [users] = await dbPool.execute<any[]>("SELECT user_name FROM users WHERE user_id = ? LIMIT 1", [authenticatedUserId]);
+          actualName = String(users[0]?.user_name || 'User');
+      } catch (error) {
+          console.error('Could not validate room join:', error);
+          return;
+      }
 
       const payload = {
           socketId: socket.id,
           peerId: socket.id,
-          userId,
-          userName: userName || 'Guest'
+          userId: authenticatedUserId,
+          userName: actualName
       };
 
       const existing: Array<{ socketId: string; userId: unknown; userName: string }> = [];
@@ -86,18 +172,18 @@ io.on("connection", (socket) => {
       await socket.join(room);
       (socket as any)._roomId = room;
       (socket as any)._peerId = payload.peerId;
-      (socket as any)._userId = userId;
+      (socket as any)._userId = authenticatedUserId;
       (socket as any)._userName = payload.userName;
-      console.log(`User ${userId} (${socket.id}) joined room ${room}`);
+      console.log(`User ${authenticatedUserId} (${socket.id}) joined room ${room}`);
 
       socket.emit('existing-users', existing);
       socket.to(room).emit('user-connected', payload);
   });
 
   // --- Playback / movie sync, host controls and moderation ---
-  socket.on('movie-changed', (data) => {
+  socket.on('movie-changed', async (data) => {
       const roomId = (socket as any)._roomId;
-      if (!roomId) return;
+      if (!roomId || !(await hasRoomAccess(socket, true))) return;
       socket.to(roomId).emit('movie-changed', {
           ...(data || {}),
           fromSocketId: socket.id,
@@ -105,9 +191,9 @@ io.on("connection", (socket) => {
       });
   });
 
-  socket.on('playback-sync', (data) => {
+  socket.on('playback-sync', async (data) => {
       const roomId = (socket as any)._roomId;
-      if (!roomId) return;
+      if (!roomId || !(await hasRoomAccess(socket))) return;
       socket.to(roomId).emit('playback-sync', {
           ...(data || {}),
           fromSocketId: socket.id,
@@ -115,9 +201,9 @@ io.on("connection", (socket) => {
       });
   });
 
-  socket.on('room-ended', (data) => {
+  socket.on('room-ended', async (data) => {
       const roomId = (socket as any)._roomId;
-      if (!roomId) return;
+      if (!roomId || !(await hasRoomAccess(socket, true))) return;
       socket.to(roomId).emit('room-ended', {
           ...(data || {}),
           fromSocketId: socket.id,
@@ -127,9 +213,9 @@ io.on("connection", (socket) => {
       });
   });
 
-  socket.on('force-leave', (data) => {
+  socket.on('force-leave', async (data) => {
       const roomId = (socket as any)._roomId;
-      if (!roomId) return;
+      if (!roomId || !(await hasRoomAccess(socket, true))) return;
       socket.to(roomId).emit('force-leave', {
           ...(data || {}),
           fromSocketId: socket.id,
@@ -137,9 +223,9 @@ io.on("connection", (socket) => {
       });
   });
 
-  socket.on('force-mute', (data) => {
+  socket.on('force-mute', async (data) => {
       const roomId = (socket as any)._roomId;
-      if (!roomId) return;
+      if (!roomId || !(await hasRoomAccess(socket, true))) return;
       socket.to(roomId).emit('force-mute', {
           ...(data || {}),
           fromSocketId: socket.id,
@@ -147,9 +233,9 @@ io.on("connection", (socket) => {
       });
   });
 
-  socket.on('force-video', (data) => {
+  socket.on('force-video', async (data) => {
       const roomId = (socket as any)._roomId;
-      if (!roomId) return;
+      if (!roomId || !(await hasRoomAccess(socket, true))) return;
       socket.to(roomId).emit('force-video', {
           ...(data || {}),
           fromSocketId: socket.id,
@@ -157,9 +243,9 @@ io.on("connection", (socket) => {
       });
   });
 
-  socket.on('force-chat-ban', (data) => {
+  socket.on('force-chat-ban', async (data) => {
       const roomId = (socket as any)._roomId;
-      if (!roomId) return;
+      if (!roomId || !(await hasRoomAccess(socket, true))) return;
       socket.to(roomId).emit('force-chat-ban', {
           ...(data || {}),
           fromSocketId: socket.id,
@@ -167,50 +253,65 @@ io.on("connection", (socket) => {
       });
   });
 
-  socket.on('offer', (data) => {
+  socket.on('offer', async (data) => {
+      if (!(await hasRoomAccess(socket))) return;
       if (!data?.targetSocketId) return;
+      const target = io.sockets.sockets.get(String(data.targetSocketId)) as any;
+      const roomId = String((socket as any)._roomId);
+      if (!target || target._roomId !== roomId || !target.rooms.has(roomId)) return;
       io.to(data.targetSocketId).emit('offer', {
           ...data,
-          fromSocketId: data.fromSocketId || socket.id
+          fromSocketId: socket.id,
+          userId: socket.data.userId
       });
   });
 
-  socket.on('answer', (data) => {
+  socket.on('answer', async (data) => {
+      if (!(await hasRoomAccess(socket))) return;
       if (!data?.targetSocketId) return;
+      const target = io.sockets.sockets.get(String(data.targetSocketId)) as any;
+      const roomId = String((socket as any)._roomId);
+      if (!target || target._roomId !== roomId || !target.rooms.has(roomId)) return;
       io.to(data.targetSocketId).emit('answer', {
           ...data,
-          fromSocketId: data.fromSocketId || socket.id
+          fromSocketId: socket.id,
+          userId: socket.data.userId
       });
   });
 
-  socket.on('ice-candidate', (data) => {
+  socket.on('ice-candidate', async (data) => {
+      if (!(await hasRoomAccess(socket))) return;
       if (!data?.targetSocketId) return;
+      const target = io.sockets.sockets.get(String(data.targetSocketId)) as any;
+      const roomId = String((socket as any)._roomId);
+      if (!target || target._roomId !== roomId || !target.rooms.has(roomId)) return;
       io.to(data.targetSocketId).emit('ice-candidate', {
           ...data,
-          fromSocketId: data.fromSocketId || socket.id
+          fromSocketId: socket.id,
+          userId: socket.data.userId
       });
   });
 
-  socket.on('toggle-mic', (isMuted) => {
+  socket.on('toggle-mic', async (isMuted) => {
       const roomId = (socket as any)._roomId;
       const userId = (socket as any)._userId;
-      if (roomId) {
+      if (roomId && await hasRoomAccess(socket)) {
           socket.to(roomId).emit('peer-mic-changed', { userId, socketId: socket.id, isMuted });
       }
   });
 
-  socket.on('toggle-video', (isVideoOn) => {
+  socket.on('toggle-video', async (isVideoOn) => {
       const on = (isVideoOn && typeof isVideoOn === 'object') ? !!(isVideoOn as any).isVideoOn : !!isVideoOn;
       const roomId = (socket as any)._roomId;
       const userId = (socket as any)._userId;
-      if (roomId) {
+      if (roomId && await hasRoomAccess(socket)) {
           socket.to(roomId).emit('peer-video-changed', { userId, socketId: socket.id, isVideoOn: on });
       }
   });
 
-  socket.on('peer-leave', (data) => {
+  socket.on('peer-leave', async (data) => {
       const roomId = (socket as any)._roomId;
-      if (!roomId) return;
+      if (!roomId || !(await hasRoomAccess(socket))) return;
       socket.to(roomId).emit('peer-leave', {
           ...(data || {}),
           userId: (data && (data as any).userId) || (socket as any)._userId,
@@ -221,9 +322,9 @@ io.on("connection", (socket) => {
       });
   });
 
-  socket.on('peer-speaking', (data) => {
+  socket.on('peer-speaking', async (data) => {
       const roomId = (socket as any)._roomId;
-      if (!roomId) return;
+      if (!roomId || !(await hasRoomAccess(socket))) return;
       socket.to(roomId).emit('peer-speaking', {
           userId: (socket as any)._userId,
           socketId: socket.id,

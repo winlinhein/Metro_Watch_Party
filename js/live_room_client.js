@@ -510,10 +510,11 @@ function createNexusLiveRoom(options) {
         if (!self.pusherClient) {
             self.pusherClient = new Pusher(window.PUSHER_KEY || '30110959c92045514bbb', {
                 cluster: window.PUSHER_CLUSTER || 'ap1',
-                encrypted: true
+                encrypted: true,
+                channelAuthorization: { endpoint: '../user_backend/pusher_auth.php', transport: 'ajax' }
             });
         }
-        const channelName = 'watch-party-' + self.roomId;
+        const channelName = 'private-watch-party-' + self.roomId;
         roomChannel = self.pusherClient.subscribe(channelName);
         ['peer-join', 'peer-leave', 'offer', 'answer', 'ice-candidate', 'room-ended', 'force-leave'].forEach((event) => {
             roomChannel.bind(event, (data) => onRoomEvent(event, data));
@@ -533,6 +534,7 @@ function createNexusLiveRoom(options) {
             reconnectionDelay: 1000,
             reconnectionDelayMax: 5000
         };
+        socketOpts.auth = { token: window.NEXUS_SOCKET_TOKEN || '' };
         socket = url ? io(url, socketOpts) : io(socketOpts);
         // Runs on the first connect and on every reconnect, so the room is
         // re-joined automatically after a dropped connection.
@@ -694,7 +696,7 @@ function createNexusLiveRoom(options) {
                 localStream = null;
             }
             if (roomChannel && self.pusherClient) {
-                try { self.pusherClient.unsubscribe('watch-party-' + self.roomId); } catch (e) {}
+                try { self.pusherClient.unsubscribe('private-watch-party-' + self.roomId); } catch (e) {}
                 roomChannel = null;
             }
             if (socket) {

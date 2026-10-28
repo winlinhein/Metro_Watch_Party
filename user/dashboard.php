@@ -72,7 +72,9 @@ session_write_close();
     <?php
     require_once __DIR__ . '/../pusher_helper.php';
     require_once __DIR__ . '/../stripe_helper.php';
+    require_once __DIR__ . '/../socket_auth_helper.php';
     ?>
+    window.NEXUS_SOCKET_TOKEN = <?php echo json_encode(nexusCreateSocketToken(!empty($userId) && $userRole !== 'guest' ? (int)$userId : null)); ?>;
     window.PUSHER_KEY = <?php echo json_encode(PUSHER_KEY); ?>;
     window.PUSHER_CLUSTER = <?php echo json_encode(PUSHER_CLUSTER); ?>;
     window.STRIPE_PUBLISHABLE_KEY = <?php echo json_encode(STRIPE_PUBLISHABLE_KEY); ?>;

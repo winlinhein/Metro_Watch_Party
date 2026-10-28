@@ -49,6 +49,7 @@ $payload['roomId'] = $roomId;
 
 $hostOnly = [
     'room-ended' => true,
+    'movie-changed' => true,
     'force-leave' => true,
     'force-mute' => true,
     'force-video' => true,
@@ -98,7 +99,7 @@ try {
     }
 
     require_once __DIR__ . '/../pusher_helper.php';
-    triggerPusherEvent("watch-party-{$roomId}", $event, $payload, true);
+    triggerPusherEvent("private-watch-party-{$roomId}", $event, $payload, true);
     echo json_encode(['success' => true]);
 } catch (Throwable $e) {
     http_response_code(500);

@@ -37,7 +37,7 @@ if ($roomCode) {
 
     require_once __DIR__ . '/../pusher_helper.php';
     require_once __DIR__ . '/../admin_rooms_helper.php';
-    $channel = 'watch-party-' . $room['room_id'];
+    $channel = 'private-watch-party-' . $room['room_id'];
 
     $park = isset($_REQUEST['park']) && $_REQUEST['park'] !== '' && $_REQUEST['park'] !== '0';
     $unload = isset($_REQUEST['unload']) && $_REQUEST['unload'] !== '' && $_REQUEST['unload'] !== '0';

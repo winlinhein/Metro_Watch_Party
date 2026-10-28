@@ -42,27 +42,30 @@ function nexusFinishPayment(
     ?array $pack,
     ?array $plan,
     bool $notify,
-    string $message
+    string $message,
+    ?array $recordedTxn = null
 ): array {
     $packageId = $pack ? (int)$pack['id'] : 0;
     $planId = $plan ? (int)$plan['plan_id'] : 0;
     $fallback = $type === 'points'
         ? (float)($pack['price'] ?? 0)
         : (float)($plan['price'] ?? 0);
-    $txn = [];
-    try {
-        $txn = nexusRecordPaymentTransaction(
-            $conn,
-            $session,
-            $userId,
-            $type,
-            $status,
-            $planId > 0 ? $planId : null,
-            $packageId > 0 ? $packageId : null,
-            $fallback
-        ) ?: [];
-    } catch (Throwable $e) {
-        $txn = [];
+    $txn = $recordedTxn ?? [];
+    if ($recordedTxn === null) {
+        try {
+            $txn = nexusRecordPaymentTransaction(
+                $conn,
+                $session,
+                $userId,
+                $type,
+                $status,
+                $planId > 0 ? $planId : null,
+                $packageId > 0 ? $packageId : null,
+                $fallback
+            ) ?: [];
+        } catch (Throwable $e) {
+            $txn = [];
+        }
     }
 
     $txn['plan'] = nexusPaymentPlanLabel($type, $pack, $plan);
@@ -97,6 +100,11 @@ try {
     $type = $type === 'points' ? 'points' : 'premium';
     $paid = (($session['payment_status'] ?? '') === 'paid');
     $plan = $type === 'premium' ? nexusPremiumPlan($conn) : null;
+    if ($type === 'premium' && !$plan) {
+        http_response_code(503);
+        echo json_encode(['success' => false, 'message' => 'Premium plan is unavailable. Please contact support.']);
+        exit();
+    }
     $pack = null;
     if ($type === 'points') {
         $packageId = (int)($session['metadata']['package_id'] ?? $session['metadata']['pack'] ?? 0);
@@ -132,8 +140,16 @@ try {
             exit();
         }
 
+        $conn->beginTransaction();
+        $userLock = $conn->prepare('SELECT user_id FROM users WHERE user_id = ? FOR UPDATE');
+        $userLock->execute([$userId]);
+        if (!$userLock->fetchColumn()) {
+            throw new RuntimeException('Payment account no longer exists.');
+        }
         $gwTxn = (string)($session['payment_intent'] ?? $session['id'] ?? '');
-        if ($gwTxn !== '' && nexusPaymentAlreadyRecorded($conn, $gwTxn)) {
+        $existingTxn = nexusFindPaymentTransaction($conn, $gwTxn, true);
+        if ($existingTxn && in_array(strtolower((string)$existingTxn['status']), ['success', 'paid'], true)) {
+            $conn->rollBack();
             echo json_encode([
                 'success' => true,
                 'type' => 'points',
@@ -143,14 +159,25 @@ try {
             ]);
             exit();
         }
-
-        $conn->beginTransaction();
         $stmt = $conn->prepare("UPDATE users SET points = points + ? WHERE user_id = ?");
         $stmt->execute([$points, $userId]);
+        $recordedTxn = nexusRecordPaymentTransaction(
+            $conn,
+            $session,
+            $userId,
+            'points',
+            'success',
+            null,
+            (int)($pack['id'] ?? 0) > 0 ? (int)$pack['id'] : null,
+            (float)($pack['price'] ?? 0)
+        );
+        if (!$recordedTxn) {
+            throw new RuntimeException('Could not record the completed payment.');
+        }
         $conn->commit();
 
         $message = 'Your purchase of ' . number_format($points) . ' points was successful.';
-        nexusFinishPayment($conn, $session, $userId, 'points', 'success', $pack, null, true, $message);
+        nexusFinishPayment($conn, $session, $userId, 'points', 'success', $pack, null, true, $message, $recordedTxn);
 
         echo json_encode([
             'success' => true,
@@ -162,28 +189,53 @@ try {
         exit();
     }
 
-    $stmt = $conn->prepare("SELECT is_premium FROM users WHERE user_id = ?");
-    $stmt->execute([$userId]);
-    $alreadyPremium = (bool)$stmt->fetchColumn();
+    $conn->beginTransaction();
+    $userLock = $conn->prepare('SELECT is_premium FROM users WHERE user_id = ? FOR UPDATE');
+    $userLock->execute([$userId]);
+    $premiumRow = $userLock->fetch(PDO::FETCH_ASSOC);
+    if (!$premiumRow) {
+        throw new RuntimeException('Payment account no longer exists.');
+    }
+    $gwTxn = (string)($session['payment_intent'] ?? $session['id'] ?? '');
+    $existingTxn = nexusFindPaymentTransaction($conn, $gwTxn, true);
+    if ($existingTxn && in_array(strtolower((string)$existingTxn['status']), ['success', 'paid'], true)) {
+        $conn->rollBack();
+        echo json_encode(['success' => true, 'type' => 'premium', 'message' => 'Premium payment was already processed.']);
+        exit();
+    }
 
+    $alreadyPremium = (bool)$premiumRow['is_premium'];
     if (!$alreadyPremium) {
-        $conn->beginTransaction();
         $stmt = $conn->prepare("UPDATE users SET is_premium = 1, premium_expires_at = DATE_ADD(NOW(), INTERVAL :days DAY) WHERE user_id = :user_id");
         $stmt->execute(['days' => $plan['duration_days'], 'user_id' => $userId]);
         $stmt = $conn->prepare("UPDATE users SET stripe_customer_id = :customer_id, stripe_subscription_id = :sub_id WHERE user_id = :user_id");
         $stmt->execute([
-            'customer_id' => $session['customer'],
+            'customer_id' => $session['customer'] ?? null,
             'sub_id'      => $session['subscription'] ?? null,
             'user_id'     => $userId,
         ]);
-        $conn->commit();
     }
 
+    $recordedTxn = nexusRecordPaymentTransaction(
+        $conn,
+        $session,
+        $userId,
+        'premium',
+        'success',
+        (int)($plan['plan_id'] ?? 0) > 0 ? (int)$plan['plan_id'] : null,
+        null,
+        (float)($plan['price'] ?? 0)
+    );
+    if (!$recordedTxn) {
+        throw new RuntimeException('Could not record the completed payment.');
+    }
+    $conn->commit();
+
     $message = 'Premium activated. Enjoy larger rooms and an unlimited watchlist.';
-    nexusFinishPayment($conn, $session, $userId, 'premium', 'success', null, $plan, !$alreadyPremium, $message);
+    nexusFinishPayment($conn, $session, $userId, 'premium', 'success', null, $plan, !$alreadyPremium, $message, $recordedTxn);
 
     echo json_encode(['success' => true, 'type' => 'premium', 'message' => $message]);
-} catch (Exception $e) {
+} catch (Throwable $e) {
     if ($conn->inTransaction()) {
         $conn->rollBack();
     }

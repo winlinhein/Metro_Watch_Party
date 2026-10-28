@@ -178,7 +178,7 @@ try {
     if (!$heartbeat || !$alreadyThere) {
         try {
             require_once __DIR__ . '/../pusher_helper.php';
-            triggerPusherEvent("watch-party-{$roomId}", 'peer-join', $payload);
+            triggerPusherEvent("private-watch-party-{$roomId}", 'peer-join', $payload);
             broadcastAdminRoomsChanged('join', [
                 'room_id' => $roomId,
                 'user_id' => $userId,

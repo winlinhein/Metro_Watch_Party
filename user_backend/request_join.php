@@ -170,8 +170,8 @@ try {
     ], $media);
 
     triggerPusherEvent("user-{$hostId}", 'friend_event', $payload);
-    triggerPusherEvent("watch-party-{$roomId}", 'join-request', $payload);
-    triggerPusherEvent("watch-party-{$roomId}", 'new_message', $payload);
+    triggerPusherEvent("private-watch-party-{$roomId}", 'join-request', $payload);
+    triggerPusherEvent("private-watch-party-{$roomId}", 'new_message', $payload);
 
     ob_end_clean();
     echo json_encode(['success' => true, 'request_id' => $requestId, 'status' => 'pending']);

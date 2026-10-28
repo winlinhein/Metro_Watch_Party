@@ -24,9 +24,8 @@ nexusPrepareKeptRecords($conn);
 
 function txnAmountToDollars(float $amount): float
 {
-    if ($amount >= 50 && abs($amount - round($amount)) < 0.001) {
-        return $amount / 100;
-    }
+    // Keep transaction rows consistent with payment_transactions.amount,
+    // which is stored in currency units rather than Stripe cents.
     return $amount;
 }
 

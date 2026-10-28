@@ -118,7 +118,7 @@ try {
         'room_id' => $roomId,
         'type' => 'join_request',
     ];
-    triggerPusherEvent("watch-party-{$roomId}", 'join-request-resolved', $resolved);
+    triggerPusherEvent("private-watch-party-{$roomId}", 'join-request-resolved', $resolved);
 
     echo json_encode([
         'success' => true,

@@ -41,17 +41,26 @@ try {
                     $bootMovie['stream_url'] = $bootMovie['actual_video_url'] ?: $bootMovie['video_url'];
                 }
             }
-            $peerStmt = $conn->prepare("
-                SELECT rp.user_id, COALESCE(u.user_name, 'User') AS user_name, rp.peer_id,
-                       rp.forced_muted, rp.forced_video_off, rp.chat_banned
-                FROM room_participants rp
-                LEFT JOIN users u ON u.user_id = rp.user_id
-                WHERE rp.room_id = :room_id
-                  AND rp.user_id <> :self_id
-                  AND rp.last_seen > DATE_SUB(NOW(), INTERVAL 45 SECOND)
-            ");
-            $peerStmt->execute(['room_id' => (int)$bootRoom['room_id'], 'self_id' => (int)$userId]);
-            $bootPeers = attachProfileMedia($conn, $peerStmt->fetchAll(PDO::FETCH_ASSOC) ?: []);
+            $canViewRoomRoster = (int)$bootRoom['host_id'] === (int)$userId;
+            if (!$canViewRoomRoster) {
+                $memberStmt = $conn->prepare("SELECT 1 FROM room_participants WHERE room_id = :room_id AND user_id = :user_id AND last_seen > DATE_SUB(NOW(), INTERVAL 90 SECOND) LIMIT 1");
+                $memberStmt->execute(['room_id' => (int)$bootRoom['room_id'], 'user_id' => (int)$userId]);
+                $canViewRoomRoster = (bool)$memberStmt->fetchColumn();
+            }
+            $bootPeers = [];
+            if ($canViewRoomRoster) {
+                $peerStmt = $conn->prepare("
+                    SELECT rp.user_id, COALESCE(u.user_name, 'User') AS user_name, rp.peer_id,
+                           rp.forced_muted, rp.forced_video_off, rp.chat_banned
+                    FROM room_participants rp
+                    LEFT JOIN users u ON u.user_id = rp.user_id
+                    WHERE rp.room_id = :room_id
+                      AND rp.user_id <> :self_id
+                      AND rp.last_seen > DATE_SUB(NOW(), INTERVAL 45 SECOND)
+                ");
+                $peerStmt->execute(['room_id' => (int)$bootRoom['room_id'], 'self_id' => (int)$userId]);
+                $bootPeers = attachProfileMedia($conn, $peerStmt->fetchAll(PDO::FETCH_ASSOC) ?: []);
+            }
             $roomBoot = [
                 'room' => [
                     'room_id' => (int)$bootRoom['room_id'],
@@ -95,6 +104,8 @@ session_write_close();
         window.USER_BORDER = <?php echo json_encode($userBorder); ?>;
         window.IS_PREMIUM = <?php echo $isPremium ? 'true' : 'false'; ?>;
         <?php require_once __DIR__ . '/../pusher_helper.php'; ?>
+        <?php require_once __DIR__ . '/../socket_auth_helper.php'; ?>
+        window.NEXUS_SOCKET_TOKEN = <?php echo json_encode(nexusCreateSocketToken((int)$userId)); ?>;
         window.PUSHER_KEY = <?php echo json_encode(PUSHER_KEY); ?>;
         window.PUSHER_CLUSTER = <?php echo json_encode(PUSHER_CLUSTER); ?>;
         window.NEXUS_SIGNALING_URL = window.NEXUS_SIGNALING_URL || (
@@ -678,7 +689,7 @@ session_write_close();
             <button @click="toggleVideo($event)" class="w-12 h-12 rounded-xl flex items-center justify-center transition-all duration-300 shadow-lg border" :class="!isVideoOn ? 'bg-red-500/10 border-red-500/20 text-red-500 hover:bg-red-500/20' : 'bg-white/10 border-white/10 text-white hover:bg-white/20'" :title="forcedVideoOff ? 'The host turned off your camera' : (isVideoOn ? 'Turn camera off' : 'Turn camera on')">
                 <span class="material-symbols-outlined" x-text="!isVideoOn ? 'videocam_off' : 'videocam'"></span>
             </button>
-            <button @click="showMovieModal = true" class="w-12 h-12 rounded-xl bg-indigo-500/10 border-indigo-500/20 text-indigo-400 hover:bg-indigo-500/20 flex items-center justify-center transition-all duration-300 shadow-lg border">
+            <button x-show="isHost" @click="showMovieModal = true" class="w-12 h-12 rounded-xl bg-indigo-500/10 border-indigo-500/20 text-indigo-400 hover:bg-indigo-500/20 flex items-center justify-center transition-all duration-300 shadow-lg border">
                 <span class="material-symbols-outlined">movie</span>
             </button>
             

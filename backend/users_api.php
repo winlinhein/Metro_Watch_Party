@@ -129,14 +129,18 @@ if ($method === 'POST') {
         try {
             require_once __DIR__ . '/../schema_upgrade_helper.php';
             ensureAppSchema($conn);
-            $stmt = $conn->prepare("UPDATE users SET status = 'banned' WHERE user_id = ?");
-            $stmt->execute([$userId]);
+            $banReason = trim((string)($input['reason'] ?? 'Violation of community guidelines'));
+            if ($banReason === '') {
+                $banReason = 'Violation of community guidelines';
+            }
+            $stmt = $conn->prepare("UPDATE users SET status = 'banned', ban_reason = ? WHERE user_id = ?");
+            $stmt->execute([$banReason, $userId]);
             require_once __DIR__ . '/../auth_flow_helper.php';
-            nexusDisconnectBannedUser($conn, (int)$userId, 'Your account has been banned.');
+            nexusDisconnectBannedUser($conn, (int)$userId, 'Your account has been banned. Reason: ' . $banReason);
 
             echo json_encode([
                 'success' => true,
-                'message' => "User ID {$userId} has been suspended.",
+                'message' => "User ID {$userId} has been banned.",
                 'user_id' => (int)$userId
             ]);
             exit();
