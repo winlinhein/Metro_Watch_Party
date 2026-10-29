@@ -5155,7 +5155,7 @@ function __legacyWatchPartyStub() {
                 || (location.port && location.port !== '3000'
                     ? `${location.protocol}//${location.hostname}:3000`
                     : undefined);
-            const socketOptions = { auth: { token: window.NEXUS_SOCKET_TOKEN || '' } };
+            const socketOptions = { transports: ['polling', 'websocket'], auth: { token: window.NEXUS_SOCKET_TOKEN || '' } };
             this.socket = signalingUrl ? io(signalingUrl, socketOptions) : io(socketOptions);
 
             this.socket.on('connect', () => {

@@ -527,7 +527,7 @@ function createNexusLiveRoom(options) {
         const socketOpts = {
             // Reconnection must stay on: room-ended / force-leave are delivered
             // over this socket, so a permanent drop silently strands the user.
-            transports: ['websocket', 'polling'],
+            transports: ['polling', 'websocket'],
             timeout: 8000,
             reconnection: true,
             reconnectionAttempts: Infinity,

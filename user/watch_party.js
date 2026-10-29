@@ -2544,8 +2544,8 @@ function watchParty() {
                     ? `${location.protocol}//${location.hostname}:3000`
                     : undefined);
             this.socket = signalingUrl
-                ? ioClient(signalingUrl, { transports: ['websocket', 'polling'], auth: { token: window.NEXUS_SOCKET_TOKEN || '' } })
-                : ioClient({ transports: ['websocket', 'polling'], auth: { token: window.NEXUS_SOCKET_TOKEN || '' } });
+                ? ioClient(signalingUrl, { transports: ['polling', 'websocket'], auth: { token: window.NEXUS_SOCKET_TOKEN || '' } })
+                : ioClient({ transports: ['polling', 'websocket'], auth: { token: window.NEXUS_SOCKET_TOKEN || '' } });
 
             this.socket.on('connect', () => {
                 console.log('Connected to signaling server with ID:', this.socket.id);
