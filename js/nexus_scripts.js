@@ -1548,11 +1548,11 @@ function userDashboard() {
 
         // Navigation Items
         navItems: [
-            { id: 'dashboard', label: 'Command Center', icon: 'dashboard', module: 'MODULE_1' },
-            { id: 'watchlist', label: 'Watchlist', icon: 'bookmark', module: 'MODULE_2' },
-            { id: 'movies', label: 'Movies', icon: 'movie', module: 'MODULE_3' },
-            { id: 'shop', label: 'Point Shop', icon: 'storefront', module: 'MODULE_4' },
-            { id: 'account', label: 'Account', icon: 'person', module: 'MODULE_5' }
+            { id: 'dashboard', label: 'Command Center', short: 'Home', icon: 'dashboard', module: 'MODULE_1' },
+            { id: 'watchlist', label: 'Watchlist', short: 'List', icon: 'bookmark', module: 'MODULE_2' },
+            { id: 'movies', label: 'Movies', short: 'Movies', icon: 'movie', module: 'MODULE_3' },
+            { id: 'shop', label: 'Point Shop', short: 'Shop', icon: 'storefront', module: 'MODULE_4' },
+            { id: 'account', label: 'Account', short: 'Account', icon: 'person', module: 'MODULE_5' }
         ],
 
         // Command Center Metrics

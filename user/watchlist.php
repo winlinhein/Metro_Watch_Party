@@ -76,7 +76,7 @@
             </div>
         </div>
 
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
+        <div class="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-8">
             <template x-for="(item, index) in pagedWatchlist" :key="item.id || index">
                 <div @click="openWatchlistMovie(item)"
                      class="nexus-card-enter relative group cursor-pointer perspective-container" 
@@ -91,7 +91,7 @@
                         <div class="absolute inset-0 bg-gradient-to-t from-[#050508] via-[#050508]/40 to-transparent opacity-80 group-hover:opacity-100 transition-opacity duration-500"></div>
                         
                         <!-- Floating Status Badge -->
-                        <div class="absolute top-5 right-5 px-3 py-1.5 bg-black/40 backdrop-blur-md rounded-full border border-white/10 flex items-center gap-2 transition-transform duration-500 group-hover:-translate-y-2 group-hover:border-white/20">
+                        <div class="absolute top-3 right-3 sm:top-5 sm:right-5 px-3 py-1.5 bg-black/40 backdrop-blur-md rounded-full border border-white/10 flex items-center gap-2 transition-transform duration-500 group-hover:-translate-y-2 group-hover:border-white/20">
                             <span class="w-1.5 h-1.5 rounded-full" :class="item.status === 'Next Up' ? 'bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.8)] animate-pulse' : 'bg-white/30'"></span>
                             <span class="text-[9px] font-bold text-white uppercase tracking-widest" x-text="item.status || 'Queued'"></span>
                         </div>
@@ -103,12 +103,12 @@
                         </div>
 
                         <!-- Content overlay -->
-                        <div class="absolute inset-x-0 bottom-0 p-6 transform translate-y-8 group-hover:translate-y-0 transition-all duration-500 ease-[cubic-bezier(0.34,1.56,0.64,1)]">
-                            <div class="flex items-center gap-2 mb-3">
+                        <div class="absolute inset-x-0 bottom-0 p-4 sm:p-6 transform translate-y-8 group-hover:translate-y-0 transition-all duration-500 ease-[cubic-bezier(0.34,1.56,0.64,1)]">
+                            <div class="flex items-center gap-2 mb-2 sm:mb-3">
                                 <span class="px-2 py-1 bg-white/10 backdrop-blur-md rounded-md text-[9px] text-white/90 font-mono font-bold border border-white/10" x-text="item.year"></span>
                                 <span class="px-2 py-1 bg-white/10 backdrop-blur-md rounded-md text-[9px] text-white/90 font-mono font-bold border border-white/10" x-text="item.genre"></span>
                             </div>
-                            <h3 class="text-2xl font-bold text-white mb-4 tracking-tight group-hover:text-red-400 transition-colors duration-300 drop-shadow-lg" x-text="item.title"></h3>
+                            <h3 class="text-base sm:text-2xl font-bold text-white mb-2 sm:mb-4 tracking-tight group-hover:text-red-400 transition-colors duration-300 drop-shadow-lg" x-text="item.title"></h3>
                             
                             <div class="flex gap-3 opacity-0 group-hover:opacity-100 transition-all duration-500 delay-150 transform translate-y-4 group-hover:translate-y-0">
                                 <button @click.stop="openWatchlistMovie(item)" 

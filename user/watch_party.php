@@ -82,7 +82,7 @@ session_write_close();
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content">
     <script>
         (function () {
             var allowed = { crimson: 1, arctic: 1, amethyst: 1, verdant: 1 };
@@ -567,18 +567,6 @@ session_write_close();
                 </div> <!-- End Left Overlay -->
             </div> <!-- End Overlays Container -->
 
-            <!-- Chat Toggle Button (Visible when chat is closed) -->
-            <button @click="showChat = true" 
-                    class="absolute right-0 top-1/2 -translate-y-1/2 bg-black/40 hover:bg-black/60 text-white rounded-l-xl p-2 z-30 transition-all shadow-lg backdrop-blur-md border border-r-0 border-white/10 pointer-events-auto"
-                    x-show="!showChat"
-                    x-transition:enter="transition ease-out duration-300"
-                    x-transition:enter-start="opacity-0 translate-x-4"
-                    x-transition:enter-end="opacity-100 translate-x-0">
-                <span class="material-symbols-outlined">chevron_left</span>
-                <span x-show="isHost && currentJoinRequest"
-                      class="absolute top-1 left-1 w-2 h-2 rounded-full bg-indigo-400 shadow-[0_0_8px_#818cf8] animate-pulse"></span>
-            </button>
-
             <!-- Right: Chat & Activities -->
             <div class="wp-chat absolute right-0 top-0 bottom-0 w-full sm:w-[340px] shrink-0 border-l border-white/10 bg-[#030305]/40 backdrop-blur-md flex flex-col z-20 gs-chat shadow-2xl pointer-events-auto"
                  x-show="showChat"
@@ -697,6 +685,14 @@ session_write_close();
             
             <button type="button" @click="leaveRoom()" class="h-12 px-4 sm:px-6 rounded-xl bg-red-600 hover:bg-red-500 text-white text-xs font-black uppercase tracking-widest shadow-[0_0_24px_rgba(239,68,68,0.35)] hover:shadow-[0_0_32px_rgba(239,68,68,0.5)] hover:scale-105 active:scale-95 transition-all duration-300">
                 Leave
+            </button>
+
+            <button type="button" @click="showChat = !showChat"
+                    class="wp-chat-toggle absolute right-2 top-1/2 -translate-y-1/2 w-12 h-12 rounded-xl bg-white/10 hover:bg-white/20 border border-white/10 text-white items-center justify-center transition-colors"
+                    :title="showChat ? 'Close chat' : 'Open chat'">
+                <span class="material-symbols-outlined" x-text="showChat ? 'close' : 'chat'">chat</span>
+                <span x-show="isHost && currentJoinRequest"
+                      class="absolute top-1 left-1 w-2 h-2 rounded-full bg-indigo-400 shadow-[0_0_8px_#818cf8] animate-pulse"></span>
             </button>
         </div>
     </div>

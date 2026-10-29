@@ -328,3 +328,142 @@ table {
         min-height: 2.75rem;
     }
 }
+
+/* ------------------------------------------------------------------
+   Room refinements for phones and tablets
+   ------------------------------------------------------------------ */
+
+/* Mobile browser chrome (URL bar) must not cover the control bar */
+@supports (height: 100dvh) {
+    body.h-screen.w-screen {
+        height: 100dvh !important;
+    }
+}
+
+/* Keep the room clear of notches and home indicators */
+.wp-rail {
+    padding-left: max(0.6rem, env(safe-area-inset-left));
+    padding-right: max(0.6rem, env(safe-area-inset-right));
+}
+.wp-controls {
+    padding-bottom: max(0px, env(safe-area-inset-bottom));
+}
+
+@media (max-width: 1023px) {
+    /* Chat opens as an overlay drawer; narrower so the movie stays visible */
+    .wp-chat {
+        width: min(100%, 24rem) !important;
+        box-shadow: -24px 0 48px rgba(0, 0, 0, 0.45);
+    }
+
+    /* Toasts stack bottom-left so they never cover the floating chat button */
+    #nexus-toast-container {
+        left: max(1rem, env(safe-area-inset-left));
+        right: auto;
+        bottom: max(5.5rem, calc(env(safe-area-inset-bottom) + 5rem));
+        max-width: min(380px, calc(100vw - 2rem));
+    }
+
+    /* Members return as a collapsible horizontal stage strip over the player */
+    .wp-members {
+        display: flex !important;
+        left: 0.5rem !important;
+        top: 0.5rem !important;
+        bottom: auto !important;
+        width: auto !important;
+        max-width: calc(100% - 1rem);
+    }
+    .wp-members > div:first-child {
+        align-self: flex-start;
+    }
+    .wp-members > div:nth-child(2) {
+        flex-direction: row !important;
+        overflow-x: auto;
+        overflow-y: hidden;
+        max-width: 100%;
+        padding: 0 0.25rem 0.35rem 0;
+        -webkit-overflow-scrolling: touch;
+    }
+    .wp-members > div:nth-child(2) > div {
+        width: 8.75rem;
+    }
+}
+
+/* Landscape phones: compress the chrome so the movie owns the screen */
+@media (max-width: 1023px) and (max-height: 480px) {
+    .wp-rail {
+        height: 2.75rem !important;
+        min-height: 2.75rem;
+        padding-top: 0.25rem;
+        padding-bottom: 0.25rem;
+    }
+    .wp-rail .w-12 {
+        width: 2.25rem !important;
+        height: 2.25rem !important;
+    }
+    .wp-rail .w-8 {
+        display: none;
+    }
+    .wp-header {
+        height: 3.25rem !important;
+    }
+    .wp-header h1 {
+        font-size: 0.9rem !important;
+    }
+    .wp-controls {
+        height: 3.75rem !important;
+    }
+    .wp-controls .w-12 {
+        width: 2.75rem !important;
+        height: 2.75rem !important;
+    }
+    .wp-members > div:nth-child(2) > div {
+        width: 6.5rem;
+    }
+}
+
+/* ------------------------------------------------------------------
+   Dashboard bottom tab bar (phones and tablets)
+   ------------------------------------------------------------------ */
+.nexus-bottom-nav {
+    display: none;
+}
+
+/* Room chat toggle only exists in the touch control bar */
+.wp-chat-toggle {
+    display: none;
+}
+
+@media (max-width: 1023px) {
+    .nexus-bottom-nav {
+        display: flex;
+        padding-bottom: env(safe-area-inset-bottom);
+    }
+    .header-menu-btn {
+        display: none !important;
+    }
+
+    /* Keep the host FAB and support chatbot above the tab bar */
+    .fixed.bottom-4.right-4,
+    .fixed.bottom-8.right-8 {
+        bottom: 4.75rem !important;
+        right: 1rem !important;
+    }
+    .fixed.bottom-\[5\.5rem\].right-4,
+    .fixed.bottom-\[7\.5rem\].right-8 {
+        bottom: 9.25rem !important;
+        right: 1rem !important;
+    }
+
+    .wp-chat-toggle {
+        display: flex;
+    }
+}
+
+@media (max-width: 639px) {
+    .wp-chat-toggle {
+        width: 2.75rem !important;
+        height: 2.75rem !important;
+        right: 0.5rem !important;
+    }
+}

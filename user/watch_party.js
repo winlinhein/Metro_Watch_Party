@@ -94,8 +94,8 @@ function watchParty() {
         hoveredMovieId: null,
         allMovies: [],
         // --- 1. UI State ---
-        showChat: typeof window === 'undefined' || window.innerWidth >= 768,
-        showParticipants: true,
+        showChat: typeof window === 'undefined' || window.innerWidth >= 1024,
+        showParticipants: typeof window === 'undefined' || window.innerWidth >= 1024,
         showControls: false,
         useTouchPad: false,
         controlsTimeout: null,
@@ -189,6 +189,12 @@ function watchParty() {
         async init() {
             this.useTouchPad = window.matchMedia('(pointer: coarse)').matches || window.innerWidth < 1024;
             if (this.useTouchPad) this.showControls = true;
+            document.addEventListener('fullscreenchange', () => {
+                if (!document.fullscreenElement && this.isFullscreen) {
+                    this.isFullscreen = false;
+                    if (screen.orientation && screen.orientation.unlock) screen.orientation.unlock();
+                }
+            });
             document.addEventListener('click', () => {
                 this.resumeAudioContext();
                 document.querySelectorAll('video').forEach((el) => {
@@ -2692,7 +2698,12 @@ function watchParty() {
             if (!document.fullscreenElement) { //[cite: 6]
                 contentArea.requestFullscreen().catch(err => console.log(err)); //[cite: 6]
                 this.isFullscreen = true; //[cite: 6]
+                // Phones/tablets: fullscreen should mean landscape viewing
+                if (window.matchMedia('(pointer: coarse)').matches && screen.orientation && screen.orientation.lock) {
+                    screen.orientation.lock('landscape').catch(() => {});
+                }
             } else {
+                if (screen.orientation && screen.orientation.unlock) screen.orientation.unlock();
                 document.exitFullscreen(); //[cite: 6]
                 this.isFullscreen = false; //[cite: 6]
             }

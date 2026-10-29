@@ -953,7 +953,7 @@ session_write_close();
                 
                 <div class="h-8 w-[1px] bg-white/10 hidden md:block"></div>
 
-                <a href="/index.php" data-barba-prevent class="hidden md:flex items-center gap-3 group">
+                <a href="/index.php" data-barba-prevent class="flex items-center gap-3 group">
                     <span class="text-xl font-bold tracking-tighter uppercase group-hover:text-red-400 transition-colors">NEXUS</span>
                 </a>
             </div>
@@ -1334,6 +1334,23 @@ session_write_close();
         <?php endif; ?>
         </div>
     </main>
+
+    <!-- Mobile / tablet bottom tab bar -->
+    <nav class="nexus-bottom-nav fixed left-0 right-0 bottom-0 z-[85] items-stretch border-t border-white/10 bg-[#050508]/95 backdrop-blur-xl" aria-label="Dashboard sections">
+        <template x-for="item in navItems" :key="'bottom-' + item.id">
+            <button type="button" @click="switchTab(item.id)"
+                    class="flex-1 flex flex-col items-center justify-center gap-0.5 py-2 min-h-[3.5rem] cursor-pointer transition-colors"
+                    :class="currentTab === item.id ? 'text-red-400 bg-red-500/10' : 'text-white/50'">
+                <span class="material-symbols-outlined text-[22px]" x-text="item.icon"></span>
+                <span class="text-[9px] font-bold uppercase tracking-wider" x-text="item.short || item.label"></span>
+            </button>
+        </template>
+        <button type="button" @click="window.handleLogout()"
+                class="flex-1 flex flex-col items-center justify-center gap-0.5 py-2 min-h-[3.5rem] cursor-pointer text-white/50 transition-colors">
+            <span class="material-symbols-outlined text-[22px]">logout</span>
+            <span class="text-[9px] font-bold uppercase tracking-wider">Logout</span>
+        </button>
+    </nav>
 
     <?php include __DIR__ . '/../frontend/components/host_party_fab.php'; ?>
 
