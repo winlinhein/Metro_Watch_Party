@@ -12,22 +12,22 @@
      >
     <div class="max-w-[1400px] mx-auto space-y-8">
         
-        <div class="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-10">
+        <div class="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-6 sm:mb-10">
             <div>
-                <h2 class="text-4xl font-bold tracking-tight text-white flex items-center gap-4 mb-2">
-                    <div class="w-12 h-12 bg-gradient-to-tr from-red-500 to-rose-600 rounded-xl flex items-center justify-center shadow-[0_0_30px_rgba(239,68,68,0.3)]">
-                        <span class="material-symbols-outlined text-[28px] text-white">bookmark</span>
+                <h2 class="text-2xl sm:text-3xl lg:text-4xl font-bold tracking-tight text-white flex items-center gap-3 sm:gap-4 mb-2">
+                    <div class="w-9 h-9 sm:w-12 sm:h-12 bg-gradient-to-tr from-red-500 to-rose-600 rounded-xl flex items-center justify-center shadow-[0_0_30px_rgba(239,68,68,0.3)] shrink-0">
+                        <span class="material-symbols-outlined text-[20px] sm:text-[28px] text-white">bookmark</span>
                     </div>
                     Your Watchlist
                 </h2>
-                <p class="text-white/40 mono text-sm uppercase tracking-widest pl-16">
+                <p class="text-white/40 mono text-[11px] sm:text-sm uppercase tracking-widest sm:pl-16">
                     <span x-text="watchlistOccupancy"></span>
                     <span class="text-white/20">·</span>
                     Queued for protocol initiation
                 </p>
             </div>
-            <div class="flex items-center gap-3">
-                <select x-model="watchlistFilter" class="bg-[#0a0a0f] border border-white/10 rounded-2xl py-3 px-3 text-xs text-white outline-none">
+            <div class="flex flex-wrap items-center gap-2 sm:gap-3 md:justify-end">
+                <select x-model="watchlistFilter" class="min-w-0 flex-1 sm:flex-none bg-[#0a0a0f] border border-white/10 rounded-2xl py-3 px-3 text-xs text-white outline-none">
                     <option value="all">All types</option>
                     <option value="premium">Premium</option>
                     <option value="free">Standard</option>
@@ -35,15 +35,15 @@
                         <option :value="genre" x-text="genre"></option>
                     </template>
                 </select>
-                <div class="flex items-center gap-3" x-data="{ searchOpen: false, searchFocused: false }">
-                    <div class="relative group">
+                <div class="flex flex-1 items-center justify-end gap-3 sm:flex-none" x-data="{ searchOpen: false, searchFocused: false }">
+                    <div class="relative group w-full sm:w-auto">
                         <!-- Animated Glow Behind -->
                         <div class="absolute inset-0 bg-gradient-to-r from-red-500 via-rose-500 to-purple-500 rounded-2xl blur-xl transition-all duration-700 opacity-0"
                              :class="searchOpen ? 'opacity-30 scale-105' : 'group-hover:opacity-20'"></div>
                         
                         <!-- Search Container -->
-                        <div class="relative flex items-center bg-black/40 backdrop-blur-xl border transition-all duration-700 ease-[cubic-bezier(0.34,1.56,0.64,1)] rounded-2xl overflow-hidden"
-                             :class="searchOpen ? 'w-80 border-red-500/50 shadow-[inset_0_0_20px_rgba(239,68,68,0.2)]' : 'w-14 border-white/10 hover:border-white/30'">
+                        <div class="relative flex items-center bg-black/40 backdrop-blur-xl border transition-all duration-700 ease-[cubic-bezier(0.34,1.56,0.64,1)] rounded-2xl overflow-hidden ml-auto"
+                             :class="searchOpen ? 'w-full max-w-[13rem] sm:max-w-none sm:w-80 border-red-500/50 shadow-[inset_0_0_20px_rgba(239,68,68,0.2)]' : 'w-14 border-white/10 hover:border-white/30'">
                             
                             <!-- Icon Button -->
                             <button @click="searchOpen = !searchOpen; if(searchOpen) $nextTick(() => $refs.searchInput.focus())" 
@@ -76,13 +76,13 @@
             </div>
         </div>
 
-        <div class="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-8">
+        <div class="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4 md:gap-6">
             <template x-for="(item, index) in pagedWatchlist" :key="item.id || index">
                 <div @click="openWatchlistMovie(item)"
                      class="nexus-card-enter relative group cursor-pointer perspective-container" 
                      :style="`animation-delay: ${index * 80}ms; perspective: 1100px;`">
                      <!-- Card -->
-                    <div class="nexus-watch-card aspect-[2/3] w-full relative rounded-3xl overflow-hidden shadow-[0_20px_50px_rgba(0,0,0,0.5)] border border-white/5 group-hover:border-red-500/40"
+                    <div class="nexus-watch-card aspect-[2/3] w-full relative rounded-xl sm:rounded-2xl lg:rounded-3xl overflow-hidden shadow-[0_20px_50px_rgba(0,0,0,0.5)] border border-white/5 group-hover:border-red-500/40"
                          @mousemove="trackCardTilt($event)"
                          @mouseleave="resetCardTilt($event)">
                         <div class="nexus-card-shine"></div>
@@ -91,33 +91,33 @@
                         <div class="absolute inset-0 bg-gradient-to-t from-[#050508] via-[#050508]/40 to-transparent opacity-80 group-hover:opacity-100 transition-opacity duration-500"></div>
                         
                         <!-- Floating Status Badge -->
-                        <div class="absolute top-3 right-3 sm:top-5 sm:right-5 px-3 py-1.5 bg-black/40 backdrop-blur-md rounded-full border border-white/10 flex items-center gap-2 transition-transform duration-500 group-hover:-translate-y-2 group-hover:border-white/20">
-                            <span class="w-1.5 h-1.5 rounded-full" :class="item.status === 'Next Up' ? 'bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.8)] animate-pulse' : 'bg-white/30'"></span>
-                            <span class="text-[9px] font-bold text-white uppercase tracking-widest" x-text="item.status || 'Queued'"></span>
+                        <div class="absolute top-2 right-2 sm:top-5 sm:right-5 px-2 py-1 sm:px-3 sm:py-1.5 bg-black/40 backdrop-blur-md rounded-full border border-white/10 flex items-center gap-1.5 sm:gap-2 transition-transform duration-500 group-hover:-translate-y-2 group-hover:border-white/20">
+                            <span class="w-1.5 h-1.5 rounded-full shrink-0" :class="item.status === 'Next Up' ? 'bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.8)] animate-pulse' : 'bg-white/30'"></span>
+                            <span class="text-[8px] sm:text-[9px] font-bold text-white uppercase tracking-widest truncate" x-text="item.status || 'Queued'"></span>
                         </div>
                         
                         <!-- Rating Badge -->
-                        <div class="absolute top-5 left-5 px-2.5 py-1.5 bg-red-500/90 backdrop-blur-md rounded-lg border border-red-400/50 flex items-center gap-1 shadow-[0_10px_20px_rgba(239,68,68,0.4)] transform -translate-y-4 opacity-0 group-hover:translate-y-0 group-hover:opacity-100 transition-all duration-500 delay-100 ease-[cubic-bezier(0.34,1.56,0.64,1)]">
-                            <span class="material-symbols-outlined text-[14px] text-white">star</span>
-                            <span class="text-[11px] font-bold text-white" x-text="item.rating"></span>
+                        <div class="wl-rating absolute top-2.5 left-2.5 sm:top-5 sm:left-5 px-2 py-1 sm:px-2.5 sm:py-1.5 bg-red-500/90 backdrop-blur-md rounded-lg border border-red-400/50 flex items-center gap-1 shadow-[0_10px_20px_rgba(239,68,68,0.4)] transform -translate-y-4 opacity-0 group-hover:translate-y-0 group-hover:opacity-100 transition-all duration-500 delay-100 ease-[cubic-bezier(0.34,1.56,0.64,1)]">
+                            <span class="material-symbols-outlined text-[12px] sm:text-[14px] text-white">star</span>
+                            <span class="text-[10px] sm:text-[11px] font-bold text-white" x-text="item.rating"></span>
                         </div>
 
                         <!-- Content overlay -->
-                        <div class="absolute inset-x-0 bottom-0 p-4 sm:p-6 transform translate-y-8 group-hover:translate-y-0 transition-all duration-500 ease-[cubic-bezier(0.34,1.56,0.64,1)]">
-                            <div class="flex items-center gap-2 mb-2 sm:mb-3">
-                                <span class="px-2 py-1 bg-white/10 backdrop-blur-md rounded-md text-[9px] text-white/90 font-mono font-bold border border-white/10" x-text="item.year"></span>
-                                <span class="px-2 py-1 bg-white/10 backdrop-blur-md rounded-md text-[9px] text-white/90 font-mono font-bold border border-white/10" x-text="item.genre"></span>
+                        <div class="wl-overlay absolute inset-x-0 bottom-0 p-3 sm:p-4 lg:p-6 transform translate-y-0 sm:translate-y-8 sm:group-hover:translate-y-0 transition-all duration-500 ease-[cubic-bezier(0.34,1.56,0.64,1)]">
+                            <div class="flex flex-wrap items-center gap-1.5 sm:gap-2 mb-1.5 sm:mb-3">
+                                <span class="px-1.5 py-0.5 sm:px-2 sm:py-1 bg-white/10 backdrop-blur-md rounded-md text-[8px] sm:text-[9px] text-white/90 font-mono font-bold border border-white/10 shrink-0" x-text="item.year"></span>
+                                <span class="px-1.5 py-0.5 sm:px-2 sm:py-1 bg-white/10 backdrop-blur-md rounded-md text-[8px] sm:text-[9px] text-white/90 font-mono font-bold border border-white/10 truncate max-w-[6.5rem] sm:max-w-none" x-text="item.genre"></span>
                             </div>
-                            <h3 class="text-base sm:text-2xl font-bold text-white mb-2 sm:mb-4 tracking-tight group-hover:text-red-400 transition-colors duration-300 drop-shadow-lg" x-text="item.title"></h3>
+                            <h3 class="text-sm sm:text-lg lg:text-2xl font-bold text-white mb-1.5 sm:mb-3 lg:mb-4 tracking-tight line-clamp-2 group-hover:text-red-400 transition-colors duration-300 drop-shadow-lg" x-text="item.title"></h3>
                             
-                            <div class="flex gap-3 opacity-0 group-hover:opacity-100 transition-all duration-500 delay-150 transform translate-y-4 group-hover:translate-y-0">
+                            <div class="wl-actions flex gap-2 sm:gap-3 opacity-100 translate-y-0 sm:opacity-0 sm:group-hover:opacity-100 sm:translate-y-4 sm:group-hover:translate-y-0 transition-all duration-500 delay-150">
                                 <button @click.stop="openWatchlistMovie(item)" 
-                                        class="flex-1 py-3 bg-red-500 hover:bg-red-600 rounded-xl text-white text-[11px] font-bold uppercase tracking-widest transition-all duration-300 shadow-[0_0_20px_rgba(239,68,68,0.4)] hover:shadow-[0_0_30px_rgba(239,68,68,0.6)] flex items-center justify-center gap-2 group/btn">
-                                    <span class="material-symbols-outlined text-[18px] group-hover/btn:scale-125 transition-transform">play_arrow</span> Watch Now
+                                        class="flex-1 min-w-0 py-2 sm:py-3 bg-red-500 hover:bg-red-600 rounded-xl text-white text-[10px] sm:text-[11px] font-bold uppercase tracking-widest transition-all duration-300 shadow-[0_0_20px_rgba(239,68,68,0.4)] hover:shadow-[0_0_30px_rgba(239,68,68,0.6)] flex items-center justify-center gap-1.5 sm:gap-2 group/btn">
+                                    <span class="material-symbols-outlined text-[16px] sm:text-[18px] group-hover/btn:scale-125 transition-transform">play_arrow</span> <span class="truncate">Watch Now</span>
                                 </button>
                                 <button @click.stop="openWatchlistMovie(item)" 
-                                        class="w-12 h-12 bg-white/5 hover:bg-white/15 backdrop-blur-md rounded-xl text-white flex items-center justify-center transition-all duration-300 border border-white/10 hover:border-white/30 group/info">
-                                    <span class="material-symbols-outlined text-[20px] group-hover/info:rotate-12 transition-transform">info</span>
+                                        class="w-9 h-9 sm:w-12 sm:h-12 shrink-0 bg-white/5 hover:bg-white/15 backdrop-blur-md rounded-xl text-white flex items-center justify-center transition-all duration-300 border border-white/10 hover:border-white/30 group/info">
+                                    <span class="material-symbols-outlined text-[18px] sm:text-[20px] group-hover/info:rotate-12 transition-transform">info</span>
                                 </button>
                             </div>
                         </div>

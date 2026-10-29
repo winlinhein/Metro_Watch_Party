@@ -101,7 +101,7 @@ require_once __DIR__ . '/components/otp_boot.php';
         <div class="text-center mb-8 ultimate-reveal" id="branding">
             <h1 class="text-4xl font-black tracking-tighter uppercase italic flex items-center justify-center gap-3">
                 <span id="logo-box" class="relative inline-flex">
-                    <?php $nexus_logo_class = 'w-10 h-10 relative z-10 drop-shadow-[0_0_15px_rgba(220,38,38,0.4)]'; include __DIR__ . '/components/logo_mark.php'; ?>
+                    <?php $nexus_logo_class = 'w-10 h-10 relative z-10'; include __DIR__ . '/components/logo_mark.php'; ?>
                 </span>
                 <span class="nexus-text text-transparent bg-clip-text bg-gradient-to-r from-red-500 to-indigo-400 pr-2">SECURE</span>
             </h1>

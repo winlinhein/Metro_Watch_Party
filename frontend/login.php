@@ -118,7 +118,7 @@ if (!empty($_SESSION['authenticated']) && !empty($_SESSION['user_id'])) {
         <!-- Logo / Branding -->
         <a href="/index.php" class="text-center mb-10 gs-reveal block group">
             <h1 class="text-5xl font-black tracking-tighter uppercase italic flex items-center justify-center gap-3">
-                <?php $nexus_logo_class = 'w-10 h-10 relative z-10 drop-shadow-[0_0_15px_rgba(220,38,38,0.4)]'; include __DIR__ . '/components/logo_mark.php'; ?>
+                <?php $nexus_logo_class = 'w-10 h-10 relative z-10'; include __DIR__ . '/components/logo_mark.php'; ?>
                 <span class="nexus-text pr-2 group-hover:text-red-400 transition-colors">NEXUS</span>
             </h1>
             <p class="text-white/50 mt-3 text-sm font-light tracking-wide">Enter the void. Connect your universe.</p>

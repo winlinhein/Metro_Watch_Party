@@ -80,7 +80,7 @@
 </style>
 <div id="nexus-message-toasts" aria-live="polite"></div>
 <div id="nexus-toast-container" class="fixed bottom-10 right-10 z-[9999] p-0 w-full max-w-[380px] pointer-events-none hidden" style="perspective: 1200px;">
-    <div id="nexus-toast" class="pointer-events-auto relative bg-[#050505]/95 backdrop-blur-2xl border border-white/10 rounded-2xl shadow-[0_30px_60px_rgba(0,0,0,0.9)] overflow-hidden flex flex-col p-0 opacity-0 transform translate-y-[150px] rotate-x-[-30deg] rotate-y-[15deg] scale-90">
+    <div id="nexus-toast" class="pointer-events-auto cursor-pointer relative bg-[#050505]/95 backdrop-blur-2xl border border-white/10 rounded-2xl shadow-[0_30px_60px_rgba(0,0,0,0.9)] overflow-hidden flex flex-col p-0 opacity-0 transform translate-y-[150px] rotate-x-[-30deg] rotate-y-[15deg] scale-90">
         
         <!-- Animated Background Glow -->
         <div class="absolute inset-0 opacity-20 bg-gradient-to-tr to-transparent pointer-events-none" id="toast-bg-glow"></div>
@@ -114,6 +114,17 @@
 </div>
 
 <script>
+    let nexusToastAutoTimer = null;
+    let nexusToastDismiss = null;
+
+    // Tap / click the toast once to dismiss it
+    document.addEventListener('click', function (e) {
+        const toastEl = document.getElementById('nexus-toast');
+        if (toastEl && toastEl.contains(e.target) && typeof nexusToastDismiss === 'function') {
+            nexusToastDismiss();
+        }
+    });
+
     window.showToast = function(toastMessage, toastType) {
         if (toastMessage) {
             const container = document.getElementById('nexus-toast-container');
@@ -130,11 +141,14 @@
             // Check that essential elements exist before manipulating classList
             if (!container || !toast) return;
 
+            if (nexusToastAutoTimer) { clearTimeout(nexusToastAutoTimer); nexusToastAutoTimer = null; }
+            nexusToastDismiss = null;
+
             container.classList.remove('hidden');
             if (msg) msg.textContent = toastMessage;
 
             // Reset existing dynamic classes safely
-            toast.className = "pointer-events-auto relative bg-[#050505]/95 backdrop-blur-2xl border border-white/10 rounded-2xl shadow-[0_30px_60px_rgba(0,0,0,0.9)] overflow-hidden flex flex-col p-0 opacity-0 transform translate-y-[150px] rotate-x-[-30deg] rotate-y-[15deg] scale-90";
+            toast.className = "pointer-events-auto cursor-pointer relative bg-[#050505]/95 backdrop-blur-2xl border border-white/10 rounded-2xl shadow-[0_30px_60px_rgba(0,0,0,0.9)] overflow-hidden flex flex-col p-0 opacity-0 transform translate-y-[150px] rotate-x-[-30deg] rotate-y-[15deg] scale-90";
 
             if (toastType === 'error') {
                 toast.classList.add('nexus-toast-error');
@@ -154,11 +168,14 @@
                 if (progressBar) progressBar.classList.add('bg-green-500', 'shadow-[0_0_15px_rgba(34,197,94,1)]');
             }
             if (typeof gsap !== 'undefined') {
+                const iconContainer = document.getElementById('toast-icon-container');
+                gsap.killTweensOf([toast, iconContainer, title, divider, msg, bgGlow, progressBar]);
+
                 const tl = gsap.timeline();
                 
                 // Initial states for intense entrance
                 gsap.set(toast, { y: 100, opacity: 0, rotateX: 30, rotateY: -20, scale: 0.85, transformOrigin: "50% 100%" });
-                gsap.set('#toast-icon-container', { scale: 0, rotation: -180 });
+                gsap.set(iconContainer, { scale: 0, rotation: -180, opacity: 1, y: 0 });
                 gsap.set(title, { y: 20, opacity: 0 });
                 
                 gsap.set(divider, { scaleX: 0 });
@@ -227,8 +244,11 @@
                      { scaleX: 0, duration: displayDuration, ease: "linear", delay: 1.2 }
                 );
 
-                // Auto dismiss animation
+                // Dismiss animation (auto timeout or a single tap/click)
+                let dismissed = false;
                 const closeToast = () => {
+                    if (dismissed) return;
+                    dismissed = true;
                     const exitTl = gsap.timeline({
                         onComplete: () => {
                             if (container) container.classList.add('hidden');
@@ -238,7 +258,7 @@
                     exitTl.to(msg, { y: 20, opacity: 0, duration: 0.3, ease: "power2.in" })
                           .to(divider, { scaleX: 0, duration: 0.3, ease: "power2.in" }, "-=0.2")
                           .to(title, { y: 20, opacity: 0, duration: 0.3, ease: "power2.in" }, "-=0.2")
-                          .to('#toast-icon-container', { scale: 0.5, opacity: 0, duration: 0.3, ease: "back.in(2)" }, "-=0.2")
+                          .to(iconContainer, { scale: 0.5, opacity: 0, duration: 0.3, ease: "back.in(2)" }, "-=0.2")
                           .to(toast, {
                               y: 80,
                               opacity: 0,
@@ -248,9 +268,10 @@
                               ease: "power3.in"
                           }, "-=0.1");
                 };
+                nexusToastDismiss = closeToast;
 
                 // Auto dismiss after duration + entrance animations
-                setTimeout(() => {
+                nexusToastAutoTimer = setTimeout(() => {
                     if (document.body.contains(toast)) {
                         closeToast();
                     }

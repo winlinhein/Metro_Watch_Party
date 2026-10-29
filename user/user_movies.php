@@ -5,19 +5,19 @@
     <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-10 stagger-item">
         <div>
             <div class="flex items-center gap-3 mb-1">
-                <h2 class="text-3xl font-black text-white tracking-tight drop-shadow-[0_0_10px_rgba(255,255,255,0.3)]">Movie Library</h2>
+                <h2 class="text-2xl sm:text-3xl font-black text-white tracking-tight drop-shadow-[0_0_10px_rgba(255,255,255,0.3)]">Movie Library</h2>
                 <span class="px-3 py-1 rounded-full text-xs font-bold bg-indigo-500/10 text-indigo-400 border border-indigo-500/30 shadow-[0_0_15px_rgba(99,102,241,0.2)]" x-text="(filteredMovies ? filteredMovies.length : 0) + ' titles'"></span>
             </div>
             <p class="text-xs text-white/50 font-mono tracking-widest uppercase mt-2">Explore the premium catalog</p>
         </div>
         
         <!-- Search & Filter Input -->
-        <div class="flex flex-wrap items-center gap-3">
-            <div class="relative group">
+        <div class="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:gap-3">
+            <div class="relative group min-w-0 flex-1 sm:flex-none">
                 <span class="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-white/30 text-[18px] group-focus-within:text-indigo-400 transition-colors">search</span>
-                <input type="text" x-model="movieSearchQuery" placeholder="Search titles or genres..." class="w-64 bg-white/[0.02] border border-white/10 rounded-2xl py-3 pl-11 pr-4 text-sm text-white placeholder-white/30 outline-none focus:border-indigo-500/50 focus:bg-white/[0.04] transition-all duration-300 shadow-lg">
+                <input type="text" x-model="movieSearchQuery" placeholder="Search titles or genres..." class="w-full sm:w-64 bg-white/[0.02] border border-white/10 rounded-2xl py-3 pl-11 pr-4 text-sm text-white placeholder-white/30 outline-none focus:border-indigo-500/50 focus:bg-white/[0.04] transition-all duration-300 shadow-lg">
             </div>
-            <select x-model="movieFilter" class="bg-[#0a0a0f] border border-white/10 rounded-2xl py-3 px-4 text-sm text-white outline-none focus:border-indigo-500/50">
+            <select x-model="movieFilter" class="min-w-0 flex-1 sm:flex-none bg-[#0a0a0f] border border-white/10 rounded-2xl py-3 px-4 text-sm text-white outline-none focus:border-indigo-500/50">
                 <option value="all">All types</option>
                 <option value="premium">Premium</option>
                 <option value="free">Standard</option>
@@ -29,7 +29,7 @@
     </div>
 
     <!-- Dynamic Movie Cards Grid -->
-    <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6 lg:gap-8 pb-12 items-stretch">
+    <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 sm:gap-5 md:gap-6 lg:gap-8 pb-12 items-stretch">
         <template x-for="(movie, index) in pagedMovies" :key="movie.id || movie.movie_id">
             <div class="movie-card-container stagger-item nexus-card-enter h-full" :style="`animation-delay: ${index * 60}ms`">
                 <div @click="openMovieOrPremium(movie)"
@@ -64,21 +64,21 @@
                         <div class="absolute inset-0 bg-gradient-to-t from-[#050508] via-[#050508]/20 to-transparent opacity-90 group-hover:opacity-100 transition-opacity duration-500 z-20 pointer-events-none"></div>
 
                         <!-- Rating Badge -->
-                        <div class="absolute top-4 left-4 px-3 py-1.5 rounded-xl bg-black/60 backdrop-blur-md border border-yellow-500/30 flex items-center gap-1.5 text-xs font-black text-yellow-400 shadow-[0_0_15px_rgba(234,179,8,0.3)] z-30">
-                            <span class="material-symbols-outlined text-[16px]">star</span>
+                        <div class="absolute top-2.5 left-2.5 px-2 py-1 sm:top-4 sm:left-4 sm:px-3 sm:py-1.5 rounded-xl bg-black/60 backdrop-blur-md border border-yellow-500/30 flex items-center gap-1 sm:gap-1.5 text-[10px] sm:text-xs font-black text-yellow-400 shadow-[0_0_15px_rgba(234,179,8,0.3)] z-50">
+                            <span class="material-symbols-outlined text-[13px] sm:text-[16px]">star</span>
                             <span x-text="movie.rating ? movie.rating : '0.0'"></span>
                         </div>
-                        <div x-show="Number(movie.is_premium) === 1" class="absolute top-4 left-[5.5rem] px-2.5 py-1.5 rounded-xl bg-amber-500/20 border border-amber-400/40 text-[10px] font-black uppercase tracking-wider text-amber-200 z-30">Premium</div>
+                        <div x-show="Number(movie.is_premium) === 1" class="absolute top-[2.1rem] left-2.5 px-2 py-1 sm:top-4 sm:left-[5.5rem] sm:px-2.5 sm:py-1.5 rounded-xl bg-amber-500/20 border border-amber-400/40 text-[9px] sm:text-[10px] font-black uppercase tracking-wider text-amber-200 z-50">Premium</div>
                         <div x-show="isPremiumLockedMovie(movie)" class="absolute inset-0 z-40 bg-black/55 backdrop-blur-[1px] flex flex-col items-center justify-center text-center p-4">
-                            <span class="material-symbols-outlined text-amber-300 text-3xl mb-2">lock</span>
-                            <p class="text-[11px] font-bold uppercase tracking-widest text-amber-200">Premium title</p>
+                            <span class="material-symbols-outlined text-2xl sm:text-3xl mb-1 sm:mb-2 text-amber-300">lock</span>
+                            <p class="text-[10px] sm:text-[11px] font-bold uppercase tracking-widest text-amber-200">Premium title</p>
                         </div>
 
                         <!-- Watchlist Button Overlay -->
                         <button @click.stop="isGuest ? nexusNavigate('../frontend/login.php') : toggleWatchlist(movie)" 
-                                class="absolute top-4 right-4 z-40 group/watchlist w-10 h-10 flex items-center justify-center rounded-xl backdrop-blur-xl border transition-all duration-500 overflow-hidden transform-gpu"
+                                class="absolute top-2.5 right-2.5 sm:top-4 sm:right-4 z-40 group/watchlist w-8 h-8 sm:w-10 sm:h-10 flex items-center justify-center rounded-xl backdrop-blur-xl border transition-all duration-500 overflow-hidden transform-gpu"
                                 :class="movie.inWatchlist ? 'bg-indigo-500/20 border-indigo-400/50 shadow-[0_0_20px_rgba(99,102,241,0.5)]' : 'bg-black/40 border-white/10 hover:border-indigo-500/50 hover:bg-black/60'">
-                            <span class="material-symbols-outlined relative z-10 transition-all duration-500 transform group-hover/watchlist:scale-110"
+                            <span class="material-symbols-outlined text-[18px] sm:text-[24px] relative z-10 transition-all duration-500 transform group-hover/watchlist:scale-110"
                                 :class="movie.inWatchlist ? 'text-indigo-400' : 'text-white/60 group-hover/watchlist:text-white'"
                                 :style="movie.inWatchlist ? 'font-variation-settings: \'FILL\' 1;' : ''"
                                 x-text="movie.inWatchlist ? 'bookmark_added' : 'bookmark_add'"></span>
@@ -89,25 +89,23 @@
                              x-transition:leave-start="opacity-100 scale-100"
                              x-transition:leave-end="opacity-0 scale-110"
                              class="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-300 z-30 scale-90 group-hover:scale-100 pointer-events-none">
-                            <div class="w-16 h-16 rounded-full bg-indigo-500/90 backdrop-blur-sm flex items-center justify-center text-white shadow-[0_0_30px_rgba(99,102,241,0.8)]">
-                                <span class="material-symbols-outlined text-[32px] ml-1">play_arrow</span>
+                            <div class="w-12 h-12 sm:w-16 sm:h-16 rounded-full bg-indigo-500/90 backdrop-blur-sm flex items-center justify-center text-white shadow-[0_0_30px_rgba(99,102,241,0.8)]">
+                                <span class="material-symbols-outlined text-[24px] sm:text-[32px] ml-1">play_arrow</span>
                             </div>
                         </div>
                     </div>
 
                     <!-- Card Info -->
-                    <div class="relative p-5 z-30 border-t border-white/[0.02] flex flex-col flex-1 min-h-[6.25rem]">
-                        <h3 class="font-black text-lg text-white mb-1.5 truncate group-hover:text-indigo-400 transition-colors duration-300" x-text="movie.title"></h3>
+                    <div class="relative p-3 sm:p-4 lg:p-5 z-30 border-t border-white/[0.02] flex flex-col flex-1 min-h-[4.25rem] sm:min-h-[5.5rem] lg:min-h-[6.25rem]">
+                        <h3 class="font-black text-sm sm:text-base lg:text-lg text-white mb-1 sm:mb-1.5 truncate group-hover:text-indigo-400 transition-colors duration-300" x-text="movie.title"></h3>
                         <div class="mt-auto flex items-center justify-between gap-2">
-                            <div class="flex flex-nowrap gap-1 min-w-0 overflow-hidden">
-                                <template x-for="(genre, idx) in (movie.genres && movie.genres.length ? movie.genres : ['Movie']).slice(0, 2)" :key="idx">
-                                    <span class="px-2 py-0.5 rounded text-[10px] font-bold tracking-wider uppercase border border-indigo-500/20 text-indigo-300 bg-indigo-500/10 truncate max-w-[5.5rem]" x-text="genre"></span>
-                                </template>
-                                <span x-show="(movie.genres || []).length > 2"
-                                      class="px-2 py-0.5 rounded text-[10px] font-bold tracking-wider uppercase border border-white/10 text-white/50 bg-white/5 shrink-0"
-                                      x-text="'+' + ((movie.genres || []).length - 2)"></span>
+                            <div class="flex items-center gap-1 min-w-0">
+                                <span class="px-1.5 py-0.5 sm:px-2 rounded text-[9px] sm:text-[10px] font-bold tracking-wider uppercase border border-indigo-500/20 text-indigo-300 bg-indigo-500/10 truncate max-w-[6rem] sm:max-w-[7rem]" x-text="(movie.genres && movie.genres.length ? movie.genres : ['Movie'])[0]"></span>
+                                <span x-show="(movie.genres || []).length > 1"
+                                      class="px-1.5 py-0.5 sm:px-2 rounded text-[9px] sm:text-[10px] font-bold tracking-wider uppercase border border-white/10 text-white/50 bg-white/5 shrink-0"
+                                      x-text="'+' + ((movie.genres || []).length - 1)"></span>
                             </div>
-                            <span class="text-[11px] text-white/40 font-bold mono shrink-0" x-text="formatMovieDuration(movie.duration) || ((movie.created_at && window.nexusFormatClock(movie.created_at)) ? window.nexusFormatClock(movie.created_at).getFullYear() : '')"></span>
+                            <span class="text-[10px] sm:text-[11px] text-white/40 font-bold mono shrink-0" x-text="formatMovieDuration(movie.duration) || ((movie.created_at && window.nexusFormatClock(movie.created_at)) ? window.nexusFormatClock(movie.created_at).getFullYear() : '')"></span>
                         </div>
                     </div>
                 </div>

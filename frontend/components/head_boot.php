@@ -1,7 +1,7 @@
 <?php
 // Shared boot: SPA navigation helper + responsive layout.
 ?>
-<link rel="stylesheet" href="/frontend/assets/responsive.css?v=7">
+<link rel="stylesheet" href="/frontend/assets/responsive.css?v=10">
 <link rel="icon" type="image/svg+xml" href="/frontend/assets/logo/nexus-logo.svg">
 <script>
 (function () {

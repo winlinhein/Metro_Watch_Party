@@ -10,7 +10,7 @@
             <div class="absolute inset-2 rounded-full border-r-2 border-indigo-500 animate-spin" style="animation-duration: 1.5s; animation-direction: reverse;"></div>
             <div class="absolute inset-4 rounded-full border-b-2 border-emerald-500 animate-spin" style="animation-duration: 2s;"></div>
             
-            <?php $nexus_logo_class = 'w-16 h-16 relative z-20 drop-shadow-[0_0_20px_rgba(239,68,68,0.5)]'; include __DIR__ . '/logo_mark.php'; ?>
+            <?php $nexus_logo_class = 'w-16 h-16 relative z-20'; include __DIR__ . '/logo_mark.php'; ?>
             
             <!-- Glow effect behind -->
             <div class="absolute inset-0 bg-red-500/20 blur-[40px] rounded-full mix-blend-screen -z-10 animate-pulse"></div>

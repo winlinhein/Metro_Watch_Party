@@ -124,7 +124,7 @@ if (!empty($_SESSION['authenticated']) && !empty($_SESSION['user_id'])) {
         <a href="/index.php" class="text-center mb-8 ultimate-reveal block group" id="branding">
             <h1 class="text-4xl font-black tracking-tighter uppercase italic flex items-center justify-center gap-3">
                 <span id="logo-box" class="relative inline-flex">
-                    <?php $nexus_logo_class = 'w-10 h-10 relative z-10 drop-shadow-[0_0_15px_rgba(79,70,229,0.4)]'; include __DIR__ . '/components/logo_mark.php'; ?>
+                    <?php $nexus_logo_class = 'w-10 h-10 relative z-10'; include __DIR__ . '/components/logo_mark.php'; ?>
                 </span>
                 <span class="nexus-text text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 to-red-500 pr-2">JOIN NEXUS</span>
             </h1>

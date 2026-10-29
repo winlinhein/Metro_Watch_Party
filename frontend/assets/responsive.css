@@ -327,6 +327,17 @@ table {
         min-width: 2.75rem;
         min-height: 2.75rem;
     }
+
+    /* Touch has no hover: keep watchlist card details and actions visible */
+    .wl-overlay,
+    .wl-actions,
+    .wl-rating {
+        transform: none !important;
+    }
+    .wl-actions,
+    .wl-rating {
+        opacity: 1 !important;
+    }
 }
 
 /* ------------------------------------------------------------------
@@ -386,6 +397,62 @@ table {
     }
     .wp-members > div:nth-child(2) > div {
         width: 8.75rem;
+    }
+
+    /* Notifications dropdown spans the screen instead of overflowing off the left edge */
+    #nexus-notif-panel {
+        position: fixed;
+        top: calc(4.5rem + env(safe-area-inset-top, 0px));
+        left: 0.75rem;
+        right: 0.75rem;
+        width: auto;
+        max-width: none;
+        margin-top: 0;
+        max-height: calc(100dvh - 4.5rem - 5.5rem);
+    }
+
+    /* Message toasts sit inset with full rounding instead of hugging the right edge */
+    #nexus-message-toasts {
+        top: calc(4.5rem + env(safe-area-inset-top, 0px)) !important;
+        left: 0.75rem !important;
+        right: 0.75rem !important;
+        width: auto !important;
+        align-items: stretch !important;
+    }
+    .nexus-msg-toast {
+        width: auto !important;
+        max-width: none !important;
+        border-right: 1px solid rgb(var(--nx-glow, 239 68 68) / 0.4) !important;
+        border-radius: 14px !important;
+    }
+}
+
+@media (max-width: 639px) {
+    /* Compact success / error toast so it doesn't dominate small screens */
+    #nexus-toast-container {
+        left: 0.75rem;
+        right: 0.75rem;
+        max-width: none;
+        bottom: max(5rem, calc(env(safe-area-inset-bottom) + 4.5rem));
+    }
+    #nexus-toast .p-5 {
+        padding: 0.875rem !important;
+        gap: 0.75rem !important;
+    }
+    #toast-icon-wrapper {
+        width: 2.5rem !important;
+        height: 2.5rem !important;
+        border-radius: 0.75rem !important;
+    }
+    #toast-icon {
+        font-size: 20px !important;
+    }
+    #toast-title {
+        font-size: 10px !important;
+        letter-spacing: 0.18em !important;
+    }
+    #toast-msg {
+        font-size: 12px !important;
     }
 }
 
