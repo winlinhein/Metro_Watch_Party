@@ -8,12 +8,30 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST' || empty($_SESSION['authenticated']) |
     exit;
 }
 
-$channelName = (string)($_POST['channel_name'] ?? '');
-$socketId = (string)($_POST['socket_id'] ?? '');
-if (!preg_match('/^private-watch-party-(\d+)$/', $channelName, $matches)
-    || !preg_match('/^\d+\.\d+$/', $socketId)) {
+$authInput = $_POST;
+if (!$authInput) {
+    $rawBody = (string)file_get_contents('php://input');
+    $contentType = strtolower((string)($_SERVER['CONTENT_TYPE'] ?? ''));
+    if (str_contains($contentType, 'application/json')) {
+        $decoded = json_decode($rawBody, true);
+        $authInput = is_array($decoded) ? $decoded : [];
+    } else {
+        parse_str($rawBody, $authInput);
+    }
+}
+
+$channelName = is_string($authInput['channel_name'] ?? null) ? trim($authInput['channel_name']) : '';
+$socketId = is_string($authInput['socket_id'] ?? null) ? trim($authInput['socket_id']) : '';
+if (!preg_match('/^private-watch-party-(\d+)$/', $channelName, $matches)) {
     http_response_code(400);
-    echo json_encode(['error' => 'Invalid channel request']);
+    echo json_encode(['error' => 'Invalid watch-party channel name']);
+    exit;
+}
+// Pusher socket IDs are normally numeric pairs separated by a period. Allow
+// harmless identifier characters as well, since the ID is signed verbatim.
+if ($socketId === '' || strlen($socketId) > 128 || !preg_match('/^[A-Za-z0-9._-]+$/', $socketId) || strpos($socketId, '.') === false) {
+    http_response_code(400);
+    echo json_encode(['error' => 'Invalid Pusher socket ID']);
     exit;
 }
 
