@@ -29,8 +29,6 @@ try {
         nexusAwardDailyLogin($userId);
     }
     session_write_close();
-    require_once __DIR__ . '/../admin_rooms_helper.php';
-    sweepAbandonedRooms($conn);
     touchUserPresence($conn, $userId);
     echo json_encode(['success' => true]);
 } catch (Throwable $e) {

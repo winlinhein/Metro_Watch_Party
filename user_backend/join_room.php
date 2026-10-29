@@ -104,7 +104,7 @@ try {
         WHERE room_id = :room_id
           AND peer_id <> :peer_id
           AND (
-                last_seen < DATE_SUB(NOW(), INTERVAL 45 SECOND)
+                last_seen < DATE_SUB(NOW(), INTERVAL 90 SECOND)
                 OR user_id = :user_id
           )
     ")->execute([
@@ -127,7 +127,7 @@ try {
         LEFT JOIN users u ON u.user_id = rp.user_id
         WHERE rp.room_id = :room_id
           AND rp.peer_id <> :peer_id
-          AND rp.last_seen > DATE_SUB(NOW(), INTERVAL 45 SECOND)
+          AND rp.last_seen > DATE_SUB(NOW(), INTERVAL 90 SECOND)
     ");
     $peerStmt->execute(['room_id' => $roomId, 'peer_id' => $peerId]);
     $peers = $peerStmt->fetchAll(PDO::FETCH_ASSOC);

@@ -10,7 +10,9 @@ function isRoomClosed(?string $status): bool
 
 function nexusRoomStaleSeconds(): int
 {
-    return 40;
+    // Allow short database/network outages to recover before removing members
+    // and auto-closing a room whose heartbeat requests temporarily failed.
+    return 90;
 }
 
 function sweepAbandonedRooms(PDO $conn): void
