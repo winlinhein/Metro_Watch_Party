@@ -495,9 +495,7 @@ session_write_close();
         <div class="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-10"></div>
         <div class="p-6 flex justify-between items-center border-b border-white/5 relative z-10 shrink-0">
             <a href="/index.php" data-barba-prevent class="flex items-center gap-4 group cursor-pointer pointer-events-auto">
-                <div class="w-10 h-10 bg-gradient-to-tr from-indigo-500 to-red-600 rounded-xl flex items-center justify-center shadow-[0_0_20px_rgba(239,68,68,0.4)] relative overflow-hidden icon-bounce">
-                    <span class="material-symbols-outlined text-white font-bold relative z-10 text-[20px]">dashboard_customize</span>
-                </div>
+                <?php $nexus_logo_class = 'w-10 h-10 shrink-0 drop-shadow-[0_0_12px_rgba(239,68,68,0.4)] icon-bounce'; include __DIR__ . '/../frontend/components/logo_mark.php'; ?>
                 <div>
                     <span class="text-xl font-bold tracking-tighter uppercase block leading-none group-hover:text-red-400 transition-colors">NEXUS</span>
                     <span class="text-[10px] text-white/50 tracking-widest uppercase font-semibold">Menu</span>
@@ -953,7 +951,8 @@ session_write_close();
                 
                 <div class="h-8 w-[1px] bg-white/10 hidden md:block"></div>
 
-                <a href="/index.php" data-barba-prevent class="flex items-center gap-3 group">
+                <a href="/index.php" data-barba-prevent class="flex items-center gap-2.5 group">
+                    <?php $nexus_logo_class = 'w-8 h-8 shrink-0'; include __DIR__ . '/../frontend/components/logo_mark.php'; ?>
                     <span class="text-xl font-bold tracking-tighter uppercase group-hover:text-red-400 transition-colors">NEXUS</span>
                 </a>
             </div>

@@ -315,7 +315,7 @@ session_write_close();
         <!-- Header -->
         <header class="wp-header h-16 border-b border-white/5 flex items-center justify-between px-3 sm:px-6 shrink-0 bg-[#050508]/80 backdrop-blur-md relative z-30">
             <div class="flex items-center gap-4 min-w-0">
-                <span class="material-symbols-outlined text-red-500 text-[28px] shrink-0">movie</span>
+                <?php $nexus_logo_class = 'w-9 h-9 shrink-0'; include __DIR__ . '/../frontend/components/logo_mark.php'; ?>
                 <div class="min-w-0">
                     <h1 class="font-bold text-lg leading-tight truncate" x-text="roomName"></h1>
                     <p class="text-xs text-white/50 mono flex items-center gap-2">

@@ -100,9 +100,9 @@ require_once __DIR__ . '/components/otp_boot.php';
         <!-- Logo / Branding -->
         <div class="text-center mb-8 ultimate-reveal" id="branding">
             <h1 class="text-4xl font-black tracking-tighter uppercase italic flex items-center justify-center gap-3">
-                <div class="w-10 h-10 bg-gradient-to-tr from-indigo-500 to-red-600 rounded-xl flex items-center justify-center shadow-[0_0_30px_rgba(220,38,38,0.4)] relative overflow-hidden" id="logo-box">
-                    <span class="material-symbols-outlined text-white relative z-10">verified_user</span>
-                </div>
+                <span id="logo-box" class="relative inline-flex">
+                    <?php $nexus_logo_class = 'w-10 h-10 relative z-10 drop-shadow-[0_0_15px_rgba(220,38,38,0.4)]'; include __DIR__ . '/components/logo_mark.php'; ?>
+                </span>
                 <span class="nexus-text text-transparent bg-clip-text bg-gradient-to-r from-red-500 to-indigo-400 pr-2">SECURE</span>
             </h1>
             <p class="text-white/50 mt-3 text-sm font-light tracking-wide">Enter the 6-digit code sent to your device.</p>

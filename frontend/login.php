@@ -118,11 +118,7 @@ if (!empty($_SESSION['authenticated']) && !empty($_SESSION['user_id'])) {
         <!-- Logo / Branding -->
         <a href="/index.php" class="text-center mb-10 gs-reveal block group">
             <h1 class="text-5xl font-black tracking-tighter uppercase italic flex items-center justify-center gap-3">
-                <div class="w-10 h-10 bg-gradient-to-tr from-red-600 to-indigo-600 rounded-xl flex items-center justify-center shadow-[0_0_30px_rgba(220,38,38,0.4)] relative overflow-hidden">
-                    <svg class="w-6 h-6 text-white relative z-10" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
-                    </svg>
-                </div>
+                <?php $nexus_logo_class = 'w-10 h-10 relative z-10 drop-shadow-[0_0_15px_rgba(220,38,38,0.4)]'; include __DIR__ . '/components/logo_mark.php'; ?>
                 <span class="nexus-text pr-2 group-hover:text-red-400 transition-colors">NEXUS</span>
             </h1>
             <p class="text-white/50 mt-3 text-sm font-light tracking-wide">Enter the void. Connect your universe.</p>

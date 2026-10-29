@@ -482,9 +482,7 @@ if ($sessionAuthed && $sessionUserId > 0 && in_array($sessionRole, ['user', 'adm
     <nav class="home-nav fixed top-0 left-0 right-0 z-50 glass-nav" :class="navScrolled && 'is-scrolled'">
         <div class="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
             <a href="/index.php" data-barba-prevent class="flex items-center gap-3 group cursor-pointer">
-                <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-indigo-500 to-red-600 flex items-center justify-center shadow-[0_0_20px_rgba(239,68,68,0.4)] group-hover:scale-110 transition-transform duration-500">
-                    <span class="material-symbols-outlined text-white">movie</span>
-                </div>
+                <?php $nexus_logo_class = 'w-10 h-10 drop-shadow-[0_0_12px_rgba(239,68,68,0.4)] group-hover:scale-110 transition-transform duration-500'; include __DIR__ . '/frontend/components/logo_mark.php'; ?>
                 <span class="text-xl font-bold tracking-tight group-hover:text-red-400 transition-colors">NEXUS</span>
             </a>
 
@@ -1395,9 +1393,7 @@ if ($sessionAuthed && $sessionUserId > 0 && in_array($sessionRole, ['user', 'adm
 
             <div class="flex flex-col md:flex-row items-center justify-between gap-6 mb-10">
                 <a href="/index.php" data-barba-prevent class="flex items-center gap-3 cursor-pointer group">
-                    <div class="w-8 h-8 rounded-lg bg-red-600 flex items-center justify-center group-hover:scale-110 transition-transform">
-                        <span class="material-symbols-outlined text-white text-[18px]">movie</span>
-                    </div>
+                    <?php $nexus_logo_class = 'w-8 h-8 group-hover:scale-110 transition-transform'; include __DIR__ . '/frontend/components/logo_mark.php'; ?>
                     <span class="text-lg font-bold tracking-tight group-hover:text-red-400 transition-colors">NEXUS</span>
                 </a>
                 <div class="flex flex-wrap items-center justify-center gap-6">

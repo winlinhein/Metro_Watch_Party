@@ -486,10 +486,7 @@ session_write_close();
            :class="sidebarOpen ? '' : 'sidebar-collapsed'">
         <div class="sidebar-inner flex flex-col">
         <a href="/index.php" data-barba-prevent class="p-8 flex items-center gap-4 sidebar-brand group" title="NEXUS Command Center">
-            <div class="w-10 h-10 shrink-0 bg-gradient-to-tr from-indigo-500 to-red-600 rounded-xl flex items-center justify-center shadow-[0_0_20px_rgba(239,68,68,0.4)] relative overflow-hidden cursor-pointer">
-                <div class="absolute inset-0 bg-white/20 scale-0 group-hover:scale-100 transition-transform rounded-xl rounded-full opacity-0 group-hover:opacity-100 duration-300"></div>
-                <span class="material-symbols-outlined text-white font-bold relative z-10 text-[20px]">dashboard_customize</span>
-            </div>
+            <?php $nexus_logo_class = 'w-10 h-10 shrink-0 drop-shadow-[0_0_12px_rgba(239,68,68,0.4)] group-hover:scale-110 transition-transform duration-300 cursor-pointer'; include __DIR__ . '/components/logo_mark.php'; ?>
             <div class="sidebar-label">
                 <span class="text-xl font-bold tracking-tighter uppercase block leading-none group-hover:text-red-400 transition-colors">NEXUS</span>
                 <span class="text-[10px] text-white/50 tracking-widest uppercase font-semibold">Command Center</span>

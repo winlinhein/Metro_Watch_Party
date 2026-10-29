@@ -10,9 +10,7 @@
             <div class="absolute inset-2 rounded-full border-r-2 border-indigo-500 animate-spin" style="animation-duration: 1.5s; animation-direction: reverse;"></div>
             <div class="absolute inset-4 rounded-full border-b-2 border-emerald-500 animate-spin" style="animation-duration: 2s;"></div>
             
-            <div class="w-12 h-12 rounded-xl bg-gradient-to-tr from-indigo-500 to-red-600 flex items-center justify-center shadow-[0_0_30px_rgba(239,68,68,0.5)] relative z-20">
-                <span class="material-symbols-outlined text-white text-2xl animate-pulse">movie</span>
-            </div>
+            <?php $nexus_logo_class = 'w-16 h-16 relative z-20 drop-shadow-[0_0_20px_rgba(239,68,68,0.5)]'; include __DIR__ . '/logo_mark.php'; ?>
             
             <!-- Glow effect behind -->
             <div class="absolute inset-0 bg-red-500/20 blur-[40px] rounded-full mix-blend-screen -z-10 animate-pulse"></div>
@@ -111,18 +109,9 @@
         border-color: rgb(var(--nx-glow, 16 185 129));
         animation-duration: 2s;
     }
-    #nexus-page-loader .w-12.h-12 {
-        width: 3rem;
-        height: 3rem;
-        border-radius: 0.75rem;
-        background: var(--nx-grad-accent, linear-gradient(to top right, #6366f1, #dc2626));
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        box-shadow: 0 0 30px rgb(var(--nx-glow, 239 68 68) / 0.5);
+    #nexus-page-loader .loader-content svg {
         position: relative;
         z-index: 20;
-        color: #fff;
     }
     #nexus-page-loader .bg-red-500\/20,
     #nexus-page-loader .mix-blend-screen {
