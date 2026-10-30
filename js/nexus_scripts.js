@@ -2180,7 +2180,7 @@ function userDashboard() {
         bindPresenceChannel() {
             if (!this.pusherClient || this._presenceChannelBound) return;
             this._presenceChannelBound = true;
-            const channel = this.pusherClient.subscribe('presence-status');
+            const channel = this.pusherClient.subscribe('online-status');
             channel.bind('presence_update', (data) => {
                 this.applyPresenceUpdate(data?.user_id, data?.is_online);
             });
@@ -6994,7 +6994,7 @@ function adminDashboard(userData = {}) {
         bindPresenceChannel() {
             if (!this.pusherClient || this._presenceChannelBound) return;
             this._presenceChannelBound = true;
-            const channel = this.pusherClient.subscribe('presence-status');
+            const channel = this.pusherClient.subscribe('online-status');
             channel.bind('presence_update', (data) => {
                 this.applyPresenceUpdate(data?.user_id, data?.is_online);
             });

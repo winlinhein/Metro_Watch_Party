@@ -59,7 +59,7 @@ function broadcastPresence(int $userId, bool $online): void
     if (!function_exists('triggerPusherEvent')) {
         require_once __DIR__ . '/pusher_helper.php';
     }
-    triggerPusherEvent('presence-status', 'presence_update', [
+    triggerPusherEvent('online-status', 'presence_update', [
         'user_id' => $userId,
         'is_online' => $online ? 1 : 0,
     ]);
