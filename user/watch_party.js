@@ -2428,7 +2428,7 @@ function watchParty() {
                     this._presenceReady = true;
                     this.bindPusherRoom();
                     if (this.socket && this.socket.connected) {
-                        this.socket.emit('join-room', String(this.roomId), Number(window.CURRENT_USER_ID));
+                        this.socket.emit('join-room', String(this.roomId), Number(window.CURRENT_USER_ID), window.USER_NAME || 'Guest', this.peerId);
                     }
                     this.signal('peer-resume', {
                         peerId: this.peerId,
@@ -2563,7 +2563,7 @@ function watchParty() {
                 const myUserId = Number(window.CURRENT_USER_ID);
                 if (myUserId) this.socket.emit('register-user', myUserId);
                 if (this._presenceReady && this.roomId) {
-                    this.socket.emit('join-room', String(this.roomId), myUserId);
+                    this.socket.emit('join-room', String(this.roomId), myUserId, window.USER_NAME || 'Guest', this.peerId);
                 }
                 if (this.liveStatus !== 'Live') this.liveStatus = 'Live';
             });
