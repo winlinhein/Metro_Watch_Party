@@ -4,6 +4,7 @@ node_modules
 # Local-only credential files — set these in Render Dashboard instead
 .env
 .env.*
+aiven-ca.pem
 
 # Git internals
 .git

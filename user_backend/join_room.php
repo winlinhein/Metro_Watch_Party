@@ -170,19 +170,11 @@ try {
         @flush();
     }
 
-    try {
-        sweepAbandonedRooms($conn);
-    } catch (Throwable $ignore) {
-    }
-
-    if (!$heartbeat || !$alreadyThere) {
+    // Heartbeats are frequent; sweeping every active room on each one creates
+    // unnecessary queries and connection pressure on the shared MySQL service.
+    if (!$heartbeat) {
         try {
-            require_once __DIR__ . '/../pusher_helper.php';
-            triggerPusherEvent("private-watch-party-{$roomId}", 'peer-join', $payload);
-            broadcastAdminRoomsChanged('join', [
-                'room_id' => $roomId,
-                'user_id' => $userId,
-            ]);
+            sweepAbandonedRooms($conn);
         } catch (Throwable $ignore) {
         }
     }
@@ -203,11 +195,27 @@ try {
             error_log('join_room mission update: ' . $e->getMessage());
         }
     }
+
+    if (!$heartbeat || !$alreadyThere) {
+        // All database work for this request is complete. Do not hold a MySQL
+        // connection while waiting for Pusher's outbound HTTP request.
+        $conn = null;
+        try {
+            require_once __DIR__ . '/../pusher_helper.php';
+            triggerPusherEvent("private-watch-party-{$roomId}", 'peer-join', $payload);
+            broadcastAdminRoomsChanged('join', [
+                'room_id' => $roomId,
+                'user_id' => $userId,
+            ]);
+        } catch (Throwable $ignore) {
+        }
+    }
     exit;
 } catch (Throwable $e) {
     if (isset($conn) && $conn instanceof PDO && $conn->inTransaction()) {
         $conn->rollBack();
     }
+    error_log('Room join failed: ' . $e->getMessage());
     http_response_code(500);
     echo json_encode(['success' => false, 'message' => 'Failed to join room']);
 }

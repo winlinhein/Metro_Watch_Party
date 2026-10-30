@@ -181,6 +181,8 @@ function watchParty() {
         pusherClient: null,
         roomChannel: null,
         _roomSubscriptionReady: false,
+        _roomDetailsInFlight: false,
+        _joinRequestsInFlight: false,
         _pendingPeerCalls: {},
         applyingRemotePlayback: false,
         liveStatus: 'Connecting…',
@@ -224,7 +226,7 @@ function watchParty() {
 
             await Promise.allSettled([roomReady, rosterReady]);
             this.startRoomSync();
-            this.fetchJoinRequests();
+            if (this.isHost) this.fetchJoinRequests();
             this.markConnected();
 
             await cameraReady;
@@ -310,7 +312,8 @@ function watchParty() {
 
         // Fetch room metadata & enforce host permissions / room active status
         async fetchRoomDetails({ quiet = false } = {}) {
-            if (!this.roomId || this._exiting) return;
+            if (!this.roomId || this._exiting || this._roomDetailsInFlight) return;
+            this._roomDetailsInFlight = true;
             if (!quiet && !this.isConnecting && !this.videoUrl) this.isLoading = true;
 
             try {
@@ -373,6 +376,7 @@ function watchParty() {
             } catch (e) {
                 console.error("Error fetching room details:", e);
             } finally {
+                this._roomDetailsInFlight = false;
                 if (!quiet) this.isLoading = false;
             }
         },
@@ -883,7 +887,8 @@ function watchParty() {
         },
 
         async fetchJoinRequests() {
-            if (!this.roomId) return;
+            if (!this.roomId || !this.isHost || this._joinRequestsInFlight) return;
+            this._joinRequestsInFlight = true;
             try {
                 const res = await fetch(`../user_backend/get_pending_join_requests.php?room_id=${encodeURIComponent(this.roomId)}`);
                 const data = await res.json();
@@ -892,6 +897,8 @@ function watchParty() {
                 }
             } catch (e) {
                 console.error('fetchJoinRequests', e);
+            } finally {
+                this._joinRequestsInFlight = false;
             }
         },
 
@@ -2446,17 +2453,22 @@ function watchParty() {
         startRoomSync() {
             if (this.roomSyncTimer) clearInterval(this.roomSyncTimer);
             let tick = 0;
-            // Fast-sync: poll every 1.5 s for the first ~10 s (first 7 ticks) to catch any
-            // peers missed in the initial announcePresence() — then settle to 3 s.
+            // Poll quickly during initial room entry, then back off. Pusher carries
+            // normal live events; this polling is a recovery path for missed events.
             const FAST_INTERVAL = 1500;
-            const SLOW_INTERVAL = 3000;
-            const FAST_TICKS    = 7;
+            const SLOW_INTERVAL = 10000;
+            const FAST_TICKS    = 4;
 
             const doSync = () => {
                 if (this._exiting) return;
+                // Render/database responses can take longer than the fast polling
+                // interval. Keep one room heartbeat in flight to avoid stacking
+                // duplicate writes and room-lock waits.
+                if (this._roomSyncInFlight) return;
                 tick += 1;
                 if (tick % 3 === 0) this.fetchRoomDetails({ quiet: true });
                 if (!this.roomId || !this.peerId) return;
+                this._roomSyncInFlight = true;
                 const form = new FormData();
                 form.append('room_id', this.roomId);
                 form.append('peer_id', this.peerId);
@@ -2469,7 +2481,7 @@ function watchParty() {
                             return;
                         }
                         this.applyPresenceFlags(data.you);
-                        if (tick % 2 === 0) this.fetchJoinRequests();
+                        if (this.isHost && tick % 3 === 0) this.fetchJoinRequests();
                         if (!data.success || !Array.isArray(data.peers)) return;
                         this.syncPresence(data.peers);
                         data.peers.forEach(peer => {
@@ -2480,7 +2492,8 @@ function watchParty() {
                             this.callPeer(this.mapRoomPeer(peer));
                         });
                     })
-                    .catch(() => {});
+                    .catch(() => {})
+                    .finally(() => { this._roomSyncInFlight = false; });
 
                 // After the fast phase, reschedule at the slower interval.
                 if (tick === FAST_TICKS) {

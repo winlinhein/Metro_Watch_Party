@@ -98,10 +98,14 @@ try {
         exit;
     }
 
+    // The remaining work makes an outbound request to Pusher. Release the
+    // MySQL connection before waiting on that network call.
+    $conn = null;
     require_once __DIR__ . '/../pusher_helper.php';
     triggerPusherEvent("private-watch-party-{$roomId}", $event, $payload, true);
     echo json_encode(['success' => true]);
 } catch (Throwable $e) {
+    error_log('Room signal failed: ' . $e->getMessage());
     http_response_code(500);
     echo json_encode(['success' => false, 'message' => 'Signal failed']);
 }

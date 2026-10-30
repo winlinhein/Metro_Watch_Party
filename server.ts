@@ -21,7 +21,9 @@ const dbPool = mysql.createPool({
   password: process.env.DB_PASSWORD,
   database: process.env.DB_NAME,
   waitForConnections: true,
-  connectionLimit: 8,
+  // PHP endpoints share the same small Aiven MySQL connection budget.
+  // Keep the signaling process from reserving most of that budget itself.
+  connectionLimit: 3,
   queueLimit: 0
 });
 
