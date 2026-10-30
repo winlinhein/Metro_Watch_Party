@@ -242,6 +242,7 @@ function userDashboard() {
         showInviteModal: false,
         activeRoom: null,
         _activeRoomTimer: null,
+        _returningToRoom: false,
         _liveRoom: null,
         showNotifications: false,
         showPremiumModal: false,
@@ -1971,11 +1972,13 @@ function userDashboard() {
         },
 
         async refreshActiveRoom() {
+            if (this._returningToRoom) return;
             const stored = this.activeRoom || readNexusActiveRoom();
             if (!stored || !stored.roomId) return;
             try {
                 const res = await fetch('/user_backend/get_active_room.php?room_id=' + encodeURIComponent(stored.roomId));
                 const result = await res.json();
+                if (this._returningToRoom) return;
                 if (!result.success) {
                     if (result.is_ended || result.is_kicked) this.clearActiveRoomState();
                     return;
@@ -1999,6 +2002,7 @@ function userDashboard() {
         },
 
         async heartbeatActiveRoom() {
+            if (this._returningToRoom) return;
             const room = this.activeRoom;
             if (!room || !room.roomId || !room.peerId) return;
             try {
@@ -2014,6 +2018,9 @@ function userDashboard() {
             if (this.isGuest || this._liveRoom) return;
             const room = this.activeRoom || readNexusActiveRoom();
             if (!room || !room.roomId || typeof window.createNexusLiveRoom !== 'function') return;
+            // The back arrow pauses the call on the dashboard. The room remains
+            // active and Return to Room will negotiate a fresh call session.
+            if (room.parked) return;
             this._liveRoom = window.createNexusLiveRoom({
                 roomId: room.roomId,
                 peerId: room.peerId,
@@ -2121,6 +2128,11 @@ function userDashboard() {
 
         returnToRoom() {
             if (!this.hasActiveRoom) return;
+            this._returningToRoom = true;
+            if (this._activeRoomTimer) {
+                clearInterval(this._activeRoomTimer);
+                this._activeRoomTimer = null;
+            }
             try { sessionStorage.setItem('nexus_room_returning', '1'); } catch (e) {}
             this.stopDashboardLiveRoom();
             if (typeof window.showPageLoader === 'function') window.showPageLoader();

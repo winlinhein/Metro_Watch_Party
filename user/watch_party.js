@@ -72,7 +72,8 @@ function readNexusActiveRoom() {
 function restoreOrCreatePeerId(roomId) {
     try {
         const stored = readNexusActiveRoom();
-        if (stored && stored.peerId && roomId && String(stored.roomId) === String(roomId)) {
+        const returningToRoom = sessionStorage.getItem('nexus_room_returning') === '1';
+        if (!returningToRoom && stored && stored.peerId && roomId && String(stored.roomId) === String(roomId)) {
             return stored.peerId;
         }
     } catch (e) {}
@@ -214,11 +215,8 @@ function watchParty() {
             this.fetchMovies();
             this.fetchReasons();
 
-            // Pre-fetch TURN/ICE credentials BEFORE any RTCPeerConnection is made.
-            // This ensures peers behind symmetric NAT get TURN right away instead of
-            // falling back to slow ICE restarts.
-            await this.loadIceServers();
-
+            // watch_party.php already embeds the current ICE/TURN servers. Avoid a
+            // second blocking request before opening the room and media devices.
             const cameraReady = this.startLocalMedia();
             const roomReady = this.fetchRoomDetails();
             const rosterReady = this.announcePresence();
