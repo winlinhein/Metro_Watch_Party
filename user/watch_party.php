@@ -387,6 +387,22 @@ session_write_close();
                 <div class="w-14 h-14 border-4 border-red-500/25 border-t-red-500 rounded-full animate-spin"></div>
                 <p class="text-sm font-bold uppercase tracking-[0.2em] text-white/80" x-text="connectionHint"></p>
             </div>
+
+            <!-- Connecting gate: entry happens only once media, presence, signaling and peers are ready -->
+            <div class="fixed inset-0 z-[195] bg-[#050508]/95 backdrop-blur-md flex flex-col items-center justify-center gap-5 px-6 text-center"
+                 x-show="isConnecting"
+                 x-transition.opacity
+                 x-cloak>
+                <div class="w-16 h-16 border-4 border-red-500/25 border-t-red-500 rounded-full animate-spin"></div>
+                <div class="space-y-2">
+                    <h2 class="text-lg font-black uppercase tracking-[0.2em] text-white/90">Connecting…</h2>
+                    <p class="text-xs font-bold uppercase tracking-[0.18em] text-white/50" x-text="connectionHint"></p>
+                </div>
+                <button type="button" x-show="showEnterAnyway" x-cloak @click="forceEnterRoom()"
+                        class="mt-2 px-5 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 border border-white/15 text-sm font-bold text-white transition-colors">
+                    Enter room anyway
+                </button>
+            </div>
             
             <!-- Main Movie Player Background -->
             <div class="absolute inset-0 bg-black overflow-hidden group video-container z-0" @pointerdown="revealControls($event)" @pointermove="revealControls($event)" @pointerleave="hideControls($event)">

@@ -50,8 +50,18 @@ function verifySocketToken(token: unknown): { userId: number; expiresAt: number 
 }
 
 io.use((socket, next) => {
-  const identity = verifySocketToken(socket.handshake.auth?.token);
-  if (!identity) return next(new Error("Authentication required"));
+  const token = socket.handshake.auth?.token;
+  const identity = verifySocketToken(token);
+  if (!identity) {
+    const reason =
+      typeof token !== "string" || token.trim() === ""
+        ? "missing-token"
+        : !process.env.PUSHER_SECRET
+          ? "missing-pusher-secret"
+          : "invalid-or-expired-token";
+    console.warn(`[socket.io] auth rejected (${reason}) from ${socket.handshake.address}`);
+    return next(new Error("Authentication required"));
+  }
   socket.data.userId = identity.userId;
   socket.data.tokenExpiresAt = identity.expiresAt;
   next();

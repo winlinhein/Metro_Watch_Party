@@ -106,6 +106,19 @@ function watchParty() {
         isLeaving: false,
         movieSwitching: false,
         connectionHint: 'Connecting to party…',
+        showEnterAnyway: false,
+        readiness: { media: false, presence: false, pusher: false, socket: false, peers: false },
+        _debug: false,
+        _socketDegraded: false,
+        _connectWatchdog: null,
+        _socketGraceTimer: null,
+        _pusherRetryCount: 0,
+        _pusherFailed: false,
+        _pusherRetryTimer: null,
+        _subscribing: false,
+        _iceRestartTimers: {},
+        _peerFirstSeen: {},
+        _makingOffers: {},
 
         // --- 2. Video Player State ---
         isPlaying: false,
@@ -189,7 +202,16 @@ function watchParty() {
         peerId: restoreOrCreatePeerId(urlRoomId),
         roomSyncTimer: null,
 
+        _log(...args) {
+            if (this._debug) console.log('[WatchParty]', ...args);
+        },
+
+        _warn(...args) {
+            if (this._debug) console.warn('[WatchParty]', ...args);
+        },
+
         async init() {
+            this._debug = new URLSearchParams(window.location.search).has('debug');
             this.useTouchPad = window.matchMedia('(pointer: coarse)').matches || window.innerWidth < 1024;
             if (this.useTouchPad) this.showControls = true;
             document.addEventListener('fullscreenchange', () => {
@@ -210,7 +232,6 @@ function watchParty() {
             this.applyRoomBoot();
             this.hydratePendingMovie();
             this.seedLocalParticipant();
-            this.markConnected();
             this.persistActiveRoom();
             this.fetchFriends();
             this.startPresenceHeartbeat();
@@ -227,10 +248,16 @@ function watchParty() {
             await Promise.allSettled([roomReady, rosterReady]);
             this.startRoomSync();
             if (this.isHost) this.fetchJoinRequests();
-            this.markConnected();
+
+            this._connectWatchdog = setTimeout(() => {
+                if (!this.isConnecting) return;
+                this.showEnterAnyway = true;
+                this._log('readiness timeout, state:', JSON.stringify(this.readiness));
+                this._updateConnectionHint();
+            }, 20000);
 
             await cameraReady;
-            this.markConnected();
+            this._enterWhenReady();
         },
 
         bindRoomUnload() {
@@ -293,10 +320,84 @@ function watchParty() {
             });
         },
 
-        markConnected() {
+        _enterWhenReady() {
+            if (!this.isConnecting) return;
+            const r = this.readiness;
+            const socketOk = r.socket || this._socketDegraded;
+            if (r.media && r.presence && r.pusher && r.peers && socketOk) {
+                this.isConnecting = false;
+                this.showEnterAnyway = false;
+                if (this._connectWatchdog) {
+                    clearTimeout(this._connectWatchdog);
+                    this._connectWatchdog = null;
+                }
+                if (this.liveStatus === 'Connecting…') this.liveStatus = 'Live';
+                this.isLoading = false;
+                this._log('room ready', JSON.stringify(r));
+                return;
+            }
+            this._updateConnectionHint();
+        },
+
+        _updateConnectionHint() {
+            if (!this.isConnecting) return;
+            const r = this.readiness;
+            if (!r.media) {
+                this.connectionHint = 'Setting up your camera and microphone…';
+            } else if (!r.presence) {
+                this.connectionHint = 'Checking the room…';
+            } else if (!r.pusher) {
+                this.connectionHint = 'Connecting live signaling…';
+            } else if (!r.peers) {
+                this.connectionHint = 'Connecting to your party…';
+            } else if (!(r.socket || this._socketDegraded)) {
+                this.connectionHint = 'Finishing connection…';
+            } else {
+                this.connectionHint = 'Establishing secure video link…';
+            }
+        },
+
+        forceEnterRoom() {
             this.isConnecting = false;
+            this.showEnterAnyway = false;
+            if (this._connectWatchdog) {
+                clearTimeout(this._connectWatchdog);
+                this._connectWatchdog = null;
+            }
             if (this.liveStatus === 'Connecting…') this.liveStatus = 'Live';
             this.isLoading = false;
+            this._log('entered room without full readiness', JSON.stringify(this.readiness));
+        },
+
+        _markPeerSeen(key) {
+            if (!key) return;
+            this._peerFirstSeen = this._peerFirstSeen || {};
+            if (!this._peerFirstSeen[key]) this._peerFirstSeen[key] = Date.now();
+        },
+
+        _updatePeerReadiness() {
+            const remote = (this.participants || []).filter((p) => !p.isSelf && !p.parked);
+            if (!remote.length) {
+                this.readiness.peers = true;
+            } else {
+                this.readiness.peers = remote.every((p) => {
+                    const key = p.peerId || p.socketId;
+                    const pc = key ? peerConnections[key] : null;
+                    if (pc && (
+                        pc.connectionState === 'connected'
+                        || pc.iceConnectionState === 'connected'
+                        || pc.iceConnectionState === 'completed'
+                    )) return true;
+                    const since = key ? (this._peerFirstSeen || {})[key] : 0;
+                    // One unreachable peer must not trap everyone in the gate.
+                    return !!since && (Date.now() - since) > 20000;
+                });
+            }
+            this._enterWhenReady();
+        },
+
+        _isPolitePeer(remoteKey) {
+            return String(this.peerId) < String(remoteKey);
         },
 
         async loadIceServers() {
@@ -397,8 +498,18 @@ function watchParty() {
                 if (!confirmEnd) return;
             }
 
+            await this._performLeave();
+        },
+
+        // Full leave: notify peers, delete the participant row and tear the call
+        // down. Parking the room here used to leave stale rows and orphan peer
+        // connections behind, which is why rejoining showed ghost members.
+        async _performLeave() {
+            if (this._exiting) return;
             this._exiting = true;
+            this._parking = false;
             this.isLeaving = true;
+            this.isConnecting = false;
             this.connectionHint = this.isHost ? 'Ending party…' : 'Leaving party…';
             await this.$nextTick();
 
@@ -418,13 +529,18 @@ function watchParty() {
                         is_ended: true
                     });
                 }
-                navigator.sendBeacon(`../user_backend/leave_room.php?${query}`);
+                if (navigator.sendBeacon) {
+                    navigator.sendBeacon(`../user_backend/leave_room.php?${query}`);
+                } else {
+                    await fetch(`../user_backend/leave_room.php?${query}`, { method: 'POST', keepalive: true });
+                }
             } catch (e) {
                 console.error("Error leaving room:", e);
             }
 
             try { this.teardownMediaAndPeers(); } catch (e) {}
             clearNexusActiveRoom();
+            try { sessionStorage.removeItem('nexus_room_returning'); } catch (e) {}
             await new Promise((resolve) => setTimeout(resolve, 450));
             window.location.href = 'dashboard.php';
         },
@@ -448,31 +564,21 @@ function watchParty() {
             });
         },
 
-        goToDashboard() {
+        async goToDashboard() {
             if (this._exiting) return;
-            this._parking = true;
-            this.persistActiveRoom();
-            try {
-                if (this.roomId && this.peerId && navigator.sendBeacon) {
-                    const stay = new FormData();
-                    stay.append('room_id', String(this.roomId));
-                    stay.append('peer_id', String(this.peerId));
-                    stay.append('heartbeat', '1');
-                    navigator.sendBeacon('../user_backend/join_room.php', stay);
-                    const park = new FormData();
-                    park.append('room_id', String(this.roomId));
-                    park.append('event', 'peer-park');
-                    park.append('payload', JSON.stringify({
-                        peerId: this.peerId,
-                        userId: Number(window.CURRENT_USER_ID) || null,
-                        userName: window.USER_NAME || 'User',
-                        avatar_url: window.USER_AVATAR || '',
-                        border_preview: window.USER_BORDER || ''
-                    }));
-                    navigator.sendBeacon('../user_backend/room_signal.php', park);
-                }
-            } catch (e) {}
-            window.location.href = 'dashboard.php';
+            const others = (this.participants || []).filter((p) => !p.isSelf);
+            if (this.isHost && others.length) {
+                const confirmed = await this.askConfirm({
+                    title: 'End watch party?',
+                    message: 'Leaving as host will end this watch party for everyone.',
+                    confirmLabel: 'End party',
+                    cancelLabel: 'Stay',
+                    danger: true,
+                    icon: 'logout'
+                });
+                if (!confirmed) return;
+            }
+            await this._performLeave();
         },
 
         async exitEndedRoom(message) {
@@ -1229,7 +1335,6 @@ function watchParty() {
             this.videoUrl = nextUrl;
             this.showMovieModal = false;
             this.isLoading = false;
-            if (this.videoUrl) this.isConnecting = false;
             this.isPlaying = !!(this.videoUrl && !this.isYouTubeUrl(this.videoUrl));
             if (this.videoUrl && !this.isYouTubeUrl(this.videoUrl)) {
                 this.$nextTick(() => {
@@ -1551,6 +1656,7 @@ function watchParty() {
             const merged = this.participants[idx >= 0 ? idx : this.participants.length - 1];
             this.attachParticipantSpeaking(merged);
             this.persistActiveRoom();
+            this._updatePeerReadiness();
         },
 
         teardownMediaAndPeers() {
@@ -1691,10 +1797,13 @@ function watchParty() {
             // ── Phase 2: Camera in background (non-blocking) ──────────────────────────
             // Video arrives 0.5–2 s after audio. When it does, we add it to the
             // existing MediaStream and renegotiate with all peers.
-            navigator.mediaDevices.getUserMedia({
-                video: { width: { ideal: 640 }, height: { ideal: 480 }, frameRate: { ideal: 24 } },
-                audio: false
-            }).then((camStream) => {
+            const camRequest = (navigator.mediaDevices && navigator.mediaDevices.getUserMedia)
+                ? navigator.mediaDevices.getUserMedia({
+                    video: { width: { ideal: 640 }, height: { ideal: 480 }, frameRate: { ideal: 24 } },
+                    audio: false
+                })
+                : Promise.reject(new Error('Media devices unavailable'));
+            camRequest.then((camStream) => {
                 if (this._exiting) {
                     camStream.getTracks().forEach((t) => t.stop());
                     return;
@@ -1709,6 +1818,9 @@ function watchParty() {
                 this._publishVideoTrack();
             }).catch(() => {
                 // Camera unavailable — audio-only mode, no action needed.
+            }).finally(() => {
+                this.readiness.media = true;
+                this._enterWhenReady();
             });
         },
 
@@ -1732,10 +1844,13 @@ function watchParty() {
             return peer?.peerId || peer?.socketId || null;
         },
 
-        waitForIce(pc) {
+        waitForIce(pc, timeoutMs = 1500) {
             if (!pc || pc.iceGatheringState === 'complete') return Promise.resolve();
             return new Promise((resolve) => {
+                let settled = false;
                 const finish = () => {
+                    if (settled) return;
+                    settled = true;
                     pc.removeEventListener('icegatheringstatechange', onState);
                     resolve();
                 };
@@ -1743,7 +1858,7 @@ function watchParty() {
                     if (pc.iceGatheringState === 'complete') finish();
                 };
                 pc.addEventListener('icegatheringstatechange', onState);
-                setTimeout(finish, 2500);
+                setTimeout(finish, timeoutMs);
             });
         },
 
@@ -1786,6 +1901,25 @@ function watchParty() {
                 });
             };
 
+            pc.onicecandidateerror = (event) => {
+                this._warn('ICE candidate error for', peerKey, event.errorCode, event.url || '');
+            };
+
+            pc.onconnectionstatechange = () => {
+                this._log('pc state', peerKey, 'connection:', pc.connectionState, 'ice:', pc.iceConnectionState);
+                this._updatePeerReadiness();
+                if (pc.connectionState === 'connected') {
+                    this._clearIceRestart(peerKey);
+                } else if (pc.connectionState === 'failed') {
+                    this._scheduleIceRestart(peerKey, peerMeta);
+                }
+            };
+
+            pc.oniceconnectionstatechange = () => {
+                this._log('pc ice state', peerKey, pc.iceConnectionState);
+                this._updatePeerReadiness();
+            };
+
             pc.ontrack = (event) => {
                 const stream = event.streams[0] || new MediaStream([event.track]);
                 const hasVideo = stream.getVideoTracks().some((track) => track.readyState === 'live');
@@ -1809,19 +1943,39 @@ function watchParty() {
             return pc;
         },
 
-        async publishLocalTracks() {
-            if (!this.localStream) return;
-            const tracks = this.localStream.getTracks();
-            if (!tracks.length) return;
-            const sendOffer = async (key, pc) => {
-                if (!pc || pc.signalingState !== 'stable' || pc.connectionState === 'closed') return;
+        _clearIceRestart(key) {
+            this._iceRestartTimers = this._iceRestartTimers || {};
+            if (this._iceRestartTimers[key]) {
+                clearTimeout(this._iceRestartTimers[key]);
+                delete this._iceRestartTimers[key];
+            }
+        },
+
+        _scheduleIceRestart(key, peerMeta) {
+            if (!key) return;
+            this._iceRestartTimers = this._iceRestartTimers || {};
+            if (this._iceRestartTimers[key]) return;
+            this._iceRestartTimers[key] = setTimeout(async () => {
+                delete this._iceRestartTimers[key];
+                const pc = peerConnections[key];
+                if (!pc || pc.connectionState === 'connected') return;
+                this._warn('ICE restart for', key);
                 try {
-                    const offer = await pc.createOffer();
+                    if (typeof pc.restartIce === 'function') pc.restartIce();
+                    if (!this._roomSubscriptionReady) return;
+                    this._makingOffers[key] = true;
+                    const offer = await pc.createOffer({ iceRestart: true });
                     await pc.setLocalDescription(offer);
+                    await this.waitForIce(pc);
+                    const local = pc.localDescription;
+                    if (!local || pc.signalingState !== 'have-local-offer') {
+                        this._warn('ICE restart offer abandoned for', key, 'state:', pc.signalingState);
+                        return;
+                    }
                     this.signal('offer', {
                         targetPeerId: key,
-                        targetSocketId: key,
-                        sdp: pc.localDescription,
+                        targetSocketId: (peerMeta && peerMeta.socketId) || key,
+                        sdp: local,
                         fromPeerId: this.peerId,
                         fromSocketId: this.socket?.id,
                         userId: Number(window.CURRENT_USER_ID) || null,
@@ -1829,7 +1983,66 @@ function watchParty() {
                         avatar_url: window.USER_AVATAR || '',
                         border_preview: window.USER_BORDER || ''
                     });
-                } catch (e) {}
+                } catch (e) {
+                    this._warn('ICE restart failed for', key, e && e.message);
+                } finally {
+                    delete this._makingOffers[key];
+                }
+            }, 3000);
+        },
+
+        waitForStable(pc, timeoutMs = 2500) {
+            if (!pc || pc.signalingState === 'stable') return Promise.resolve(true);
+            return new Promise((resolve) => {
+                let settled = false;
+                const finish = (ok) => {
+                    if (settled) return;
+                    settled = true;
+                    pc.removeEventListener('signalingstatechange', onState);
+                    clearTimeout(timer);
+                    resolve(ok);
+                };
+                const onState = () => {
+                    if (pc.signalingState === 'stable') finish(true);
+                };
+                const timer = setTimeout(() => finish(false), timeoutMs);
+                pc.addEventListener('signalingstatechange', onState);
+            });
+        },
+
+        async publishLocalTracks() {
+            if (!this.localStream) return;
+            const tracks = this.localStream.getTracks();
+            if (!tracks.length) return;
+            const sendOffer = async (key, pc) => {
+                if (!pc || pc.signalingState !== 'stable' || pc.connectionState === 'closed') return;
+                try {
+                    this._makingOffers[key] = true;
+                    const offer = await pc.createOffer();
+                    await pc.setLocalDescription(offer);
+                    await this.waitForIce(pc);
+                    const local = pc.localDescription;
+                    if (!local || pc.signalingState !== 'have-local-offer') {
+                        this._warn('renegotiation offer abandoned for', key, 'state:', pc.signalingState);
+                        return;
+                    }
+                    this._log('sent renegotiation offer to', key);
+                    this.signal('offer', {
+                        targetPeerId: key,
+                        targetSocketId: key,
+                        sdp: local,
+                        fromPeerId: this.peerId,
+                        fromSocketId: this.socket?.id,
+                        userId: Number(window.CURRENT_USER_ID) || null,
+                        userName: window.USER_NAME || 'You',
+                        avatar_url: window.USER_AVATAR || '',
+                        border_preview: window.USER_BORDER || ''
+                    });
+                } catch (e) {
+                    this._warn('renegotiation offer failed for', key, e && e.message);
+                } finally {
+                    delete this._makingOffers[key];
+                }
             };
             const sends = Object.keys(peerConnections).map(async (key) => {
                 const pc = peerConnections[key];
@@ -1845,13 +2058,21 @@ function watchParty() {
                 });
                 if (!added) return;
                 if (pc.signalingState !== 'stable') {
-                    const onStable = () => {
-                        if (pc.signalingState !== 'stable') return;
-                        pc.removeEventListener('signalingstatechange', onStable);
-                        sendOffer(key, pc);
-                    };
-                    pc.addEventListener('signalingstatechange', onStable);
-                    return;
+                    // Bounded wait: a stuck negotiation must not block media forever.
+                    const stable = await this.waitForStable(pc);
+                    if (!stable) {
+                        this._warn('publishLocalTracks: signaling still not stable for', key, pc.signalingState);
+                        // The track is already attached; retry the offer once the
+                        // current negotiation settles instead of dropping it.
+                        const retry = (attempt) => {
+                            this.waitForStable(pc).then((ok) => {
+                                if (ok) return sendOffer(key, pc);
+                                if (attempt < 5) setTimeout(() => retry(attempt + 1), 1200);
+                            });
+                        };
+                        setTimeout(() => retry(0), 1200);
+                        return;
+                    }
                 }
                 await sendOffer(key, pc);
             });
@@ -1862,17 +2083,20 @@ function watchParty() {
             const normalized = this.normalizePeer(peer);
             const key = this.peerKey(normalized);
             if (!key || key === this.peerId || key === this.socket?.id) return;
+            this._markPeerSeen(key);
             // Do not create an offer until this client can receive the answer.
             // Otherwise a fast room boot can send an offer before Pusher has
             // finished subscribing, leaving a peer connection stuck in
             // have-local-offer with no answer ever delivered.
             if (!this._roomSubscriptionReady) {
                 this._pendingPeerCalls[key] = normalized;
+                this._log('queued callPeer until subscription', key);
                 return;
             }
             this._callingPeers = this._callingPeers || {};
             if (this._callingPeers[key]) return;
             this._callingPeers[key] = true;
+            this._log('callPeer', key);
 
             this.upsertParticipant({
                 id: normalized.userId || key,
@@ -1893,12 +2117,20 @@ function watchParty() {
             }
 
             try {
+                this._makingOffers[key] = true;
                 const offer = await pc.createOffer();
                 await pc.setLocalDescription(offer);
+                await this.waitForIce(pc);
+                const local = pc.localDescription;
+                if (!local || pc.signalingState !== 'have-local-offer') {
+                    this._warn('offer abandoned for', key, 'state:', pc.signalingState);
+                    return;
+                }
+                this._log('sent offer to', key);
                 this.signal('offer', {
                     targetPeerId: key,
                     targetSocketId: normalized.socketId || key,
-                    sdp: pc.localDescription,
+                    sdp: local,
                     fromPeerId: this.peerId,
                     fromSocketId: this.socket?.id,
                     userId: Number(window.CURRENT_USER_ID) || null,
@@ -1909,6 +2141,7 @@ function watchParty() {
             } catch (e) {
                 console.error('Failed to create offer for', key, e);
             } finally {
+                delete this._makingOffers[key];
                 delete this._callingPeers[key];
             }
         },
@@ -1935,16 +2168,27 @@ function watchParty() {
 
             const pc = this.createPeerConnection(fromKey, from);
             if (!pc) return;
+            this._markPeerSeen(fromKey);
+            this._log('received offer from', fromKey, 'signaling:', pc.signalingState);
 
             try {
-                if (pc.signalingState === 'have-local-offer') {
+                // Perfect negotiation: the impolite peer ignores colliding
+                // offers, the polite peer rolls back and answers.
+                const polite = this._isPolitePeer(fromKey);
+                const makingOffer = !!(this._makingOffers && this._makingOffers[fromKey]);
+                const offerCollision = makingOffer || pc.signalingState !== 'stable';
+                if (!polite && offerCollision) {
+                    this._warn('ignoring colliding offer from', fromKey);
+                    return;
+                }
+                if (offerCollision) {
                     try { await pc.setLocalDescription({ type: 'rollback' }); } catch (e) { /* ignore */ }
                 }
-                if (pc.signalingState !== 'stable' && pc.currentRemoteDescription) return;
                 await pc.setRemoteDescription(new RTCSessionDescription(data.sdp));
                 await this.flushPendingCandidates(fromKey);
                 const answer = await pc.createAnswer();
                 await pc.setLocalDescription(answer);
+                this._log('sent answer to', fromKey);
                 this.signal('answer', {
                     targetPeerId: fromKey,
                     targetSocketId: from.socketId || fromKey,
@@ -1968,9 +2212,15 @@ function watchParty() {
             const pc = peerConnections[fromKey];
             if (!pc) return;
             try {
-                if (!pc.currentRemoteDescription) {
+                // Accept the initial answer and answers to later renegotiation
+                // offers (adding the camera track triggers those).
+                if (pc.signalingState === 'have-local-offer' || !pc.currentRemoteDescription) {
                     await pc.setRemoteDescription(new RTCSessionDescription(data.sdp));
                     await this.flushPendingCandidates(fromKey);
+                    this._log('applied answer from', fromKey);
+                    this._updatePeerReadiness();
+                } else {
+                    this._warn('ignoring answer from', fromKey, 'state:', pc.signalingState);
                 }
             } catch (e) {
                 console.error('Failed to handle answer from', fromKey, e);
@@ -2050,6 +2300,7 @@ function watchParty() {
                 }
             });
             this.participants = this.participants.filter((p) => p.isSelf || !matches(p));
+            this._updatePeerReadiness();
         },
 
         syncPresence(peers) {
@@ -2105,6 +2356,7 @@ function watchParty() {
                         this.removePeer(p);
                     }
                 });
+            this._updatePeerReadiness();
         },
 
         signal(event, data) {
@@ -2148,8 +2400,12 @@ function watchParty() {
             }));
             fetch('../user_backend/room_signal.php', { method: 'POST', body: form })
                 .then(async (response) => {
-                    if (response.ok) return;
+                    if (response.ok) {
+                        this._log('signal sent', mapped, '->', data && (data.targetPeerId || ''));
+                        return;
+                    }
                     const result = await response.json().catch(() => ({}));
+                    this._warn(`room signal ${mapped} failed`, response.status, result.message || response.statusText);
                     console.warn(`Room signal ${mapped} failed:`, result.message || response.statusText);
                     if (!this._signalFailureNotified) {
                         this._signalFailureNotified = true;
@@ -2373,29 +2629,58 @@ function watchParty() {
         },
 
         bindPusherRoom() {
-            if (typeof Pusher === 'undefined' || !this.roomId) return false;
+            if (typeof Pusher === 'undefined' || !this.roomId) {
+                this._warn('Pusher unavailable or room id missing');
+                return false;
+            }
             if (!this.pusherClient) {
                 this.pusherClient = new Pusher(window.PUSHER_KEY || '30110959c92045514bbb', {
                     cluster: window.PUSHER_CLUSTER || 'ap1',
                     encrypted: true,
                     channelAuthorization: { endpoint: '../user_backend/pusher_auth.php', transport: 'ajax' }
                 });
+                this.pusherClient.connection.bind('state_change', (states) => {
+                    this._log('pusher connection', states.previous, '->', states.current);
+                    if (states.current === 'connected' && !this._subscribing && (!this.roomChannel || !this.roomChannel.subscribed) && this.roomId) {
+                        this._subscribeRoomChannel();
+                    }
+                    if ((states.current === 'failed' || states.current === 'unavailable') && !this._roomSubscriptionReady) {
+                        this._retryRoomSubscription();
+                    }
+                });
             }
-            if (this.roomChannel) return true;
+            if (this.roomChannel && this.roomChannel.subscribed) return true;
+            this._subscribeRoomChannel();
+            this.bindPresenceChannel();
+            return true;
+        },
+
+        _subscribeRoomChannel() {
+            if (!this.pusherClient || !this.roomId || this._subscribing) return;
+            this._subscribing = true;
             const channelName = `private-watch-party-${this.roomId}`;
+            if (this.roomChannel) {
+                try { this.pusherClient.unsubscribe(channelName); } catch (e) {}
+            }
             this.roomChannel = this.pusherClient.subscribe(channelName);
             this._roomSubscriptionReady = false;
             this.roomChannel.bind('pusher:subscription_succeeded', () => {
+                this._subscribing = false;
                 this._roomSubscriptionReady = true;
+                this._pusherRetryCount = 0;
+                this._log('room channel subscribed', channelName);
+                this.readiness.pusher = true;
+                this._enterWhenReady();
                 const pending = Object.values(this._pendingPeerCalls || {});
                 this._pendingPeerCalls = {};
                 pending.forEach((peer) => this.callPeer(peer));
             });
             this.roomChannel.bind('pusher:subscription_error', (error) => {
+                this._subscribing = false;
+                this._roomSubscriptionReady = false;
+                this.readiness.pusher = false;
                 console.error('Watch party realtime subscription failed:', error);
-                if (window.showToast) {
-                    window.showToast('Live room signaling could not connect. Reload the room and try again.', 'error');
-                }
+                this._retryRoomSubscription();
             });
             this.bindBanLogout();
             [
@@ -2407,8 +2692,33 @@ function watchParty() {
                 this.roomChannel.bind(event, (data) => this.onRoomEvent(event, data));
             });
             this.liveStatus = 'Live';
-            this.bindPresenceChannel();
-            return true;
+        },
+
+        _retryRoomSubscription() {
+            if (this._exiting) return;
+            this._pusherRetryCount = (this._pusherRetryCount || 0) + 1;
+            const delays = [1000, 3000, 8000, 15000, 30000, 30000];
+            if (this._pusherRetryCount > delays.length) {
+                this._pusherFailed = true;
+                // Never trap the user behind a permanent spinner.
+                this.readiness.pusher = true;
+                this._enterWhenReady();
+                if (window.showToast) {
+                    window.showToast('Live room signaling is unavailable. Rejoin the room to retry.', 'error');
+                }
+                return;
+            }
+            const delay = delays[this._pusherRetryCount - 1];
+            this._warn('retrying room subscription in', delay, 'ms');
+            if (this._pusherRetryTimer) clearTimeout(this._pusherRetryTimer);
+            this._pusherRetryTimer = setTimeout(() => {
+                this._pusherRetryTimer = null;
+                if (this._exiting || !this.pusherClient) return;
+                if (this.pusherClient.connection.state === 'connected') {
+                    this._subscribeRoomChannel();
+                }
+                // While disconnected, the connection state_change handler resubscribes.
+            }, delay);
         },
 
         async announcePresence() {
@@ -2438,12 +2748,14 @@ function watchParty() {
                         border_preview: window.USER_BORDER || ''
                     });
                     this.syncPresence(data.peers);
-                    this.markConnected();
+                    this.readiness.presence = true;
+                    this._updatePeerReadiness();
+                    this._enterWhenReady();
                     this.fetchRoomDetails({ quiet: true });
                     data.peers.forEach(peer => this.callPeer(this.mapRoomPeer(peer)));
                     if (this.localStream) this.publishLocalTracks();
                 } else {
-                    this.markConnected();
+                    this._updateConnectionHint();
                 }
             } catch (e) {
                 console.error('Failed to announce presence', e);
@@ -2483,6 +2795,8 @@ function watchParty() {
                         this.applyPresenceFlags(data.you);
                         if (this.isHost && tick % 3 === 0) this.fetchJoinRequests();
                         if (!data.success || !Array.isArray(data.peers)) return;
+                        this.readiness.presence = true;
+                        if (!this.roomChannel) this.bindPusherRoom();
                         this.syncPresence(data.peers);
                         data.peers.forEach(peer => {
                             const key = peer.peer_id || peer.peerId;
@@ -2542,11 +2856,29 @@ function watchParty() {
                 window.showToast('Live sync is limited. Check your connection.', 'error');
             }
 
+            // Socket.IO only carries the speaking indicator and lobby invites.
+            // Media signaling is Pusher-only, so never block room entry on it.
+            const socketToken = window.NEXUS_SOCKET_TOKEN || '';
+            if (!socketToken) {
+                console.warn('NEXUS_SOCKET_TOKEN is empty; live speaking indicators are unavailable.');
+                this._socketDegraded = true;
+                this.readiness.socket = true;
+                this._enterWhenReady();
+                return;
+            }
+            this._socketGraceTimer = setTimeout(() => {
+                if (this.readiness.socket || this._exiting) return;
+                this._socketDegraded = true;
+                this.readiness.socket = true;
+                this._log('socket.io degraded after grace period');
+                this._enterWhenReady();
+            }, 5000);
+
             const ioClient = await this.ensureSocketIo();
             if (!ioClient) {
-                if (!pusherOk && window.showToast) {
-                    window.showToast('Could not start live room connection.', 'error');
-                }
+                this._socketDegraded = true;
+                this.readiness.socket = true;
+                this._enterWhenReady();
                 return;
             }
 
@@ -2555,11 +2887,17 @@ function watchParty() {
                     ? `${location.protocol}//${location.hostname}:3000`
                     : undefined);
             this.socket = signalingUrl
-                ? ioClient(signalingUrl, { transports: ['polling', 'websocket'], auth: { token: window.NEXUS_SOCKET_TOKEN || '' } })
-                : ioClient({ transports: ['polling', 'websocket'], auth: { token: window.NEXUS_SOCKET_TOKEN || '' } });
+                ? ioClient(signalingUrl, { transports: ['polling', 'websocket'], auth: { token: socketToken } })
+                : ioClient({ transports: ['polling', 'websocket'], auth: { token: socketToken } });
 
             this.socket.on('connect', () => {
-                console.log('Connected to signaling server with ID:', this.socket.id);
+                this._log('socket.io connected', this.socket.id);
+                if (this._socketGraceTimer) {
+                    clearTimeout(this._socketGraceTimer);
+                    this._socketGraceTimer = null;
+                }
+                this.readiness.socket = true;
+                this._enterWhenReady();
                 const myUserId = Number(window.CURRENT_USER_ID);
                 if (myUserId) this.socket.emit('register-user', myUserId);
                 if (this._presenceReady && this.roomId) {
@@ -2570,6 +2908,7 @@ function watchParty() {
 
             this.socket.on('connect_error', (err) => {
                 console.warn('Signaling server connection error:', err.message);
+                this._warn('socket.io connect_error', err.message);
                 if (!this.roomChannel) this.liveStatus = 'Connecting…';
             });
 
