@@ -20,7 +20,7 @@
                     </div>
                     Point Shop
                 </h2>
-                <p class="text-white/50 text-xs max-w-xl font-medium tracking-wide">Redeem your hard-earned points for exclusive profile cosmetics, avatars, and special badges to stand out in the network.</p>
+                <p class="text-white/50 text-xs max-w-xl font-medium tracking-wide">Redeem your hard-earned points for exclusive profile cosmetics to stand out.</p>
             </div>
 
             <div class="flex flex-wrap items-center gap-2">

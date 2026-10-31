@@ -23,7 +23,7 @@
                 <p class="text-white/40 mono text-[11px] sm:text-sm uppercase tracking-widest sm:pl-16">
                     <span x-text="watchlistOccupancy"></span>
                     <span class="text-white/20">·</span>
-                    Queued for protocol initiation
+                    Queue
                 </p>
             </div>
             <div class="flex flex-wrap items-center gap-2 sm:gap-3 md:justify-end">
