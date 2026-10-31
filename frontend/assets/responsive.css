@@ -496,9 +496,20 @@ table {
     display: none;
 }
 
-/* Room chat toggle lives in the control bar on all screen sizes */
+/* Room chat toggle in the control bar is for touch layouts only */
 .wp-chat-toggle {
-    display: flex;
+    display: none;
+}
+
+/* Desktop pulls the chat back out with a right-edge arrow tab */
+.wp-chat-arrow {
+    display: none;
+}
+
+@media (min-width: 1024px) {
+    .wp-chat-arrow {
+        display: inline-block;
+    }
 }
 
 @media (max-width: 1023px) {

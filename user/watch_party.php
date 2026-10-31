@@ -583,6 +583,18 @@ session_write_close();
                 </div> <!-- End Left Overlay -->
             </div> <!-- End Overlays Container -->
 
+            <!-- Chat Toggle Button (Visible when chat is closed, desktop only) -->
+            <button @click="showChat = true"
+                    class="wp-chat-arrow absolute right-0 top-1/2 -translate-y-1/2 bg-black/40 hover:bg-black/60 text-white rounded-l-xl p-2 z-30 transition-all shadow-lg backdrop-blur-md border border-r-0 border-white/10 pointer-events-auto"
+                    x-show="!showChat"
+                    x-transition:enter="transition ease-out duration-300"
+                    x-transition:enter-start="opacity-0 translate-x-4"
+                    x-transition:enter-end="opacity-100 translate-x-0">
+                <span class="material-symbols-outlined">chevron_left</span>
+                <span x-show="isHost && currentJoinRequest"
+                      class="absolute top-1 left-1 w-2 h-2 rounded-full bg-indigo-400 shadow-[0_0_8px_#818cf8] animate-pulse"></span>
+            </button>
+
             <!-- Right: Chat & Activities -->
             <div class="wp-chat absolute right-0 top-0 bottom-0 w-full sm:w-[340px] shrink-0 border-l border-white/10 bg-[#030305]/40 backdrop-blur-md flex flex-col z-20 gs-chat shadow-2xl pointer-events-auto"
                  x-show="showChat"
