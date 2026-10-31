@@ -128,7 +128,7 @@ if (!empty($_SESSION['authenticated']) && !empty($_SESSION['user_id'])) {
                 </span>
                 <span class="nexus-text text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 to-red-500 pr-2">JOIN NEXUS</span>
             </h1>
-            <p class="text-white/50 mt-3 text-sm font-light tracking-wide">Become part of the universe.</p>
+            <p class="text-white/50 mt-3 text-sm font-light tracking-wide">Join Nexus.</p>
         </a>
 
         <!-- Register Card -->

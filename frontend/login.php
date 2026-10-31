@@ -121,7 +121,7 @@ if (!empty($_SESSION['authenticated']) && !empty($_SESSION['user_id'])) {
                 <?php $nexus_logo_class = 'w-10 h-10 relative z-10'; include __DIR__ . '/components/logo_mark.php'; ?>
                 <span class="nexus-text pr-2 group-hover:text-red-400 transition-colors">NEXUS</span>
             </h1>
-            <p class="text-white/50 mt-3 text-sm font-light tracking-wide">Enter the void. Connect your universe.</p>
+            <p class="text-white/50 mt-3 text-sm font-light tracking-wide">Login to Nexus.</p>
         </a>
 
         <!-- Login Card -->

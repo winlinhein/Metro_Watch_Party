@@ -182,7 +182,7 @@ require_once __DIR__ . '/components/otp_boot.php';
         
         <div class="text-center mt-6 gs-stagger text-[10px] uppercase tracking-widest text-white/20 flex justify-between px-4 gs-footer">
             <span>2FA REQUIRED.</span>
-            <span class="flex items-center gap-2">Nexus Protocol <div class="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse shadow-[0_0_8px_rgba(220,38,38,0.8)]"></div></span>
+            <span class="flex items-center gap-2">Nexus <div class="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse shadow-[0_0_8px_rgba(220,38,38,0.8)]"></div></span>
         </div>
     </main>
 
