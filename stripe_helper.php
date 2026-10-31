@@ -19,7 +19,9 @@ if (!defined('STRIPE_PUBLISHABLE_KEY')) {
 }
 
 if (!defined('PREMIUM_PRICE_ID')) {
-    define('PREMIUM_PRICE_ID', nexusAppEnv('PREMIUM_PRICE_ID', 'price_1UTcQX2OBZxVKmwB3vlzJEVQ'));
+    // Empty by default: the stored Stripe price was misconfigured ($499), so
+    // checkout builds its own $4.99/month price from the plans table instead.
+    define('PREMIUM_PRICE_ID', nexusAppEnv('PREMIUM_PRICE_ID', ''));
 }
 if (!defined('PREMIUM_PLAN_ID')) {
     define('PREMIUM_PLAN_ID', 1);
@@ -87,6 +89,9 @@ function stripeCreateCheckoutSession($params) {
         $requestParams['line_items[0][price_data][currency]'] = $priceData['currency'] ?? 'usd';
         $requestParams['line_items[0][price_data][unit_amount]'] = (int) $priceData['unit_amount'];
         $requestParams['line_items[0][price_data][product_data][name]'] = $priceData['name'] ?? 'Nexus Top-up';
+        if (!empty($priceData['recurring']['interval'])) {
+            $requestParams['line_items[0][price_data][recurring][interval]'] = $priceData['recurring']['interval'];
+        }
     }
 
     if (!empty($params['metadata']) && is_array($params['metadata'])) {

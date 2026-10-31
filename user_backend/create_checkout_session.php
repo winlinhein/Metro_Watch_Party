@@ -72,8 +72,17 @@ try {
         exit();
     }
 
-    $session = stripeCreateCheckoutSession([
-        'price_id'    => PREMIUM_PRICE_ID,
+    $plan = nexusPremiumPlan($conn);
+    $pricing = PREMIUM_PRICE_ID !== ''
+        ? ['price_id' => PREMIUM_PRICE_ID]
+        : ['price_data' => [
+            'currency'    => 'usd',
+            'unit_amount' => (int) round(((float)$plan['price']) * 100),
+            'name'        => (string)$plan['name'],
+            'recurring'   => ['interval' => 'month'],
+        ]];
+
+    $session = stripeCreateCheckoutSession($pricing + [
         'mode'        => 'subscription',
         'user_id'     => $userId,
         'success_url' => $successUrl,

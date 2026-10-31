@@ -22,6 +22,23 @@
     }
 })();
 
+// Stripe's SDK is injected by page templates, which barba SPA navigation never
+// re-executes, so load it on demand before building a checkout client.
+window.nexusStripeClient = function () {
+    const key = window.STRIPE_PUBLISHABLE_KEY || 'pk_test_51UQsoq2OBZxVKmwBMxYEXUs4FK4fxMZQ0RLDavRYFXesTEAAHWeS9ymQbHsHEWKKKAVLN8OsUXgo8kLXBkuAlJSx00yjP5HSoZ';
+    if (window.Stripe) return Promise.resolve(window.Stripe(key));
+    return new Promise(function (resolve, reject) {
+        const script = document.createElement('script');
+        script.src = 'https://js.stripe.com/v3/';
+        script.onload = function () {
+            if (window.Stripe) resolve(window.Stripe(key));
+            else reject(new Error('Stripe failed to load'));
+        };
+        script.onerror = function () { reject(new Error('Stripe failed to load')); };
+        document.head.appendChild(script);
+    });
+};
+
 window.nexusLockModalScroll = (function () {
     const open = new Set();
     const capture = { capture: true, passive: false };
@@ -973,7 +990,7 @@ function userDashboard() {
                 const data = await res.json();
                 if (!data.id) throw new Error(data.error || 'Failed to create session');
 
-                const stripe = Stripe(window.STRIPE_PUBLISHABLE_KEY || 'pk_test_51UQsoq2OBZxVKmwBMxYEXUs4FK4fxMZQ0RLDavRYFXesTEAAHWeS9ymQbHsHEWKKKAVLN8OsUXgo8kLXBkuAlJSx00yjP5HSoZ');
+                const stripe = await window.nexusStripeClient();
                 const { error } = await stripe.redirectToCheckout({ sessionId: data.id });
                 if (error) throw error;
             } catch (err) {
@@ -1663,7 +1680,7 @@ function userDashboard() {
                 const data = await res.json();
                 if (!data.id) throw new Error(data.error || 'Failed to create session');
 
-                const stripe = Stripe(window.STRIPE_PUBLISHABLE_KEY || 'pk_test_51UQsoq2OBZxVKmwBMxYEXUs4FK4fxMZQ0RLDavRYFXesTEAAHWeS9ymQbHsHEWKKKAVLN8OsUXgo8kLXBkuAlJSx00yjP5HSoZ');
+                const stripe = await window.nexusStripeClient();
                 const { error } = await stripe.redirectToCheckout({ sessionId: data.id });
                 if (error) throw error;
             } catch (err) {
