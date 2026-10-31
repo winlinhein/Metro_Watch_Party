@@ -496,9 +496,9 @@ table {
     display: none;
 }
 
-/* Room chat toggle only exists in the touch control bar */
+/* Room chat toggle lives in the control bar on all screen sizes */
 .wp-chat-toggle {
-    display: none;
+    display: flex;
 }
 
 @media (max-width: 1023px) {
